@@ -1,0 +1,45 @@
+# Set default behaviour, this overrides core.autocrlf (as
+# no file will have an unspecified text attribute.
+* text=auto
+
+# The following force textmode when it wouldn't otherwise be
+# detected.  Probably best to keep this list short.
+*.asm text
+*.cc text
+*.cpp text
+*.c text
+*.cxx text
+*.hh text
+*.hpp text
+*.h text
+*.txt text
+
+# the following files should always have lf line endings.
+# (any editing that introduces crlf should have that stripped)
+*.awk text eol=lf
+*.sh text eol=lf
+
+# The following should always have line endings normalised to CRLF.
+# Ie, they are represented internally in git using LF and
+# converted to CRLF at checkout.
+*.sln text eol=crlf
+*.vsprops text eol=crlf
+*.vcproj text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf
+*.vcp text eol=crlf
+*.vcw text eol=crlf
+*.dsw text eol=crlf
+*.dsp text eol=crlf
+*.msvc text eol=crlf
+*.bat text eol=crlf
+
+# Denote all files that are truly binary and should not be modified.
+# NB, the binary attribute below disables diff.  Only use this on
+# truly binary files, otherwise use "-text" (see above)
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.xlsm binary
