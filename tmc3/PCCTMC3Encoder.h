@@ -52,8 +52,6 @@
 
 #include "ArithmeticCodec.h"
 
-//#define TMCV3_ENCODER_VERBOSE
-
 namespace pcc {
 struct PCCAttributeEncodeParamaters {
   size_t numberOfNearestNeighborsInPrediction;
@@ -238,7 +236,8 @@ class PCCTMC3Encoder3 {
       if (predictor.maxNeighborCount) {
         const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
         const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const uint32_t diffAttValue = uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
+        const uint32_t diffAttValue =
+            uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
         if (maxAttributeValueDiff0 < diffAttValue) {
           maxAttributeValueDiff0 = diffAttValue;
         }
@@ -267,7 +266,8 @@ class PCCTMC3Encoder3 {
     arithmeticEncoder.start_encoder();
     o3dgc::Static_Bit_Model binaryModel0;
     o3dgc::Adaptive_Data_Model neighborCountModel;
-    neighborCountModel.set_alphabet(uint32_t(reflectanceParams.numberOfNearestNeighborsInPrediction));
+    neighborCountModel.set_alphabet(
+        uint32_t(reflectanceParams.numberOfNearestNeighborsInPrediction));
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
       if (!predictor.neighborCount) {  // no prediction
@@ -301,28 +301,6 @@ class PCCTMC3Encoder3 {
 
   int encodeAttributeHeader(const PCCAttributeEncodeParamaters &attributeParams,
                             const std::string &attributeName, PCCBitstream &bitstream) const {
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << attributeName << " header" << std::endl;
-    std::cout << "\t numberOfNearestNeighborsInPrediction "
-              << attributeParams.numberOfNearestNeighborsInPrediction << std::endl;
-    std::cout << "\t levelOfDetailCount                   " << attributeParams.levelOfDetailCount
-              << std::endl;
-    std::cout << "\t dist2                                ";
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      std::cout << attributeParams.dist2[lodIndex] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\t quantizationSteps                    ";
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      std::cout << attributeParams.quantizationSteps[lodIndex] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\t quantizationDeadZoneSizes            ";
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      std::cout << attributeParams.quantizationDeadZoneSizes[lodIndex] << " ";
-    }
-    std::cout << std::endl << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
     PCCWriteToBuffer<uint8_t>(uint8_t(attributeParams.numberOfNearestNeighborsInPrediction),
                               bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(attributeParams.levelOfDetailCount), bitstream.buffer,
@@ -354,7 +332,8 @@ class PCCTMC3Encoder3 {
         const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
         const int64_t quantAttValue = color[0];
         const int64_t quantPredAttValue = predictedColor[0];
-        const uint32_t diffAttValue = uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
+        const uint32_t diffAttValue =
+            uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
         if (maxAttributeValueDiff0 < diffAttValue) {
           maxAttributeValueDiff0 = diffAttValue;
         }
@@ -462,9 +441,6 @@ class PCCTMC3Encoder3 {
     return 0;
   }
   void computeColorPredictionWeights(const PCCAttributeEncodeParamaters &attributeParams) {
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "computing colors prediction weights" << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
     const size_t pointCount = predictors.size();
     double bestCost = std::numeric_limits<double>::max();
     size_t bestNeighborCount = 1;
@@ -492,22 +468,11 @@ class PCCTMC3Encoder3 {
           cost += delta1;
         }
       }
-#ifdef TMCV3_ENCODER_VERBOSE
-      std::cout << "\t neighborCount " << neighborCount << " " << (cost / (3.0 * pointCount))
-                << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
-
       if (cost < bestCost) {
         bestCost = cost;
         bestNeighborCount = neighborCount;
       }
     }
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "\t -> bestNeighborCount " << bestNeighborCount << " "
-              << (bestCost / (3.0 * pointCount)) << std::endl
-              << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
-
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       auto &predictor = predictors[predictorIndex];
       if (!predictor.maxNeighborCount) {
@@ -517,9 +482,6 @@ class PCCTMC3Encoder3 {
     }
   }
   void computeReflectancePredictionWeights(const PCCAttributeEncodeParamaters &attributeParams) {
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "computing reflectance prediction weights" << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
     const size_t pointCount = predictors.size();
     double bestCost = std::numeric_limits<double>::max();
     size_t bestNeighborCount = 1;
@@ -541,21 +503,11 @@ class PCCTMC3Encoder3 {
         const uint32_t delta1 = o3dgc::IntToUInt(long(delta0));
         cost += delta1;
       }
-#ifdef TMCV3_ENCODER_VERBOSE
-      std::cout << "\t neighborCount " << neighborCount << " " << (cost / pointCount) << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
-
       if (cost < bestCost) {
         bestCost = cost;
         bestNeighborCount = neighborCount;
       }
     }
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "\t -> bestNeighborCount " << bestNeighborCount << " " << (bestCost / pointCount)
-              << std::endl
-              << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
-
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       auto &predictor = predictors[predictorIndex];
       if (!predictor.maxNeighborCount) {
@@ -571,24 +523,6 @@ class PCCTMC3Encoder3 {
     PCCBuildPredictors(pointCloud, attributeParams.numberOfNearestNeighborsInPrediction,
                        attributeParams.levelOfDetailCount, attributeParams.dist2, predictors,
                        numberOfPointsPerLOD, indexes);
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "building predictors" << std::endl;
-    for (size_t lodIndex = 0; lodIndex < numberOfPointsPerLOD.size(); ++lodIndex) {
-      std::cout << "\t LOD " << lodIndex << " -> " << numberOfPointsPerLOD[lodIndex] << std::endl;
-    }
-    for (size_t lodIndex = 0; lodIndex < numberOfPointsPerLOD.size(); ++lodIndex) {
-      const size_t pointCount = numberOfPointsPerLOD[lodIndex];
-      PCCPointSet3 pointSet;
-      pointSet.resize(pointCount);
-      for (size_t i = 0; i < pointCount; ++i) {
-        pointSet[i] = pointCloud[indexes[i]];
-      }
-      std::stringstream fileName;
-      fileName << "LOD_" << lodIndex << ".ply";
-      pointSet.write(fileName.str().c_str());
-    }
-    std::cout << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
   }
   void reconstructedPointCloud(const PCCTMC3Encoder3Parameters &params,
                                PCCPointSet3 *reconstructedCloud) {
@@ -672,7 +606,8 @@ class PCCTMC3Encoder3 {
           arithmeticEncoder.encode(1, singlePointPerBlock);
         } else {
           arithmeticEncoder.encode(0, singlePointPerBlock);
-          arithmeticEncoder.ExpGolombEncode(uint32_t(count - 1), 0, bModel0, bModelPointCountPerBlock);
+          arithmeticEncoder.ExpGolombEncode(uint32_t(count - 1), 0, bModel0,
+                                            bModelPointCountPerBlock);
         }
         processedPointCount += count;
       } else {
@@ -688,7 +623,7 @@ class PCCTMC3Encoder3 {
             int64_t splitIndex = int64_t(node.start);
             if (node.end > node.start) {
               assert(node.end > 0);
-			  int64_t last = int64_t(node.end - 1);
+              int64_t last = int64_t(node.end - 1);
               while (splitIndex <= last) {
                 assert(splitIndex <= node.end);
                 assert(last >= node.start);
@@ -737,20 +672,6 @@ class PCCTMC3Encoder3 {
   }
   int encodePositionsHeader(const PCCTMC3Encoder3Parameters &params,
                             PCCBitstream &bitstream) const {
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "positions header" << std::endl;
-    std::cout << "\t pointCount                " << pointCloud.getPointCount() << std::endl;
-    std::cout << "\t hasColors                 " << pointCloud.hasColors() << std::endl;
-    std::cout << "\t hasReflectances           " << pointCloud.hasReflectances() << std::endl;
-    std::cout << "\t minPositions              " << minPositions[0] << ", " << minPositions[1]
-              << ", " << minPositions[2] << std::endl;
-    std::cout << "\t boundingBox               (" << boundingBox.min[0] << ", "
-              << boundingBox.min[1] << ", " << boundingBox.min[2] << ") (" << boundingBox.max[0]
-              << ", " << boundingBox.max[1] << ", " << boundingBox.max[2] << ")" << std::endl;
-    std::cout << "\t positionQuantizationScale " << params.positionQuantizationScale << std::endl;
-    std::cout << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
-
     PCCWriteToBuffer<uint32_t>(uint32_t(pointCloud.getPointCount()), bitstream.buffer,
                                bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
@@ -883,15 +804,6 @@ class PCCTMC3Encoder3 {
         }
       }
     }
-
-#ifdef TMCV3_ENCODER_VERBOSE
-    std::cout << "quantization" << std::endl;
-    std::cout << "\t input point count     " << inputPointCloud.getPointCount() << std::endl;
-    std::cout << "\t quantized point count " << pointCloud.getPointCount() << std::endl;
-    std::cout << "\t compress color        " << pointCloud.hasColors() << std::endl;
-    std::cout << "\t compress reflectance  " << pointCloud.hasReflectances() << std::endl;
-    std::cout << std::endl;
-#endif  // TMCV3_ENCODER_VERBOSE
     return 0;
   }
 

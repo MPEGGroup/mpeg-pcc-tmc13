@@ -486,8 +486,8 @@ class PCCIncrementalKdTree3 {
         return PCC_AXIS3_X;
       case PCC_AXIS3_UNDEFINED:
         return PCC_AXIS3_X;
-	  default:
-		  return PCC_AXIS3_X;
+      default:
+        return PCC_AXIS3_X;
     }
   }
   void insert(PCCIncrementalKdTree3Node &node, const uint32_t parent) {

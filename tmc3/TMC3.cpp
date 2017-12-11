@@ -66,8 +66,18 @@ void Usage() {
             << std::endl;
 
   std::cout << "+ Usage" << std::endl;
-  std::cout << "\t Encode example: \n tmc3 --mode 0 --mergeDuplicatedPoints 1 --uncompressedDataPath Ford_01-0100.ply --compressedStreamPath compressed.bin --colorTransform 1 --numberOfNearestNeighborsInPrediction 8 --positionQuantizationScale 500.0 --levelOfDetailCount 6 --dist2 16777216 4194304 1048576 262144 65536 0 --quantizationSteps 1 1 1 2 2 2 --quantizationDeadZoneSizes 1 1 1 2 2 2 --searchRange 2 --attribute color --attribute reflectance" << std::endl << std::endl;
-  std::cout << "\t Decode example: \n tmc3 --mode 1 --compressedStreamPath compressed.bin --reconstructedDataPath reconstructed_dec.ply --colorTransform 1" << std::endl << std::endl;
+  std::cout << "\t Encode example: \n tmc3 --mode 0 --mergeDuplicatedPoints 1 "
+               "--uncompressedDataPath Ford_01-0100.ply --compressedStreamPath compressed.bin "
+               "--colorTransform 1 --numberOfNearestNeighborsInPrediction 8 "
+               "--positionQuantizationScale 500.0 --levelOfDetailCount 6 --dist2 16777216 4194304 "
+               "1048576 262144 65536 0 --quantizationSteps 1 1 1 2 2 2 --quantizationDeadZoneSizes "
+               "1 1 1 2 2 2 --searchRange 2 --attribute color --attribute reflectance"
+            << std::endl
+            << std::endl;
+  std::cout << "\t Decode example: \n tmc3 --mode 1 --compressedStreamPath compressed.bin "
+               "--reconstructedDataPath reconstructed_dec.ply --colorTransform 1"
+            << std::endl
+            << std::endl;
   std::cout << std::endl;
 }
 

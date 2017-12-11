@@ -48,8 +48,6 @@
 
 #include "ArithmeticCodec.h"
 
-//#define TMCV3_DECODER_VERBOSE
-
 namespace pcc {
 
 class PCCTMC3Decoder3 {
@@ -319,24 +317,6 @@ class PCCTMC3Decoder3 {
     std::vector<uint32_t> indexes;
     PCCBuildPredictors(pointCloud, numberOfNearestNeighborsInPrediction, levelOfDetailCount, dist2,
                        predictors, numberOfPointsPerLOD, indexes);
-#ifdef TMCV3_DECODER_VERBOSE
-    std::cout << "building predictors" << std::endl;
-    for (size_t lodIndex = 0; lodIndex < numberOfPointsPerLOD.size(); ++lodIndex) {
-      std::cout << "\t LOD " << lodIndex << " -> " << numberOfPointsPerLOD[lodIndex] << std::endl;
-    }
-    for (size_t lodIndex = 0; lodIndex < numberOfPointsPerLOD.size(); ++lodIndex) {
-      const size_t pointCount = numberOfPointsPerLOD[lodIndex];
-      PCCPointSet3 pointSet;
-      pointSet.resize(pointCount);
-      for (size_t i = 0; i < pointCount; ++i) {
-        pointSet[i] = pointCloud[indexes[i]];
-      }
-      std::stringstream fileName;
-      fileName << "LOD_dec" << lodIndex << ".ply";
-      pointSet.write(fileName.str().c_str());
-    }
-    std::cout << std::endl;
-#endif  // TMCV3_DECODER_VERBOSE
   }
 
   int decodeAttributeHeader(const std::string &attributeName, PCCBitstream &bitstream) {
@@ -368,28 +348,6 @@ class PCCTMC3Decoder3 {
       PCCReadFromBuffer<uint16_t>(bitstream.buffer, dz, bitstream.size);
       quantizationDeadZoneSizes[lodIndex] = dz;
     }
-
-#ifdef TMCV3_DECODER_VERBOSE
-    std::cout << attributeName << " header" << std::endl;
-    std::cout << "\t numberOfNearestNeighborsInPrediction " << numberOfNearestNeighborsInPrediction
-              << std::endl;
-    std::cout << "\t levelOfDetailCount                   " << levelOfDetailCount << std::endl;
-    std::cout << "\t dist2                                ";
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      std::cout << dist2[lodIndex] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\t quantizationSteps                    ";
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      std::cout << quantizationSteps[lodIndex] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\t quantizationDeadZoneSizes            ";
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      std::cout << quantizationDeadZoneSizes[lodIndex] << " ";
-    }
-    std::cout << std::endl << std::endl;
-#endif  // TMCV3_DECODER_VERBOSE
     return 0;
   }
 
@@ -423,20 +381,6 @@ class PCCTMC3Decoder3 {
     if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
       positionQuantizationScale = 1.0;
     }
-
-#ifdef TMCV3_DECODER_VERBOSE
-    std::cout << "Positions Header" << std::endl;
-    std::cout << "\t pointCount                " << pointCloud.getPointCount() << std::endl;
-    std::cout << "\t hasColors                 " << pointCloud.hasColors() << std::endl;
-    std::cout << "\t hasReflectances           " << pointCloud.hasReflectances() << std::endl;
-    std::cout << "\t minPositions              " << minPositions[0] << ", " << minPositions[1]
-              << ", " << minPositions[2] << std::endl;
-    std::cout << "\t boundingBox               (" << boundingBox.min[0] << ", "
-              << boundingBox.min[1] << ", " << boundingBox.min[2] << ") (" << boundingBox.max[0]
-              << ", " << boundingBox.max[1] << ", " << boundingBox.max[2] << ")" << std::endl;
-    std::cout << "\t positionQuantizationScale " << positionQuantizationScale << std::endl;
-    std::cout << std::endl;
-#endif  // TMCV3_DECODER_VERBOSE
     return 0;
   }
   int decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {

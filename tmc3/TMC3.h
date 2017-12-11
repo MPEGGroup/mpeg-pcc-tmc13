@@ -45,10 +45,10 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
-#include <memory>
 
 #include "PCCPointSet.h"
 #include "PCCTMC3Decoder.h"
