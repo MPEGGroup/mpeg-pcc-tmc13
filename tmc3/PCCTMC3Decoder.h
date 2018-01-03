@@ -69,7 +69,63 @@ class PCCTMC3Decoder3 {
     quantizationDeadZoneSizes.clear();
     predictors.clear();
   }
+  int decompressWithLosslessGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+    init();
+    uint32_t magicNumber = 0;
+    uint32_t formatVersion = 0;
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, magicNumber, bitstream.size);
+    if (magicNumber != PCCTMC3MagicNumber) {
+      std::cout << "Error: corrupted bistream!" << std::endl;
+      return -1;
+    }
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, formatVersion, bitstream.size);
+    if (formatVersion != PCCTMC3FormatVersion) {
+      std::cout << "Error: bistream version not supported!" << std::endl;
+      return -1;
+    }
+    uint8_t hasColors = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
+    uint8_t hasReflectances = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
+    if (hasColors) {
+      pointCloud.addColors();
+    } else {
+      pointCloud.removeColors();
+    }
+    if (hasReflectances) {
+      pointCloud.addReflectances();
+    } else {
+      pointCloud.removeReflectances();
+    }
 
+    if (pointCloud.hasColors()) {
+      uint64_t colorsSize = bitstream.size;
+      if (int ret = decodeAttributeHeader("color", bitstream)) {
+        return ret;
+      }
+      buildPredictors(pointCloud, 0.001);
+      if (int ret = decodeColors(bitstream, pointCloud)) {
+        return ret;
+      }
+      colorsSize = bitstream.size - colorsSize;
+      std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
+      std::cout << std::endl;
+    }
+
+    if (pointCloud.hasReflectances()) {
+      uint64_t reflectancesSize = bitstream.size;
+      if (int ret = decodeAttributeHeader("reflectance", bitstream)) {
+        return ret;
+      }
+      buildPredictors(pointCloud, 0.001);
+      if (int ret = decodeReflectances(bitstream, pointCloud)) {
+        return ret;
+      }
+      reflectancesSize = bitstream.size - reflectancesSize;
+      std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
+    }
+    return 0;
+  }
   int decompress(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     init();
     uint32_t magicNumber = 0;
@@ -312,11 +368,11 @@ class PCCTMC3Decoder3 {
     bitstream.size += compressedBitstreamSize;
     return 0;
   }
-  void buildPredictors(const PCCPointSet3 &pointCloud) {
+  void buildPredictors(const PCCPointSet3 &pointCloud, const double dist2Scale = 1.0) {
     std::vector<uint32_t> numberOfPointsPerLOD;
     std::vector<uint32_t> indexes;
     PCCBuildPredictors(pointCloud, numberOfNearestNeighborsInPrediction, levelOfDetailCount, dist2,
-                       predictors, numberOfPointsPerLOD, indexes);
+                       dist2Scale, predictors, numberOfPointsPerLOD, indexes);
   }
 
   int decodeAttributeHeader(const std::string &attributeName, PCCBitstream &bitstream) {

@@ -231,9 +231,16 @@ class PCCPointSet3 {
       }
     }
     fout << "element vertex " << pointCount << std::endl;
-    fout << "property float64 x" << std::endl;
-    fout << "property float64 y" << std::endl;
-    fout << "property float64 z" << std::endl;
+    if (asAscii) {
+      fout << "property float x" << std::endl;
+      fout << "property float y" << std::endl;
+      fout << "property float z" << std::endl;
+    } else {
+      fout << "property float64 x" << std::endl;
+      fout << "property float64 y" << std::endl;
+      fout << "property float64 z" << std::endl;
+    }
+
     if (hasColors()) {
       fout << "property uchar red" << std::endl;
       fout << "property uchar green" << std::endl;
@@ -246,7 +253,8 @@ class PCCPointSet3 {
     fout << "property list uint8 int32 vertex_index" << std::endl;
     fout << "end_header" << std::endl;
     if (asAscii) {
-      fout << std::setprecision(std::numeric_limits<double>::max_digits10);
+      //      fout << std::setprecision(std::numeric_limits<double>::max_digits10);
+      fout << std::fixed << std::setprecision(5);
       for (size_t i = 0; i < pointCount; ++i) {
         const PCCPoint3D &position = (*this)[i];
         fout << position.x() << " " << position.y() << " " << position.z();

@@ -141,7 +141,7 @@ inline int64_t PCCInverseQuantization(const int64_t value, const int64_t qs, int
 inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
                                const size_t numberOfNearestNeighborsInPrediction,
                                const size_t levelOfDetailCount, const std::vector<size_t> &dist2,
-                               std::vector<PCCPredictor> &predictors,
+                               const double dist2Scale, std::vector<PCCPredictor> &predictors,
                                std::vector<uint32_t> &numberOfPointsPerLOD,
                                std::vector<uint32_t> &indexes) {
   const size_t pointCount = pointCloud.getPointCount();
@@ -164,7 +164,7 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
   for (size_t lodIndex = 0; lodIndex < levelOfDetailCount && indexes.size() < pointCount;
        ++lodIndex) {
     const bool filterByDistance = (lodIndex + 1) != levelOfDetailCount;
-    const double minDist2 = double(dist2[lodIndex]);
+    const double minDist2 = dist2[lodIndex] * dist2Scale;
     nNQuery.radius = minDist2;
     size_t balanceTargetPointCount = initialBalanceTargetPointCount;
     for (uint32_t current = 0; current < pointCount; ++current) {

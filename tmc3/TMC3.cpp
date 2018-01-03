@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   }
   const auto start = std::chrono::high_resolution_clock::now();
   int ret = 0;
-  if (params.mode == CODEC_MODE_ENCODE) {
+  if (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
     ret = Compress(params);
   } else {
     ret = Decompress(params);
@@ -103,6 +103,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
         attributeEncodeParams.quantizationSteps.resize(attributeEncodeParams.levelOfDetailCount);
         attributeEncodeParams.quantizationDeadZoneSizes.resize(
             attributeEncodeParams.levelOfDetailCount);
+        attributeEncodeParams.dist2.resize(attributeEncodeParams.levelOfDetailCount);
       }
     } else if (!strcmp(argv[i], "--quantizationSteps")) {
       for (size_t k = 0; k < attributeEncodeParams.levelOfDetailCount; ++k) {
@@ -123,18 +124,28 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     } else if (!strcmp(argv[i], "--positionQuantizationScale")) {
       if (++i < argc) params.encodeParameters.positionQuantizationScale = atof(argv[i]);
     } else if (!strcmp(argv[i], "--mergeDuplicatedPoints")) {
-      if (++i < argc) params.encodeParameters.mergeDuplicatedPoints = argv[i] != 0;
+      if (++i < argc) params.encodeParameters.mergeDuplicatedPoints = atoi(argv[i]) != 0;
     }
   }
 
+  const bool encode =
+      (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY);
   cout << "+ Parameters" << endl;
-  cout << "\t mode                        "
-       << ((params.mode == CODEC_MODE_ENCODE) ? "encode" : "decode") << endl;
+  cout << "\t mode                        ";
+  if (params.mode == CODEC_MODE_ENCODE) {
+    cout << "encode" << endl;
+  } else if (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
+    cout << "encode with lossless geometry" << endl;
+  } else if (params.mode == CODEC_MODE_DECODE) {
+    cout << "decode" << endl;
+  } else if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY) {
+    cout << "decode with lossless geometry" << endl;
+  }
   cout << "\t uncompressedDataPath        " << params.uncompressedDataPath << endl;
   cout << "\t compressedStreamPath        " << params.compressedStreamPath << endl;
   cout << "\t reconstructedDataPath       " << params.reconstructedDataPath << endl;
   cout << "\t colorTransform              " << params.colorTransform << endl;
-  if (params.mode == CODEC_MODE_ENCODE) {
+  if (encode) {
     cout << "\t mergeDuplicatedPoints       " << params.encodeParameters.mergeDuplicatedPoints
          << endl;
     cout << "\t positionQuantizationScale   " << params.encodeParameters.positionQuantizationScale
@@ -166,11 +177,13 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     cout << endl;
   }
 
-  const bool test1 = (params.mode == CODEC_MODE_ENCODE) &&
-                     (params.uncompressedDataPath.empty() || params.compressedStreamPath.empty());
-  const bool test2 = params.mode == CODEC_MODE_DECODE &&
-                     (params.reconstructedDataPath.empty() || params.compressedStreamPath.empty());
-  if (test1 || test2) {
+  const bool test1 =
+      encode && (params.uncompressedDataPath.empty() || params.compressedStreamPath.empty());
+  const bool test2 =
+      !encode && (params.reconstructedDataPath.empty() || params.compressedStreamPath.empty());
+  const bool test3 =
+      params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY && params.uncompressedDataPath.empty();
+  if (test1 || test2 || test3) {
     return false;
   }
   return true;
@@ -199,11 +212,16 @@ int Compress(const Parameters &params) {
     reconstructedPointCloud.reset(new PCCPointSet3);
   }
 
-  if (encoder.compress(pointCloud, params.encodeParameters, bitstream,
-                       reconstructedPointCloud.get())) {
+  if ((params.mode == CODEC_MODE_ENCODE &&
+       encoder.compress(pointCloud, params.encodeParameters, bitstream,
+                        reconstructedPointCloud.get())) ||
+      (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY &&
+       encoder.compressWithLosslessGeometry(pointCloud, params.encodeParameters, bitstream,
+                                            reconstructedPointCloud.get()))) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
   }
+
   assert(bitstream.size <= bitstream.capacity);
   std::cout << "Total bitstream size " << bitstream.size << " B" << std::endl;
   ofstream fout(params.compressedStreamPath, ios::binary);
@@ -243,7 +261,18 @@ int Decompress(const Parameters &params) {
 
   PCCTMC3Decoder3 decoder;
   PCCPointSet3 pointCloud;
-  if (decoder.decompress(bitstream, pointCloud)) {
+  if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY) {  // read geometry from input file
+    if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
+      cout << "Error: can't open input file!" << endl;
+      return -1;
+    }
+    pointCloud.removeReflectances();
+    pointCloud.removeColors();
+  }
+
+  if ((params.mode == CODEC_MODE_DECODE && decoder.decompress(bitstream, pointCloud)) ||
+      (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY &&
+       decoder.decompressWithLosslessGeometry(bitstream, pointCloud))) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;
   }

@@ -58,7 +58,12 @@
 
 enum ColorTransform { COLOR_TRANSFORM_NONE = 0, COLOR_TRANSFORM_RGB_TO_YCBCR = 1 };
 
-enum CodecMode { CODEC_MODE_ENCODE = 0, CODEC_MODE_DECODE = 1 };
+enum CodecMode {
+  CODEC_MODE_ENCODE = 0,
+  CODEC_MODE_DECODE = 1,
+  CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY = 2,
+  CODEC_MODE_DECODE_LOSSLESS_GEOMETRY = 3,
+};
 
 struct Parameters {
   std::string uncompressedDataPath;
