@@ -125,6 +125,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       if (++i < argc) params.encodeParameters.positionQuantizationScale = atof(argv[i]);
     } else if (!strcmp(argv[i], "--mergeDuplicatedPoints")) {
       if (++i < argc) params.encodeParameters.mergeDuplicatedPoints = atoi(argv[i]) != 0;
+    } else if (!strcmp(argv[i], "--roundOutputPositions")) {
+        if (++i < argc) params.roundOutputPositions = atoi(argv[i]) != 0;
     }
   }
 
@@ -150,7 +152,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
          << endl;
     cout << "\t positionQuantizationScale   " << params.encodeParameters.positionQuantizationScale
          << endl;
-    for (const auto attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
+    for (const auto & attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
       cout << "\t " << attributeEncodeParameters.first << endl;
       cout << "\t\t numberOfNearestNeighborsInPrediction   "
            << attributeEncodeParameters.second.numberOfNearestNeighborsInPrediction << endl;
@@ -175,6 +177,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       cout << endl;
     }
     cout << endl;
+  } else {
+      cout << "\t roundOutputPositions        " << params.roundOutputPositions << endl;
   }
 
   const bool test1 =
@@ -270,7 +274,7 @@ int Decompress(const Parameters &params) {
     pointCloud.removeColors();
   }
 
-  if ((params.mode == CODEC_MODE_DECODE && decoder.decompress(bitstream, pointCloud)) ||
+  if ((params.mode == CODEC_MODE_DECODE && decoder.decompress(bitstream, pointCloud, params.roundOutputPositions)) ||
       (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY &&
        decoder.decompressWithLosslessGeometry(bitstream, pointCloud))) {
     cout << "Error: can't decompress point cloud!" << endl;

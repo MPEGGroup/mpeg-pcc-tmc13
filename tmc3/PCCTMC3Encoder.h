@@ -156,7 +156,7 @@ class PCCTMC3Encoder3 {
       if (int ret = encodeAttributeHeader(colorParams, "color", bitstream)) {
         return ret;
       }
-      buildPredictors(colorParams, 0.001);
+      buildPredictors(colorParams);
       computeColorPredictionWeights(colorParams);
       if (int ret = encodeColors(colorParams, bitstream)) {
         return ret;
@@ -172,7 +172,7 @@ class PCCTMC3Encoder3 {
       if (int ret = encodeAttributeHeader(reflectanceParams, "reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(reflectanceParams, 0.001);
+      buildPredictors(reflectanceParams);
       computeReflectancePredictionWeights(reflectanceParams);
       if (int ret = encodeReflectances(reflectanceParams, bitstream)) {
         return ret;
@@ -531,11 +531,13 @@ class PCCTMC3Encoder3 {
           cost += delta1;
         }
       }
+
       if (cost < bestCost) {
         bestCost = cost;
         bestNeighborCount = neighborCount;
       }
     }
+
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       auto &predictor = predictors[predictorIndex];
       if (!predictor.maxNeighborCount) {
@@ -566,7 +568,6 @@ class PCCTMC3Encoder3 {
         const uint32_t delta1 = uint32_t(o3dgc::IntToUInt(long(delta0)));
         cost += delta1;
       }
-
       if (cost < bestCost) {
         bestCost = cost;
         bestNeighborCount = neighborCount;
@@ -581,12 +582,11 @@ class PCCTMC3Encoder3 {
     }
   }
 
-  void buildPredictors(const PCCAttributeEncodeParamaters &attributeParams,
-                       const double dist2Scale = 1.0) {
+  void buildPredictors(const PCCAttributeEncodeParamaters &attributeParams) {
     std::vector<uint32_t> numberOfPointsPerLOD;
     std::vector<uint32_t> indexes;
     PCCBuildPredictors(pointCloud, attributeParams.numberOfNearestNeighborsInPrediction,
-                       attributeParams.levelOfDetailCount, attributeParams.dist2, dist2Scale,
+                       attributeParams.levelOfDetailCount, attributeParams.dist2,
                        predictors, numberOfPointsPerLOD, indexes);
   }
   void reconstructedPointCloud(const PCCTMC3Encoder3Parameters &params,
@@ -616,8 +616,7 @@ class PCCTMC3Encoder3 {
       const auto quantizedPoint = pointCloud[i];
       auto &point = (*reconstructedCloud)[i];
       for (size_t k = 0; k < 3; ++k) {
-        point[k] = quantizedPoint[k] * invScale + minPositions[k];
-        //          point[k] = std::round(quantizedPoint[k] * invScale + minPositions[k]);
+         point[k] = quantizedPoint[k] * invScale + minPositions[k];
       }
       if (pointCloud.hasColors()) {
         reconstructedCloud->setColor(i, pointCloud.getColor(i));

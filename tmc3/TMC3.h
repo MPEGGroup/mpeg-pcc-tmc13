@@ -71,11 +71,13 @@ struct Parameters {
   std::string reconstructedDataPath;
   size_t colorTransform;
   size_t mode;
+  bool roundOutputPositions;
   pcc::PCCTMC3Encoder3Parameters encodeParameters;
 
   Parameters(void) {
     mode = CODEC_MODE_ENCODE;
     colorTransform = COLOR_TRANSFORM_RGB_TO_YCBCR;
+    roundOutputPositions = false;
   }
 };
 

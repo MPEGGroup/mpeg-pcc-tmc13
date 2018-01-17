@@ -85,7 +85,7 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
       const double H = double(colors2.size());
       const PCCVector3D centroid1(color1[0], color1[1], color1[2]);
       PCCVector3D centroid2(0.0);
-      for (const auto color2 : colors2) {
+      for (const auto& color2 : colors2) {
         for (size_t k = 0; k < 3; ++k) {
           centroid2[k] += color2[k];
         }
@@ -93,7 +93,7 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
       centroid2 /= H;
 
       double D2 = 0.0;
-      for (const auto color2 : colors2) {
+      for (const auto& color2 : colors2) {
         for (size_t k = 0; k < 3; ++k) {
           const double d2 = centroid2[k] - color2[k];
           D2 += d2 * d2;
@@ -141,7 +141,7 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
               e1 *= rTarget;
 
               double e2 = 0.0;
-              for (const auto color2 : colors2) {
+              for (const auto& color2 : colors2) {
                 for (size_t k = 0; k < 3; ++k) {
                   const double d = color[k] - color2[k];
                   e2 += d * d;

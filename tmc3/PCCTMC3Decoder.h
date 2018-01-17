@@ -47,7 +47,6 @@
 #include "PCCTMC3Common.h"
 
 #include "ArithmeticCodec.h"
-
 namespace pcc {
 
 class PCCTMC3Decoder3 {
@@ -103,7 +102,7 @@ class PCCTMC3Decoder3 {
       if (int ret = decodeAttributeHeader("color", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud, 0.001);
+      buildPredictors(pointCloud);
       if (int ret = decodeColors(bitstream, pointCloud)) {
         return ret;
       }
@@ -117,7 +116,7 @@ class PCCTMC3Decoder3 {
       if (int ret = decodeAttributeHeader("reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud, 0.001);
+      buildPredictors(pointCloud);
       if (int ret = decodeReflectances(bitstream, pointCloud)) {
         return ret;
       }
@@ -126,7 +125,7 @@ class PCCTMC3Decoder3 {
     }
     return 0;
   }
-  int decompress(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+  int decompress(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, const bool roundOutputPositions) {
     init();
     uint32_t magicNumber = 0;
     uint32_t formatVersion = 0;
@@ -178,8 +177,7 @@ class PCCTMC3Decoder3 {
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
 
-    inverseQuantization(pointCloud);
-
+    inverseQuantization(pointCloud, roundOutputPositions);
     return 0;
   }
 
@@ -368,11 +366,11 @@ class PCCTMC3Decoder3 {
     bitstream.size += compressedBitstreamSize;
     return 0;
   }
-  void buildPredictors(const PCCPointSet3 &pointCloud, const double dist2Scale = 1.0) {
+  void buildPredictors(const PCCPointSet3 &pointCloud) {
     std::vector<uint32_t> numberOfPointsPerLOD;
     std::vector<uint32_t> indexes;
     PCCBuildPredictors(pointCloud, numberOfNearestNeighborsInPrediction, levelOfDetailCount, dist2,
-                       dist2Scale, predictors, numberOfPointsPerLOD, indexes);
+                       predictors, numberOfPointsPerLOD, indexes);
   }
 
   int decodeAttributeHeader(const std::string &attributeName, PCCBitstream &bitstream) {
@@ -525,16 +523,25 @@ class PCCTMC3Decoder3 {
     bitstream.size += compressedBitstreamSize;
     return 0;
   }
-  void inverseQuantization(PCCPointSet3 &pointCloud) {
+  void inverseQuantization(PCCPointSet3 &pointCloud, const bool roundOutputPositions) {
     const size_t pointCount = pointCloud.getPointCount();
     const double invScale = 1.0 / positionQuantizationScale;
-    for (size_t i = 0; i < pointCount; ++i) {
-      auto &point = pointCloud[i];
-      for (size_t k = 0; k < 3; ++k) {
-        point[k] = point[k] * invScale + minPositions[k];
-        //          point[k] = std::round(point[k] * invScale + minPositions[k]);
+      
+      if (roundOutputPositions) {
+          for (size_t i = 0; i < pointCount; ++i) {
+              auto &point = pointCloud[i];
+              for (size_t k = 0; k < 3; ++k) {
+                  point[k] = std::round(point[k] * invScale + minPositions[k]);
+              }
+          }
+      } else {
+          for (size_t i = 0; i < pointCount; ++i) {
+              auto &point = pointCloud[i];
+              for (size_t k = 0; k < 3; ++k) {
+                  point[k] = point[k] * invScale + minPositions[k];
+              }
+          }
       }
-    }
   }
 
  private:
