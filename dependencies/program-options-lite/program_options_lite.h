@@ -77,6 +77,16 @@ namespace df
     void setDefaults(Options& opts);
     void parseConfigFile(Options& opts, const std::string& filename, ErrorReporter& error_reporter = default_error_reporter);
 
+    /* Generic parsing */
+    template<typename T>
+    inline void
+    parse_into(T& dest, const std::string& src)
+    {
+      std::istringstream src_ss (src, std::istringstream::in);
+      src_ss.exceptions(std::ios::failbit);
+      src_ss >> dest;
+    }
+
     /** OptionBase: Virtual base class for storing information relating to a
      * specific option This base class describes common elements.  Type specific
      * information should be stored in a derived class. */
@@ -109,7 +119,14 @@ namespace df
       : OptionBase(name, desc), opt_storage(storage), opt_default_val(default_val)
       {}
 
-      void parse(const std::string& arg, ErrorReporter&);
+      void parse(const std::string& arg, ErrorReporter&) {
+        try {
+          parse_into(opt_storage, arg);
+        }
+        catch (...) {
+          throw ParseFailure(opt_string, arg);
+        }
+      }
 
       void setDefault()
       {
@@ -125,22 +142,72 @@ namespace df
       T opt_default_val;
     };
 
-    /* Generic parsing */
-    template<typename T>
-    inline void
-    Option<T>::parse(const std::string& arg, ErrorReporter&)
+    /**
+     * Container type specific option storage.
+     *
+     * The option's argument is split by ',' and whitespace.  Runs of
+     * whitespace are ignored. Compare:
+     *  "a, b,c,,e" = {T1(a), T1(b), T1(c), T1(), T1(e)}, vs.
+     *  "a  b c  e" = {T1(a), T1(b), T1(c), T1(e)}.
+     *
+     * NB: each application of this option overwrites the previous instance,
+     *     in exactly the same way that normal (non-container) options to.
+     */
+    template<template <class, class...> class TT, typename T1, typename... Ts>
+    struct Option<TT<T1,Ts...>> : public OptionBase
     {
-      std::istringstream arg_ss (arg,std::istringstream::in);
-      arg_ss.exceptions(std::ios::failbit);
-      try
-      {
-        arg_ss >> opt_storage;
+      typedef TT<T1,Ts...> T;
+
+      Option(const std::string& name, T& storage, T default_val, const std::string& desc)
+      : OptionBase(name, desc), opt_storage(storage), opt_default_val(default_val)
+      {}
+
+      void parse(const std::string& arg, ErrorReporter&) {
+        /* ensure that parsing overwrites any previous value */
+        opt_storage.clear();
+
+        /* effectively map parse . split m/, /, @arg */
+        std::string::size_type pos = 0;
+        do {
+          /* skip over preceeding spaces */
+          pos = arg.find_first_not_of(" \t", pos);
+          auto end = arg.find_first_of(", \t", pos);
+          std::string sub_arg(arg, pos, end - pos);
+
+          try {
+            T1 value;
+            parse_into(value, sub_arg);
+            opt_storage.push_back(value);
+          }
+          catch (...) {
+            throw ParseFailure(opt_string, sub_arg);
+          }
+
+          pos = end + 1;
+        } while (pos != std::string::npos + 1);
       }
-      catch (...)
+
+      void setDefault()
       {
-        throw ParseFailure(opt_string, arg);
+        opt_storage = opt_default_val;
       }
-    }
+
+      void writeDefault(std::ostream& out)
+      {
+        out << '"';
+        bool first = true;
+        for (const auto val : opt_default_val) {
+          if (!first)
+            out << ',';
+          out << val;
+          first = false;
+        }
+        out << '"';
+      }
+
+      T& opt_storage;
+      T opt_default_val;
+    };
 
     /* string parsing is specialized -- copy the whole string, not just the
      * first word */
