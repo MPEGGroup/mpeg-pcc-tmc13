@@ -69,20 +69,13 @@ struct Parameters {
   std::string uncompressedDataPath;
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
-  size_t colorTransform;
-  size_t mode;
+  ColorTransform colorTransform;
+  CodecMode mode;
   bool roundOutputPositions;
   pcc::PCCTMC3Encoder3Parameters encodeParameters;
-
-  Parameters(void) {
-    mode = CODEC_MODE_ENCODE;
-    colorTransform = COLOR_TRANSFORM_RGB_TO_YCBCR;
-    roundOutputPositions = false;
-  }
 };
 
 bool ParseParameters(int argc, char *argv[], Parameters &params);
-void Usage();
 int Compress(const Parameters &params);
 int Decompress(const Parameters &params);
 

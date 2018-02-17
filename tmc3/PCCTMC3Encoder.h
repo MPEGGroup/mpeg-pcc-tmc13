@@ -60,44 +60,12 @@ struct PCCAttributeEncodeParamaters {
   std::vector<size_t> dist2;
   std::vector<size_t> quantizationSteps;
   std::vector<size_t> quantizationDeadZoneSizes;
-  PCCAttributeEncodeParamaters() {
-    searchRange = 2;
-    numberOfNearestNeighborsInPrediction = 8;
-    levelOfDetailCount = 6;
-    dist2.reserve(levelOfDetailCount);
-    dist2.push_back(576);
-    dist2.push_back(144);
-    dist2.push_back(36);
-    dist2.push_back(9);
-    dist2.push_back(2);
-    dist2.push_back(0);
-    quantizationSteps.reserve(levelOfDetailCount);
-    quantizationSteps.push_back(1);
-    quantizationSteps.push_back(2);
-    quantizationSteps.push_back(4);
-    quantizationSteps.push_back(8);
-    quantizationSteps.push_back(12);
-    quantizationSteps.push_back(16);
-    assert(quantizationSteps.size() == levelOfDetailCount);
-    quantizationDeadZoneSizes.reserve(levelOfDetailCount);
-    quantizationDeadZoneSizes.push_back(1);
-    quantizationDeadZoneSizes.push_back(2);
-    quantizationDeadZoneSizes.push_back(4);
-    quantizationDeadZoneSizes.push_back(8);
-    quantizationDeadZoneSizes.push_back(12);
-    quantizationDeadZoneSizes.push_back(16);
-    assert(quantizationDeadZoneSizes.size() == levelOfDetailCount);
-  }
 };
 
 struct PCCTMC3Encoder3Parameters {
   double positionQuantizationScale;
   bool mergeDuplicatedPoints;
   std::map<std::string, PCCAttributeEncodeParamaters> attributeEncodeParameters;
-  PCCTMC3Encoder3Parameters() {
-    positionQuantizationScale = 1.0;
-    mergeDuplicatedPoints = true;
-  }
 };
 
 class PCCTMC3Encoder3 {

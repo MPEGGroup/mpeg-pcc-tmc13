@@ -36,15 +36,17 @@
  */
 
 #include "TMC3.h"
+#include "program_options_lite.h"
 
 using namespace std;
 using namespace pcc;
 
 int main(int argc, char *argv[]) {
+  std::cout << "tmc3 v" << TMC3_VERSION_MAJOR << "." << TMC3_VERSION_MAJOR << std::endl
+            << std::endl;
+
   Parameters params;
-  Usage();
   if (!ParseParameters(argc, argv, params)) {
-    std::cout << "Error: missing parameters!" << std::endl;
     return -1;
   }
   const auto start = std::chrono::high_resolution_clock::now();
@@ -61,77 +63,188 @@ int main(int argc, char *argv[]) {
             << std::endl;
   return ret;
 }
-void Usage() {
-  std::cout << "tmc3 v" << TMC3_VERSION_MAJOR << "." << TMC3_VERSION_MAJOR << std::endl
-            << std::endl;
 
-  std::cout << "+ Usage" << std::endl;
-  std::cout << "\t Encode example: \n tmc3 --mode 0 --mergeDuplicatedPoints 1 "
-               "--uncompressedDataPath Ford_01-0100.ply --compressedStreamPath compressed.bin "
-               "--colorTransform 1 --numberOfNearestNeighborsInPrediction 8 "
-               "--positionQuantizationScale 500.0 --levelOfDetailCount 6 --dist2 16777216 4194304 "
-               "1048576 262144 65536 0 --quantizationSteps 1 1 1 2 2 2 --quantizationDeadZoneSizes "
-               "1 1 1 2 2 2 --searchRange 2 --attribute color --attribute reflectance"
-            << std::endl
-            << std::endl;
-  std::cout << "\t Decode example: \n tmc3 --mode 1 --compressedStreamPath compressed.bin "
-               "--reconstructedDataPath reconstructed_dec.ply --colorTransform 1"
-            << std::endl
-            << std::endl;
-  std::cout << std::endl;
+//---------------------------------------------------------------------------
+// :: Command line / config parsing helpers
+
+template <typename T>
+static std::istream& readUInt(std::istream &in, T &val) {
+  unsigned int tmp;
+  in >> tmp;
+  val = T(tmp);
+  return in;
 }
 
+static std::istream& operator>>(std::istream &in, CodecMode &val) {
+  return readUInt(in, val);
+}
+
+static std::istream& operator>>(std::istream &in, ColorTransform &val) {
+  return readUInt(in, val);
+}
+
+//---------------------------------------------------------------------------
+// :: Command line / config parsing
+
 bool ParseParameters(int argc, char *argv[], Parameters &params) {
-  PCCAttributeEncodeParamaters attributeEncodeParams;
-  for (int i = 1; i < argc; ++i) {
-    if (!strcmp(argv[i], "--mode")) {
-      if (++i < argc) params.mode = atoi(argv[i]);
-    } else if (!strcmp(argv[i], "--reconstructedDataPath")) {
-      if (++i < argc) params.reconstructedDataPath = argv[i];
-    } else if (!strcmp(argv[i], "--uncompressedDataPath")) {
-      if (++i < argc) params.uncompressedDataPath = argv[i];
-    } else if (!strcmp(argv[i], "--compressedStreamPath")) {
-      if (++i < argc) params.compressedStreamPath = argv[i];
-    } else if (!strcmp(argv[i], "--attribute")) {
-      if (++i < argc)
-        params.encodeParameters.attributeEncodeParameters[argv[i]] = attributeEncodeParams;
-    } else if (!strcmp(argv[i], "--numberOfNearestNeighborsInPrediction")) {
-      if (++i < argc) attributeEncodeParams.numberOfNearestNeighborsInPrediction = atoi(argv[i]);
-    } else if (!strcmp(argv[i], "--levelOfDetailCount")) {
-      if (++i < argc) {
-        attributeEncodeParams.levelOfDetailCount = atoi(argv[i]);
-        attributeEncodeParams.quantizationSteps.resize(attributeEncodeParams.levelOfDetailCount);
-        attributeEncodeParams.quantizationDeadZoneSizes.resize(
-            attributeEncodeParams.levelOfDetailCount);
-        attributeEncodeParams.dist2.resize(attributeEncodeParams.levelOfDetailCount);
-      }
-    } else if (!strcmp(argv[i], "--quantizationSteps")) {
-      for (size_t k = 0; k < attributeEncodeParams.levelOfDetailCount; ++k) {
-        if (++i < argc) attributeEncodeParams.quantizationSteps[k] = atoi(argv[i]);
-      }
-    } else if (!strcmp(argv[i], "--quantizationDeadZoneSizes")) {
-      for (size_t k = 0; k < attributeEncodeParams.levelOfDetailCount; ++k) {
-        if (++i < argc) attributeEncodeParams.quantizationDeadZoneSizes[k] = atoi(argv[i]);
-      }
-    } else if (!strcmp(argv[i], "--dist2")) {
-      for (size_t k = 0; k < attributeEncodeParams.levelOfDetailCount; ++k) {
-        if (++i < argc) attributeEncodeParams.dist2[k] = atoi(argv[i]);
-      }
-    } else if (!strcmp(argv[i], "--searchRange")) {
-      if (++i < argc) attributeEncodeParams.searchRange = atoi(argv[i]);
-    } else if (!strcmp(argv[i], "--colorTransform")) {
-      if (++i < argc) params.colorTransform = static_cast<ColorTransform>(atoi(argv[i]));
-    } else if (!strcmp(argv[i], "--positionQuantizationScale")) {
-      if (++i < argc) params.encodeParameters.positionQuantizationScale = atof(argv[i]);
-    } else if (!strcmp(argv[i], "--mergeDuplicatedPoints")) {
-      if (++i < argc) params.encodeParameters.mergeDuplicatedPoints = atoi(argv[i]) != 0;
-    } else if (!strcmp(argv[i], "--roundOutputPositions")) {
-        if (++i < argc) params.roundOutputPositions = atoi(argv[i]) != 0;
-    }
+
+  namespace po = df::program_options_lite;
+
+  PCCAttributeEncodeParamaters params_attr;
+  bool print_help = false;
+
+  // a helper to set the attribute
+  std::function<po::OptionFunc::Func> attribute_setter =
+    [&](po::Options&, const std::string& name, po::ErrorReporter) {
+      // copy the current state of parsed attribute parameters
+      //
+      // NB: this does not cause the default values of attr to be restored
+      // for the next attribute block.  A side-effect of this is that the
+      // following is allowed leading to attribute foo having both X=1 and
+      // Y=2:
+      //   "--attr.X=1 --attribute foo --attr.Y=2 --attribute foo"
+      //
+      params.encodeParameters.attributeEncodeParameters[name] = params_attr;
+    };
+
+  // The definition of the program/config options, along with default values.
+  //
+  // NB: when updating the following tables:
+  //      (a) please keep to 80-columns for easier reading at a glance,
+  //      (b) do not vertically align values -- it breaks quickly
+  //
+  po::Options opts;
+  opts.addOptions()
+  ("help", print_help, false, "this help text")
+  ("config,c", po::parseConfigFile, "configuration file name")
+
+  ("mode", params.mode, CODEC_MODE_ENCODE,
+     "The encoding/decoding mode:\n"
+     "  0: encode\n"
+     "  1: decode\n"
+     "  2: encode with lossless geometry\n"
+     "  3: decode with lossless geometry")
+
+  // i/o parameters
+  ("reconstructedDataPath",
+     params.reconstructedDataPath, {},
+     "The ouput reconstructed pointcloud file path (decoder only)")
+
+  ("uncompressedDataPath",
+     params.uncompressedDataPath, {},
+     "The input pointcloud file path")
+
+  ("compressedStreamPath",
+     params.compressedStreamPath, {},
+     "The compressed bitstream path (encoder=output, decoder=input)")
+
+  // general
+  ("colorTransform",
+     params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
+     "The colour transform to be applied:\n"
+     "  0: none\n"
+     "  1: RGB to YCbCr (Rec.709)")
+
+  ("positionQuantizationScale",
+     params.encodeParameters.positionQuantizationScale, 1.,
+     "Scale factor to be applied to point positions during quantization process")
+
+  ("mergeDuplicatedPoints",
+     params.encodeParameters.mergeDuplicatedPoints, true,
+     "Enables removal of duplicated points")
+
+  ("roundOutputPositions",
+     params.roundOutputPositions, false,
+     "todo(kmammou)")
+
+  // attribute processing
+  //   NB: Attribute options are special in the way they are applied (see above)
+  ("attribute",
+     attribute_setter,
+     "Encode the given attribute (NB, must appear after the"
+     "following attribute parameters)")
+
+  ("searchRange",
+     params_attr.searchRange, size_t(2),
+     "Attribute's todo(kmammou)")
+
+  ("numberOfNearestNeighborsInPrediction",
+     params_attr.numberOfNearestNeighborsInPrediction, size_t(8),
+     "Attribute's maximum number of nearest neighbors to be used for prediction")
+
+  ("levelOfDetailCount",
+     params_attr.levelOfDetailCount, size_t(6),
+     "Attribute's number of levels of detail")
+
+  ("quantizationSteps",
+     params_attr.quantizationSteps, {},
+     "Attribute's list of quantization step sizes (one for each LoD)")
+
+  ("quantizationDeadZoneSizes",
+     params_attr.quantizationDeadZoneSizes, {},
+     "Attribute's list of dead-zone sizes (one for each LoD)")
+
+  ("dist2", params_attr.dist2, {},
+     "Attribute's list of squared distances (one for each LoD)")
+  ;
+
+  po::setDefaults(opts);
+  po::ErrorReporter err;
+  const list<const char*>& argv_unhandled =
+    po::scanArgv(opts, argc, (const char**)argv, err);
+
+  for (const auto arg : argv_unhandled) {
+    err.warn() << "Unhandled argument ignored: " << arg << "\n";
   }
 
+  if (argc == 1 || print_help) {
+    po::doHelp(std::cout, opts, 78);
+    return false;
+  }
+
+  // sanity checks
+  //  - validate that quantizationSteps, quantizationDeadZoneSizes, dist2
+  //    of each attribute contain levelOfDetailCount elements.
+  for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
+      int lod = attr.second.levelOfDetailCount;
+
+      if (attr.second.dist2.size() != lod) {
+        err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
+      }
+      if (attr.second.quantizationSteps.size() != lod) {
+        err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
+      }
+      if (attr.second.quantizationDeadZoneSizes.size() != lod) {
+        err.error() << attr.first << ".quantizationDeadZoneSizes does not have " << lod << " entries\n";
+      }
+  }
+
+  // check required arguments are specified
+
   const bool encode =
-      (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY);
+      params.mode == CODEC_MODE_ENCODE
+      || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY;
+
+  if (encode && params.uncompressedDataPath.empty())
+    err.error() << "uncompressedDataPath not set\n";
+
+  if (!encode && params.reconstructedDataPath.empty())
+    err.error() << "reconstructedDataPath not set\n";
+
+  if (params.compressedStreamPath.empty())
+    err.error() << "compressedStreamPath not set\n";
+
+  // currently the attributes with lossless geometry require the source data
+  // todo(?): remove this dependency by improving reporting
+  if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY
+   && params.uncompressedDataPath.empty())
+    err.error() << "uncompressedDataPath not set\n";
+
+  // report the current configuration (only in the absence of errors so
+  // that errors/warnings are more obvious and in the same place).
+  if (err.is_errored)
+    return false;
+
   cout << "+ Parameters" << endl;
   cout << "\t mode                        ";
   if (params.mode == CODEC_MODE_ENCODE) {
@@ -181,17 +294,9 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       cout << "\t roundOutputPositions        " << params.roundOutputPositions << endl;
   }
 
-  const bool test1 =
-      encode && (params.uncompressedDataPath.empty() || params.compressedStreamPath.empty());
-  const bool test2 =
-      !encode && (params.reconstructedDataPath.empty() || params.compressedStreamPath.empty());
-  const bool test3 =
-      params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY && params.uncompressedDataPath.empty();
-  if (test1 || test2 || test3) {
-    return false;
-  }
   return true;
 }
+
 int Compress(const Parameters &params) {
   PCCPointSet3 pointCloud;
   if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
