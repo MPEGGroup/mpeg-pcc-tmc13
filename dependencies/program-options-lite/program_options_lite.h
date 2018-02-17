@@ -89,8 +89,12 @@ namespace df
 
       /* parse argument arg, to obtain a value for the option */
       virtual void parse(const std::string& arg, ErrorReporter&) = 0;
+
       /* set the argument to the default value */
       virtual void setDefault() = 0;
+
+      /* write the default value to out */
+      virtual void writeDefault(std::ostream& out) = 0;
 
       std::string opt_string;
       std::string opt_desc;
@@ -109,6 +113,11 @@ namespace df
       void setDefault()
       {
         opt_storage = opt_default_val;
+      }
+
+      void writeDefault(std::ostream& out)
+      {
+        out << opt_default_val;
       }
 
       T& opt_storage;
@@ -141,6 +150,15 @@ namespace df
       opt_storage = arg;
     }
 
+    /* strings are pecialized -- output whole string rather than treating as
+     * a sequence of characters */
+    template<>
+    inline void
+    Option<std::string>::writeDefault(std::ostream& out)
+    {
+      out << '"' << opt_default_val << '"';
+    }
+
     /** Option class for argument handling using a user provided function */
     struct OptionFunc : public OptionBase
     {
@@ -158,6 +176,12 @@ namespace df
       void setDefault()
       {
         return;
+      }
+
+      void writeDefault(std::ostream& out)
+      {
+        /* there is no default */
+        out << "...";
       }
 
     private:

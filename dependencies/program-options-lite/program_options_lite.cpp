@@ -157,6 +157,8 @@ namespace df
       if (!entry.opt_long.empty())
       {
         out << "--" << entry.opt_long.front();
+        out << '=';
+        entry.opt->writeDefault(out);
       }
     }
 
