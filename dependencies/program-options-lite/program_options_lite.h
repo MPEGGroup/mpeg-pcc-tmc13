@@ -34,6 +34,7 @@
 #ifndef __PROGRAM_OPTIONS_LITE__
 #define __PROGRAM_OPTIONS_LITE__
 
+#include <functional>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -164,7 +165,7 @@ namespace df
     {
       typedef void (Func)(Options&, const std::string&, ErrorReporter&);
 
-      OptionFunc(const std::string& name, Options& parent_, Func *func_, const std::string& desc)
+      OptionFunc(const std::string& name, Options& parent_, std::function<Func> func_, const std::string& desc)
       : OptionBase(name, desc), parent(parent_), func(func_)
       {}
 
@@ -186,7 +187,7 @@ namespace df
 
     private:
       Options& parent;
-      Func* func;
+      std::function<Func> func;
     };
 
     class OptionSpecific;
@@ -249,7 +250,7 @@ namespace df
        * handle evaluating the option's value.
        */
       OptionSpecific&
-      operator()(const std::string& name, OptionFunc::Func *func, const std::string& desc = "")
+      operator()(const std::string& name, std::function<OptionFunc::Func> func, const std::string& desc = "")
       {
         parent.addOption(new OptionFunc(name, parent, func, desc));
         return *this;
