@@ -64,8 +64,8 @@ namespace df
     {
       ErrorReporter() : is_errored(0) {}
       virtual ~ErrorReporter() {}
-      virtual std::ostream& error(const std::string& where);
-      virtual std::ostream& warn(const std::string& where);
+      virtual std::ostream& error(const std::string& where = "");
+      virtual std::ostream& warn(const std::string& where = "");
       bool is_errored;
     };
 
