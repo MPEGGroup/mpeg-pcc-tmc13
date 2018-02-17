@@ -30,18 +30,15 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#ifndef __PROGRAM_OPTIONS_LITE__
+#define __PROGRAM_OPTIONS_LITE__
+
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <list>
 #include <map>
-
-#ifndef __PROGRAM_OPTIONS_LITE__
-#define __PROGRAM_OPTIONS_LITE__
-
-//! \ingroup TAppCommon
-//! \{
-
 
 namespace df
 {
@@ -239,7 +236,5 @@ namespace df
 
   } /* namespace: program_options_lite */
 } /* namespace: df */
-
-//! \}
 
 #endif
