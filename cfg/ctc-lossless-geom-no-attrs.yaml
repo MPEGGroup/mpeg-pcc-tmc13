@@ -1,0 +1,18 @@
+# Test conditions for N17351 CTC C3.1 (formerly C05) using TMC3
+#  -- derived from svn:r1262 documentation
+---
+categories:
+  lossless-geom-no-attrs:
+    encflags:
+     - mode: 0
+     - mergeDuplicatedPoints: 0
+     - positionQuantizationScale: 1.0
+    decflags:
+     - mode: 1
+    sequences:
+      citytunnel_q1mm:
+      overpass_q1mm:
+      tollbooth_q1mm:
+      ford_03_q1mm:
+      ford_02_q1mm:
+      ford_01_q1mm:

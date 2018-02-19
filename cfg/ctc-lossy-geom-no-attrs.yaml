@@ -1,0 +1,67 @@
+# Test conditions for N17351 CTC C3.4 & C3.8 (formerly C08/12) using TMC3
+#  -- derived from svn:r1262 documentation
+---
+categories:
+  lossy-geom-no-attrs:
+    encflags:
+     - mode: 0
+     - mergeDuplicatedPoints: 1
+
+    decflags:
+     - mode: 1
+
+    sequences:
+      ##
+      # Condition 3.4
+
+      ford_01_q1mm:
+        encflags:
+         - positionQuantizationScale:
+             r01: 0.0017
+             r02: 0.0027
+             r03: 0.005
+             r04: 0.011
+             r05: 0.03
+             r06: 0.08
+
+      ford_02_q1mm:
+        encflags:
+         - positionQuantizationScale:
+             r01: 0.00185
+             r02: 0.00285
+             r03: 0.0052
+             r04: 0.012
+             r05: 0.03
+             r06: 0.08
+
+      ford_03_q1mm:
+        encflags:
+         - positionQuantizationScale:
+             r01: 0.0015
+             r02: 0.0025
+             r03: 0.005
+             r04: 0.01
+             r05: 0.025
+             r06: 0.07
+
+      ##
+      # Condition 3.8
+
+      citytunnel_q1mm:
+        encflags:
+         - positionQuantizationScale: &mitsubishiPQS
+             r01: 0.001953125  # should be  ½bpp, actual ~0.1
+             r02: 0.00390625   # should be  1bpp, actual ~0.5
+             r03: 0.0078125    # should be  2bpp, actual ~1.5
+             r04: 0.015625     # should be  4bpp, actual ~4
+             r05: 0.3125       # should be  8bpp, actual ~10
+             r06: 0.125        # should be 12bpp, actual ~13
+             r07: 0.25         # should be 16bpp, actual ~16
+
+      overpass_q1mm:
+        encflags:
+         - positionQuantizationScale: *mitsubishiPQS
+
+      tollbooth_q1mm:
+        encflags:
+         - positionQuantizationScale: *mitsubishiPQS
