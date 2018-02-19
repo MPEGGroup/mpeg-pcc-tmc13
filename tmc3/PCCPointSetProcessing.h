@@ -233,14 +233,15 @@ inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t s
           }
         }
         const double oneMinusW = 1.0 - w;
+        // todo(df): clipping range should be based on the input data type
+        const double maxValue = std::numeric_limits<uint16_t>::max();
         const double reflectance0 =
-            PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, 255.0);
+          PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, maxValue);
         const double rSource = 1.0 / double(pointCountSource);
         const double rTarget = 1.0 / double(pointCountTarget);
         double minError = std::numeric_limits<double>::max();
         double bestReflectance = reflectance0;
         double reflectance;
-        const double maxValue = std::numeric_limits<uint16_t>::max();
         for (int32_t s = -searchRange; s <= searchRange; ++s) {
           reflectance = PCCClip(reflectance0 + s, 0.0, maxValue);
           const double d = reflectance - reflectance1;
