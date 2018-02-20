@@ -5,8 +5,12 @@ if (MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:tbb.lib")
 endif()
 
+include(CheckSymbolExists)
+check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
+
 set (TMC3_VERSION_MAJOR 0)
 set (TMC3_VERSION_MINOR 1)
+
 configure_file (
   "${CMAKE_CURRENT_SOURCE_DIR}/TMC3Config.h.in"
   "${PROJECT_BINARY_DIR}/tmc3/TMC3Config.h"

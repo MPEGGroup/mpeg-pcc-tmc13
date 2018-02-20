@@ -1,2 +1,5 @@
 #define TMC3_VERSION_MAJOR @TMC3_VERSION_MAJOR@
 #define TMC3_VERSION_MINOR @TMC3_VERSION_MINOR@
+
+/* Define to 1 if getrusage(2) is present */
+#cmakedefine01 HAVE_GETRUSAGE

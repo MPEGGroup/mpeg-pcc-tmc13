@@ -49,18 +49,28 @@ int main(int argc, char *argv[]) {
   if (!ParseParameters(argc, argv, params)) {
     return -1;
   }
-  const auto start = std::chrono::high_resolution_clock::now();
+
+  // Timers to count elapsed wall/user time
+  pcc::chrono::Stopwatch<std::chrono::steady_clock> clock_wall;
+  pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
+
+  clock_wall.start();
+
   int ret = 0;
   if (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
-    ret = Compress(params);
+    ret = Compress(params, clock_user);
   } else {
-    ret = Decompress(params);
+    ret = Decompress(params, clock_user);
   }
 
-  const auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "Processing time: "
-            << std::chrono::duration<double, std::milli>(end - start).count() / 1000.0 << " s"
-            << std::endl;
+  clock_wall.stop();
+
+  using namespace std::chrono;
+  auto total_wall = duration_cast<milliseconds>(clock_wall.count()).count();
+  auto total_user = duration_cast<milliseconds>(clock_user.count()).count();
+  std::cout << "Processing time (wall): " << total_wall / 1000.0 << " s\n";
+  std::cout << "Processing time (user): " << total_user / 1000.0 << " s\n";
+
   return ret;
 }
 
@@ -297,12 +307,14 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   return true;
 }
 
-int Compress(const Parameters &params) {
+int Compress(const Parameters &params, Stopwatch& clock) {
   PCCPointSet3 pointCloud;
   if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
+
+  clock.start();
 
   if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertRGBToYUV();
@@ -331,6 +343,8 @@ int Compress(const Parameters &params) {
     return -1;
   }
 
+  clock.stop();
+
   assert(bitstream.size <= bitstream.capacity);
   std::cout << "Total bitstream size " << bitstream.size << " B" << std::endl;
   ofstream fout(params.compressedStreamPath, ios::binary);
@@ -349,7 +363,7 @@ int Compress(const Parameters &params) {
 
   return 0;
 }
-int Decompress(const Parameters &params) {
+int Decompress(const Parameters &params, Stopwatch &clock) {
   PCCBitstream bitstream = {};
   ifstream fin(params.compressedStreamPath, ios::binary);
   if (!fin.is_open()) {
@@ -367,6 +381,8 @@ int Decompress(const Parameters &params) {
     return -1;
   }
   fin.close();
+
+  clock.start();
 
   PCCTMC3Decoder3 decoder;
   PCCPointSet3 pointCloud;
@@ -391,6 +407,8 @@ int Decompress(const Parameters &params) {
   if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertYUVToRGB();
   }
+
+  clock.stop();
 
   if (!pointCloud.write(params.reconstructedDataPath, true)) {
     cout << "Error: can't open output file!" << endl;
