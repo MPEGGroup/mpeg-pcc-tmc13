@@ -93,7 +93,7 @@ public:
 
 private:
   typename Clock::time_point start_time_;
-  duration cumulative_time_ {0};
+  duration cumulative_time_ {duration::zero()};
 };
 }}
 
