@@ -42,7 +42,7 @@ using namespace std;
 using namespace pcc;
 
 int main(int argc, char *argv[]) {
-  std::cout << "tmc3 v" << TMC3_VERSION_MAJOR << "." << TMC3_VERSION_MAJOR << std::endl
+  std::cout << "tmc3 v" << TMC3_VERSION_MAJOR << "." << TMC3_VERSION_MINOR << std::endl
             << std::endl;
 
   Parameters params;

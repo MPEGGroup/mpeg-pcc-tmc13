@@ -8,8 +8,8 @@ endif()
 include(CheckSymbolExists)
 check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
 
-set (TMC3_VERSION_MAJOR 0)
-set (TMC3_VERSION_MINOR 1)
+set (TMC3_VERSION_MAJOR 1)
+set (TMC3_VERSION_MINOR 0)
 
 configure_file (
   "${CMAKE_CURRENT_SOURCE_DIR}/TMC3Config.h.in"
