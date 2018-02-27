@@ -323,7 +323,7 @@ int Compress(const Parameters &params, Stopwatch& clock) {
   PCCBitstream bitstream = {};
   const size_t predictedBitstreamSize =
       encoder.estimateBitstreamSize(pointCloud, params.encodeParameters);
-  std::unique_ptr<uint8_t> buffer(new uint8_t[predictedBitstreamSize]);
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[predictedBitstreamSize]);
   bitstream.buffer = buffer.get();
   bitstream.capacity = predictedBitstreamSize;
   bitstream.size = 0;
