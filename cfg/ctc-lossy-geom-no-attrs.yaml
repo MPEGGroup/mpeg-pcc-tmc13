@@ -54,7 +54,7 @@ categories:
              r02: 0.00390625   # should be  1bpp, actual ~0.5
              r03: 0.0078125    # should be  2bpp, actual ~1.5
              r04: 0.015625     # should be  4bpp, actual ~4
-             r05: 0.3125       # should be  8bpp, actual ~10
+             r05: 0.03125      # should be  8bpp, actual ~10
              r06: 0.125        # should be 12bpp, actual ~13
              r07: 0.25         # should be 16bpp, actual ~16
 
