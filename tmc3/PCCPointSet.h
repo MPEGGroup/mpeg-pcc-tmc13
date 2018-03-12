@@ -731,13 +731,14 @@ public:
             auto& color = colors[pointCounter];
             ifs.read(reinterpret_cast<char*>(&color[2]), sizeof(uint8_t));
           } else if (a == indexReflectance && attributeInfo.byteCount <= 2) {
-            if (indexReflectance == 1) {
+            if (attributeInfo.byteCount == 1) {
               uint8_t reflectance;
               ifs.read(reinterpret_cast<char*>(&reflectance), sizeof(uint8_t));
               reflectances[pointCounter] = reflectance;
             } else {
               auto& reflectance = reflectances[pointCounter];
-              ifs.read(reinterpret_cast<char*>(reflectance), sizeof(uint16_t));
+              ifs.read(
+                reinterpret_cast<char*>(&reflectance), sizeof(uint16_t));
             }
           } else {
             char buffer[128];
