@@ -934,5 +934,24 @@ void Adaptive_Data_Model::reset(void)
     update(false);
     symbols_until_update = update_cycle = (data_symbols + 6) >> 1;
 }
+
+void Adaptive_Data_Model::reset(const unsigned int* init)
+{
+    if (data_symbols == 0)
+        return;
+
+    // restore probability estimates to uniform distribution
+    total_count = 0;
+    update_cycle = data_symbols;
+    for (unsigned k = 0; k < data_symbols; k++) {
+        symbol_count[k] = 1 + init[k];
+        total_count += init[k];
+    }
+    update(false);
+
+    symbols_until_update = update_cycle = (data_symbols + 6) >> 1;
+}
+
+
 }
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
