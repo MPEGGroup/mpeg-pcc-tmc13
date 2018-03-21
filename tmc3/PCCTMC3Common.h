@@ -38,6 +38,7 @@
 #include "PCCKdTree.h"
 #include "PCCMath.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace pcc {
@@ -46,6 +47,8 @@ const uint32_t PCCTMC3FormatVersion = 1;
 const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 8;
 const uint32_t PCCTMC3Diff1AdaptiveDataModelCount = 512;
 const uint32_t PCCTMC3AdaptiveDataModelAlphabetMaxSize = 2047;
+
+const int MAX_NUM_DM_LEAF_POINTS = 2;
 
 struct PCCOctree3Node {
   // 3D position of the current node's origin (local x,y,z = 0).
@@ -65,6 +68,10 @@ struct PCCOctree3Node {
   //    /|
   //   4 16 (z)
   uint8_t neighPattern = 0;
+
+  // The current node's number of siblings plus one.
+  // ie, the number of child nodes present in this node's parent.
+  uint8_t numSiblingsPlus1;
 };
 
 struct PCCNeighborInfo {
@@ -297,6 +304,21 @@ updateGeometryNeighState(
     child.neighPattern |= param.patternFlagUs;
     found->neighPattern |= param.patternFlagThem;
   }
+}
+
+//---------------------------------------------------------------------------
+// Determine if direct coding is permitted.
+// If tool is enabled:
+//   - Block must not be near the bottom of the tree
+//   - The parent / grandparent are sparsely occupied
+
+bool
+isDirectModeEligible(
+  bool featureEnabled,
+  int nodeSizeLog2, const PCCOctree3Node& node, const PCCOctree3Node& child
+) {
+  return featureEnabled && (nodeSizeLog2 >= 2)
+      && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 }
 
 //---------------------------------------------------------------------------

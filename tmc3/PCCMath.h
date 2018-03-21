@@ -99,6 +99,12 @@ class PCCVector3 {
     data[2] += a;
     return *this;
   }
+  PCCVector3 &operator<<=(int val) {
+    data[0] <<= val;
+    data[1] <<= val;
+    data[2] <<= val;
+    return *this;
+  }
   PCCVector3 &operator/=(const T a) {
     assert(a != 0);
     data[0] /= a;

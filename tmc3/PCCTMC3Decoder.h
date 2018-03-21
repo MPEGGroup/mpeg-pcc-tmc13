@@ -421,6 +421,9 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     neighbourContextsEnabled = bool(u8value);
 
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
+    inferredDirectCodingModeEnabled = bool(u8value);
+
     if (hasColors) {
       pointCloud.addColors();
     } else {
@@ -541,6 +544,61 @@ class PCCTMC3Decoder3 {
   }
 
   //-------------------------------------------------------------------------
+  // Decode a position of a point in a given volume.
+
+  PCCVector3<uint32_t>
+  decodePointPosition(
+    int nodeSizeLog2,
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    o3dgc::Static_Bit_Model& ctxPointPosBlock
+  ){
+    PCCVector3<uint32_t> delta{};
+    for (int i = nodeSizeLog2; i > 0; i--) {
+      delta <<= 1;
+      delta[0] |= arithmeticDecoder->decode(ctxPointPosBlock);
+      delta[1] |= arithmeticDecoder->decode(ctxPointPosBlock);
+      delta[2] |= arithmeticDecoder->decode(ctxPointPosBlock);
+    }
+
+    return delta;
+  }
+
+  //-------------------------------------------------------------------------
+  // Direct coding of position of points in node (early tree termination).
+  // Decoded points are written to @outputPoints
+  // Returns the number of points emitted.
+
+  template<class OutputIt>
+  int decodeDirectPosition(
+    int nodeSizeLog2,
+    const PCCOctree3Node& node,
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    o3dgc::Adaptive_Bit_Model& ctxBlockSkipTh,
+    o3dgc::Adaptive_Bit_Model& ctxNumIdcmPointsEq1,
+    o3dgc::Static_Bit_Model& ctxPointPosBlock,
+    OutputIt outputPoints
+  ) {
+      bool isDirectMode = arithmeticDecoder->decode(ctxBlockSkipTh);
+      if (!isDirectMode) {
+        return 0;
+      }
+
+      int numPoints = 1;
+      if (arithmeticDecoder->decode(ctxNumIdcmPointsEq1))
+        numPoints++;
+
+      for (int i = 0; i < numPoints; i++) {
+        // convert node-relative position to world position
+        PCCVector3<uint32_t> pos = node.pos + decodePointPosition(
+          nodeSizeLog2, arithmeticDecoder, ctxPointPosBlock);
+
+        *(outputPoints++) = {double(pos[0]), double(pos[1]), double(pos[2])};
+      }
+
+      return numPoints;
+  }
+
+  //-------------------------------------------------------------------------
 
   int decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t compressedBitstreamSize;
@@ -554,6 +612,9 @@ class PCCTMC3Decoder3 {
     o3dgc::Adaptive_Bit_Model ctxSingleChild;
     o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
+    o3dgc::Adaptive_Bit_Model ctxBlockSkipTh;
+    o3dgc::Adaptive_Bit_Model ctxNumIdcmPointsEq1;
+
     // pattern model using ten 6-neighbour configurations
     o3dgc::Adaptive_Data_Model ctxOccupancy[10];
     for (int i = 0; i < 10; i++) {
@@ -582,6 +643,7 @@ class PCCTMC3Decoder3 {
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
+    node00.numSiblingsPlus1 = 8;
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
@@ -608,6 +670,9 @@ class PCCTMC3Decoder3 {
           ctxEquiProb, ctxOccupancy, node0
       );
       assert(occupancy > 0);
+
+      // population count of occupancy for IDCM
+      int numOccupied = popcnt(occupancy);
 
       // split the current node
       for (int i = 0; i < 8; i++) {
@@ -655,8 +720,27 @@ class PCCTMC3Decoder3 {
         child.pos[0] = node0.pos[0] + (x << childSizeLog2);
         child.pos[1] = node0.pos[1] + (y << childSizeLog2);
         child.pos[2] = node0.pos[2] + (z << childSizeLog2);
+        child.numSiblingsPlus1 = numOccupied;
 
-        // NB: there is no need to update the neighbour state for leaf nodes
+        bool idcmEnabled = inferredDirectCodingModeEnabled;
+        if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
+          int numPoints = decodeDirectPosition(
+            childSizeLog2, child, &arithmeticDecoder,
+            ctxBlockSkipTh, ctxNumIdcmPointsEq1, ctxEquiProb,
+            &pointCloud[processedPointCount]
+          );
+          processedPointCount += numPoints;
+
+          if (numPoints > 0) {
+            // node fully decoded, do not split: discard child
+            fifo.pop_back();
+
+            // NB: no further siblings to decode by definition of IDCM
+            assert(child.numSiblingsPlus1 == 1);
+            break;
+          }
+        }
+
         numNodesNextLvl++;
         if (neighbourContextsEnabled) {
           updateGeometryNeighState(
@@ -671,6 +755,7 @@ class PCCTMC3Decoder3 {
     bitstream.size += compressedBitstreamSize;
     return 0;
   }
+
   void inverseQuantization(PCCPointSet3 &pointCloud, const bool roundOutputPositions) {
     const size_t pointCount = pointCloud.getPointCount();
     const double invScale = 1.0 / positionQuantizationScale;
@@ -710,6 +795,10 @@ class PCCTMC3Decoder3 {
   // Controls the use of neighbour based contextualisation of octree
   // occupancy during geometry coding.
   bool neighbourContextsEnabled;
+
+  // Controls the use of early termination of the geometry tree
+  // by directly coding the position of isolated points.
+  bool inferredDirectCodingModeEnabled;
 };
 }
 

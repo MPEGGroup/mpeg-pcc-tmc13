@@ -38,6 +38,7 @@
 
 #include <assert.h>
 #include <map>
+#include <deque>
 #include <queue>
 #include <set>
 #include <string>
@@ -69,6 +70,10 @@ struct PCCTMC3Encoder3Parameters {
   // Controls the use of neighbour based contextualisation of octree
   // occupancy during geometry coding.
   bool neighbourContextsEnabled;
+
+  // Controls the use of early termination of the geometry tree
+  // by directly coding the position of isolated points.
+  bool inferredDirectCodingModeEnabled;
 
   std::map<std::string, PCCAttributeEncodeParamaters> attributeEncodeParameters;
 };
@@ -694,6 +699,56 @@ class PCCTMC3Encoder3 {
   }
 
   //-------------------------------------------------------------------------
+  // Encode a position of a point in a given volume.
+
+  void
+  encodePointPosition(
+    int nodeSizeLog2,
+    const PCCVector3<uint32_t>& pos,
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    o3dgc::Static_Bit_Model& ctxPointPosBlock
+  ){
+    for (int mask = 1 << (nodeSizeLog2 - 1); mask; mask >>= 1) {
+      arithmeticEncoder->encode(!!(pos[0] & mask), ctxPointPosBlock);
+      arithmeticEncoder->encode(!!(pos[1] & mask), ctxPointPosBlock);
+      arithmeticEncoder->encode(!!(pos[2] & mask), ctxPointPosBlock);
+    }
+  }
+
+  //-------------------------------------------------------------------------
+  // Direct coding of position of points in node (early tree termination).
+
+  bool
+  encodeDirectPosition(
+    int nodeSizeLog2,
+    const PCCOctree3Node& node,
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    o3dgc::Adaptive_Bit_Model& ctxBlockSkipTh,
+    o3dgc::Adaptive_Bit_Model& ctxNumIdcmPointsEq1,
+    o3dgc::Static_Bit_Model& ctxPointPosBlock
+  ) {
+      int numPoints = node.end - node.start;
+      if (numPoints > MAX_NUM_DM_LEAF_POINTS) {
+        arithmeticEncoder->encode(0, ctxBlockSkipTh);
+        return false;
+      }
+
+      arithmeticEncoder->encode(1, ctxBlockSkipTh);
+      arithmeticEncoder->encode(numPoints > 1, ctxNumIdcmPointsEq1);
+
+      for (auto idx = node.start; idx < node.end; idx++) {
+        // determine the point position relative to box edge
+        encodePointPosition(nodeSizeLog2, PCCVector3<uint32_t>{
+            int(pointCloud[idx][0]) - node.pos[0],
+            int(pointCloud[idx][1]) - node.pos[1],
+            int(pointCloud[idx][2]) - node.pos[2]},
+          arithmeticEncoder, ctxPointPosBlock);
+      }
+
+      return true;
+  }
+
+  //-------------------------------------------------------------------------
 
   int encodePositions(
     const PCCTMC3Encoder3Parameters& params,
@@ -710,6 +765,9 @@ class PCCTMC3Encoder3 {
     o3dgc::Adaptive_Bit_Model ctxSingleChild;
     o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
+    o3dgc::Adaptive_Bit_Model ctxBlockSkipTh;
+    o3dgc::Adaptive_Bit_Model ctxNumIdcmPointsEq1;
+
     // occupancy map model using ten 6-neighbour configurations
     o3dgc::Adaptive_Data_Model ctxOccupancy[10];
     for (int i = 0; i < 10; i++) {
@@ -737,7 +795,13 @@ class PCCTMC3Encoder3 {
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
+    node00.numSiblingsPlus1 = 8;
     fifo.push_back(node00);
+
+    // map of pointCloud idx to DM idx, used to reorder the points
+    // after coding.
+    std::vector<int> pointIdxToDmIdx(int(pointCloud.getPointCount()), -1);
+    int nextDmIdx = 0;
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
@@ -776,14 +840,18 @@ class PCCTMC3Encoder3 {
             | (!!(int(point[0]) & bitpos) << 2);
       });
 
-      // determine occupancy
+      // generate the bitmap of child occupancy and count
+      // the number of occupied children in node0.
       int occupancy = 0;
+      int numSiblings = 0;
       for (int i = 0; i < 8; i++) {
         if (childCounts[i]) {
           occupancy |= 1 << i;
+          numSiblings++;
         }
       }
 
+      // encode child occupancy map
       assert(occupancy > 0);
       encodeGeometryOccupancy(
         params.neighbourContextsEnabled, &arithmeticEncoder, ctxSingleChild,
@@ -816,8 +884,10 @@ class PCCTMC3Encoder3 {
         continue;
       }
 
-      // nodeSizeLog2 > 1: insert split children into fifo while updating
-      // neighbour state
+      // nodeSizeLog2 > 1: for each child:
+      //  - determine elegibility for IDCM
+      //  - directly code point positions if IDCM allowed and selected
+      //  - otherwise, insert split children into fifo while updating neighbour state
       int childPointsStartIdx = node0.start;
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {
@@ -840,8 +910,30 @@ class PCCTMC3Encoder3 {
         child.start = childPointsStartIdx;
         childPointsStartIdx += childCounts[i];
         child.end = childPointsStartIdx;
+        child.numSiblingsPlus1 = numSiblings;
 
-        // NB: there is no need to update the neighbour state for leaf nodes
+        bool idcmEnabled = params.inferredDirectCodingModeEnabled;
+        if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
+          bool directModeUsed = encodeDirectPosition(
+            childSizeLog2, child, &arithmeticEncoder,
+            ctxBlockSkipTh, ctxNumIdcmPointsEq1, ctxEquiProb
+          );
+
+          if (directModeUsed) {
+            // point reordering to match decoder's order
+            for (auto idx = child.start; idx < child.end; idx++)
+              pointIdxToDmIdx[idx] = nextDmIdx++;
+
+            // NB: by definition, this is the only child node present
+            assert(child.numSiblingsPlus1 == 1);
+
+            // remove leaf node from fifo: it has been consumed and will
+            // not be further split.
+            fifo.pop_back();
+            break;
+          }
+        }
+
         numNodesNextLvl++;
         if (params.neighbourContextsEnabled) {
           updateGeometryNeighState(
@@ -851,6 +943,34 @@ class PCCTMC3Encoder3 {
         }
       }
     }
+
+    ////
+    // The following is to re-order the points according in the decoding
+    // order since IDCM causes leaves to be coded earlier than they
+    // otherwise would.
+    PCCPointSet3 pointCloud2;
+    if (pointCloud.hasColors())
+      pointCloud2.addColors();
+    if (pointCloud.hasReflectances())
+      pointCloud2.addReflectances();
+    pointCloud2.resize(pointCloud.getPointCount());
+
+    // copy points with DM points first, the rest second
+    int outIdx = nextDmIdx;
+    for (int i = 0; i < pointIdxToDmIdx.size(); i++) {
+      int dstIdx = pointIdxToDmIdx[i];
+      if (dstIdx == -1) {
+        dstIdx = outIdx++;
+      }
+
+      pointCloud2[dstIdx] = pointCloud[i];
+      if (pointCloud.hasColors())
+        pointCloud2.setColor(dstIdx, pointCloud.getColor(i));
+      if (pointCloud.hasReflectances())
+        pointCloud2.setReflectance(dstIdx, pointCloud.getReflectance(i));
+    }
+
+    swap(pointCloud, pointCloud2);
 
     const uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
     bitstream.size += compressedBitstreamSize;
@@ -872,6 +992,9 @@ class PCCTMC3Encoder3 {
 
     PCCWriteToBuffer<uint8_t>(
       uint8_t(params.neighbourContextsEnabled), bitstream.buffer, bitstream.size);
+
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(params.inferredDirectCodingModeEnabled), bitstream.buffer, bitstream.size);
 
     for (int k = 0; k < 3; ++k) {
       PCCWriteToBuffer<double>(minPositions[k], bitstream.buffer, bitstream.size);

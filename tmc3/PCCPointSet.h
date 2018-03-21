@@ -253,6 +253,16 @@ class PCCPointSet3 {
   PCCPointSet3 &operator=(const PCCPointSet3 &rhs) = default;
   ~PCCPointSet3() = default;
 
+  void
+  swap(PCCPointSet3& other) {
+    using std::swap;
+    swap(positions, other.positions);
+    swap(colors, other.colors);
+    swap(reflectances, other.reflectances);
+    swap(withColors, other.withColors);
+    swap(withReflectances, other.withReflectances);
+  }
+
   PCCPoint3D operator[](const size_t index) const {
     assert(index < positions.size());
     return positions[index];
@@ -760,6 +770,14 @@ class PCCPointSet3 {
 
 static void
 swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b) {
+  a.swap(b);
+}
+
+//---------------------------------------------------------------------------
+// Swap two point clouds
+
+static void
+swap(PCCPointSet3& a, PCCPointSet3& b) {
   a.swap(b);
 }
 

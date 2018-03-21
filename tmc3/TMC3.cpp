@@ -170,6 +170,10 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      params.encodeParameters.neighbourContextsEnabled, true,
      "Contextualise geometry octree occupancy based on neighbour patterns")
 
+  ("inferredDirectCodingMode",
+     params.encodeParameters.inferredDirectCodingModeEnabled, true,
+     "Permits early termination of the geometry octree for isolated points")
+
   // attribute processing
   //   NB: Attribute options are special in the way they are applied (see above)
   ("attribute",

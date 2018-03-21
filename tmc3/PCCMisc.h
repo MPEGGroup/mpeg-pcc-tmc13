@@ -125,6 +125,17 @@ static int popcnt(uint32_t x) {
 }
 
 //---------------------------------------------------------------------------
+// Population count -- return the number of bits set in @x.
+//
+static int popcnt(uint8_t x) {
+  uint32_t val = x * 0x08040201u;
+  val >>= 3;
+  val &= 0x11111111u;
+  val *= 0x11111111u;
+  return val >> 28;
+}
+
+//---------------------------------------------------------------------------
 // Test if population count is greater than 1.
 // Returns non-zero if true.
 //
