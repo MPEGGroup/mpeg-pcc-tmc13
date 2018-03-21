@@ -734,8 +734,11 @@ void Adaptive_Bit_Model::reset(void)
 void Adaptive_Bit_Model::update(void)
 {
     // halve counts when a threshold is reached
+    unsigned int max_count = BM__MaxCount;
+    if (use_faster_update)
+        max_count = 128;
 
-    if ((bit_count += update_cycle) > BM__MaxCount) {
+    if ((bit_count += update_cycle) > max_count) {
         bit_count = (bit_count + 1) >> 1;
         bit_0_count = (bit_0_count + 1) >> 1;
         if (bit_0_count == bit_count)
@@ -747,8 +750,15 @@ void Adaptive_Bit_Model::update(void)
 
     // set frequency of model updates
     update_cycle = (5 * update_cycle) >> 2;
-    if (update_cycle > 64)
-        update_cycle = 64;
+    if (use_faster_update) {
+        if (update_cycle > 1)
+            update_cycle = 1;
+    }
+    else {
+        if (update_cycle > 64)
+            update_cycle = 64;
+    }
+
     bits_until_update = update_cycle;
 }
 
@@ -885,7 +895,11 @@ void Adaptive_Data_Model::update(bool from_encoder)
 {
     // halve counts when a threshold is reached
 
-    if ((total_count += update_cycle) > DM__MaxCount) {
+    unsigned int max_symbols = DM__MaxCount;
+    if (use_faster_update)
+        max_symbols = std::min(data_symbols * 32, DM__MaxCount);
+
+    if ((total_count += update_cycle) > max_symbols) {
         total_count = 0;
         for (unsigned n = 0; n < data_symbols; n++)
             total_count += (symbol_count[n] = (symbol_count[n] + 1) >> 1);
@@ -913,7 +927,12 @@ void Adaptive_Data_Model::update(bool from_encoder)
     }
     // set frequency of model updates
     update_cycle = (5 * update_cycle) >> 2;
-    unsigned max_cycle = (data_symbols + 6) << 3;
+    unsigned max_cycle;
+    if (use_faster_update)
+        max_cycle = std::min((data_symbols + 1) << 1, 10u);
+    else
+        max_cycle = (data_symbols + 6) << 3;
+
     if (update_cycle > max_cycle)
         update_cycle = max_cycle;
     symbols_until_update = update_cycle;
@@ -932,13 +951,21 @@ void Adaptive_Data_Model::reset(void)
     for (unsigned k = 0; k < data_symbols; k++)
         symbol_count[k] = 1;
     update(false);
-    symbols_until_update = update_cycle = (data_symbols + 6) >> 1;
+
+    if (use_faster_update)
+        update_cycle = std::min((data_symbols + 1) << 1, 10u);
+    else
+        update_cycle = (data_symbols + 6) >> 1;
+
+    symbols_until_update = update_cycle;
 }
 
-void Adaptive_Data_Model::reset(const unsigned int* init)
+void Adaptive_Data_Model::reset(const unsigned int* init, bool set_use_faster_update)
 {
     if (data_symbols == 0)
         return;
+
+    use_faster_update = set_use_faster_update;
 
     // restore probability estimates to uniform distribution
     total_count = 0;
@@ -949,7 +976,12 @@ void Adaptive_Data_Model::reset(const unsigned int* init)
     }
     update(false);
 
-    symbols_until_update = update_cycle = (data_symbols + 6) >> 1;
+    if (use_faster_update)
+        update_cycle = std::min((data_symbols + 1) << 1, 10u);
+    else
+        update_cycle = (data_symbols + 6) >> 1;
+
+    symbols_until_update = update_cycle;
 }
 
 

@@ -130,6 +130,7 @@ private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
     void update(void);
     unsigned update_cycle, bits_until_update;
     unsigned bit_0_prob, bit_0_count, bit_count;
+    bool use_faster_update = false;
     friend class Arithmetic_Codec;
 };
 
@@ -145,6 +146,10 @@ public:
     unsigned model_symbols(void) { return data_symbols; }
 
     void reset(void); // reset to equiprobable model
+
+    // reset to given model
+    void reset(const unsigned int*, bool set_use_faster_update);
+
     void set_alphabet(unsigned number_of_symbols);
 
 private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
@@ -152,6 +157,7 @@ private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
     unsigned *distribution, *symbol_count, *decoder_table;
     unsigned total_count, update_cycle, symbols_until_update;
     unsigned data_symbols, last_symbol, table_size, table_shift;
+    bool use_faster_update = false;
     friend class Arithmetic_Codec;
 };
 
