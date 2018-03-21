@@ -54,6 +54,17 @@ struct PCCOctree3Node {
   // Range of point indexes spanned by node
   uint32_t start;
   uint32_t end;
+
+  // address of the current node in 3D morton order.
+  uint64_t mortonIdx;
+
+  // pattern denoting occupied neighbour nodes.
+  //    32 8 (y)
+  //     |/
+  //  2--n--1 (x)
+  //    /|
+  //   4 16 (z)
+  uint8_t neighPattern = 0;
 };
 
 struct PCCNeighborInfo {
@@ -207,6 +218,89 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
     prevIndexesSize = indexes.size();
   }
 }
+
+//---------------------------------------------------------------------------
+// Update the neighbour pattern flags for a node and the 'left' neighbour on
+// each axis.  This update should be applied to each newly inserted node.
+
+void
+updateGeometryNeighState(
+  const ringbuf<PCCOctree3Node>::iterator& bufEnd,
+  int64_t numNodesNextLvl, int childSizeLog2,
+  PCCOctree3Node& child, int childIdx, uint8_t neighPattern,
+  uint8_t parantOccupancy
+) {
+  uint64_t midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
+
+  static const struct {
+    int childIdxBitPos;
+    int axis;
+    int patternFlagUs;
+    int patternFlagThem;
+  } neighParamMap[] = {
+    {4, 2, 1<<1, 1<<0}, // x
+    {2, 1, 1<<2, 1<<3}, // y
+    {1, 0, 1<<4, 1<<5}, // z
+  };
+
+  for (const auto& param : neighParamMap) {
+    // skip expensive check if parent's flags indicate adjacent neighbour
+    // is not present.
+    if ((childIdx & param.childIdxBitPos) == 0) {
+      // $axis co-ordinate = 0
+      if (parantOccupancy & (1<<(childIdx + param.childIdxBitPos)))
+        child.neighPattern |= param.patternFlagThem;
+
+      if (!(neighPattern & param.patternFlagUs))
+        continue;
+    }
+    else {
+      if (parantOccupancy & (1<<(childIdx - param.childIdxBitPos)))
+        child.neighPattern |= param.patternFlagUs;
+
+      // no external search is required for $axis co-ordinate = 1
+      continue;
+    }
+
+    // calculate the morton address of the 'left' neighbour,
+    // the delta is then used as the starting position for a search
+    int64_t mortonIdxNeigh =
+      morton3dAxisDec(midx, param.axis) & ~0x8000000000000000ull;
+    int64_t mortonDelta = midx - mortonIdxNeigh;
+
+    if (mortonDelta < 0) {
+      // no neighbour due to being in zero-th col/row/plane
+      continue;
+    }
+
+    // NB: fifo already contains current node, no point searching it
+    auto posEnd = bufEnd;
+    std::advance(posEnd, -1);
+
+    auto posStart = bufEnd;
+    std::advance(posStart, -std::min(numNodesNextLvl, mortonDelta+2));
+
+    auto found = std::lower_bound(posStart, posEnd, mortonIdxNeigh,
+      [](const PCCOctree3Node& node, uint64_t mortonIdx) {
+        return node.mortonIdx < mortonIdx;
+      }
+    );
+
+    // NB: found is always valid (see posEnd) => can skip check.
+    if (found->mortonIdx != mortonIdxNeigh) {
+      // neighbour isn't present => must have been empty
+      continue;
+    }
+
+    // update both node's neighbour pattern
+    // NB: neighours being present implies occupancy
+    child.neighPattern |= param.patternFlagUs;
+    found->neighPattern |= param.patternFlagThem;
+  }
+}
+
+//---------------------------------------------------------------------------
+
 }
 
 #endif /* PCCTMC3Common_h */

@@ -165,6 +165,11 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      params.roundOutputPositions, false,
      "todo(kmammou)")
 
+  // tools
+  ("neighbourContextualisation",
+     params.encodeParameters.neighbourContextsEnabled, true,
+     "Contextualise geometry octree occupancy based on neighbour patterns")
+
   // attribute processing
   //   NB: Attribute options are special in the way they are applied (see above)
   ("attribute",
@@ -272,6 +277,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     cout << "\t mergeDuplicatedPoints       " << params.encodeParameters.mergeDuplicatedPoints
          << endl;
     cout << "\t positionQuantizationScale   " << params.encodeParameters.positionQuantizationScale
+         << endl;
+    cout << "\t neighbourContextualisation  " << params.encodeParameters.neighbourContextsEnabled
          << endl;
     for (const auto & attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
       cout << "\t " << attributeEncodeParameters.first << endl;

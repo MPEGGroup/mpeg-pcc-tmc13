@@ -50,6 +50,7 @@
 #include "PCCTMC3Common.h"
 
 #include "ArithmeticCodec.h"
+#include "tables.h"
 
 namespace pcc {
 struct PCCAttributeEncodeParamaters {
@@ -64,6 +65,11 @@ struct PCCAttributeEncodeParamaters {
 struct PCCTMC3Encoder3Parameters {
   double positionQuantizationScale;
   bool mergeDuplicatedPoints;
+
+  // Controls the use of neighbour based contextualisation of octree
+  // occupancy during geometry coding.
+  bool neighbourContextsEnabled;
+
   std::map<std::string, PCCAttributeEncodeParamaters> attributeEncodeParameters;
 };
 
@@ -616,6 +622,78 @@ class PCCTMC3Encoder3 {
   }
 
   //-------------------------------------------------------------------------
+  // map the @occupancy pattern bits to take into account symmetries in the
+  // neighbour configuration @neighPattern.
+  //
+  uint8_t
+  mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern)
+  {
+    switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
+      case 1: occupancy = kOccMapRotateZ090[occupancy]; break;
+      case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
+      case 3: occupancy = kOccMapRotateZ270[occupancy]; break;
+    }
+
+    bool flag_ud = (neighPattern & 16) && !(neighPattern & 32);
+    if (flag_ud) {
+      occupancy = kOccMapMirrorXY[occupancy];
+    }
+
+    if (kOccMapRotateYIdFromPattern[neighPattern]) {
+      occupancy = kOccMapRotateY270[occupancy];
+    }
+
+    switch (kOccMapRotateXIdFromPattern[neighPattern]) {
+      case 1: occupancy = kOccMapRotateX090[occupancy]; break;
+      case 2: occupancy = kOccMapRotateX270Y180[occupancy]; break;
+      case 3: occupancy = kOccMapRotateX090Y180[occupancy]; break;
+    }
+
+    return occupancy;
+  }
+
+  //-------------------------------------------------------------------------
+  // enecode a node's occupancy bits
+  //
+  void encodeGeometryOccupancy(
+    bool neighbourContextsEnabled,
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    o3dgc::Adaptive_Bit_Model& ctxSingleChild,
+    o3dgc::Static_Bit_Model& ctxEquiProb,
+    o3dgc::Adaptive_Data_Model (&ctxOccupancy)[10],
+    const PCCOctree3Node& node0,
+    int occupancy
+  ) {
+    if (!neighbourContextsEnabled) {
+      arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
+      return;
+    }
+
+    // code occupancy using the neighbour configuration context
+    // with reduction from 64 states to 10.
+    int neighPattern = node0.neighPattern;
+    int neighPattern10 = kNeighPattern64to10[neighPattern];
+
+    if (neighPattern10 == 0) {
+      bool singleChild = !popcntGt1(occupancy);
+      arithmeticEncoder->encode(singleChild, ctxSingleChild);
+
+      if (singleChild) {
+        // no siblings => encode index = (z,y,x) not 8bit pattern
+        arithmeticEncoder->encode(!!(occupancy & 0xaa), ctxEquiProb); // z
+        arithmeticEncoder->encode(!!(occupancy & 0xcc), ctxEquiProb); // y
+        arithmeticEncoder->encode(!!(occupancy & 0xf0), ctxEquiProb); // x
+      } else {
+        arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
+      }
+    }
+    else {
+      uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
+      arithmeticEncoder->encode(mappedOccupancy, ctxOccupancy[neighPattern10]);
+    }
+  }
+
+  //-------------------------------------------------------------------------
 
   int encodePositions(
     const PCCTMC3Encoder3Parameters& params,
@@ -627,11 +705,18 @@ class PCCTMC3Encoder3 {
     arithmeticEncoder.set_buffer(uint32_t(bitstream.capacity - bitstream.size),
                                  bitstream.buffer + bitstream.size);
     arithmeticEncoder.start_encoder();
-    o3dgc::Adaptive_Data_Model multiSymbolOccupancyModel0(257);
 
     o3dgc::Static_Bit_Model ctxEquiProb;
+    o3dgc::Adaptive_Bit_Model ctxSingleChild;
     o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
+    // occupancy map model using ten 6-neighbour configurations
+    o3dgc::Adaptive_Data_Model ctxOccupancy[10];
+    for (int i = 0; i < 10; i++) {
+        ctxOccupancy[i].set_alphabet(256);
+        if (params.neighbourContextsEnabled)
+          ctxOccupancy[i].reset(kInitCtxOccupancy + 256 * i, true);
+    }
 
     // init main fifo
     //  -- worst case size is the last level containing every input poit
@@ -651,6 +736,7 @@ class PCCTMC3Encoder3 {
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
+    node00.neighPattern = 0;
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
@@ -658,10 +744,15 @@ class PCCTMC3Encoder3 {
 
     auto fifoCurrLvlEnd = fifo.end();
 
+    // this counter represents fifo.end() - fifoCurrLvlEnd().
+    // ie, the number of nodes added to the next level of the tree
+    int numNodesNextLvl = 0;
+
     for (; !fifo.empty(); fifo.pop_front()) {
       if (fifo.begin() == fifoCurrLvlEnd) {
         // transition to the next level
         fifoCurrLvlEnd = fifo.end();
+        numNodesNextLvl = 0;
         nodeSizeLog2--;
       }
 
@@ -694,7 +785,10 @@ class PCCTMC3Encoder3 {
       }
 
       assert(occupancy > 0);
-      arithmeticEncoder.encode(occupancy, multiSymbolOccupancyModel0);
+      encodeGeometryOccupancy(
+        params.neighbourContextsEnabled, &arithmeticEncoder, ctxSingleChild,
+        ctxEquiProb, ctxOccupancy, node0, occupancy
+      );
 
       // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
       // and are immediately coded.  No further splitting occurs.
@@ -722,7 +816,8 @@ class PCCTMC3Encoder3 {
         continue;
       }
 
-      // nodeSizeLog2 > 1: insert split children into fifo
+      // nodeSizeLog2 > 1: insert split children into fifo while updating
+      // neighbour state
       int childPointsStartIdx = node0.start;
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {
@@ -745,6 +840,15 @@ class PCCTMC3Encoder3 {
         child.start = childPointsStartIdx;
         childPointsStartIdx += childCounts[i];
         child.end = childPointsStartIdx;
+
+        // NB: there is no need to update the neighbour state for leaf nodes
+        numNodesNextLvl++;
+        if (params.neighbourContextsEnabled) {
+          updateGeometryNeighState(
+            fifo.end(), numNodesNextLvl, childSizeLog2, child, i,
+            node0.neighPattern, occupancy
+          );
+        }
       }
     }
 
@@ -765,6 +869,9 @@ class PCCTMC3Encoder3 {
     // todo(df): syntax element name: geometryPointsAreUnique?
     PCCWriteToBuffer<uint8_t>(
       uint8_t(params.mergeDuplicatedPoints), bitstream.buffer, bitstream.size);
+
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(params.neighbourContextsEnabled), bitstream.buffer, bitstream.size);
 
     for (int k = 0; k < 3; ++k) {
       PCCWriteToBuffer<double>(minPositions[k], bitstream.buffer, bitstream.size);

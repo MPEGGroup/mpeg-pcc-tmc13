@@ -40,6 +40,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "PCCMisc.h"
+
 namespace pcc {
 /// Vector dim 3
 template <typename T>
@@ -254,6 +256,20 @@ template <typename T>
 bool PCCApproximatelyEqual(T a, T b, T epsilon = std::numeric_limits<double>::epsilon()) {
   return fabs(a - b) <= ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
 }
+
+//---------------------------------------------------------------------------
+// Convert a vector position (divided by 2^depth) to morton order address.
+
+template <typename T>
+uint64_t mortonAddr(const PCCVector3<T>& vec, int depth) {
+  uint64_t addr = interleave3b0(uint64_t(vec.z()) >> depth);
+  addr |= interleave3b0(uint64_t(vec.y()) >> depth) << 1;
+  addr |= interleave3b0(uint64_t(vec.x()) >> depth) << 2;
+  return addr;
 }
+
+//---------------------------------------------------------------------------
+
+} /* namespace pcc */
 
 #endif /* PCCMath_h */

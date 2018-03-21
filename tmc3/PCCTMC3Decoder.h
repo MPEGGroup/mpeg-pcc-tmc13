@@ -46,6 +46,8 @@
 #include "PCCTMC3Common.h"
 
 #include "ArithmeticCodec.h"
+#include "tables.h"
+
 namespace pcc {
 
 class PCCTMC3Decoder3 {
@@ -416,6 +418,9 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     geometryPointsAreUnique = bool(u8value);
 
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
+    neighbourContextsEnabled = bool(u8value);
+
     if (hasColors) {
       pointCloud.addColors();
     } else {
@@ -464,6 +469,78 @@ class PCCTMC3Decoder3 {
   }
 
   //-------------------------------------------------------------------------
+  // map the @occupancy pattern bits to take into account symmetries in the
+  // neighbour configuration @neighPattern.
+  //
+  uint8_t
+  mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
+  {
+    switch (kOccMapRotateXIdFromPattern[neighPattern]) {
+      case 1: occupancy = kOccMapRotateX270[occupancy]; break;
+      case 2: occupancy = kOccMapRotateX270Y180[occupancy]; break;
+      case 3: occupancy = kOccMapRotateX090Y180[occupancy]; break;
+    }
+
+    if (kOccMapRotateYIdFromPattern[neighPattern]) {
+      occupancy = kOccMapRotateY090[occupancy];
+    }
+
+    bool flag_ud = (neighPattern & 16) && !(neighPattern & 32);
+    if (flag_ud) {
+      occupancy = kOccMapMirrorXY[occupancy];
+    }
+
+    switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
+      case 1: occupancy = kOccMapRotateZ270[occupancy]; break;
+      case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
+      case 3: occupancy = kOccMapRotateZ090[occupancy]; break;
+    }
+
+    return occupancy;
+  }
+
+  //-------------------------------------------------------------------------
+  // decode node occupancy bits
+  //
+  uint32_t decodeGeometryOccupancy(
+    bool neighbourContextsEnabled,
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    o3dgc::Adaptive_Bit_Model& ctxSingleChild,
+    o3dgc::Static_Bit_Model& ctxEquiProb,
+    o3dgc::Adaptive_Data_Model (&ctxOccupancy)[10],
+    const PCCOctree3Node& node0
+  ) {
+    if (!neighbourContextsEnabled) {
+      return arithmeticDecoder->decode(ctxOccupancy[0]);
+    }
+
+    // neighbouring configuration with reduction from 64 to 10
+    int neighPattern = node0.neighPattern;
+    int neighPattern10 = kNeighPattern64to10[neighPattern];
+
+    // decode occupancy pattern
+    uint32_t occupancy;
+    if (neighPattern10 == 0) {
+      // neighbour empty and only one point => decode index, not pattern
+      if (arithmeticDecoder->decode(ctxSingleChild)) {
+        uint32_t cnt = arithmeticDecoder->decode(ctxEquiProb);
+        cnt |= arithmeticDecoder->decode(ctxEquiProb) << 1;
+        cnt |= arithmeticDecoder->decode(ctxEquiProb) << 2;
+        occupancy = 1 << cnt;
+      }
+      else {
+        occupancy = arithmeticDecoder->decode(ctxOccupancy[0]);
+      }
+    }
+    else {
+      occupancy = arithmeticDecoder->decode(ctxOccupancy[neighPattern10]);
+      occupancy = mapGeometryOccupancyInv(occupancy, neighPattern);
+    }
+
+    return occupancy;
+  }
+
+  //-------------------------------------------------------------------------
 
   int decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t compressedBitstreamSize;
@@ -472,11 +549,19 @@ class PCCTMC3Decoder3 {
     arithmeticDecoder.set_buffer(uint32_t(bitstream.capacity - bitstream.size),
                                  bitstream.buffer + bitstream.size);
     arithmeticDecoder.start_decoder();
-    o3dgc::Adaptive_Data_Model multiSymbolOccupancyModel0(257);
 
     o3dgc::Static_Bit_Model ctxEquiProb;
+    o3dgc::Adaptive_Bit_Model ctxSingleChild;
     o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
+    // pattern model using ten 6-neighbour configurations
+    o3dgc::Adaptive_Data_Model ctxOccupancy[10];
+    for (int i = 0; i < 10; i++) {
+        ctxOccupancy[i].set_alphabet(256);
+        if (neighbourContextsEnabled)
+          ctxOccupancy[i].reset(kInitCtxOccupancy + 256 * i, true);
+    }
+
 
     // init main fifo
     //  -- worst case size is the last level containing every input poit
@@ -496,6 +581,7 @@ class PCCTMC3Decoder3 {
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
+    node00.neighPattern = 0;
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
@@ -503,16 +589,24 @@ class PCCTMC3Decoder3 {
 
     auto fifoCurrLvlEnd = fifo.end();
 
+    // this counter represents fifo.end() - fifoCurrLvlEnd().
+    // ie, the number of nodes added to the next level of the tree
+    int numNodesNextLvl = 0;
+
     for (; !fifo.empty(); fifo.pop_front()) {
       if (fifo.begin() == fifoCurrLvlEnd) {
         // transition to the next level
         fifoCurrLvlEnd = fifo.end();
         nodeSizeLog2--;
+        numNodesNextLvl = 0;
       }
       PCCOctree3Node& node0 = fifo.front();
 
-      // split the current node based on occupancy.
-      const uint32_t occupancy = arithmeticDecoder.decode(multiSymbolOccupancyModel0);
+      // decode occupancy pattern
+      uint8_t occupancy = decodeGeometryOccupancy(
+          neighbourContextsEnabled, &arithmeticDecoder, ctxSingleChild,
+          ctxEquiProb, ctxOccupancy, node0
+      );
       assert(occupancy > 0);
 
       // split the current node
@@ -561,6 +655,15 @@ class PCCTMC3Decoder3 {
         child.pos[0] = node0.pos[0] + (x << childSizeLog2);
         child.pos[1] = node0.pos[1] + (y << childSizeLog2);
         child.pos[2] = node0.pos[2] + (z << childSizeLog2);
+
+        // NB: there is no need to update the neighbour state for leaf nodes
+        numNodesNextLvl++;
+        if (neighbourContextsEnabled) {
+          updateGeometryNeighState(
+            fifo.end(), numNodesNextLvl, childSizeLog2, child, i,
+            node0.neighPattern, occupancy
+          );
+        }
       }
     }
 
@@ -603,6 +706,10 @@ class PCCTMC3Decoder3 {
   // When not equal to zero, indicates that a count of points is present in
   // each geometry octree leaf node.
   bool geometryPointsAreUnique;
+
+  // Controls the use of neighbour based contextualisation of octree
+  // occupancy during geometry coding.
+  bool neighbourContextsEnabled;
 };
 }
 

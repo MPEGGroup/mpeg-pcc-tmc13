@@ -125,6 +125,14 @@ static int popcnt(uint32_t x) {
 }
 
 //---------------------------------------------------------------------------
+// Test if population count is greater than 1.
+// Returns non-zero if true.
+//
+static uint32_t popcntGt1(uint32_t x) {
+  return x & (x - 1);
+}
+
+//---------------------------------------------------------------------------
 // Round @x up to next power of two.
 //
 static uint32_t ceilpow2(uint32_t x) {
@@ -152,6 +160,29 @@ static int ilog2(uint32_t x) {
 
 static int ceillog2(uint32_t x) {
   return ilog2(x-1) + 1;
+}
+
+//-------------------------------------------------------------------------
+// Shuffle bits of x so as to interleave 0b00 between each pair.
+// NB: x must be in the range [0, 2**21 - 1].
+//
+static int64_t interleave3b0(uint64_t x)
+{
+  x = ((x << 32) | x) & 0x00ff00000000ffffllu;
+  x = ((x << 16) | x) & 0x00ff0000ff0000ffllu;
+  x = ((x <<  8) | x) & 0xf00f00f00f00f00fllu;
+  x = ((x <<  4) | x) & 0x30c30c30c30c30c3llu;
+  x = ((x <<  2) | x) & 0x9249249249249249llu;
+  return x;
+}
+
+//---------------------------------------------------------------------------
+// Decrement the @axis-th dimension of 3D morton code @x.
+//
+static uint64_t morton3dAxisDec(uint64_t val, int axis)
+{
+  const uint64_t mask0 = 0x9249249249249249llu << axis;
+  return ((val & mask0) - 1 & mask0) | (val & ~mask0);
 }
 
 //---------------------------------------------------------------------------
