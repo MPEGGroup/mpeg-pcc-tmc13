@@ -600,8 +600,12 @@ class PCCTMC3Encoder3 {
     arithmeticEncoder.set_buffer(uint32_t(bitstream.capacity - bitstream.size),
                                  bitstream.buffer + bitstream.size);
     arithmeticEncoder.start_encoder();
-    o3dgc::Adaptive_Data_Model multiSymbolOccupacyModel0(257);
-    std::queue<PCCOctree3Node> fifo;
+    o3dgc::Adaptive_Data_Model multiSymbolOccupancyModel0(257);
+
+    // init main fifo
+    std::deque<PCCOctree3Node> fifo;
+    std::deque<PCCOctree3Node> tmpFifo;
+
     uint32_t maxBB = std::max(std::max(boundingBox.max[0], boundingBox.max[1]),
                               std::max(uint32_t(1), boundingBox.max[2]));
     // round up to the next highest power of 2
@@ -613,22 +617,25 @@ class PCCTMC3Encoder3 {
     maxBB |= maxBB >> 16;
 
     // push the first node
-    PCCOctree3Node node0;
-    node0.start = uint32_t(0);
-    node0.end = uint32_t(pointCloud.getPointCount());
-    node0.boundingBox.min = uint32_t(0);
-    node0.boundingBox.max = maxBB;
-    fifo.push(node0);
+    PCCOctree3Node node00;
+    node00.start = uint32_t(0);
+    node00.end = uint32_t(pointCloud.getPointCount());
+    node00.boundingBox.min = uint32_t(0);
+    node00.boundingBox.max = maxBB;
+    fifo.push_back(node00);
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
     o3dgc::Adaptive_Bit_Model singlePointPerBlock;
     o3dgc::Static_Bit_Model bModel0;
     o3dgc::Adaptive_Bit_Model bModelPointCountPerBlock;
-    while (!fifo.empty()) {
-      const PCCOctree3Node node0 = fifo.front();
-      fifo.pop();
+
+    for (; !fifo.empty(); fifo.pop_front()) {
+      PCCOctree3Node& node0 = fifo.front();
+
       const PCCVector3<uint32_t> range = node0.boundingBox.max - node0.boundingBox.min;
+
+      // encode the points for a leaf node at maximal depth
       if (range[0] == 0 && range[1] == 0 && range[2] == 0) {
         assert(node0.end > node0.start);
         const size_t count = node0.end - node0.start;
@@ -640,66 +647,81 @@ class PCCTMC3Encoder3 {
                                             bModelPointCountPerBlock);
         }
         processedPointCount += count;
-      } else {
-        std::queue<PCCOctree3Node> tmpFifo;
-        tmpFifo.push(node0);
-        for (size_t splitAxis = 0; splitAxis < 3; ++splitAxis) {
-          const size_t nodeCount = tmpFifo.size();
-          for (size_t n = 0; n < nodeCount; ++n) {
-            const PCCOctree3Node node = tmpFifo.front();
-            tmpFifo.pop();
-            const uint32_t splitValue =
-                (node.boundingBox.max[splitAxis] + node.boundingBox.min[splitAxis]) / 2;
-            int64_t splitIndex = int64_t(node.start);
-            if (node.end > node.start) {
-              assert(node.end > 0);
-              int64_t last = int64_t(node.end - 1);
-              while (splitIndex <= last) {
-                assert(splitIndex <= node.end);
-                assert(last >= node.start);
-                if (pointCloud[splitIndex][splitAxis] > splitValue) {
-                  pointCloud.swapPoints(splitIndex, last);
-                  --last;
-                } else {
-                  ++splitIndex;
-                }
-              }
-              assert(splitIndex <= node.end);
-              assert(splitIndex >= node.start);
-            }
-            PCCOctree3Node nodeLeft = node;
-            nodeLeft.boundingBox.max[splitAxis] = splitValue;
-            nodeLeft.end = splitIndex;
-            tmpFifo.push(nodeLeft);
 
-            PCCOctree3Node nodeRight = node;
-            nodeRight.boundingBox.min[splitAxis] = splitValue + 1;
-            nodeRight.start = splitIndex;
-            tmpFifo.push(nodeRight);
-          }
-        }
+        // leaf nodes do not get split
+        continue;
+      }
 
-        assert(tmpFifo.size() == 8);
-        uint32_t occupacy = 0;
-        uint32_t shift = 0;
-        while (!tmpFifo.empty()) {
+      // split the current node into 8 children
+      tmpFifo.clear();
+      tmpFifo.push_back(node0);
+      for (size_t splitAxis = 0; splitAxis < 3; ++splitAxis) {
+        const size_t nodeCount = tmpFifo.size();
+        for (size_t n = 0; n < nodeCount; ++n) {
           const PCCOctree3Node node = tmpFifo.front();
-          tmpFifo.pop();
+          tmpFifo.pop_front();
+          const uint32_t splitValue =
+              (node.boundingBox.max[splitAxis] + node.boundingBox.min[splitAxis]) / 2;
+          int64_t splitIndex = int64_t(node.start);
           if (node.end > node.start) {
-            occupacy += 1 << shift;
-            fifo.push(node);
+            assert(node.end > 0);
+            int64_t last = int64_t(node.end - 1);
+            while (splitIndex <= last) {
+              assert(splitIndex <= node.end);
+              assert(last >= node.start);
+              if (pointCloud[splitIndex][splitAxis] > splitValue) {
+                pointCloud.swapPoints(splitIndex, last);
+                --last;
+              } else {
+                ++splitIndex;
+              }
+            }
+            assert(splitIndex <= node.end);
+            assert(splitIndex >= node.start);
           }
-          ++shift;
+          tmpFifo.push_back(node);
+          PCCOctree3Node& nodeLeft = tmpFifo.back();
+          nodeLeft.boundingBox.max[splitAxis] = splitValue;
+          nodeLeft.end = splitIndex;
+
+          tmpFifo.push_back(node);
+          PCCOctree3Node& nodeRight = tmpFifo.back();
+          nodeRight.boundingBox.min[splitAxis] = splitValue + 1;
+          nodeRight.start = splitIndex;
         }
-        assert(occupacy > 0);
-        arithmeticEncoder.encode(occupacy, multiSymbolOccupacyModel0);
+      }
+
+      // determine occupancy
+      assert(tmpFifo.size() == 8);
+      uint32_t occupancy = 0;
+      for (int i = 0; i < 8; i++) {
+        const auto& node = tmpFifo[i];
+        if (node.end > node.start) {
+          occupancy += 1 << i;
+        }
+      }
+      assert(occupancy > 0);
+      arithmeticEncoder.encode(occupancy, multiSymbolOccupancyModel0);
+
+      // insert split children into fifo
+      for (int i = 0; i < 8; i++) {
+        const auto& node = tmpFifo[i];
+        if (node.end <= node.start) {
+          // child is empty: skip
+          continue;
+        }
+
+        // create new child
+        fifo.push_back(node);
       }
     }
+
     const uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
     bitstream.size += compressedBitstreamSize;
     PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
     return 0;
   }
+
   int encodePositionsHeader(const PCCTMC3Encoder3Parameters &params,
                             PCCBitstream &bitstream) const {
     PCCWriteToBuffer<uint32_t>(uint32_t(pointCloud.getPointCount()), bitstream.buffer,
