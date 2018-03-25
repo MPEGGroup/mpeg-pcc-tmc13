@@ -134,7 +134,6 @@ class PCCTMC3Encoder3 {
         return ret;
       }
       buildPredictors(colorParams);
-      computeColorPredictionWeights(colorParams);
       if (int ret = encodeColors(colorParams, bitstream)) {
         return ret;
       }
@@ -150,7 +149,6 @@ class PCCTMC3Encoder3 {
         return ret;
       }
       buildPredictors(reflectanceParams);
-      computeReflectancePredictionWeights(reflectanceParams);
       if (int ret = encodeReflectances(reflectanceParams, bitstream)) {
         return ret;
       }
@@ -192,7 +190,6 @@ class PCCTMC3Encoder3 {
         return ret;
       }
       buildPredictors(colorParams);
-      computeColorPredictionWeights(colorParams);
       if (int ret = encodeColors(colorParams, bitstream)) {
         return ret;
       }
@@ -208,7 +205,6 @@ class PCCTMC3Encoder3 {
         return ret;
       }
       buildPredictors(reflectanceParams);
-      computeReflectancePredictionWeights(reflectanceParams);
       if (int ret = encodeReflectances(reflectanceParams, bitstream)) {
         return ret;
       }
@@ -268,8 +264,7 @@ class PCCTMC3Encoder3 {
   }
   int encodeReflectances(const PCCAttributeEncodeParamaters &reflectanceParams,
                          PCCBitstream &bitstream) {
-    const size_t pointCount = pointCloud.getPointCount();
-    assert(pointCount == predictors.size());
+    const size_t pointCount = predictors.size();
     uint32_t maxAttributeValueDiff0 = 0;
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
@@ -305,32 +300,23 @@ class PCCTMC3Encoder3 {
                                  bitstream.buffer + bitstream.size);
     arithmeticEncoder.start_encoder();
     o3dgc::Static_Bit_Model binaryModel0;
-    o3dgc::Adaptive_Data_Model neighborCountModel;
-    neighborCountModel.set_alphabet(
-        uint32_t(reflectanceParams.numberOfNearestNeighborsInPrediction));
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
-      if (!predictor.neighborCount) {  // no prediction
-        encodeAbsUInt32(pointCloud.getReflectance(predictor.index), 16, arithmeticEncoder,
-                        binaryModel0);
-      } else {
-        const size_t lodIndex = predictor.levelOfDetailIndex;
-        const int64_t qs = reflectanceParams.quantizationSteps[lodIndex];
-        arithmeticEncoder.encode(uint32_t(predictor.neighborCount - 1), neighborCountModel);
+      const size_t lodIndex = predictor.levelOfDetailIndex;
+      const int64_t qs = reflectanceParams.quantizationSteps[lodIndex];
 
-        const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
-        const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-        const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-        encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
-                          arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
+      const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
+      const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
+      const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
+      const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
+      encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
+                        arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
 
-        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
-        const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-        const uint16_t reconstructedReflectance = uint16_t(PCCClip(
-            reconstructedQuantAttValue, int64_t(0), int64_t(std::numeric_limits<uint16_t>::max())));
-        pointCloud.setReflectance(predictor.index, reconstructedReflectance);
-      }
+      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
+      const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
+      const uint16_t reconstructedReflectance = uint16_t(PCCClip(
+          reconstructedQuantAttValue, int64_t(0), int64_t(std::numeric_limits<uint16_t>::max())));
+      pointCloud.setReflectance(predictor.index, reconstructedReflectance);
     }
     uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
     bitstream.size += compressedBitstreamSize;
@@ -356,8 +342,7 @@ class PCCTMC3Encoder3 {
   }
 
   int encodeColors(const PCCAttributeEncodeParamaters &colorParams, PCCBitstream &bitstream) {
-    const size_t pointCount = pointCloud.getPointCount();
-    assert(pointCount == predictors.size());
+    const size_t pointCount = predictors.size();
     uint32_t maxAttributeValueDiff0 = 0;
     uint32_t maxAttributeValueDiff1 = 0;
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
@@ -422,136 +407,46 @@ class PCCTMC3Encoder3 {
                                  bitstream.buffer + bitstream.size);
     arithmeticEncoder.start_encoder();
     o3dgc::Static_Bit_Model binaryModel0;
-    o3dgc::Adaptive_Data_Model neighborCountModel;
-    neighborCountModel.set_alphabet(uint32_t(colorParams.numberOfNearestNeighborsInPrediction));
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
       const PCCColor3B color = pointCloud.getColor(predictor.index);
+      const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
+      const size_t lodIndex = predictor.levelOfDetailIndex;
+      const int64_t qs = colorParams.quantizationSteps[lodIndex];
+      const int64_t quantAttValue = color[0];
+      const int64_t quantPredAttValue = predictedColor[0];
+      const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
+      const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
+      const uint32_t modelIndex = (attValue0 < PCCTMC3Diff1AdaptiveDataModelCount)
+                                      ? attValue0
+                                      : PCCTMC3Diff1AdaptiveDataModelCount - 1;
+      encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
+                        arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
 
-      if (!predictor.neighborCount) {  // no prediction
-        for (size_t k = 0; k < 3; ++k) {
-          encodeAbsUInt32(color[k], 8, arithmeticEncoder, binaryModel0);
-        }
-      } else {
-        const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-        const size_t lodIndex = predictor.levelOfDetailIndex;
-        const int64_t qs = colorParams.quantizationSteps[lodIndex];
-        arithmeticEncoder.encode(uint32_t(predictor.neighborCount - 1), neighborCountModel);
-
-        const int64_t quantAttValue = color[0];
-        const int64_t quantPredAttValue = predictedColor[0];
+      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
+      const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
+      PCCColor3B reconstructedColor;
+      reconstructedColor[0] =
+          uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
+      for (size_t k = 1; k < 3; ++k) {
+        const int64_t quantAttValue = color[k];
+        const int64_t quantPredAttValue = predictedColor[k];
         const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-        const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-        const uint32_t modelIndex = (attValue0 < PCCTMC3Diff1AdaptiveDataModelCount)
-                                        ? attValue0
-                                        : PCCTMC3Diff1AdaptiveDataModelCount - 1;
-        encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
-                          arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
-
         const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-        PCCColor3B reconstructedColor;
-        reconstructedColor[0] =
+        const uint32_t attValue1 = uint32_t(o3dgc::IntToUInt(long(delta)));
+        encodeDiff1UInt32(attValue1, modelIndex, maxAttributeValueDiff1,
+                          adaptiveDataModelAlphabetSizeDiff1, arithmeticEncoder,
+                          multiSymbolModelDiff1, binaryModelDiff1, binaryModel0);
+        reconstructedColor[k] =
             uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-        for (size_t k = 1; k < 3; ++k) {
-          const int64_t quantAttValue = color[k];
-          const int64_t quantPredAttValue = predictedColor[k];
-          const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-          const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
-          const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-          const uint32_t attValue1 = uint32_t(o3dgc::IntToUInt(long(delta)));
-          encodeDiff1UInt32(attValue1, modelIndex, maxAttributeValueDiff1,
-                            adaptiveDataModelAlphabetSizeDiff1, arithmeticEncoder,
-                            multiSymbolModelDiff1, binaryModelDiff1, binaryModel0);
-          reconstructedColor[k] =
-              uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-        }
-        pointCloud.setColor(predictor.index, reconstructedColor);
       }
+      pointCloud.setColor(predictor.index, reconstructedColor);
     }
     uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
     bitstream.size += compressedBitstreamSize;
     PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
     return 0;
-  }
-  void computeColorPredictionWeights(const PCCAttributeEncodeParamaters &attributeParams) {
-    const size_t pointCount = predictors.size();
-    double bestCost = std::numeric_limits<double>::max();
-    size_t bestNeighborCount = 1;
-    for (size_t neighborCount = 1;
-         neighborCount <= attributeParams.numberOfNearestNeighborsInPrediction; ++neighborCount) {
-      double cost = 0.0;
-      for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-        auto &predictor = predictors[predictorIndex];
-        if (!predictor.maxNeighborCount) {
-          continue;
-        }
-        predictor.computeWeights(neighborCount);
-        const PCCColor3B color = pointCloud.getColor(predictor.index);
-        const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-
-        for (int k = 0; k < 3; ++k) {
-          const size_t lodIndex = predictor.levelOfDetailIndex;
-          const int64_t quantAttValue = color[k];
-          const int64_t quantPredAttValue = predictedColor[k];
-          const int64_t delta0 = PCCQuantization(
-              quantAttValue - quantPredAttValue,
-              int64_t(attributeParams.quantizationSteps[lodIndex]));
-
-          const uint32_t delta1 = uint32_t(o3dgc::IntToUInt(long(delta0)));
-          cost += delta1;
-        }
-      }
-
-      if (cost < bestCost) {
-        bestCost = cost;
-        bestNeighborCount = neighborCount;
-      }
-    }
-
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      auto &predictor = predictors[predictorIndex];
-      if (!predictor.maxNeighborCount) {
-        continue;
-      }
-      predictor.computeWeights(bestNeighborCount);
-    }
-  }
-  void computeReflectancePredictionWeights(const PCCAttributeEncodeParamaters &attributeParams) {
-    const size_t pointCount = predictors.size();
-    double bestCost = std::numeric_limits<double>::max();
-    size_t bestNeighborCount = 1;
-    for (size_t neighborCount = 1;
-         neighborCount <= attributeParams.numberOfNearestNeighborsInPrediction; ++neighborCount) {
-      double cost = 0.0;
-      for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-        auto &predictor = predictors[predictorIndex];
-        if (!predictor.maxNeighborCount) {
-          continue;
-        }
-        predictor.computeWeights(neighborCount);
-        const size_t lodIndex = predictor.levelOfDetailIndex;
-        const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
-        const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const int64_t delta0 = PCCQuantization(
-            quantAttValue - quantPredAttValue,
-            int64_t(attributeParams.quantizationSteps[lodIndex]));
-
-        const uint32_t delta1 = uint32_t(o3dgc::IntToUInt(long(delta0)));
-        cost += delta1;
-      }
-      if (cost < bestCost) {
-        bestCost = cost;
-        bestNeighborCount = neighborCount;
-      }
-    }
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      auto &predictor = predictors[predictorIndex];
-      if (!predictor.maxNeighborCount) {
-        continue;
-      }
-      predictor.computeWeights(bestNeighborCount);
-    }
   }
 
   void buildPredictors(const PCCAttributeEncodeParamaters &attributeParams) {
@@ -560,7 +455,13 @@ class PCCTMC3Encoder3 {
     PCCBuildPredictors(pointCloud, attributeParams.numberOfNearestNeighborsInPrediction,
                        attributeParams.levelOfDetailCount, attributeParams.dist2,
                        predictors, numberOfPointsPerLOD, indexes);
+
+    for (auto &predictor : predictors) {
+      predictor.computeWeights(
+        attributeParams.numberOfNearestNeighborsInPrediction);
+    }
   }
+
   void reconstructedPointCloud(const PCCTMC3Encoder3Parameters &params,
                                PCCPointSet3 *reconstructedCloud) {
     if (reconstructedCloud == nullptr) {

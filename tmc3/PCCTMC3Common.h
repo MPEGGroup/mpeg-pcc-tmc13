@@ -109,6 +109,9 @@ struct PCCPredictor {
 
   void computeWeights(const size_t neighborCount0) {
     neighborCount = std::min(neighborCount0, maxNeighborCount);
+    if (!neighborCount) {
+      return;
+    }
     double sum = 0.0;
     for (size_t n = 0; n < neighborCount; ++n) {
       neighbors[n].weight = neighbors[n].invDistance;
