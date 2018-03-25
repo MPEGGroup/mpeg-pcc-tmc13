@@ -46,6 +46,11 @@
 namespace pcc {
 
 //============================================================================
+// Opaque definitions (Internal detail)
+
+struct PCCResidualsEncoder;
+
+//============================================================================
 
 struct PCCAttributeEncodeParamaters {
   size_t numberOfNearestNeighborsInPrediction;
@@ -63,20 +68,36 @@ public:
     const PCCAttributeEncodeParamaters &attributeParams,
     const PCCPointSet3 &pointCloud);
 
+  // todo(df): return value is always 0 => should be void?
   int encodeHeader(
     const PCCAttributeEncodeParamaters &attributeParams,
     const std::string &attributeName,
     PCCBitstream &bitstream) const;
 
+  // todo(df): return value is always 0 => should be void?
   int encodeReflectances(
     const PCCAttributeEncodeParamaters &reflectanceParams,
     PCCPointSet3 &pointCloud,
     PCCBitstream &bitstream);
 
+  // todo(df): return value is always 0 => should be void?
   int encodeColors(
     const PCCAttributeEncodeParamaters &colorParams,
     PCCPointSet3 &pointCloud,
     PCCBitstream &bitstream);
+
+protected:
+  // todo(df): consider alternative encapsulation
+
+  void encodeReflectancesIntegerLift(
+    const PCCAttributeEncodeParamaters &reflectanceParams,
+    PCCPointSet3 &pointCloud,
+    PCCResidualsEncoder &encoder);
+
+  void encodeColorsIntegerLift(
+    const PCCAttributeEncodeParamaters &colorParams,
+    PCCPointSet3 &pointCloud,
+    PCCResidualsEncoder &encoder);
 
 private:
   std::vector<PCCPredictor> predictors;

@@ -163,19 +163,8 @@ int AttributeDecoder::decodeReflectances(
   const uint32_t alphabetSize = 64;
   decoder.start(bitstream, alphabetSize);
 
-  const size_t pointCount = predictors.size();
-  for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-    auto &predictor = predictors[predictorIndex];
-    uint16_t &reflectance = pointCloud.getReflectance(predictor.index);
-    const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = quantizationSteps[lodIndex];
-    const uint32_t attValue0 = decoder.decode0();
-    const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-    const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
-    const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-    reflectance = uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0),
-                                   int64_t(std::numeric_limits<uint16_t>::max())));
-  }
+  decodeReflectancesIntegerLift(decoder, pointCloud);
+
   decoder.stop();
   bitstream.size += compressedBitstreamSize;
   return 0;
@@ -193,6 +182,40 @@ int AttributeDecoder::decodeColors(
   const uint32_t alphabetSize = 64;
   decoder.start(bitstream, alphabetSize);
 
+  decodeColorsIntegerLift(decoder, pointCloud);
+
+  decoder.stop();
+  bitstream.size += compressedBitstreamSize;
+  return 0;
+}
+
+//----------------------------------------------------------------------------
+
+void AttributeDecoder::decodeReflectancesIntegerLift(
+  PCCResidualsDecoder &decoder,
+  PCCPointSet3 &pointCloud
+) {
+  const size_t pointCount = predictors.size();
+  for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
+    auto &predictor = predictors[predictorIndex];
+    uint16_t &reflectance = pointCloud.getReflectance(predictor.index);
+    const size_t lodIndex = predictor.levelOfDetailIndex;
+    const int64_t qs = quantizationSteps[lodIndex];
+    const uint32_t attValue0 = decoder.decode0();
+    const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
+    const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
+    const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
+    reflectance = uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0),
+                                   int64_t(std::numeric_limits<uint16_t>::max())));
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void AttributeDecoder::decodeColorsIntegerLift(
+  PCCResidualsDecoder &decoder,
+  PCCPointSet3 &pointCloud
+) {
   const size_t pointCount = predictors.size();
   for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
     auto &predictor = predictors[predictorIndex];
@@ -214,9 +237,6 @@ int AttributeDecoder::decodeColors(
       color[k] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
     }
   }
-  decoder.stop();
-  bitstream.size += compressedBitstreamSize;
-  return 0;
 }
 
 //============================================================================

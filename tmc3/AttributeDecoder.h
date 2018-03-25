@@ -46,22 +46,41 @@
 namespace pcc {
 
 //============================================================================
+// Opaque definitions (Internal detail)
+
+struct PCCResidualsDecoder;
+
+//============================================================================
 
 class AttributeDecoder {
 public:
   void buildPredictors(
     const PCCPointSet3 &pointCloud);
 
+  // todo(df): return value is always 0 => should be void?
   int decodeHeader(
     const std::string &attributeName,
     PCCBitstream &bitstream);
 
+  // todo(df): return value is always 0 =>  should be void?
   int decodeReflectances(
     PCCBitstream &bitstream,
     PCCPointSet3 &pointCloud);
 
+  // todo(df): return value is always 0 => should be void?
   int decodeColors(
     PCCBitstream &bitstream,
+    PCCPointSet3 &pointCloud);
+
+protected:
+  // todo(df): consider alternative encapsulation
+
+  void decodeReflectancesIntegerLift(
+    PCCResidualsDecoder &decoder,
+    PCCPointSet3 &pointCloud);
+
+  void decodeColorsIntegerLift(
+    PCCResidualsDecoder &decoder,
     PCCPointSet3 &pointCloud);
 
 private:
