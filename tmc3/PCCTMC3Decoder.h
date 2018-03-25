@@ -392,8 +392,8 @@ class PCCTMC3Decoder3 {
 
     quantizationSteps.resize(levelOfDetailCount);
     for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint16_t qs = 0;
-      PCCReadFromBuffer<uint16_t>(bitstream.buffer, qs, bitstream.size);
+      uint32_t qs = 0;
+      PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
       quantizationSteps[lodIndex] = qs;
     }
 

@@ -351,8 +351,8 @@ class PCCTMC3Encoder3 {
       PCCWriteToBuffer<uint32_t>(d2, bitstream.buffer, bitstream.size);
     }
     for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      const uint16_t qs = uint16_t(attributeParams.quantizationSteps[lodIndex]);
-      PCCWriteToBuffer<uint16_t>(qs, bitstream.buffer, bitstream.size);
+      const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
+      PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
     }
     for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
       const uint16_t dz = uint16_t(attributeParams.quantizationDeadZoneSizes[lodIndex]);
