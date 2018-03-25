@@ -66,7 +66,6 @@ class PCCTMC3Decoder3 {
     levelOfDetailCount = 0;
     dist2.clear();
     quantizationSteps.clear();
-    quantizationDeadZoneSizes.clear();
     predictors.clear();
   }
   int decompressWithLosslessGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
@@ -264,12 +263,11 @@ class PCCTMC3Decoder3 {
         predictor.computeWeights(neighborCount);
         const size_t lodIndex = predictor.levelOfDetailIndex;
         const int64_t qs = quantizationSteps[lodIndex];
-        const int64_t dz = quantizationDeadZoneSizes[lodIndex];
         const uint32_t attValue0 = decodeDiff0UInt32(
             maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0, arithmeticDecoder,
             multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
         const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs, dz);
+        const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
         reflectance = uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0),
                                        int64_t(std::numeric_limits<uint16_t>::max())));
@@ -340,7 +338,6 @@ class PCCTMC3Decoder3 {
         const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
         const size_t lodIndex = predictor.levelOfDetailIndex;
         const int64_t qs = quantizationSteps[lodIndex];
-        const int64_t dz = quantizationDeadZoneSizes[lodIndex];
         const uint32_t attValue0 = decodeDiff0UInt32(
             maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0, arithmeticDecoder,
             multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
@@ -348,7 +345,7 @@ class PCCTMC3Decoder3 {
                                         ? attValue0
                                         : PCCTMC3Diff1AdaptiveDataModelCount - 1;
         const int64_t quantPredAttValue = predictedColor[0];
-        const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs, dz);
+        const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
         color[0] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
 
@@ -357,7 +354,7 @@ class PCCTMC3Decoder3 {
               modelIndex, maxAttributeValueDiff1, adaptiveDataModelAlphabetSizeDiff1,
               arithmeticDecoder, multiSymbolModelDiff1, binaryModelDiff1, binaryModel0);
           const int64_t quantPredAttValue = predictedColor[k];
-          const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue), qs, dz);
+          const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue), qs);
           const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
           color[k] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
         }
@@ -397,12 +394,6 @@ class PCCTMC3Decoder3 {
       quantizationSteps[lodIndex] = qs;
     }
 
-    quantizationDeadZoneSizes.resize(levelOfDetailCount);
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint16_t dz = 0;
-      PCCReadFromBuffer<uint16_t>(bitstream.buffer, dz, bitstream.size);
-      quantizationDeadZoneSizes[lodIndex] = dz;
-    }
     return 0;
   }
 
@@ -781,7 +772,6 @@ class PCCTMC3Decoder3 {
   std::vector<PCCPredictor> predictors;
   std::vector<size_t> dist2;
   std::vector<int64_t> quantizationSteps;
-  std::vector<int64_t> quantizationDeadZoneSizes;
   PCCVector3D minPositions;
   PCCBox3<uint32_t> boundingBox;
   double positionQuantizationScale;

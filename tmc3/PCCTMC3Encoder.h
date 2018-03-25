@@ -60,7 +60,6 @@ struct PCCAttributeEncodeParamaters {
   size_t searchRange;
   std::vector<size_t> dist2;
   std::vector<size_t> quantizationSteps;
-  std::vector<size_t> quantizationDeadZoneSizes;
 };
 
 struct PCCTMC3Encoder3Parameters {
@@ -317,17 +316,16 @@ class PCCTMC3Encoder3 {
       } else {
         const size_t lodIndex = predictor.levelOfDetailIndex;
         const int64_t qs = reflectanceParams.quantizationSteps[lodIndex];
-        const int64_t dz = reflectanceParams.quantizationDeadZoneSizes[lodIndex];
         arithmeticEncoder.encode(uint32_t(predictor.neighborCount - 1), neighborCountModel);
 
         const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
         const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs, dz);
+        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
         const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
         encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
                           arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
 
-        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs, dz);
+        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
         const uint16_t reconstructedReflectance = uint16_t(PCCClip(
             reconstructedQuantAttValue, int64_t(0), int64_t(std::numeric_limits<uint16_t>::max())));
@@ -353,10 +351,6 @@ class PCCTMC3Encoder3 {
     for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
       const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
       PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
-    }
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      const uint16_t dz = uint16_t(attributeParams.quantizationDeadZoneSizes[lodIndex]);
-      PCCWriteToBuffer<uint16_t>(dz, bitstream.buffer, bitstream.size);
     }
     return 0;
   }
@@ -442,12 +436,11 @@ class PCCTMC3Encoder3 {
         const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
         const size_t lodIndex = predictor.levelOfDetailIndex;
         const int64_t qs = colorParams.quantizationSteps[lodIndex];
-        const int64_t dz = colorParams.quantizationDeadZoneSizes[lodIndex];
         arithmeticEncoder.encode(uint32_t(predictor.neighborCount - 1), neighborCountModel);
 
         const int64_t quantAttValue = color[0];
         const int64_t quantPredAttValue = predictedColor[0];
-        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs, dz);
+        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
         const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
         const uint32_t modelIndex = (attValue0 < PCCTMC3Diff1AdaptiveDataModelCount)
                                         ? attValue0
@@ -455,7 +448,7 @@ class PCCTMC3Encoder3 {
         encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
                           arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
 
-        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs, dz);
+        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
         PCCColor3B reconstructedColor;
         reconstructedColor[0] =
@@ -463,8 +456,8 @@ class PCCTMC3Encoder3 {
         for (size_t k = 1; k < 3; ++k) {
           const int64_t quantAttValue = color[k];
           const int64_t quantPredAttValue = predictedColor[k];
-          const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs, dz);
-          const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs, dz);
+          const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
+          const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
           const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
           const uint32_t attValue1 = uint32_t(o3dgc::IntToUInt(long(delta)));
           encodeDiff1UInt32(attValue1, modelIndex, maxAttributeValueDiff1,
@@ -501,10 +494,10 @@ class PCCTMC3Encoder3 {
           const size_t lodIndex = predictor.levelOfDetailIndex;
           const int64_t quantAttValue = color[k];
           const int64_t quantPredAttValue = predictedColor[k];
-          const int64_t delta0 =
-              PCCQuantization(quantAttValue - quantPredAttValue,
-                              int64_t(attributeParams.quantizationSteps[lodIndex]),
-                              int64_t(attributeParams.quantizationDeadZoneSizes[lodIndex]));
+          const int64_t delta0 = PCCQuantization(
+              quantAttValue - quantPredAttValue,
+              int64_t(attributeParams.quantizationSteps[lodIndex]));
+
           const uint32_t delta1 = uint32_t(o3dgc::IntToUInt(long(delta0)));
           cost += delta1;
         }
@@ -541,8 +534,9 @@ class PCCTMC3Encoder3 {
         const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
         const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
         const int64_t delta0 = PCCQuantization(
-            quantAttValue - quantPredAttValue, int64_t(attributeParams.quantizationSteps[lodIndex]),
-            int64_t(attributeParams.quantizationDeadZoneSizes[lodIndex]));
+            quantAttValue - quantPredAttValue,
+            int64_t(attributeParams.quantizationSteps[lodIndex]));
+
         const uint32_t delta1 = uint32_t(o3dgc::IntToUInt(long(delta0)));
         cost += delta1;
       }

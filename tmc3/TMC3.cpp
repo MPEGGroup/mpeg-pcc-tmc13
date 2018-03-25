@@ -197,10 +197,6 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      params_attr.quantizationSteps, {},
      "Attribute's list of quantization step sizes (one for each LoD)")
 
-  ("quantizationDeadZoneSizes",
-     params_attr.quantizationDeadZoneSizes, {},
-     "Attribute's list of dead-zone sizes (one for each LoD)")
-
   ("dist2", params_attr.dist2, {},
      "Attribute's list of squared distances (one for each LoD)")
   ;
@@ -220,7 +216,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   }
 
   // sanity checks
-  //  - validate that quantizationSteps, quantizationDeadZoneSizes, dist2
+  //  - validate that quantizationSteps, dist2
   //    of each attribute contain levelOfDetailCount elements.
   for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
       int lod = attr.second.levelOfDetailCount;
@@ -230,9 +226,6 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       }
       if (attr.second.quantizationSteps.size() != lod) {
         err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
-      }
-      if (attr.second.quantizationDeadZoneSizes.size() != lod) {
-        err.error() << attr.first << ".quantizationDeadZoneSizes does not have " << lod << " entries\n";
       }
   }
 
@@ -300,11 +293,6 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       cout << "\t\t quantizationSteps                      ";
       for (const auto qs : attributeEncodeParameters.second.quantizationSteps) {
         cout << qs << " ";
-      }
-      cout << endl;
-      cout << "\t\t quantizationDeadZoneSizes              ";
-      for (const auto dz : attributeEncodeParameters.second.quantizationDeadZoneSizes) {
-        cout << dz << " ";
       }
       cout << endl;
     }

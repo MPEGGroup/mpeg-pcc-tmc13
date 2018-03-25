@@ -130,33 +130,22 @@ struct PCCPredictor {
     levelOfDetailIndex = lodIndex;
   }
 };
-inline int64_t PCCQuantization(const int64_t value, const int64_t qs, const int64_t deadZone) {
+
+inline int64_t PCCQuantization(const int64_t value, const int64_t qs) {
+  const int64_t shift = (qs / 3);
   if (!qs) {
     return value;
-  } else {
-    const int64_t qs2 = qs / 2;
-    if (value > deadZone) {
-      return (value - deadZone + qs2) / qs + 1;
-    } else if (value < -deadZone) {
-      return (value + deadZone - qs2) / qs - 1;
-    } else {
-      return int64_t(0);
-    }
   }
-}
-inline int64_t PCCInverseQuantization(const int64_t value, const int64_t qs, int64_t deadZone) {
-  if (!qs) {
-    return value;
-  } else {
-    if (value > 0) {
-      return (value - 1) * qs + deadZone;
-    } else if (value < 0) {
-      return (value + 1) * qs - deadZone;
-    } else {
-      return int64_t(0);
-    }
+  if (value >= 0) {
+    return (value + shift) / qs;
   }
+  return -((shift - value) / qs);
 }
+
+inline int64_t PCCInverseQuantization(const int64_t value, const int64_t qs) {
+  return qs == 0 ? value : (value * qs);
+}
+
 inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
                                const size_t numberOfNearestNeighborsInPrediction,
                                const size_t levelOfDetailCount, const std::vector<size_t> &dist2,
