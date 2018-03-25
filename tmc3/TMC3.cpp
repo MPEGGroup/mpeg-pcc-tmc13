@@ -186,7 +186,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "Attribute's todo(kmammou)")
 
   ("numberOfNearestNeighborsInPrediction",
-     params_attr.numberOfNearestNeighborsInPrediction, size_t(8),
+     params_attr.numberOfNearestNeighborsInPrediction, size_t(4),
      "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("levelOfDetailCount",
@@ -219,14 +219,21 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   //  - validate that quantizationSteps, dist2
   //    of each attribute contain levelOfDetailCount elements.
   for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
-      int lod = attr.second.levelOfDetailCount;
+    int lod = attr.second.levelOfDetailCount;
 
-      if (attr.second.dist2.size() != lod) {
-        err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
-      }
-      if (attr.second.quantizationSteps.size() != lod) {
-        err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
-      }
+    if (attr.second.dist2.size() != lod) {
+      err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
+    }
+    if (attr.second.quantizationSteps.size() != lod) {
+      err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
+    }
+    if (attr.second.numberOfNearestNeighborsInPrediction >
+        PCCTMC3MaxPredictionNearestNeighborCount)
+    {
+      err.error() << attr.first
+        << ".numberOfNearestNeighborsInPrediction must be less than "
+        << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
+    }
   }
 
   // check required arguments are specified
