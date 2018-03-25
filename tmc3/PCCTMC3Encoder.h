@@ -78,6 +78,47 @@ struct PCCTMC3Encoder3Parameters {
 };
 
 class PCCTMC3Encoder3 {
+  struct PCCResidualsEncoder {
+    uint32_t alphabetSize;
+    o3dgc::Arithmetic_Codec arithmeticEncoder;
+    o3dgc::Static_Bit_Model binaryModel0;
+    o3dgc::Adaptive_Bit_Model binaryModelDiff0;
+    o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
+    o3dgc::Adaptive_Bit_Model binaryModelDiff1;
+    o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
+    PCCResidualsEncoder() { alphabetSize = 0; }
+
+    void start(PCCBitstream &bitstream, const uint32_t alphabetSize = 64) {
+      this->alphabetSize = alphabetSize;
+      multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
+      binaryModelDiff0.reset();
+      multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
+      binaryModelDiff1.reset();
+      arithmeticEncoder.set_buffer(static_cast<uint32_t>(bitstream.capacity - bitstream.size),
+                                   bitstream.buffer + bitstream.size);
+      arithmeticEncoder.start_encoder();
+    }
+
+    uint32_t stop() { return arithmeticEncoder.stop_encoder(); }
+
+    void encode0(const uint32_t value) {
+      if (value < alphabetSize) {
+        arithmeticEncoder.encode(value, multiSymbolModelDiff0);
+      } else {
+        arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff0);
+        arithmeticEncoder.ExpGolombEncode(value - alphabetSize, 0, binaryModel0, binaryModelDiff0);
+      }
+    }
+    void encode1(const uint32_t value) {
+      if (value < alphabetSize) {
+        arithmeticEncoder.encode(value, multiSymbolModelDiff1);
+      } else {
+        arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff1);
+        arithmeticEncoder.ExpGolombEncode(value - alphabetSize, 0, binaryModel0, binaryModelDiff1);
+      }
+    }
+  };
+
  public:
   PCCTMC3Encoder3() { init(); }
   PCCTMC3Encoder3(const PCCTMC3Encoder3 &) = default;
@@ -219,87 +260,15 @@ class PCCTMC3Encoder3 {
   }
 
  private:
-  static void encodeAbsUInt32(const uint32_t value, const uint32_t bitCount,
-                              o3dgc::Arithmetic_Codec &arithmeticEncoder,
-                              o3dgc::Static_Bit_Model &binaryModel0) {
-    uint32_t valueToEncode = PCCToLittleEndian<uint32_t>(value);
-    for (uint32_t i = 0; i < bitCount; ++i) {
-      arithmeticEncoder.encode(valueToEncode & 1, binaryModel0);
-      valueToEncode >>= 1;
-    }
-  }
-  static void encodeDiff0UInt32(const uint32_t value, const uint32_t maxAttributeValueDiff0,
-                                const uint32_t adaptiveDataModelAlphabetSizeDiff0,
-                                o3dgc::Arithmetic_Codec &arithmeticEncoder,
-                                o3dgc::Adaptive_Data_Model &multiSymbolModelDiff0,
-                                o3dgc::Adaptive_Bit_Model &binaryModelDiff0,
-                                o3dgc::Static_Bit_Model &binaryModel0) {
-    if (!maxAttributeValueDiff0) {
-      return;
-    } else if (value < adaptiveDataModelAlphabetSizeDiff0) {
-      arithmeticEncoder.encode(value, multiSymbolModelDiff0);
-    } else {
-      arithmeticEncoder.encode(adaptiveDataModelAlphabetSizeDiff0, multiSymbolModelDiff0);
-      arithmeticEncoder.ExpGolombEncode(value - adaptiveDataModelAlphabetSizeDiff0, 0, binaryModel0,
-                                        binaryModelDiff0);
-    }
-  }
-  static void encodeDiff1UInt32(const uint32_t value, const uint32_t modelIndex,
-                                const uint32_t maxAttributeValueDiff1,
-                                const uint32_t adaptiveDataModelAlphabetSizeDiff1,
-                                o3dgc::Arithmetic_Codec &arithmeticEncoder,
-                                std::vector<o3dgc::Adaptive_Data_Model> &multiSymbolModelDiff1,
-                                std::vector<o3dgc::Adaptive_Bit_Model> &binaryModelDiff1,
-                                o3dgc::Static_Bit_Model &binaryModel0) {
-    if (!maxAttributeValueDiff1) {
-      return;
-    } else if (value < adaptiveDataModelAlphabetSizeDiff1) {
-      arithmeticEncoder.encode(value, multiSymbolModelDiff1[modelIndex]);
-    } else {
-      arithmeticEncoder.encode(adaptiveDataModelAlphabetSizeDiff1,
-                               multiSymbolModelDiff1[modelIndex]);
-      arithmeticEncoder.ExpGolombEncode(value - adaptiveDataModelAlphabetSizeDiff1, 0, binaryModel0,
-                                        binaryModelDiff1[modelIndex]);
-    }
-  }
   int encodeReflectances(const PCCAttributeEncodeParamaters &reflectanceParams,
                          PCCBitstream &bitstream) {
-    const size_t pointCount = predictors.size();
-    uint32_t maxAttributeValueDiff0 = 0;
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      const auto &predictor = predictors[predictorIndex];
-      if (predictor.maxNeighborCount) {
-        const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
-        const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-        const uint32_t diffAttValue =
-            uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
-        if (maxAttributeValueDiff0 < diffAttValue) {
-          maxAttributeValueDiff0 = diffAttValue;
-        }
-      }
-    }
-
-    uint32_t adaptiveDataModelAlphabetSizeDiff0 = 0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-    if (maxAttributeValueDiff0) {
-      adaptiveDataModelAlphabetSizeDiff0 = 1 + maxAttributeValueDiff0;
-      if (adaptiveDataModelAlphabetSizeDiff0 > PCCTMC3AdaptiveDataModelAlphabetMaxSize) {
-        adaptiveDataModelAlphabetSizeDiff0 = PCCTMC3AdaptiveDataModelAlphabetMaxSize;
-      }
-      multiSymbolModelDiff0.set_alphabet(adaptiveDataModelAlphabetSizeDiff0 + 1);
-      binaryModelDiff0.reset();
-    }
-
     uint64_t startSize = bitstream.size;
     bitstream.size += 4;  // placehoder for bitstream size
-    PCCWriteToBuffer<uint32_t>(maxAttributeValueDiff0, bitstream.buffer, bitstream.size);
+    PCCResidualsEncoder encoder;
+    const uint32_t alphabetSize = 64;
+    encoder.start(bitstream, alphabetSize);
 
-    o3dgc::Arithmetic_Codec arithmeticEncoder;
-    arithmeticEncoder.set_buffer(static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-                                 bitstream.buffer + bitstream.size);
-    arithmeticEncoder.start_encoder();
-    o3dgc::Static_Bit_Model binaryModel0;
+    const size_t pointCount = predictors.size();
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
       const size_t lodIndex = predictor.levelOfDetailIndex;
@@ -309,16 +278,14 @@ class PCCTMC3Encoder3 {
       const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
       const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
       const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-      encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
-                        arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
-
       const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
       const uint16_t reconstructedReflectance = uint16_t(PCCClip(
           reconstructedQuantAttValue, int64_t(0), int64_t(std::numeric_limits<uint16_t>::max())));
+      encoder.encode0(attValue0);
       pointCloud.setReflectance(predictor.index, reconstructedReflectance);
     }
-    uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
+    uint32_t compressedBitstreamSize = encoder.stop();
     bitstream.size += compressedBitstreamSize;
     PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
     return 0;
@@ -342,71 +309,13 @@ class PCCTMC3Encoder3 {
   }
 
   int encodeColors(const PCCAttributeEncodeParamaters &colorParams, PCCBitstream &bitstream) {
-    const size_t pointCount = predictors.size();
-    uint32_t maxAttributeValueDiff0 = 0;
-    uint32_t maxAttributeValueDiff1 = 0;
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      const auto &predictor = predictors[predictorIndex];
-      if (predictor.maxNeighborCount) {
-        const PCCColor3B color = pointCloud.getColor(predictor.index);
-        const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-        const int64_t quantAttValue = color[0];
-        const int64_t quantPredAttValue = predictedColor[0];
-        const uint32_t diffAttValue =
-            uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
-        if (maxAttributeValueDiff0 < diffAttValue) {
-          maxAttributeValueDiff0 = diffAttValue;
-        }
-        for (size_t k = 1; k < 3; ++k) {
-          const int64_t quantAttValue = color[k];
-          const int64_t quantPredAttValue = predictedColor[k];
-          const uint32_t diffAttValue =
-              uint32_t(o3dgc::IntToUInt(long(quantAttValue - quantPredAttValue)));
-          if (maxAttributeValueDiff1 < diffAttValue) {
-            maxAttributeValueDiff1 = diffAttValue;
-          }
-        }
-      }
-    }
-
-    uint32_t adaptiveDataModelAlphabetSizeDiff0 = 0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-    if (maxAttributeValueDiff0) {
-      adaptiveDataModelAlphabetSizeDiff0 = 1 + maxAttributeValueDiff0;
-      if (adaptiveDataModelAlphabetSizeDiff0 > PCCTMC3AdaptiveDataModelAlphabetMaxSize) {
-        adaptiveDataModelAlphabetSizeDiff0 = PCCTMC3AdaptiveDataModelAlphabetMaxSize;
-      }
-      multiSymbolModelDiff0.set_alphabet(adaptiveDataModelAlphabetSizeDiff0 + 1);
-      binaryModelDiff0.reset();
-    }
-
-    uint32_t adaptiveDataModelAlphabetSizeDiff1 = 0;
-    std::vector<o3dgc::Adaptive_Bit_Model> binaryModelDiff1;
-    std::vector<o3dgc::Adaptive_Data_Model> multiSymbolModelDiff1;
-    if (maxAttributeValueDiff1) {
-      adaptiveDataModelAlphabetSizeDiff1 = 1 + maxAttributeValueDiff1;
-      if (adaptiveDataModelAlphabetSizeDiff1 > PCCTMC3AdaptiveDataModelAlphabetMaxSize) {
-        adaptiveDataModelAlphabetSizeDiff1 = PCCTMC3AdaptiveDataModelAlphabetMaxSize;
-      }
-      multiSymbolModelDiff1.resize(PCCTMC3Diff1AdaptiveDataModelCount);
-      binaryModelDiff1.resize(PCCTMC3Diff1AdaptiveDataModelCount);
-      for (size_t m = 0; m < PCCTMC3Diff1AdaptiveDataModelCount; ++m) {
-        multiSymbolModelDiff1[m].set_alphabet(adaptiveDataModelAlphabetSizeDiff1 + 1);
-        binaryModelDiff1[m].reset();
-      }
-    }
-
     uint64_t startSize = bitstream.size;
     bitstream.size += 4;  // placehoder for bitstream size
-    PCCWriteToBuffer<uint32_t>(maxAttributeValueDiff0, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint32_t>(maxAttributeValueDiff1, bitstream.buffer, bitstream.size);
+    PCCResidualsEncoder encoder;
+    const uint32_t alphabetSize = 64;
+    encoder.start(bitstream, alphabetSize);
 
-    o3dgc::Arithmetic_Codec arithmeticEncoder;
-    arithmeticEncoder.set_buffer(static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-                                 bitstream.buffer + bitstream.size);
-    arithmeticEncoder.start_encoder();
-    o3dgc::Static_Bit_Model binaryModel0;
+    const size_t pointCount = predictors.size();
     for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
       const auto &predictor = predictors[predictorIndex];
       const PCCColor3B color = pointCloud.getColor(predictor.index);
@@ -417,14 +326,9 @@ class PCCTMC3Encoder3 {
       const int64_t quantPredAttValue = predictedColor[0];
       const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
       const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-      const uint32_t modelIndex = (attValue0 < PCCTMC3Diff1AdaptiveDataModelCount)
-                                      ? attValue0
-                                      : PCCTMC3Diff1AdaptiveDataModelCount - 1;
-      encodeDiff0UInt32(attValue0, maxAttributeValueDiff0, adaptiveDataModelAlphabetSizeDiff0,
-                        arithmeticEncoder, multiSymbolModelDiff0, binaryModelDiff0, binaryModel0);
-
       const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
+      encoder.encode0(attValue0);
       PCCColor3B reconstructedColor;
       reconstructedColor[0] =
           uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
@@ -435,15 +339,13 @@ class PCCTMC3Encoder3 {
         const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
         const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
         const uint32_t attValue1 = uint32_t(o3dgc::IntToUInt(long(delta)));
-        encodeDiff1UInt32(attValue1, modelIndex, maxAttributeValueDiff1,
-                          adaptiveDataModelAlphabetSizeDiff1, arithmeticEncoder,
-                          multiSymbolModelDiff1, binaryModelDiff1, binaryModel0);
+        encoder.encode1(attValue1);
         reconstructedColor[k] =
             uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
       }
       pointCloud.setColor(predictor.index, reconstructedColor);
     }
-    uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
+    uint32_t compressedBitstreamSize = encoder.stop();
     bitstream.size += compressedBitstreamSize;
     PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
     return 0;

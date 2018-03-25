@@ -45,8 +45,6 @@ namespace pcc {
 const uint32_t PCCTMC3MagicNumber = 20110904;
 const uint32_t PCCTMC3FormatVersion = 1;
 const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
-const uint32_t PCCTMC3Diff1AdaptiveDataModelCount = 512;
-const uint32_t PCCTMC3AdaptiveDataModelAlphabetMaxSize = 2047;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
