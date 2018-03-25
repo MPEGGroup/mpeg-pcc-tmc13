@@ -91,6 +91,20 @@ static std::istream& operator>>(std::istream &in, ColorTransform &val) {
   return readUInt(in, val);
 }
 
+namespace pcc {
+static std::istream& operator>>(std::istream &in, TransformType &val) {
+  return readUInt(in, val);
+}}
+
+namespace pcc {
+static std::ostream& operator<<(std::ostream &out, const TransformType &val) {
+  switch (val) {
+  case TransformType::kIntegerLift: out << "0 (IntegerLifting)"; break;
+  case TransformType::kRAHT:        out << "1 (RAHT)"; break;
+  }
+  return out;
+}}
+
 //---------------------------------------------------------------------------
 // :: Command line / config parsing
 
@@ -184,6 +198,21 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   ("searchRange",
      params_attr.searchRange, size_t(0),
      "Attribute's todo(kmammou)")
+
+  ("transformType",
+     params_attr.transformType, TransformType::kIntegerLift,
+     "Coding method to use for attribute:\n"
+     "  0: Nearest neighbour prediction with integer lifting transform\n"
+     "  1: Region Adaptive Hierarchical Transform (RAHT)")
+
+  ("rahtQuantizationStep",
+     params_attr.quantizationStepRaht, 1,
+     "Quantization step size used in RAHT")
+
+  ("rahtDepth",
+     params_attr.depthRaht, 21,
+     "Number of bits for morton representation of an RAHT co-ordinate"
+     "component")
 
   ("numberOfNearestNeighborsInPrediction",
      params_attr.numberOfNearestNeighborsInPrediction, size_t(4),
@@ -290,6 +319,12 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
          << endl;
     for (const auto & attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
       cout << "\t " << attributeEncodeParameters.first << endl;
+      cout << "\t\t transformType                          "
+           << attributeEncodeParameters.second.transformType << endl;
+      cout << "\t\t rahtQuantizationStep                   "
+           << attributeEncodeParameters.second.quantizationStepRaht << endl;
+      cout << "\t\t rahtDepth                              "
+           << attributeEncodeParameters.second.depthRaht << endl;
       cout << "\t\t numberOfNearestNeighborsInPrediction   "
            << attributeEncodeParameters.second.numberOfNearestNeighborsInPrediction << endl;
       cout << "\t\t searchRange                            "

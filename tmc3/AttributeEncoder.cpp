@@ -34,6 +34,7 @@
  */
 
 #include "AttributeEncoder.h"
+#include "RAHT.h"
 
 namespace pcc {
 
@@ -147,6 +148,17 @@ int AttributeEncoder::encodeHeader(
     const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
     PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
   }
+
+  PCCWriteToBuffer<uint8_t>(
+    uint8_t(attributeParams.transformType), bitstream.buffer, bitstream.size);
+
+  PCCWriteToBuffer<uint8_t>(
+    uint8_t(attributeParams.depthRaht), bitstream.buffer, bitstream.size);
+
+  PCCWriteToBuffer<uint32_t>(
+    uint32_t(attributeParams.quantizationStepRaht),
+    bitstream.buffer, bitstream.size);
+
   return 0;
 }
 
@@ -163,7 +175,15 @@ int AttributeEncoder::encodeReflectances(
   const uint32_t alphabetSize = 64;
   encoder.start(bitstream, alphabetSize);
 
-  encodeReflectancesIntegerLift(reflectanceParams, pointCloud, encoder);
+  switch (reflectanceParams.transformType) {
+  case TransformType::kRAHT:
+    encodeReflectancesTransformRaht(reflectanceParams, pointCloud, encoder);
+    break;
+
+  case TransformType::kIntegerLift:
+    encodeReflectancesIntegerLift(reflectanceParams, pointCloud, encoder);
+    break;
+  }
 
   uint32_t compressedBitstreamSize = encoder.stop();
   bitstream.size += compressedBitstreamSize;
@@ -184,7 +204,15 @@ int AttributeEncoder::encodeColors(
   const uint32_t alphabetSize = 64;
   encoder.start(bitstream, alphabetSize);
 
-  encodeColorsIntegerLift(colorParams, pointCloud, encoder);
+  switch (colorParams.transformType) {
+  case TransformType::kRAHT:
+    encodeColorsTransformRaht(colorParams, pointCloud, encoder);
+    break;
+
+  case TransformType::kIntegerLift:
+    encodeColorsIntegerLift(colorParams, pointCloud, encoder);
+    break;
+  }
 
   uint32_t compressedBitstreamSize = encoder.stop();
   bitstream.size += compressedBitstreamSize;
@@ -255,6 +283,238 @@ void AttributeEncoder::encodeColorsIntegerLift(
     }
     pointCloud.setColor(predictor.index, reconstructedColor);
   }
+}
+
+//----------------------------------------------------------------------------
+
+void AttributeEncoder::encodeReflectancesTransformRaht(
+  const PCCAttributeEncodeParamaters &reflectanceParams,
+  PCCPointSet3 &pointCloud,
+  PCCResidualsEncoder &encoder
+) {
+  const int voxelCount = int(pointCloud.getPointCount());
+  // Pack voxel into int64, sort in Morton order, and unpack.
+  std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
+  for (int n = 0; n < voxelCount; n++) {
+    const auto position = pointCloud[n];
+    const int x = int(position[0]);
+    const int y = int(position[1]);
+    const int z = int(position[2]);
+    long long mortonCode = 0;
+    for (int b = 0; b < reflectanceParams.depthRaht; b++) {
+      mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
+      mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
+      mortonCode |= (long long)((z >> b) & 1) << (3 * b);
+    }
+    packedVoxel[n].mortonCode = mortonCode;
+    packedVoxel[n].index = n;
+  }
+  sort(packedVoxel.begin(), packedVoxel.end());
+
+  // Allocate arrays.
+  long long *mortonCode = new long long[voxelCount];
+  float *attributes = new float[voxelCount];
+  int *integerizedAttributes = new int[voxelCount];
+  int *sortedIntegerizedAttributes = new int[voxelCount];
+  float *weight = new float[voxelCount];
+
+  // Populate input arrays.
+  for (int n = 0; n < voxelCount; n++) {
+    mortonCode[n] = packedVoxel[n].mortonCode;
+    attributes[n] = pointCloud.getReflectance(packedVoxel[n].index);
+  }
+
+  // Transform.
+  regionAdaptiveHierarchicalTransform(
+      mortonCode, attributes, weight,
+      1, voxelCount, reflectanceParams.depthRaht);
+  // Quantize.
+  for (int n = 0; n < voxelCount; n++) {
+    integerizedAttributes[n] =
+	  int(round(attributes[n] / reflectanceParams.quantizationStepRaht));
+  }
+
+  // Sort integerized attributes by weight.
+  std::vector<WeightWithIndex> sortedWeight(voxelCount);
+  for (int n = 0; n < voxelCount; n++) {
+    sortedWeight[n].weight = weight[n];
+    sortedWeight[n].index = n;
+  }
+  sort(sortedWeight.begin(), sortedWeight.end());
+  for (int n = 0; n < voxelCount; n++) {
+    // Put sorted integerized attributes into column-major order.
+    sortedIntegerizedAttributes[n] = integerizedAttributes[sortedWeight[n].index];
+  }
+  // Entropy encode.
+  for (int n = 0; n < voxelCount; ++n) {
+    const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[n]);
+    assert(detail < std::numeric_limits<uint32_t>::max());
+    const uint32_t attValue0 = uint32_t(detail);
+    encoder.encode0(attValue0);
+  }
+  // Re-obtain weights at the decoder by calling Raht without any attributes.
+  regionAdaptiveHierarchicalTransform(
+      mortonCode, nullptr, weight, 0, voxelCount, reflectanceParams.depthRaht);
+  // Sort integerized attributes by weight.
+  for (int n = 0; n < voxelCount; n++) {
+    sortedWeight[n].weight = weight[n];
+    sortedWeight[n].index = n;
+  }
+  sort(sortedWeight.begin(), sortedWeight.end());
+  // Unsort integerized attributes by weight.
+  for (int n = 0; n < voxelCount; n++) {
+    // Pull sorted integerized attributes out of column-major order.
+    integerizedAttributes[sortedWeight[n].index] = sortedIntegerizedAttributes[n];
+  }
+  // Inverse Quantize.
+  for (int n = 0; n < voxelCount; n++) {
+    attributes[n] = integerizedAttributes[n] * reflectanceParams.quantizationStepRaht;
+  }
+  regionAdaptiveHierarchicalInverseTransform(
+      mortonCode, attributes, 1, voxelCount, reflectanceParams.depthRaht);
+
+  const int maxReflectance = std::numeric_limits<uint16_t>::max();
+  const int minReflectance = 0;
+  for (int n = 0; n < voxelCount; n++) {
+    const int reflectance = PCCClip((int)round(attributes[n]), minReflectance, maxReflectance);
+    pointCloud.setReflectance(packedVoxel[n].index, uint16_t(reflectance));
+  }
+
+  // De-allocate arrays.
+  delete[] mortonCode;
+  delete[] attributes;
+  delete[] integerizedAttributes;
+  delete[] sortedIntegerizedAttributes;
+  delete[] weight;
+}
+
+//----------------------------------------------------------------------------
+
+void AttributeEncoder::encodeColorsTransformRaht(
+  const PCCAttributeEncodeParamaters &colorParams,
+  PCCPointSet3 &pointCloud,
+  PCCResidualsEncoder &encoder
+) {
+  const int voxelCount = int(pointCloud.getPointCount());
+  std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
+  for (int n = 0; n < voxelCount; n++) {
+    const auto position = pointCloud[n];
+    int x = int(position[0]);
+    int y = int(position[1]);
+    int z = int(position[2]);
+    long long mortonCode = 0;
+    for (int b = 0; b < colorParams.depthRaht; b++) {
+      mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
+      mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
+      mortonCode |= (long long)((z >> b) & 1) << (3 * b);
+    }
+    packedVoxel[n].mortonCode = mortonCode;
+    packedVoxel[n].index = n;
+  }
+  sort(packedVoxel.begin(), packedVoxel.end());
+
+  // Allocate arrays.
+  long long *mortonCode = new long long[voxelCount];
+  const int attribCount = 3;
+  float *attributes = new float[attribCount * voxelCount];
+  int *integerizedAttributes = new int[attribCount * voxelCount];
+  int *sortedIntegerizedAttributes = new int[attribCount * voxelCount];
+  float *weight = new float[voxelCount];
+
+  // Populate input arrays.
+  for (int n = 0; n < voxelCount; n++) {
+    mortonCode[n] = packedVoxel[n].mortonCode;
+    const auto color = pointCloud.getColor(packedVoxel[n].index);
+    attributes[attribCount * n] = color[0];
+    attributes[attribCount * n + 1] = color[1];
+    attributes[attribCount * n + 2] = color[2];
+  }
+
+  // Transform.
+  regionAdaptiveHierarchicalTransform(
+      mortonCode, attributes, weight,
+      attribCount, voxelCount, colorParams.depthRaht);
+  // Quantize.
+  for (int n = 0; n < voxelCount; n++) {
+    for (int k = 0; k < attribCount; k++) {
+      integerizedAttributes[attribCount * n + k] =
+          int(round(attributes[attribCount * n + k] / colorParams.quantizationStepRaht));
+    }
+  }
+
+  // Sort integerized attributes by weight.
+  std::vector<WeightWithIndex> sortedWeight(voxelCount);
+  for (int n = 0; n < voxelCount; n++) {
+    sortedWeight[n].weight = weight[n];
+    sortedWeight[n].index = n;
+  }
+  sort(sortedWeight.begin(), sortedWeight.end());
+  for (int n = 0; n < voxelCount; n++) {
+    for (int k = 0; k < attribCount; k++) {
+      // Put sorted integerized attributes into column-major order.
+      sortedIntegerizedAttributes[voxelCount * k + n] =
+          integerizedAttributes[attribCount * sortedWeight[n].index + k];
+    }
+  }
+
+  // Entropy encode.
+  for (int n = 0; n < voxelCount; ++n) {
+    const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[n]);
+    assert(detail < std::numeric_limits<uint32_t>::max());
+    const uint32_t attValue0 = uint32_t(detail);
+    encoder.encode0(attValue0);
+    for (int d = 1; d < 3; ++d) {
+      const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[voxelCount * d + n]);
+      assert(detail < std::numeric_limits<uint32_t>::max());
+      const uint32_t attValue1 = uint32_t(detail);
+      encoder.encode1(attValue1);
+    }
+  }
+
+  // Re-obtain weights at the decoder by calling RAHT without any attributes.
+  regionAdaptiveHierarchicalTransform(
+      mortonCode, nullptr, weight, 0, voxelCount, colorParams.depthRaht);
+  // Sort integerized attributes by weight.
+  for (int n = 0; n < voxelCount; n++) {
+    sortedWeight[n].weight = weight[n];
+    sortedWeight[n].index = n;
+  }
+  sort(sortedWeight.begin(), sortedWeight.end());
+  // Unsort integerized attributes by weight.
+  for (int n = 0; n < voxelCount; n++) {
+    for (int k = 0; k < attribCount; k++) {
+      // Pull sorted integerized attributes out of column-major order.
+      integerizedAttributes[attribCount * sortedWeight[n].index + k] =
+          sortedIntegerizedAttributes[voxelCount * k + n];
+    }
+  }
+  // Inverse Quantize.
+  for (int n = 0; n < voxelCount; n++) {
+    for (int k = 0; k < attribCount; k++) {
+      attributes[attribCount * n + k] =
+          integerizedAttributes[attribCount * n + k] * colorParams.quantizationStepRaht;
+    }
+  }
+
+  regionAdaptiveHierarchicalInverseTransform(
+      mortonCode, attributes, attribCount, voxelCount, colorParams.depthRaht);
+  for (size_t n = 0; n < voxelCount; n++) {
+    const int r = (int)round(attributes[attribCount * n]);
+    const int g = (int)round(attributes[attribCount * n + 1]);
+    const int b = (int)round(attributes[attribCount * n + 2]);
+    PCCColor3B color;
+    color[0] = uint8_t(PCCClip(r, 0, 255));
+    color[1] = uint8_t(PCCClip(g, 0, 255));
+    color[2] = uint8_t(PCCClip(b, 0, 255));
+    pointCloud.setColor(packedVoxel[n].index, color);
+  }
+
+  // De-allocate arrays.
+  delete[] mortonCode;
+  delete[] attributes;
+  delete[] integerizedAttributes;
+  delete[] sortedIntegerizedAttributes;
+  delete[] weight;
 }
 
 //============================================================================

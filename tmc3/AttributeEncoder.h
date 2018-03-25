@@ -56,6 +56,9 @@ struct PCCAttributeEncodeParamaters {
   size_t numberOfNearestNeighborsInPrediction;
   size_t levelOfDetailCount;
   size_t searchRange;
+  int quantizationStepRaht;
+  int depthRaht;
+  TransformType transformType;
   std::vector<size_t> dist2;
   std::vector<size_t> quantizationSteps;
 };
@@ -95,6 +98,16 @@ protected:
     PCCResidualsEncoder &encoder);
 
   void encodeColorsIntegerLift(
+    const PCCAttributeEncodeParamaters &colorParams,
+    PCCPointSet3 &pointCloud,
+    PCCResidualsEncoder &encoder);
+
+  void encodeReflectancesTransformRaht(
+    const PCCAttributeEncodeParamaters &reflectanceParams,
+    PCCPointSet3 &pointCloud,
+    PCCResidualsEncoder &encoder);
+
+  void encodeColorsTransformRaht(
     const PCCAttributeEncodeParamaters &colorParams,
     PCCPointSet3 &pointCloud,
     PCCResidualsEncoder &encoder);

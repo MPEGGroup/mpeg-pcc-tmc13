@@ -64,6 +64,7 @@ file(GLOB PROJECT_INC_FILES
   "PCCTMC3Common.h"
   "PCCTMC3Decoder.h"
   "PCCTMC3Encoder.h"
+  "RAHT.h"
   "TMC3.h"
   "pcc_chrono.h"
   "ringbuf.h"
@@ -78,6 +79,7 @@ file(GLOB PROJECT_INC_FILES
 file(GLOB PROJECT_CPP_FILES
   "AttributeDecoder.cpp"
   "AttributeEncoder.cpp"
+  "RAHT.cpp"
   "TMC3.cpp"
   "pcc_chrono.cpp"
   "tables.cpp"

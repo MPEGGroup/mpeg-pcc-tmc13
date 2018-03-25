@@ -35,74 +35,43 @@
 
 #pragma once
 
-#include "ArithmeticCodec.h"
-#include "PCCMisc.h"
-#include "PCCTMC3Common.h"
 #include <stddef.h>
 #include <stdint.h>
-#include <string>
-#include <vector>
 
 namespace pcc {
 
-//============================================================================
-// Opaque definitions (Internal detail)
+// Structure for sorting weights.
+struct WeightWithIndex {
+  float weight;
+  int index;
 
-struct PCCResidualsDecoder;
-
-//============================================================================
-
-class AttributeDecoder {
-public:
-  void buildPredictors(
-    const PCCPointSet3 &pointCloud);
-
-  // todo(df): return value is always 0 => should be void?
-  int decodeHeader(
-    const std::string &attributeName,
-    PCCBitstream &bitstream);
-
-  // todo(df): return value is always 0 =>  should be void?
-  int decodeReflectances(
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud);
-
-  // todo(df): return value is always 0 => should be void?
-  int decodeColors(
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud);
-
-protected:
-  // todo(df): consider alternative encapsulation
-
-  void decodeReflectancesIntegerLift(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
-
-  void decodeColorsIntegerLift(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
-
-  void decodeReflectancesRaht(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
-
-  void decodeColorsRaht(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
-
-private:
-  std::vector<PCCPredictor> predictors;
-  std::vector<int64_t> quantizationSteps;
-  std::vector<size_t> dist2;
-  size_t numberOfNearestNeighborsInPrediction;
-  size_t levelOfDetailCount;
-  uint32_t quantizationStepRaht;
-  uint8_t depthRaht;
-  TransformType transformType;
-
+  // NB: this definition ranks larger weights before smaller values.
+  bool operator<(const WeightWithIndex &rhs) const {
+    // NB: index used to maintain stable sort
+    if (weight == rhs.weight)
+      return index < rhs.index;
+    return weight > rhs.weight;
+  }
 };
 
-//============================================================================
+struct MortonCodeWithIndex {
+  uint64_t mortonCode;
+  size_t index;
+
+  bool operator<(const MortonCodeWithIndex &rhs) const {
+    // NB: index used to maintain stable sort
+    if (mortonCode == rhs.mortonCode)
+      return index < rhs.index;
+    return mortonCode < rhs.mortonCode;
+  }
+};
+
+void regionAdaptiveHierarchicalTransform(
+  long long *mortonCode, float *attributes, float *weight,
+  int attribCount, int voxelCount, int depth);
+
+void regionAdaptiveHierarchicalInverseTransform(
+  long long *mortonCode, float *attributes,
+  int attribCount, int voxelCount, int depth);
 
 } /* namespace pcc */

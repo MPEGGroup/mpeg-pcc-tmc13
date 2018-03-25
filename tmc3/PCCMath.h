@@ -37,6 +37,8 @@
 #define PCCMath_h
 
 #include <assert.h>
+#include <iostream>
+#include <limits>
 #include <math.h>
 #include <string.h>
 

@@ -49,6 +49,11 @@ const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
+enum class TransformType {
+  kIntegerLift = 0,
+  kRAHT = 1
+};
+
 struct PCCOctree3Node {
   // 3D position of the current node's origin (local x,y,z = 0).
   PCCVector3<uint32_t> pos;
