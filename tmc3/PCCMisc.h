@@ -113,6 +113,15 @@ void PCCReadFromBuffer(const uint8_t *const buffer, T &u, uint64_t &size) {
 }
 
 //---------------------------------------------------------------------------
+// Population count -- return the number of bits set in @x.
+//
+static int popcnt(uint32_t x) {
+  x = x - ((x >> 1) & 0x55555555u);
+  x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u);
+  return ((x + (x >> 4) & 0xF0F0F0Fu) * 0x1010101u) >> 24;
+}
+
+//---------------------------------------------------------------------------
 // Round @x up to next power of two.
 //
 static uint32_t ceilpow2(uint32_t x) {
@@ -123,6 +132,23 @@ static uint32_t ceilpow2(uint32_t x) {
   x = x | (x >> 8);
   x = x | (x >> 16);
   return x+1;
+}
+
+//---------------------------------------------------------------------------
+// Compute \left\floor \text{log}_2(x) \right\floor.
+// NB: ilog2(0) = -1.
+
+static int ilog2(uint32_t x) {
+  x = ceilpow2(x + 1) - 1;
+  return popcnt(x) - 1;
+}
+
+//---------------------------------------------------------------------------
+// Compute \left\ceil \text{log}_2(x) \right\ceil.
+// NB: ceillog2(0) = 32.
+
+static int ceillog2(uint32_t x) {
+  return ilog2(x-1) + 1;
 }
 
 //---------------------------------------------------------------------------

@@ -479,35 +479,44 @@ class PCCTMC3Decoder3 {
       // todo(df): confirm minimum of 1 isn't needed
       1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]
     });
-    // round up to the next highest power of 2 minus 1 >= maxBB.
-    maxBB = ceilpow2(maxBB + 1) - 1;
+
+    // the current node dimension (log2) encompasing maxBB
+    int nodeSizeLog2 = ceillog2(maxBB + 1);
+
+    // Breadth-first processing of the tree results in the first portion
+    // of fifo containing nodes at the current tree depth, and the remainder
+    // containing nodes at the next depth.  The following counters are used
+    // to determine the transition from one level to the next.
+    int numNodesCurrLvl = 1;
+    int numNodesNextLvl = 0;
 
     // push the first node
     PCCOctree3Node node00;
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
-    node00.boundingBox.min = uint32_t(0);
-    node00.boundingBox.max = maxBB;
+    node00.pos = uint32_t(0);
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
 
     for (; !fifo.empty(); fifo.pop_front()) {
+      if (numNodesCurrLvl == 0) {
+        // transition to the next level
+        std::swap(numNodesCurrLvl, numNodesNextLvl);
+        nodeSizeLog2--;
+      }
+      numNodesCurrLvl--;
       PCCOctree3Node& node0 = fifo.front();
 
-      const PCCVector3<uint32_t> range = node0.boundingBox.max - node0.boundingBox.min;
-
       // decode the points from a leaf node at maximal depth
-      if (range[0] == 0 && range[1] == 0 && range[2] == 0) {
+      if (nodeSizeLog2 == 0) {
         int numPoints = decodePositionLeafNumPoints(
           &arithmeticDecoder,
           ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
         );
 
-        const PCCVector3D point(
-          node0.boundingBox.min[0], node0.boundingBox.min[1],
-          node0.boundingBox.min[2]);
+        const PCCVector3D point(node0.pos[0], node0.pos[1], node0.pos[2]);
 
         for (int i = 0; i < numPoints; ++i)
           pointCloud[processedPointCount++] = point;
@@ -521,20 +530,6 @@ class PCCTMC3Decoder3 {
       assert(occupancy > 0);
 
       // split the current node
-      const auto& bbox = node0.boundingBox;
-      uint32_t splitX = (bbox.max[0] + bbox.min[0]) >> 1;
-      uint32_t splitY = (bbox.max[1] + bbox.min[1]) >> 1;
-      uint32_t splitZ = (bbox.max[2] + bbox.min[2]) >> 1;
-
-      struct {
-        uint32_t min;
-        uint32_t max;
-      } splitBounds[][2] = {
-        {{bbox.min[0], splitX}, {splitX+1, bbox.max[0]}}, // x
-        {{bbox.min[1], splitY}, {splitY+1, bbox.max[1]}}, // y
-        {{bbox.min[2], splitZ}, {splitZ+1, bbox.max[2]}}  // z
-      };
-
       for (int i = 0; i < 8; i++) {
         uint32_t mask = 1 << i;
         if (!(occupancy & mask)) {
@@ -543,6 +538,7 @@ class PCCTMC3Decoder3 {
         }
 
         // create new child and set bounding box.
+        numNodesNextLvl++;
         fifo.emplace_back();
         auto& child = fifo.back();
 
@@ -550,12 +546,10 @@ class PCCTMC3Decoder3 {
         int y = !!(i & 2);
         int z = !!(i & 1);
 
-        child.boundingBox.min[0] = splitBounds[0][x].min;
-        child.boundingBox.max[0] = splitBounds[0][x].max;
-        child.boundingBox.min[1] = splitBounds[1][y].min;
-        child.boundingBox.max[1] = splitBounds[1][y].max;
-        child.boundingBox.min[2] = splitBounds[2][z].min;
-        child.boundingBox.max[2] = splitBounds[2][z].max;
+        int childSizeLog2 = nodeSizeLog2 - 1;
+        child.pos[0] = node0.pos[0] + (x << childSizeLog2);
+        child.pos[1] = node0.pos[1] + (y << childSizeLog2);
+        child.pos[2] = node0.pos[2] + (z << childSizeLog2);
       }
     }
 

@@ -639,27 +639,38 @@ class PCCTMC3Encoder3 {
       // todo(df): confirm minimum of 1 isn't needed
       1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]
     });
-    // round up to the next highest power of 2 minus 1 >= maxBB.
-    maxBB = ceilpow2(maxBB + 1) - 1;
+
+    // the current node dimension (log2) encompasing maxBB
+    int nodeSizeLog2 = ceillog2(maxBB + 1);
+
+    // Breadth-first processing of the tree results in the first portion
+    // of fifo containing nodes at the current tree depth, and the remainder
+    // containing nodes at the next depth.  The following counters are used
+    // to determine the transition from one level to the next.
+    int numNodesCurrLvl = 1;
+    int numNodesNextLvl = 0;
 
     // push the first node
     PCCOctree3Node node00;
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
-    node00.boundingBox.min = uint32_t(0);
-    node00.boundingBox.max = maxBB;
+    node00.pos = uint32_t(0);
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
 
     for (; !fifo.empty(); fifo.pop_front()) {
+      if (numNodesCurrLvl == 0) {
+        // transition to the next level
+        std::swap(numNodesCurrLvl, numNodesNextLvl);
+        nodeSizeLog2--;
+      }
+      numNodesCurrLvl--;
       PCCOctree3Node& node0 = fifo.front();
 
-      const PCCVector3<uint32_t> range = node0.boundingBox.max - node0.boundingBox.min;
-
       // encode the points for a leaf node at maximal depth
-      if (range[0] == 0 && range[1] == 0 && range[2] == 0) {
+      if (nodeSizeLog2 == 0) {
         processedPointCount += encodePositionLeafNumPoints(
           node0, &arithmeticEncoder,
           ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
@@ -670,6 +681,7 @@ class PCCTMC3Encoder3 {
       }
 
       // split the current node into 8 children
+      int childSizeLog2 = nodeSizeLog2 - 1;
       tmpFifo.clear();
       tmpFifo.push_back(node0);
       for (size_t splitAxis = 0; splitAxis < 3; ++splitAxis) {
@@ -678,7 +690,7 @@ class PCCTMC3Encoder3 {
           const PCCOctree3Node node = tmpFifo.front();
           tmpFifo.pop_front();
           const uint32_t splitValue =
-              (node.boundingBox.max[splitAxis] + node.boundingBox.min[splitAxis]) / 2;
+              node.pos[splitAxis] + (1 << childSizeLog2) - 1;
           int64_t splitIndex = int64_t(node.start);
           if (node.end > node.start) {
             assert(node.end > 0);
@@ -698,12 +710,11 @@ class PCCTMC3Encoder3 {
           }
           tmpFifo.push_back(node);
           PCCOctree3Node& nodeLeft = tmpFifo.back();
-          nodeLeft.boundingBox.max[splitAxis] = splitValue;
           nodeLeft.end = splitIndex;
 
           tmpFifo.push_back(node);
           PCCOctree3Node& nodeRight = tmpFifo.back();
-          nodeRight.boundingBox.min[splitAxis] = splitValue + 1;
+          nodeRight.pos[splitAxis] = splitValue + 1;
           nodeRight.start = splitIndex;
         }
       }
@@ -729,6 +740,7 @@ class PCCTMC3Encoder3 {
         }
 
         // create new child
+        numNodesNextLvl++;
         fifo.push_back(node);
       }
     }

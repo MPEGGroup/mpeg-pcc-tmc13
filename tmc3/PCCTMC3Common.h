@@ -48,7 +48,8 @@ const uint32_t PCCTMC3Diff1AdaptiveDataModelCount = 512;
 const uint32_t PCCTMC3AdaptiveDataModelAlphabetMaxSize = 2047;
 
 struct PCCOctree3Node {
-  PCCBox3<uint32_t> boundingBox;
+  // 3D position of the current node's origin (local x,y,z = 0).
+  PCCVector3<uint32_t> pos;
   size_t start;
   size_t end;
 };
