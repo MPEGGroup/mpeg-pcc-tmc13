@@ -475,15 +475,11 @@ class PCCTMC3Decoder3 {
     // init main fifo
     std::deque<PCCOctree3Node> fifo;
 
-    uint32_t maxBB = std::max(std::max(boundingBox.max[0], boundingBox.max[1]),
-                              std::max(uint32_t(1), boundingBox.max[2]));
-    // round up to the next highest power of 2
-    maxBB--;
-    maxBB |= maxBB >> 1;
-    maxBB |= maxBB >> 2;
-    maxBB |= maxBB >> 4;
-    maxBB |= maxBB >> 8;
-    maxBB |= maxBB >> 16;
+    uint32_t maxBB = std::max({
+      1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]
+    });
+    // round up to the next highest power of 2 minus 1.
+    maxBB = ceilpow2(maxBB) - 1;
 
     // push the first node
     PCCOctree3Node node00;

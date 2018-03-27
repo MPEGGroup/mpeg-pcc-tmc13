@@ -112,6 +112,21 @@ void PCCReadFromBuffer(const uint8_t *const buffer, T &u, uint64_t &size) {
   u = dest.u;
 }
 
+//---------------------------------------------------------------------------
+// Round @x up to next power of two.
+//
+static uint32_t ceilpow2(uint32_t x) {
+  x--;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  return x+1;
+}
+
+//---------------------------------------------------------------------------
+
 }
 
 #endif /* PCCMisc_h */
