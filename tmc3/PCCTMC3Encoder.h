@@ -691,10 +691,10 @@ class PCCTMC3Encoder3 {
           tmpFifo.pop_front();
           const uint32_t splitValue =
               node.pos[splitAxis] + (1 << childSizeLog2) - 1;
-          int64_t splitIndex = int64_t(node.start);
+          auto splitIndex = node.start;
           if (node.end > node.start) {
             assert(node.end > 0);
-            int64_t last = int64_t(node.end - 1);
+            auto last = node.end - 1;
             while (splitIndex <= last) {
               assert(splitIndex <= node.end);
               assert(last >= node.start);

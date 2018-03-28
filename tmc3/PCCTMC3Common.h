@@ -50,8 +50,10 @@ const uint32_t PCCTMC3AdaptiveDataModelAlphabetMaxSize = 2047;
 struct PCCOctree3Node {
   // 3D position of the current node's origin (local x,y,z = 0).
   PCCVector3<uint32_t> pos;
-  size_t start;
-  size_t end;
+
+  // Range of point indexes spanned by node
+  uint32_t start;
+  uint32_t end;
 };
 
 struct PCCNeighborInfo {
