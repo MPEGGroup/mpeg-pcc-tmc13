@@ -66,10 +66,6 @@ class PCCPointSet3 {
     assert(index < positions.size());
     return positions[index];
   }
-  void setPosition(const size_t index, const PCCPoint3D position) {
-    assert(index < positions.size());
-    positions[index] = position;
-  }
   PCCColor3B getColor(const size_t index) const {
     assert(index < colors.size() && withColors);
     return colors[index];
@@ -139,12 +135,6 @@ class PCCPointSet3 {
     colors.clear();
     reflectances.clear();
   }
-  size_t addPoint(const PCCPoint3D &position) {
-    const size_t index = getPointCount();
-    resize(index + 1);
-    positions[index] = position;
-    return index;
-  }
   void swapPoints(const size_t index1, const size_t index2) {
     assert(index1 < getPointCount());
     assert(index2 < getPointCount());
@@ -155,18 +145,6 @@ class PCCPointSet3 {
     if (hasReflectances()) {
       std::swap(getReflectance(index1), getReflectance(index2));
     }
-  }
-  PCCPoint3D computeCentroid() const {
-    PCCPoint3D bary(0.0);
-    const size_t pointCount = getPointCount();
-    if (pointCount) {
-      for (size_t i = 0; i < pointCount; ++i) {
-        const PCCPoint3D &pt = (*this)[i];
-        bary += pt;
-      }
-      bary /= double(pointCount);
-    }
-    return bary;
   }
   PCCBox3D computeBoundingBox() const {
     PCCBox3D bbox = {std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest()};
