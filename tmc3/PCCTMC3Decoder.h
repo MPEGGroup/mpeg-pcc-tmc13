@@ -435,6 +435,30 @@ class PCCTMC3Decoder3 {
     }
     return 0;
   }
+
+  //-------------------------------------------------------------------------
+  // Decode the number of points in a leaf node of the octree.
+
+  int decodePositionLeafNumPoints(
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    o3dgc::Adaptive_Bit_Model& ctxSinglePointPerBlock,
+    o3dgc::Static_Bit_Model& ctxEquiProb,
+    o3dgc::Adaptive_Bit_Model& ctxPointCountPerBlock
+  ) {
+    const bool isSinglePoint =
+        arithmeticDecoder->decode(ctxSinglePointPerBlock) != 0;
+
+    int count = 1;
+    if (!isSinglePoint) {
+      count = 1 + arithmeticDecoder->ExpGolombDecode(
+          0, ctxEquiProb, ctxPointCountPerBlock);
+    }
+
+    return count;
+  }
+
+  //-------------------------------------------------------------------------
+
   int decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t compressedBitstreamSize;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
@@ -443,6 +467,10 @@ class PCCTMC3Decoder3 {
                                  bitstream.buffer + bitstream.size);
     arithmeticDecoder.start_decoder();
     o3dgc::Adaptive_Data_Model multiSymbolOccupancyModel0(257);
+
+    o3dgc::Static_Bit_Model ctxEquiProb;
+    o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
+    o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
 
     // init main fifo
     std::deque<PCCOctree3Node> fifo;
@@ -467,9 +495,6 @@ class PCCTMC3Decoder3 {
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
-    o3dgc::Adaptive_Bit_Model singlePointPerBlock;
-    o3dgc::Static_Bit_Model bModel0;
-    o3dgc::Adaptive_Bit_Model bModelPointCountPerBlock;
 
     for (; !fifo.empty(); fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
@@ -478,16 +503,17 @@ class PCCTMC3Decoder3 {
 
       // decode the points from a leaf node at maximal depth
       if (range[0] == 0 && range[1] == 0 && range[2] == 0) {
-        const bool isSinglePoint = arithmeticDecoder.decode(singlePointPerBlock) != 0;
-        size_t count = 1;
-        if (!isSinglePoint) {
-          count = 1 + arithmeticDecoder.ExpGolombDecode(0, bModel0, bModelPointCountPerBlock);
-        }
-        const PCCVector3D point(node0.boundingBox.min[0], node0.boundingBox.min[1],
-                                node0.boundingBox.min[2]);
-        for (size_t i = 0; i < count; ++i) {
+        int numPoints = decodePositionLeafNumPoints(
+          &arithmeticDecoder,
+          ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
+        );
+
+        const PCCVector3D point(
+          node0.boundingBox.min[0], node0.boundingBox.min[1],
+          node0.boundingBox.min[2]);
+
+        for (int i = 0; i < numPoints; ++i)
           pointCloud[processedPointCount++] = point;
-        }
 
         // leaf nodes do not get split
         continue;

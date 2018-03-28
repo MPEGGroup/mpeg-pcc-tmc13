@@ -593,6 +593,31 @@ class PCCTMC3Encoder3 {
     }
   }
 
+  //-------------------------------------------------------------------------
+  // Encode the number of points in a leaf node of the octree.
+
+  int encodePositionLeafNumPoints(
+    const PCCOctree3Node& node,
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    o3dgc::Adaptive_Bit_Model& ctxSinglePointPerBlock,
+    o3dgc::Static_Bit_Model& ctxEquiProb,
+    o3dgc::Adaptive_Bit_Model& ctxPointCountPerBlock
+  ) {
+    assert(node.end > node.start);
+    int count = node.end - node.start;
+    if (count == 1) {
+      arithmeticEncoder->encode(1, ctxSinglePointPerBlock);
+    } else {
+      arithmeticEncoder->encode(0, ctxSinglePointPerBlock);
+      arithmeticEncoder->ExpGolombEncode(
+        uint32_t(count - 1), 0, ctxEquiProb, ctxPointCountPerBlock);
+    }
+
+    return count;
+  }
+
+  //-------------------------------------------------------------------------
+
   int encodePositions(PCCBitstream &bitstream) {
     uint64_t startSize = bitstream.size;
     bitstream.size += 4;  // placehoder for bitstream size
@@ -601,6 +626,10 @@ class PCCTMC3Encoder3 {
                                  bitstream.buffer + bitstream.size);
     arithmeticEncoder.start_encoder();
     o3dgc::Adaptive_Data_Model multiSymbolOccupancyModel0(257);
+
+    o3dgc::Static_Bit_Model ctxEquiProb;
+    o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
+    o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
 
     // init main fifo
     std::deque<PCCOctree3Node> fifo;
@@ -626,9 +655,6 @@ class PCCTMC3Encoder3 {
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
-    o3dgc::Adaptive_Bit_Model singlePointPerBlock;
-    o3dgc::Static_Bit_Model bModel0;
-    o3dgc::Adaptive_Bit_Model bModelPointCountPerBlock;
 
     for (; !fifo.empty(); fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
@@ -637,16 +663,10 @@ class PCCTMC3Encoder3 {
 
       // encode the points for a leaf node at maximal depth
       if (range[0] == 0 && range[1] == 0 && range[2] == 0) {
-        assert(node0.end > node0.start);
-        const size_t count = node0.end - node0.start;
-        if (count == 1) {
-          arithmeticEncoder.encode(1, singlePointPerBlock);
-        } else {
-          arithmeticEncoder.encode(0, singlePointPerBlock);
-          arithmeticEncoder.ExpGolombEncode(uint32_t(count - 1), 0, bModel0,
-                                            bModelPointCountPerBlock);
-        }
-        processedPointCount += count;
+        processedPointCount += encodePositionLeafNumPoints(
+          node0, &arithmeticEncoder,
+          ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
+        );
 
         // leaf nodes do not get split
         continue;
