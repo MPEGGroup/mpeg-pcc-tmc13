@@ -598,14 +598,12 @@ class PCCTMC3Encoder3 {
   // Encode the number of points in a leaf node of the octree.
 
   int encodePositionLeafNumPoints(
-    const PCCOctree3Node& node,
+    int count,
     o3dgc::Arithmetic_Codec* arithmeticEncoder,
     o3dgc::Adaptive_Bit_Model& ctxSinglePointPerBlock,
     o3dgc::Static_Bit_Model& ctxEquiProb,
     o3dgc::Adaptive_Bit_Model& ctxPointCountPerBlock
   ) {
-    assert(node.end > node.start);
-    int count = node.end - node.start;
     if (count == 1) {
       arithmeticEncoder->encode(1, ctxSinglePointPerBlock);
     } else {
@@ -666,17 +664,6 @@ class PCCTMC3Encoder3 {
 
       PCCOctree3Node& node0 = fifo.front();
 
-      // encode the points for a leaf node at maximal depth
-      if (nodeSizeLog2 == 0) {
-        processedPointCount += encodePositionLeafNumPoints(
-          node0, &arithmeticEncoder,
-          ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
-        );
-
-        // leaf nodes do not get split
-        continue;
-      }
-
       // split the current node into 8 children
       //  - perform an 8-way counting sort of the current node's points
       //  - (later) map to child nodes
@@ -706,7 +693,26 @@ class PCCTMC3Encoder3 {
       assert(occupancy > 0);
       arithmeticEncoder.encode(occupancy, multiSymbolOccupancyModel0);
 
-      // insert split children into fifo
+      // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
+      // and are immediately coded.  No further splitting occurs.
+      if (nodeSizeLog2 == 1) {
+        for (int i = 0; i < 8; i++) {
+          if (!childCounts[i]) {
+            // child is empty: skip
+            continue;
+          }
+
+          processedPointCount += encodePositionLeafNumPoints(
+            childCounts[i], &arithmeticEncoder,
+            ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
+          );
+        }
+
+        // leaf nodes do not get split
+        continue;
+      }
+
+      // nodeSizeLog2 > 1: insert split children into fifo
       int childPointsStartIdx = node0.start;
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {

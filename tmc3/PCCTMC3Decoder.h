@@ -506,22 +506,6 @@ class PCCTMC3Decoder3 {
       }
       PCCOctree3Node& node0 = fifo.front();
 
-      // decode the points from a leaf node at maximal depth
-      if (nodeSizeLog2 == 0) {
-        int numPoints = decodePositionLeafNumPoints(
-          &arithmeticDecoder,
-          ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
-        );
-
-        const PCCVector3D point(node0.pos[0], node0.pos[1], node0.pos[2]);
-
-        for (int i = 0; i < numPoints; ++i)
-          pointCloud[processedPointCount++] = point;
-
-        // leaf nodes do not get split
-        continue;
-      }
-
       // split the current node based on occupancy.
       const uint32_t occupancy = arithmeticDecoder.decode(multiSymbolOccupancyModel0);
       assert(occupancy > 0);
@@ -534,15 +518,37 @@ class PCCTMC3Decoder3 {
           continue;
         }
 
-        // create new child and set bounding box.
-        fifo.emplace_back();
-        auto& child = fifo.back();
-
         int x = !!(i & 4);
         int y = !!(i & 2);
         int z = !!(i & 1);
 
         int childSizeLog2 = nodeSizeLog2 - 1;
+
+        // point counts for leaf nodes are coded immediately upon
+        // encountering the leaf node.
+        if (childSizeLog2 == 0) {
+          int numPoints = decodePositionLeafNumPoints(
+            &arithmeticDecoder,
+            ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
+          );
+
+          const PCCVector3D point(
+            node0.pos[0] + (x << childSizeLog2),
+            node0.pos[1] + (y << childSizeLog2),
+            node0.pos[2] + (z << childSizeLog2)
+          );
+
+          for (int i = 0; i < numPoints; ++i)
+            pointCloud[processedPointCount++] = point;
+
+          // do not recurse into leaf nodes
+          continue;
+        }
+
+        // create & enqueue new child.
+        fifo.emplace_back();
+        auto& child = fifo.back();
+
         child.pos[0] = node0.pos[0] + (x << childSizeLog2);
         child.pos[1] = node0.pos[1] + (y << childSizeLog2);
         child.pos[2] = node0.pos[2] + (z << childSizeLog2);
