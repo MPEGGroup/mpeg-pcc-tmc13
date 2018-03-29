@@ -55,7 +55,8 @@ int main(int argc, char *argv[]) {
   clock_wall.start();
 
   int ret = 0;
-  if (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
+  if (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY ||
+      params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
     ret = Compress(params, clock_user);
   } else {
     ret = Decompress(params, clock_user);
@@ -145,7 +146,9 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "  0: encode\n"
      "  1: decode\n"
      "  2: encode with lossless geometry\n"
-     "  3: decode with lossless geometry")
+     "  3: decode with lossless geometry\n"
+     "  4: encode with trisoup geometry\n"
+     "  5: decode with trisoup geoemtry")
 
   // i/o parameters
   ("reconstructedDataPath",
@@ -187,6 +190,23 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   ("inferredDirectCodingMode",
      params.encodeParameters.inferredDirectCodingModeEnabled, true,
      "Permits early termination of the geometry octree for isolated points")
+
+  // (trisoup) geometry parameters
+  ("triSoupDepth",  // log2(maxBB+1), where maxBB+1 is analogous to image width
+     params.encodeParameters.triSoup.depth, 10,
+     "Depth of voxels (reconstructed points) in trisoup geometry")
+
+  ("triSoupLevel",
+     params.encodeParameters.triSoup.level, 7,
+     "Level of triangles (reconstructed surface) in trisoup geometry")
+
+  ("triSoupIntToOrigScale",  // reciprocal of positionQuantizationScale
+     params.encodeParameters.triSoup.intToOrigScale, 1.,
+     "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
+
+  ("triSoupIntToOrigTranslation",
+     params.encodeParameters.triSoup.intToOrigTranslation, {0., 0., 0.},
+     "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
 
   // attribute processing
   //   NB: Attribute options are special in the way they are applied (see above)
@@ -235,6 +255,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "Attribute's list of squared distances (one for each LoD)")
   ;
 
+
   po::setDefaults(opts);
   po::ErrorReporter err;
   const list<const char*>& argv_unhandled =
@@ -247,6 +268,14 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   if (argc == 1 || print_help) {
     po::doHelp(std::cout, opts, 78);
     return false;
+  }
+
+  // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
+  if (params.mode == 4 &&
+      params.encodeParameters.positionQuantizationScale !=
+          1.0 / params.encodeParameters.triSoup.intToOrigScale) {
+    params.encodeParameters.positionQuantizationScale =
+        1.0 / params.encodeParameters.triSoup.intToOrigScale;
   }
 
   // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
@@ -287,7 +316,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
 
   const bool encode =
       params.mode == CODEC_MODE_ENCODE
-      || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY;
+      || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY
+      || params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY;
 
   if (encode && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
@@ -315,10 +345,14 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     cout << "encode" << endl;
   } else if (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
     cout << "encode with lossless geometry" << endl;
+  } else if (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
+    cout << "encode with trisoup geometry" << endl;
   } else if (params.mode == CODEC_MODE_DECODE) {
     cout << "decode" << endl;
   } else if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY) {
     cout << "decode with lossless geometry" << endl;
+  } else if (params.mode == CODEC_MODE_DECODE_TRISOUP_GEOMETRY) {
+    cout << "decode with trisoup geometry" << endl;
   }
   cout << "\t uncompressedDataPath        " << params.uncompressedDataPath << endl;
   cout << "\t compressedStreamPath        " << params.compressedStreamPath << endl;
@@ -331,6 +365,16 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
          << endl;
     cout << "\t neighbourContextualisation  " << params.encodeParameters.neighbourContextsEnabled
          << endl;
+    if (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
+      cout << "\t triSoupDepth                " << params.encodeParameters.triSoup.depth << endl;
+      cout << "\t triSoupLevel                " << params.encodeParameters.triSoup.level << endl;
+      cout << "\t triSoupIntToOrigScale       " << params.encodeParameters.triSoup.intToOrigScale << endl;
+      cout << "\t triSoupIntToOrigTranslation ";
+      for (const auto tr : params.encodeParameters.triSoup.intToOrigTranslation) {
+        cout << tr << " ";
+      }
+      cout << endl;
+    }
     for (const auto & attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
       cout << "\t " << attributeEncodeParameters.first << endl;
       cout << "\t\t transformType                          "
@@ -401,7 +445,10 @@ int Compress(const Parameters &params, Stopwatch& clock) {
                         reconstructedPointCloud.get())) ||
       (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY &&
        encoder.compressWithLosslessGeometry(pointCloud, params.encodeParameters, bitstream,
-                                            reconstructedPointCloud.get()))) {
+                                            reconstructedPointCloud.get())) ||
+      (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY &&
+       encoder.compressWithTrisoupGeometry(pointCloud, params.encodeParameters, bitstream,
+                                           reconstructedPointCloud.get()))) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
   }
@@ -460,7 +507,9 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
 
   if ((params.mode == CODEC_MODE_DECODE && decoder.decompress(bitstream, pointCloud, params.roundOutputPositions)) ||
       (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY &&
-       decoder.decompressWithLosslessGeometry(bitstream, pointCloud))) {
+       decoder.decompressWithLosslessGeometry(bitstream, pointCloud)) ||
+      (params.mode == CODEC_MODE_DECODE_TRISOUP_GEOMETRY &&
+       decoder.decompressWithTrisoupGeometry(bitstream, pointCloud, params.roundOutputPositions))) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;
   }

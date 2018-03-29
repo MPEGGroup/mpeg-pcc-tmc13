@@ -5,6 +5,10 @@ if (MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:tbb.lib")
 endif()
 
+if (UNIX)
+  add_definitions(-D_POSIX_C_SOURCE=200809L)
+endif()
+
 include(CheckSymbolExists)
 check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
 
@@ -66,6 +70,7 @@ file(GLOB PROJECT_INC_FILES
   "PCCTMC3Encoder.h"
   "RAHT.h"
   "TMC3.h"
+  "osspecific.h"
   "pcc_chrono.h"
   "ringbuf.h"
   "tables.h"
@@ -81,6 +86,7 @@ file(GLOB PROJECT_CPP_FILES
   "AttributeEncoder.cpp"
   "RAHT.cpp"
   "TMC3.cpp"
+  "osspecific.cpp"
   "pcc_chrono.cpp"
   "tables.cpp"
   "../dependencies/arithmetic-coding/src/*.cpp"

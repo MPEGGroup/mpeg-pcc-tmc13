@@ -65,3 +65,19 @@ mpeg-pcc-tmc13$ make -f $PWD/scripts/Makefile.tmc13-step \
   [md5sum]  Ford_01_vox1mm-0100.ply.bin.decoded.ply.md5
   [metric]  Ford_01_vox1mm-0100.ply.bin.decoded.ply.pc_error <- Ford_01_vox1mm-0100.ply.bin.decoded.ply
 ```
+
+
+## Notes regarding TMC1 functionality
+
+NB: this applies to "Triangle Soup" geometry encoding only.
+
+This implementation currently requires TMC1 in order to perform the data
+compression.  The following TMC1 (windows) binaries may be used to
+install TMC1:
+
+- `TMC1/tags/release-v1.1/TMC1_coordinateTransform/for_redistribution/MyAppInstaller_web.exe`
+- `TMC1/tags/release-v1.1/TMC1_geometryEncode/for_redistribution/MyAppInstaller_web.exe`
+- `TMC1/tags/release-v1.1/TMC1_geometryDecode/for_redistribution/MyAppInstaller_web.exe`
+- `TMC1/tags/release-v1.1/TMC1_voxelize/for_redistribution/MyAppInstaller_web.exe`
+- `TMC1/tags/release-v1.1/TMC1_colorEncode/for_redistribution/MyAppInstaller_web.exe`
+- `TMC1/tags/release-v1.1/TMC1_colorDecode/for_redistribution/MyAppInstaller_web.exe`

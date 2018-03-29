@@ -33,54 +33,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TMC3_h
-#define TMC3_h
+#include "osspecific.h"
 
-#define _CRT_SECURE_NO_WARNINGS
+#if _POSIX_C_SOURCE
+# include <fcntl.h>
+# include <sys/stat.h>
+#endif
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <map>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <string>
+#if _WIN32
+# include <direct.h>
+#endif
 
-#include "PCCPointSet.h"
-#include "PCCTMC3Decoder.h"
-#include "PCCTMC3Encoder.h"
+/* NB: if this file gets large, split into per-os variants */
 
-#include "TMC3Config.h"
+#if _WIN32
+int pcc::mkdir(const char* path)
+{
+  return _mkdir(path);
+}
+#endif
 
-#include "pcc_chrono.h"
-
-enum ColorTransform { COLOR_TRANSFORM_NONE = 0, COLOR_TRANSFORM_RGB_TO_YCBCR = 1 };
-
-enum CodecMode {
-  CODEC_MODE_ENCODE = 0,
-  CODEC_MODE_DECODE = 1,
-  CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY = 2,
-  CODEC_MODE_DECODE_LOSSLESS_GEOMETRY = 3,
-  CODEC_MODE_ENCODE_TRISOUP_GEOMETRY = 4,
-  CODEC_MODE_DECODE_TRISOUP_GEOMETRY = 5,
-};
-
-struct Parameters {
-  std::string uncompressedDataPath;
-  std::string compressedStreamPath;
-  std::string reconstructedDataPath;
-  ColorTransform colorTransform;
-  CodecMode mode;
-  bool roundOutputPositions;
-  pcc::PCCTMC3Encoder3Parameters encodeParameters;
-};
-
-typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> Stopwatch;
-
-bool ParseParameters(int argc, char *argv[], Parameters &params);
-int Compress(const Parameters &params, Stopwatch&);
-int Decompress(const Parameters &params, Stopwatch&);
-
-#endif /* TMC3_h */
+#if _POSIX_C_SOURCE
+int pcc::mkdir(const char* path)
+{
+  return ::mkdir(path, 0775);
+}
+#endif

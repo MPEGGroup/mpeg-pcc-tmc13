@@ -470,7 +470,7 @@ class PCCPointSet3 {
     return true;
   }
   bool read(const std::string &fileName) {
-    std::ifstream ifs(fileName, std::ifstream::in);
+    std::ifstream ifs(fileName, std::ifstream::in | std::ifstream::binary);
     if (!ifs.is_open()) {
       return false;
     }

@@ -45,6 +45,7 @@
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCTMC3Common.h"
+#include "osspecific.h"
 
 #include "ArithmeticCodec.h"
 #include "tables.h"
@@ -182,6 +183,105 @@ class PCCTMC3Decoder3 {
     return 0;
   }
 
+  int decompressWithTrisoupGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud,
+                                    const bool roundOutputPositions) {
+    init();
+    uint32_t magicNumber = 0;
+    uint32_t formatVersion = 0;
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, magicNumber, bitstream.size);
+    if (magicNumber != PCCTMC3MagicNumber) {
+      std::cout << "Error: corrupted bistream!" << std::endl;
+      return -1;
+    }
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, formatVersion, bitstream.size);
+    if (formatVersion != PCCTMC3FormatVersion) {
+      std::cout << "Error: bistream version not supported!" << std::endl;
+      return -1;
+    }
+
+    uint64_t positionsSize = bitstream.size;
+    size_t depth;
+    size_t level;
+    double intToOrigScale;
+    PCCPoint3D intToOrigTranslation;
+    if (int ret = decodeTrisoupHeader(bitstream, pointCloud, depth, level, intToOrigScale,
+                                      intToOrigTranslation)) {
+      return ret;
+    }
+
+    // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
+    uint32_t binSize = 0;
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, binSize, bitstream.size);
+    std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
+    if (!fout.is_open()) {
+      // maybe because directory does not exist; try again...
+      pcc::mkdir("outbin");
+      fout.open("outbin/outbin_0000.bin", std::ios::binary);
+      if (!fout.is_open()) return -1;
+    }
+    fout.write(reinterpret_cast<char *>(&bitstream.buffer[bitstream.size]), binSize);
+    if (!fout) {
+      return -1;
+    }
+    bitstream.size += binSize;
+    fout.close();
+
+    positionsSize = bitstream.size - positionsSize;
+    std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
+
+    // Decompress geometry with TMC1.
+    std::string cmd;
+    cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
+    system(cmd.c_str());
+    cmd = "TMC1_geometryDecode -inbin outbin\\outbin -outref refinedVerticesDecoded.ply";
+    cmd += " -depth " + std::to_string(depth) + " -level " + std::to_string(level) +
+           " -format binary_little_endian";
+    system(cmd.c_str());
+    cmd = "TMC1_voxelize -inref refinedVerticesDecoded.ply -outvox quantizedPointCloudDecoded.ply";
+    cmd += " -depth " + std::to_string(depth) + " -format binary_little_endian";
+    system(cmd.c_str());
+    pointCloud.read("quantizedPointCloudDecoded.ply");
+    pointCloud.addColors();
+    pointCloud.removeReflectances();
+
+    if (pointCloud.hasColors()) {
+      AttributeDecoder attrDecoder;
+      uint64_t colorsSize = bitstream.size;
+      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
+        return ret;
+      }
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
+        return ret;
+      }
+      colorsSize = bitstream.size - colorsSize;
+      std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
+      std::cout << std::endl;
+    }
+
+    if (pointCloud.hasReflectances()) {
+      AttributeDecoder attrDecoder;
+      uint64_t reflectancesSize = bitstream.size;
+      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
+        return ret;
+      }
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
+        return ret;
+      }
+      reflectancesSize = bitstream.size - reflectancesSize;
+      std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
+    }
+
+    // Optionally write out point cloud with lossy geometry and lossy color, for later comparison.
+    pcc::PCCPointSet3 tempPointCloud(pointCloud);
+    tempPointCloud.convertYUVToRGB();
+    tempPointCloud.write("decodedVoxelsAndDecodedColors.ply");
+
+    inverseQuantization(pointCloud, roundOutputPositions);
+    return 0;
+  }
+
  private:
   int decodePositionsHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t pointCount = 0;
@@ -224,6 +324,44 @@ class PCCTMC3Decoder3 {
     if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
       positionQuantizationScale = 1.0;
     }
+    return 0;
+  }
+
+  int decodeTrisoupHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, size_t &depth,
+                          size_t &level, double &intToOrigScale, PCCPoint3D &intToOrigTranslation) {
+    uint32_t pointCount = 0;
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
+    uint8_t hasColors = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
+    uint8_t hasReflectances = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
+    if (hasColors) {
+      pointCloud.addColors();
+    } else {
+      pointCloud.removeColors();
+    }
+    if (hasReflectances) {
+      pointCloud.addReflectances();
+    } else {
+      pointCloud.removeReflectances();
+    }
+    pointCloud.resize(pointCount);
+
+    for (int k = 0; k < 3; ++k) {
+      PCCReadFromBuffer<double>(bitstream.buffer, minPositions[k], bitstream.size);
+    }
+    for (int k = 0; k < 3; ++k) {
+      PCCReadFromBuffer<uint32_t>(bitstream.buffer, boundingBox.max[k], bitstream.size);
+    }
+    PCCReadFromBuffer<double>(bitstream.buffer, positionQuantizationScale, bitstream.size);
+    const double minPositionQuantizationScale = 0.0000000001;
+    if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
+      positionQuantizationScale = 1.0;
+    }
+    PCCReadFromBuffer<size_t>(bitstream.buffer, depth, bitstream.size);
+    PCCReadFromBuffer<size_t>(bitstream.buffer, level, bitstream.size);
+    PCCReadFromBuffer<double>(bitstream.buffer, intToOrigScale, bitstream.size);
+    PCCReadFromBuffer<PCCPoint3D>(bitstream.buffer, intToOrigTranslation, bitstream.size);
     return 0;
   }
 
