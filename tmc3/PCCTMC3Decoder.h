@@ -39,6 +39,7 @@
 #include <assert.h>
 #include <queue>
 #include <string>
+#include "ringbuf.h"
 
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
@@ -473,7 +474,9 @@ class PCCTMC3Decoder3 {
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
 
     // init main fifo
-    std::deque<PCCOctree3Node> fifo;
+    //  -- worst case size is the last level containing every input poit
+    //     and each point being isolated in the previous level.
+    pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount()+1);
 
     uint32_t maxBB = std::max({
       // todo(df): confirm minimum of 1 isn't needed
@@ -482,13 +485,6 @@ class PCCTMC3Decoder3 {
 
     // the current node dimension (log2) encompasing maxBB
     int nodeSizeLog2 = ceillog2(maxBB + 1);
-
-    // Breadth-first processing of the tree results in the first portion
-    // of fifo containing nodes at the current tree depth, and the remainder
-    // containing nodes at the next depth.  The following counters are used
-    // to determine the transition from one level to the next.
-    int numNodesCurrLvl = 1;
-    int numNodesNextLvl = 0;
 
     // push the first node
     PCCOctree3Node node00;
@@ -500,13 +496,14 @@ class PCCTMC3Decoder3 {
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;
 
+    auto fifoCurrLvlEnd = fifo.end();
+
     for (; !fifo.empty(); fifo.pop_front()) {
-      if (numNodesCurrLvl == 0) {
+      if (fifo.begin() == fifoCurrLvlEnd) {
         // transition to the next level
-        std::swap(numNodesCurrLvl, numNodesNextLvl);
+        fifoCurrLvlEnd = fifo.end();
         nodeSizeLog2--;
       }
-      numNodesCurrLvl--;
       PCCOctree3Node& node0 = fifo.front();
 
       // decode the points from a leaf node at maximal depth
@@ -538,7 +535,6 @@ class PCCTMC3Decoder3 {
         }
 
         // create new child and set bounding box.
-        numNodesNextLvl++;
         fifo.emplace_back();
         auto& child = fifo.back();
 
