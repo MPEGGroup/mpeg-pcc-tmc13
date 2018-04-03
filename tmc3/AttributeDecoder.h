@@ -99,6 +99,7 @@ private:
   size_t levelOfDetailCount;
   uint32_t quantizationStepRaht;
   uint8_t depthRaht;
+  uint8_t binaryLevelThresholdRaht;
   TransformType transformType;
 
 };

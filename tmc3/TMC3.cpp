@@ -205,6 +205,11 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "  0: Nearest neighbour prediction with integer lifting transform\n"
      "  1: Region Adaptive Hierarchical Transform (RAHT)")
 
+  ("rahtLeafDecimationDepth",
+     params_attr.binaryLevelThresholdRaht, 3,
+     "Sets coefficients to zero in the bottom n levels of RAHT tree. "
+     "Used for chroma-subsampling in attribute=color only.")
+
   ("rahtQuantizationStep",
      params_attr.quantizationStepRaht, 1,
      "Quantization step size used in RAHT")

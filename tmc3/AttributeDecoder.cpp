@@ -154,6 +154,7 @@ int AttributeDecoder::decodeHeader(
   transformType = TransformType(transType);
 
   PCCReadFromBuffer<uint8_t>(bitstream.buffer, depthRaht, bitstream.size);
+  PCCReadFromBuffer<uint8_t>(bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
   PCCReadFromBuffer<uint32_t>(bitstream.buffer, quantizationStepRaht, bitstream.size);
   return 0;
 }
@@ -294,8 +295,9 @@ void AttributeDecoder::decodeReflectancesRaht(
 
   // Re-obtain weights at the decoder by calling RAHT without any attributes.
   float *weight = new float[voxelCount];
+  int *binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, 0, voxelCount, depthRaht);
+      mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -336,6 +338,7 @@ void AttributeDecoder::decodeReflectancesRaht(
   }
 
   // De-allocate arrays.
+  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;
@@ -375,8 +378,9 @@ void AttributeDecoder::decodeColorsRaht(
 
   // Re-obtain weights at the decoder by calling RAHT without any attributes.
   float *weight = new float[voxelCount];
+  int *binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, 0, voxelCount, depthRaht);
+      mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -392,9 +396,15 @@ void AttributeDecoder::decodeColorsRaht(
   for (int n = 0; n < voxelCount; ++n) {
     const uint32_t attValue0 = decoder.decode0();
     sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
-    for (int d = 1; d < 3; ++d) {
-      const uint32_t attValue1 = decoder.decode1();
-      sortedIntegerizedAttributes[voxelCount * d + n] = o3dgc::UIntToInt(attValue1);
+    if (binaryLayer[sortedWeight[n].index] >= binaryLevelThresholdRaht) {
+      for (int d = 1; d < 3; ++d) {
+        const uint32_t attValue1 = decoder.decode1();
+        sortedIntegerizedAttributes[voxelCount * d + n] = o3dgc::UIntToInt(attValue1);
+      }
+    } else {
+      for (int d = 1; d < 3; d++) {
+        sortedIntegerizedAttributes[voxelCount * d + n] = 0;
+      }
     }
   }
 
@@ -432,6 +442,7 @@ void AttributeDecoder::decodeColorsRaht(
   }
 
   // De-allocate arrays.
+  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;

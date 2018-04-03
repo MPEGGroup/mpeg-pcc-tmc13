@@ -58,6 +58,7 @@ struct PCCAttributeEncodeParamaters {
   size_t searchRange;
   int quantizationStepRaht;
   int depthRaht;
+  int binaryLevelThresholdRaht;
   TransformType transformType;
   std::vector<size_t> dist2;
   std::vector<size_t> quantizationSteps;

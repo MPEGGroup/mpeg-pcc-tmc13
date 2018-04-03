@@ -155,6 +155,10 @@ int AttributeEncoder::encodeHeader(
   PCCWriteToBuffer<uint8_t>(
     uint8_t(attributeParams.depthRaht), bitstream.buffer, bitstream.size);
 
+  PCCWriteToBuffer<uint8_t>(
+    uint8_t(attributeParams.binaryLevelThresholdRaht),
+    bitstream.buffer, bitstream.size);
+
   PCCWriteToBuffer<uint32_t>(
     uint32_t(attributeParams.quantizationStepRaht),
     bitstream.buffer, bitstream.size);
@@ -317,6 +321,7 @@ void AttributeEncoder::encodeReflectancesTransformRaht(
   int *integerizedAttributes = new int[voxelCount];
   int *sortedIntegerizedAttributes = new int[voxelCount];
   float *weight = new float[voxelCount];
+  int *binaryLayer = new int[voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
@@ -326,8 +331,9 @@ void AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-      mortonCode, attributes, weight,
+      mortonCode, attributes, weight, binaryLayer,
       1, voxelCount, reflectanceParams.depthRaht);
+
   // Quantize.
   for (int n = 0; n < voxelCount; n++) {
     integerizedAttributes[n] =
@@ -354,7 +360,9 @@ void AttributeEncoder::encodeReflectancesTransformRaht(
   }
   // Re-obtain weights at the decoder by calling Raht without any attributes.
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, 0, voxelCount, reflectanceParams.depthRaht);
+      mortonCode, nullptr, weight, binaryLayer,
+      0, voxelCount, reflectanceParams.depthRaht);
+
   // Sort integerized attributes by weight.
   for (int n = 0; n < voxelCount; n++) {
     sortedWeight[n].weight = weight[n];
@@ -381,6 +389,7 @@ void AttributeEncoder::encodeReflectancesTransformRaht(
   }
 
   // De-allocate arrays.
+  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;
@@ -420,6 +429,7 @@ void AttributeEncoder::encodeColorsTransformRaht(
   int *integerizedAttributes = new int[attribCount * voxelCount];
   int *sortedIntegerizedAttributes = new int[attribCount * voxelCount];
   float *weight = new float[voxelCount];
+  int *binaryLayer = new int[voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
@@ -432,8 +442,9 @@ void AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-      mortonCode, attributes, weight,
+      mortonCode, attributes, weight, binaryLayer,
       attribCount, voxelCount, colorParams.depthRaht);
+
   // Quantize.
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
@@ -463,17 +474,25 @@ void AttributeEncoder::encodeColorsTransformRaht(
     assert(detail < std::numeric_limits<uint32_t>::max());
     const uint32_t attValue0 = uint32_t(detail);
     encoder.encode0(attValue0);
-    for (int d = 1; d < 3; ++d) {
-      const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[voxelCount * d + n]);
-      assert(detail < std::numeric_limits<uint32_t>::max());
-      const uint32_t attValue1 = uint32_t(detail);
-      encoder.encode1(attValue1);
+    if (binaryLayer[sortedWeight[n].index] >= colorParams.binaryLevelThresholdRaht) {
+      for (int d = 1; d < 3; ++d) {
+        const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[voxelCount * d + n]);
+        assert(detail < std::numeric_limits<uint32_t>::max());
+        const uint32_t attValue1 = uint32_t(detail);
+        encoder.encode1(attValue1);
+      }
+    } else {
+      for (int d = 1; d < 3; d++) {
+        sortedIntegerizedAttributes[voxelCount * d + n] = 0;
+      }
     }
   }
 
   // Re-obtain weights at the decoder by calling RAHT without any attributes.
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, 0, voxelCount, colorParams.depthRaht);
+      mortonCode, nullptr, weight, binaryLayer,
+      0, voxelCount, colorParams.depthRaht);
+
   // Sort integerized attributes by weight.
   for (int n = 0; n < voxelCount; n++) {
     sortedWeight[n].weight = weight[n];
@@ -510,6 +529,7 @@ void AttributeEncoder::encodeColorsTransformRaht(
   }
 
   // De-allocate arrays.
+  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;

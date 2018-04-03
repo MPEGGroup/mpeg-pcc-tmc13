@@ -67,7 +67,7 @@ struct MortonCodeWithIndex {
 };
 
 void regionAdaptiveHierarchicalTransform(
-  long long *mortonCode, float *attributes, float *weight,
+  long long *mortonCode, float *attributes, float *weight, int *binaryLayer,
   int attribCount, int voxelCount, int depth);
 
 void regionAdaptiveHierarchicalInverseTransform(

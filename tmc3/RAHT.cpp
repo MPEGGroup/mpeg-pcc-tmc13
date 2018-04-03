@@ -61,7 +61,7 @@ namespace pcc {
  * sorting or bucketing for entropy coding.
  */
 void regionAdaptiveHierarchicalTransform(
-  long long *mortonCode, float *attributes, float *weight,
+  long long *mortonCode, float *attributes, float *weight, int *binaryLayer,
   int attribCount, int voxelCount, int depth)
 {
   // Prologue, common to both RAHT and IRAHT:
@@ -170,7 +170,10 @@ void regionAdaptiveHierarchicalTransform(
   float *x1 = new float[attribCount];
 
   // Initialize weights.
-  for (int n = 0; n < voxelCount; n++) weight[n] = 1.0f;
+  for (int n = 0; n < voxelCount; n++) {
+    weight[n] = 1.0f;
+    binaryLayer[n] = 0;
+  }
 
   // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
   for (int b = 0; b < 3 * depth; b++) {
@@ -203,6 +206,8 @@ void regionAdaptiveHierarchicalTransform(
         // Set weights.
         weight[i0] = (w0 + w1);
         weight[i1] = (w0 + w1);
+
+        binaryLayer[i0] = b + 1;
 
         n++;  // skip over right sibling
       }
