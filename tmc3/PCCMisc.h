@@ -36,6 +36,9 @@
 #ifndef PCCMisc_h
 #define PCCMisc_h
 
+#include <array>
+#include <iterator>
+#include <utility>
 #include <vector>
 
 //#define PCC_UNDEFINED_INDEX (uint32_t(-1))
@@ -149,6 +152,47 @@ static int ilog2(uint32_t x) {
 
 static int ceillog2(uint32_t x) {
   return ilog2(x-1) + 1;
+}
+
+//---------------------------------------------------------------------------
+// Sort the elements in range [@first, @last) using a counting sort.
+//
+// The value of each element is determined by the function
+// @value_of(RandomIt::value_type) and must be in the range [0, Radix).
+//
+// A supplied output array of @counts represents the histogram of values,
+// and may be used to calculate the output position of each value span.
+//
+// NB: This is an in-place implementation and is not a stable sort.
+
+template<class RandomIt, class ValueOp, std::size_t Radix>
+void countingSort(
+  RandomIt first,
+  RandomIt last,
+  std::array<int,Radix>& counts,
+  ValueOp value_of
+) {
+  // step 1: count each radix
+  for (auto it = first; it != last; ++it) {
+    counts[value_of(*it)]++;
+  }
+
+  // step 2: determine the output offsets
+  std::array<RandomIt,Radix> ptrs = {{first}};
+  for (int i = 1; i < Radix; i++) {
+    ptrs[i] = std::next(ptrs[i-1], counts[i-1]);
+  }
+
+  // step 3: re-order, completing each radix in turn.
+  RandomIt ptr_orig_last = first;
+  for (int i = 0; i < Radix; i++) {
+    std::advance(ptr_orig_last, counts[i]);
+    while (ptrs[i] != ptr_orig_last) {
+      int radix = value_of(*ptrs[i]);
+      std::iter_swap(ptrs[i], ptrs[radix]);
+      ++ptrs[radix];
+    }
+  }
 }
 
 //---------------------------------------------------------------------------

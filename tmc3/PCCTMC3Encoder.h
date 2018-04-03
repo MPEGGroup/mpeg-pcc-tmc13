@@ -636,7 +636,6 @@ class PCCTMC3Encoder3 {
     //  -- worst case size is the last level containing every input poit
     //     and each point being isolated in the previous level.
     pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount()+1);
-    pcc::ringbuf<PCCOctree3Node> tmpFifo(8);
 
     uint32_t maxBB = std::max({
       // todo(df): confirm minimum of 1 isn't needed
@@ -679,66 +678,57 @@ class PCCTMC3Encoder3 {
       }
 
       // split the current node into 8 children
+      //  - perform an 8-way counting sort of the current node's points
+      //  - (later) map to child nodes
       int childSizeLog2 = nodeSizeLog2 - 1;
-      tmpFifo.clear();
-      tmpFifo.push_back(node0);
-      for (size_t splitAxis = 0; splitAxis < 3; ++splitAxis) {
-        const size_t nodeCount = tmpFifo.size();
-        for (size_t n = 0; n < nodeCount; ++n) {
-          const PCCOctree3Node node = tmpFifo.front();
-          tmpFifo.pop_front();
-          const uint32_t splitValue =
-              node.pos[splitAxis] + (1 << childSizeLog2) - 1;
-          auto splitIndex = node.start;
-          if (node.end > node.start) {
-            assert(node.end > 0);
-            auto last = node.end - 1;
-            while (splitIndex <= last) {
-              assert(splitIndex <= node.end);
-              assert(last >= node.start);
-              if (pointCloud[splitIndex][splitAxis] > splitValue) {
-                pointCloud.swapPoints(splitIndex, last);
-                --last;
-              } else {
-                ++splitIndex;
-              }
-            }
-            assert(splitIndex <= node.end);
-            assert(splitIndex >= node.start);
-          }
-          tmpFifo.push_back(node);
-          PCCOctree3Node& nodeLeft = tmpFifo.back();
-          nodeLeft.end = splitIndex;
-
-          tmpFifo.push_back(node);
-          PCCOctree3Node& nodeRight = tmpFifo.back();
-          nodeRight.pos[splitAxis] = splitValue + 1;
-          nodeRight.start = splitIndex;
-        }
-      }
+      std::array<int,8> childCounts = {};
+      countingSort(
+        PCCPointSet3::iterator(&pointCloud, node0.start),
+        PCCPointSet3::iterator(&pointCloud, node0.end),
+        childCounts,
+        [=](const PCCPointSet3::Proxy& proxy){
+          const auto& point = *proxy;
+          int bitpos = 1 << childSizeLog2;
+          return
+               !!(int(point[2]) & bitpos)
+            | (!!(int(point[1]) & bitpos) << 1)
+            | (!!(int(point[0]) & bitpos) << 2);
+      });
 
       // determine occupancy
-      assert(tmpFifo.size() == 8);
-      uint32_t occupancy = 0;
+      int occupancy = 0;
       for (int i = 0; i < 8; i++) {
-        const auto& node = tmpFifo[i];
-        if (node.end > node.start) {
-          occupancy += 1 << i;
+        if (childCounts[i]) {
+          occupancy |= 1 << i;
         }
       }
+
       assert(occupancy > 0);
       arithmeticEncoder.encode(occupancy, multiSymbolOccupancyModel0);
 
       // insert split children into fifo
+      int childPointsStartIdx = node0.start;
       for (int i = 0; i < 8; i++) {
-        const auto& node = tmpFifo[i];
-        if (node.end <= node.start) {
+        if (!childCounts[i]) {
           // child is empty: skip
           continue;
         }
 
         // create new child
-        fifo.push_back(node);
+        fifo.emplace_back();
+        auto& child = fifo.back();
+
+        int x = !!(i & 4);
+        int y = !!(i & 2);
+        int z = !!(i & 1);
+
+        child.pos[0] = node0.pos[0] + (x << childSizeLog2);
+        child.pos[1] = node0.pos[1] + (y << childSizeLog2);
+        child.pos[2] = node0.pos[2] + (z << childSizeLog2);
+
+        child.start = childPointsStartIdx;
+        childPointsStartIdx += childCounts[i];
+        child.end = childPointsStartIdx;
       }
     }
 

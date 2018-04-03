@@ -37,10 +37,12 @@
 #define PCCPointSet_h
 
 #include <assert.h>
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -50,6 +52,199 @@
 namespace pcc {
 class PCCPointSet3 {
  public:
+  typedef PCCVector3D PointType;
+
+  //=========================================================================
+  // proxy object for use with iterator, allowing handling of PCCPointSet3's
+  // structure-of-arrays as a single array.
+
+  class iterator;
+  class Proxy {
+    friend class iterator;
+
+    PCCPointSet3* parent_;
+    size_t idx_;
+
+  public:
+
+    //-----------------------------------------------------------------------
+
+    Proxy()
+      : parent_(nullptr), idx_() {}
+
+    Proxy(PCCPointSet3* parent, size_t idx)
+      : parent_(parent), idx_(idx) {}
+
+    //-----------------------------------------------------------------------
+
+    PointType
+    operator*() const {
+      return (*parent_)[idx_];
+    }
+
+    PointType&
+    operator*() {
+      return (*parent_)[idx_];
+    }
+
+    //-----------------------------------------------------------------------
+    // Swap the position of the current proxied point (including attributes)
+    // with that of @other in the same PointSet.
+
+    void swap(const Proxy& other) const {
+      assert(parent_ == other.parent_);
+      parent_->swapPoints(idx_, other.idx_);
+    }
+
+    //-----------------------------------------------------------------------
+  };
+
+  //=========================================================================
+  // iterator for use with stl algorithms
+
+  class iterator {
+  private:
+    Proxy p_;
+
+  public:
+    typedef std::random_access_iterator_tag iterator_category;
+    typedef const Proxy value_type;
+    typedef std::ptrdiff_t difference_type;
+    typedef const Proxy* pointer;
+    typedef const Proxy& reference;
+
+    //-----------------------------------------------------------------------
+
+    iterator() = default;
+    iterator(const iterator&) = default;
+
+    //-----------------------------------------------------------------------
+
+    explicit iterator(PCCPointSet3* parent)
+      : p_{parent, 0} {}
+
+    explicit iterator(PCCPointSet3* parent, size_t idx)
+      : p_{parent, idx} {}
+
+    //-----------------------------------------------------------------------
+    // :: Iterator
+
+    reference
+    operator*() const {
+      return p_;
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator&
+    operator++() {
+      p_.idx_++;
+      return *this;
+    }
+
+    //-----------------------------------------------------------------------
+    // :: ForwardIterator
+
+    iterator
+    operator++(int) {
+      iterator retval = *this;
+      ++(*this);
+      return retval;
+    }
+
+    //-----------------------------------------------------------------------
+
+    pointer
+    operator->() const {
+      return &p_;
+    }
+
+    //-----------------------------------------------------------------------
+
+    bool
+    operator==(const iterator& other) const {
+      return p_.idx_ == other.p_.idx_;
+    }
+
+    //-----------------------------------------------------------------------
+
+    bool
+    operator!=(const iterator& other) const {
+      return !(*this == other);
+    }
+
+    //-----------------------------------------------------------------------
+    // :: BidirectionalIterator
+
+    iterator&
+    operator--() {
+      p_.idx_--;
+      return *this;
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator
+    operator--(int) {
+      iterator retval = *this;
+      --(*this);
+      return retval;
+    }
+
+    //-----------------------------------------------------------------------
+    // :: RandomAccessIterator
+
+    value_type
+    operator[](difference_type n) {
+      return Proxy{p_.parent_, p_.idx_ + n};
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator&
+    operator+=(difference_type n) {
+      p_.idx_ += n;
+      return *this;
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator
+    operator+(difference_type n) const {
+      iterator it(*this);
+      it += n;
+      return it;
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator&
+    operator-=(difference_type n) {
+      p_.idx_ -= n;
+      return *this;
+    }
+
+    //-----------------------------------------------------------------------
+
+    iterator
+    operator-(difference_type n) const {
+      iterator it(*this);
+      it -= n;
+      return it;
+    }
+
+    //-----------------------------------------------------------------------
+
+    difference_type
+    operator-(const iterator& other) const {
+      return p_.idx_ - other.p_.idx_;
+    }
+
+    //-----------------------------------------------------------------------
+  };
+
+  //=========================================================================
+
   PCCPointSet3() {
     withColors = false;
     withReflectances = false;
@@ -558,6 +753,18 @@ class PCCPointSet3 {
   bool withColors;
   bool withReflectances;
 };
+
+//===========================================================================
+// Swap the position of two points (including attributes) in the PointSet
+// as referenced by the proxies a and b.
+
+static void
+swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b) {
+  a.swap(b);
 }
+
+//---------------------------------------------------------------------------
+
+} /* namespace pcc */
 
 #endif /* PCCPointSet_h */
