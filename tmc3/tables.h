@@ -41,6 +41,8 @@ namespace pcc {
 
 // Symmetry reduction of 64 neighbour pattern to 10
 extern const uint8_t kNeighPattern64to10[64];
+extern const uint8_t kNeighPattern10to7[10];
+extern const uint8_t kNeighPattern7to5[7];
 
 // Identifies the X-Y rotation to be performed given a neighbour pattern
 //  0 => none
@@ -79,7 +81,9 @@ extern const uint8_t kOccMapRotateZ270[256];
 extern const uint8_t kOccMapRotateZ180[256];
 extern const uint8_t kOccMapRotateZ090[256];
 
-// Occupancy context initialisation table
-extern const unsigned int kInitCtxOccupancy[10 * 256];
+extern const uint8_t kOccMapBit4CtxIdx[16 * 9];
+extern const uint8_t kOccMapBit5CtxIdx[32 * 9];
+extern const uint8_t kOccMapBit6CtxIdx[64 * 6];
+extern const uint8_t kOccMapBit7CtxIdx[128 * 4];
 
 } /* namespace pcc */

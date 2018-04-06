@@ -35,6 +35,8 @@
 
 #ifndef PCCTMC3Common_h
 #define PCCTMC3Common_h
+
+#include "ArithmeticCodec.h"
 #include "PCCKdTree.h"
 #include "PCCMath.h"
 #include "ringbuf.h"
@@ -355,6 +357,39 @@ isDirectModeEligible(
   return featureEnabled && (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
     && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 }
+
+//---------------------------------------------------------------------------
+
+struct CtxModelOctreeOccupancy {
+  o3dgc::Adaptive_Bit_Model b0[10];
+  o3dgc::Adaptive_Bit_Model b1[2 * 10];
+  o3dgc::Adaptive_Bit_Model b2[4 * 10];
+  o3dgc::Adaptive_Bit_Model b3[8 * 10];
+  o3dgc::Adaptive_Bit_Model b4[75];
+  o3dgc::Adaptive_Bit_Model b5[112];
+  o3dgc::Adaptive_Bit_Model b6[117];
+  o3dgc::Adaptive_Bit_Model b7[127];
+
+  CtxModelOctreeOccupancy()
+  {
+    for (auto& ctx : b0)
+      ctx.reset(true);
+    for (auto& ctx : b1)
+      ctx.reset(true);
+    for (auto& ctx : b2)
+      ctx.reset(true);
+    for (auto& ctx : b3)
+      ctx.reset(true);
+    for (auto& ctx : b4)
+      ctx.reset(true);
+    for (auto& ctx : b5)
+      ctx.reset(true);
+    for (auto& ctx : b6)
+      ctx.reset(true);
+    for (auto& ctx : b7)
+      ctx.reset(true);
+  }
+};
 
 //---------------------------------------------------------------------------
 

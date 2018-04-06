@@ -353,19 +353,129 @@ private:
   }
 
   //-------------------------------------------------------------------------
-  // enecode a node's occupancy bits
+  // encode occupancy bits (neighPattern10 == 0 case)
+
+  void encodeOccupancyNeighZ(
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    CtxModelOctreeOccupancy& ctxOccupancy,
+    int mappedOccupancy)
+  {
+    int occupancyB0 = !!(mappedOccupancy & 2);
+    int occupancyB1 = !!(mappedOccupancy & 128);
+    int occupancyB2 = !!(mappedOccupancy & 32);
+    int occupancyB3 = !!(mappedOccupancy & 8);
+    int occupancyB4 = !!(mappedOccupancy & 4);
+    int occupancyB5 = !!(mappedOccupancy & 16);
+    int occupancyB6 = !!(mappedOccupancy & 64);
+    int occupancyB7 = !!(mappedOccupancy & 1);
+
+    int numOccupiedAcc = 0;
+
+    arithmeticEncoder->encode(occupancyB0, ctxOccupancy.b0[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB0;
+
+    arithmeticEncoder->encode(occupancyB1, ctxOccupancy.b1[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB1;
+
+    arithmeticEncoder->encode(occupancyB2, ctxOccupancy.b2[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB2;
+
+    arithmeticEncoder->encode(occupancyB3, ctxOccupancy.b3[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB3;
+
+    arithmeticEncoder->encode(occupancyB4, ctxOccupancy.b4[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB4;
+
+    arithmeticEncoder->encode(occupancyB5, ctxOccupancy.b5[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB5;
+
+    // NB: There must be at least two occupied child nodes
+    //  -- avoid coding the occupancyB if it is implied.
+    if (numOccupiedAcc >= 1)
+      arithmeticEncoder->encode(occupancyB6, ctxOccupancy.b6[numOccupiedAcc]);
+    numOccupiedAcc += occupancyB6;
+
+    if (numOccupiedAcc >= 2)
+      arithmeticEncoder->encode(occupancyB7, ctxOccupancy.b7[numOccupiedAcc]);
+  }
+
+  //-------------------------------------------------------------------------
+  // encode occupancy bits (neighPattern10 != 0 case)
+
+  void encodeOccupancyNeighNZ(
+    o3dgc::Arithmetic_Codec* arithmeticEncoder,
+    CtxModelOctreeOccupancy& ctxOccupancy,
+    int mappedOccupancy,
+    int neighPattern10)
+  {
+    int occupancyB0 = !!(mappedOccupancy & 2);
+    int occupancyB1 = !!(mappedOccupancy & 128);
+    int occupancyB2 = !!(mappedOccupancy & 32);
+    int occupancyB3 = !!(mappedOccupancy & 8);
+    int occupancyB4 = !!(mappedOccupancy & 4);
+    int occupancyB5 = !!(mappedOccupancy & 16);
+    int occupancyB6 = !!(mappedOccupancy & 64);
+    int occupancyB7 = !!(mappedOccupancy & 1);
+
+    uint32_t partialOccupancy = 0;
+    int idx;
+
+    idx = neighPattern10;
+    arithmeticEncoder->encode(occupancyB0, ctxOccupancy.b0[idx]);
+    partialOccupancy |= occupancyB0;
+
+    idx = (neighPattern10 << 1) + partialOccupancy;
+    arithmeticEncoder->encode(occupancyB1, ctxOccupancy.b1[idx]);
+    partialOccupancy |= occupancyB1 << 1;
+
+    idx = (neighPattern10 << 2) + partialOccupancy;
+    arithmeticEncoder->encode(occupancyB2, ctxOccupancy.b2[idx]);
+    partialOccupancy |= occupancyB2 << 2;
+
+    idx = (neighPattern10 << 3) + partialOccupancy;
+    arithmeticEncoder->encode(occupancyB3, ctxOccupancy.b3[idx]);
+    partialOccupancy |= occupancyB3 << 3;
+
+    // todo(df): merge constants into lut.
+    idx = ((neighPattern10 - 1) << 4) + partialOccupancy;
+    idx = kOccMapBit4CtxIdx[idx] - 1 + 5;
+    arithmeticEncoder->encode(occupancyB4, ctxOccupancy.b4[idx]);
+    partialOccupancy |= occupancyB4 << 4;
+
+    idx = ((neighPattern10 - 1) << 5) + partialOccupancy;
+    idx = kOccMapBit5CtxIdx[idx] - 1 + 6;
+    arithmeticEncoder->encode(occupancyB5, ctxOccupancy.b5[idx]);
+    partialOccupancy |= occupancyB5 << 5;
+
+    int neighPattern7 = kNeighPattern10to7[neighPattern10];
+    idx = ((neighPattern7 - 1) << 6) + partialOccupancy;
+    idx = kOccMapBit6CtxIdx[idx] - 1 + 7;
+    arithmeticEncoder->encode(occupancyB6, ctxOccupancy.b6[idx]);
+    partialOccupancy |= occupancyB6 << 6;
+
+    int neighPattern5 = kNeighPattern7to5[neighPattern7];
+    idx = ((neighPattern5 - 1) << 7) + partialOccupancy;
+    idx = kOccMapBit7CtxIdx[idx] - 1 + 8;
+    // NB: if firt 7 bits are 0, then the last is implicitly 1.
+    if (partialOccupancy)
+      arithmeticEncoder->encode(occupancyB7, ctxOccupancy.b7[idx]);
+  }
+
+  //-------------------------------------------------------------------------
+  // decode node occupancy bits
   //
   void encodeGeometryOccupancy(
     bool neighbourContextsEnabled,
     o3dgc::Arithmetic_Codec* arithmeticEncoder,
     o3dgc::Adaptive_Bit_Model& ctxSingleChild,
     o3dgc::Static_Bit_Model& ctxEquiProb,
-    o3dgc::Adaptive_Data_Model (&ctxOccupancy)[10],
+    CtxModelOctreeOccupancy& ctxOccupancy,
     const PCCOctree3Node& node0,
     int occupancy)
   {
     if (!neighbourContextsEnabled) {
-      arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
+      assert(0);  // todo(df): fixme -- old contexts needed
+      // arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
       return;
     }
 
@@ -373,6 +483,8 @@ private:
     // with reduction from 64 states to 10.
     int neighPattern = node0.neighPattern;
     int neighPattern10 = kNeighPattern64to10[neighPattern];
+
+    uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
 
     if (neighPattern10 == 0) {
       bool singleChild = !popcntGt1(occupancy);
@@ -384,11 +496,12 @@ private:
         arithmeticEncoder->encode(!!(occupancy & 0xcc), ctxEquiProb);  // y
         arithmeticEncoder->encode(!!(occupancy & 0xf0), ctxEquiProb);  // x
       } else {
-        arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
+        encodeOccupancyNeighZ(
+          arithmeticEncoder, ctxOccupancy, mappedOccupancy);
       }
     } else {
-      uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
-      arithmeticEncoder->encode(mappedOccupancy, ctxOccupancy[neighPattern10]);
+      encodeOccupancyNeighNZ(
+        arithmeticEncoder, ctxOccupancy, mappedOccupancy, neighPattern10);
     }
   }
 
@@ -460,14 +573,7 @@ private:
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
     o3dgc::Adaptive_Bit_Model ctxBlockSkipTh;
     o3dgc::Adaptive_Bit_Model ctxNumIdcmPointsEq1;
-
-    // occupancy map model using ten 6-neighbour configurations
-    o3dgc::Adaptive_Data_Model ctxOccupancy[10];
-    for (int i = 0; i < 10; i++) {
-      ctxOccupancy[i].set_alphabet(256);
-      if (params.neighbourContextsEnabled)
-        ctxOccupancy[i].reset(kInitCtxOccupancy + 256 * i, true);
-    }
+    CtxModelOctreeOccupancy ctxOccupancy;
 
     // init main fifo
     //  -- worst case size is the last level containing every input poit

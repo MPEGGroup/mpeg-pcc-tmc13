@@ -358,6 +358,122 @@ private:
     return occupancy;
   }
 
+  //---------------------------------------------------------------------------
+  // decode occupancy bits (neighPattern10 == 0 case)
+
+  int decodeOccupancyNeighZ(
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    CtxModelOctreeOccupancy& ctxOccupancy)
+  {
+    int numOccupiedAcc = 0;
+    int bit;
+    int occupancy = 0;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b0[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 1;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b1[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 7;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b2[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 5;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b3[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 3;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b4[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 2;
+
+    bit = arithmeticDecoder->decode(ctxOccupancy.b5[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 4;
+
+    // NB: There must be at least two occupied child nodes
+    //  -- avoid coding the occupancyB if it is implied.
+    bit = 1;
+    if (numOccupiedAcc >= 1)
+      bit = arithmeticDecoder->decode(ctxOccupancy.b6[numOccupiedAcc]);
+    numOccupiedAcc += bit;
+    occupancy |= bit << 6;
+
+    bit = 1;
+    if (numOccupiedAcc >= 2)
+      bit = arithmeticDecoder->decode(ctxOccupancy.b7[numOccupiedAcc]);
+    occupancy |= bit << 0;
+
+    return occupancy;
+  }
+
+  //---------------------------------------------------------------------------
+  // decode occupancy bits (neighPattern10 != 0 case)
+
+  int decodeOccupancyNeighNZ(
+    o3dgc::Arithmetic_Codec* arithmeticDecoder,
+    CtxModelOctreeOccupancy& ctxOccupancy,
+    int neighPattern10)
+  {
+    int occupancy = 0;
+    int partialOccupancy = 0;
+    int idx;
+    int bit;
+
+    idx = neighPattern10;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b0[idx]);
+    partialOccupancy |= bit << 0;
+    occupancy |= bit << 1;
+
+    idx = (neighPattern10 << 1) + partialOccupancy;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b1[idx]);
+    partialOccupancy |= bit << 1;
+    occupancy |= bit << 7;
+
+    idx = (neighPattern10 << 2) + partialOccupancy;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b2[idx]);
+    partialOccupancy |= bit << 2;
+    occupancy |= bit << 5;
+
+    idx = (neighPattern10 << 3) + partialOccupancy;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b3[idx]);
+    partialOccupancy |= bit << 3;
+    occupancy |= bit << 3;
+
+    // todo(df): merge constants into lut.
+    idx = ((neighPattern10 - 1) << 4) + partialOccupancy;
+    idx = kOccMapBit4CtxIdx[idx] - 1 + 5;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b4[idx]);
+    partialOccupancy |= bit << 4;
+    occupancy |= bit << 2;
+
+    idx = ((neighPattern10 - 1) << 5) + partialOccupancy;
+    idx = kOccMapBit5CtxIdx[idx] - 1 + 6;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b5[idx]);
+    partialOccupancy |= bit << 5;
+    occupancy |= bit << 4;
+
+    int neighPattern7 = kNeighPattern10to7[neighPattern10];
+    idx = ((neighPattern7 - 1) << 6) + partialOccupancy;
+    idx = kOccMapBit6CtxIdx[idx] - 1 + 7;
+    bit = arithmeticDecoder->decode(ctxOccupancy.b6[idx]);
+    partialOccupancy += bit << 6;
+    occupancy |= bit << 6;
+
+    int neighPattern5 = kNeighPattern7to5[neighPattern7];
+    idx = ((neighPattern5 - 1) << 7) + partialOccupancy;
+    idx = kOccMapBit7CtxIdx[idx] - 1 + 8;
+    // NB: if firt 7 bits are 0, then the last is implicitly 1.
+    bit = 1;
+    if (partialOccupancy)
+      bit = arithmeticDecoder->decode(ctxOccupancy.b7[idx]);
+    occupancy |= bit << 0;
+
+    return occupancy;
+  }
+
   //-------------------------------------------------------------------------
   // decode node occupancy bits
   //
@@ -366,11 +482,12 @@ private:
     o3dgc::Arithmetic_Codec* arithmeticDecoder,
     o3dgc::Adaptive_Bit_Model& ctxSingleChild,
     o3dgc::Static_Bit_Model& ctxEquiProb,
-    o3dgc::Adaptive_Data_Model (&ctxOccupancy)[10],
+    CtxModelOctreeOccupancy& ctxOccupancy,
     const PCCOctree3Node& node0)
   {
     if (!neighbourContextsEnabled) {
-      return arithmeticDecoder->decode(ctxOccupancy[0]);
+      assert(0);  // todo(df): fixme -- we need an old context for this.
+      //return arithmeticDecoder->decode(ctxOccupancy[0]);
     }
 
     // neighbouring configuration with reduction from 64 to 10
@@ -387,13 +504,14 @@ private:
         cnt |= arithmeticDecoder->decode(ctxEquiProb) << 2;
         occupancy = 1 << cnt;
       } else {
-        occupancy = arithmeticDecoder->decode(ctxOccupancy[0]);
+        occupancy = decodeOccupancyNeighZ(arithmeticDecoder, ctxOccupancy);
       }
     } else {
-      occupancy = arithmeticDecoder->decode(ctxOccupancy[neighPattern10]);
+      occupancy = decodeOccupancyNeighNZ(
+        arithmeticDecoder, ctxOccupancy, neighPattern10);
+
       occupancy = mapGeometryOccupancyInv(occupancy, neighPattern);
     }
-
     return occupancy;
   }
 
@@ -471,14 +589,7 @@ private:
     o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
     o3dgc::Adaptive_Bit_Model ctxBlockSkipTh;
     o3dgc::Adaptive_Bit_Model ctxNumIdcmPointsEq1;
-
-    // pattern model using ten 6-neighbour configurations
-    o3dgc::Adaptive_Data_Model ctxOccupancy[10];
-    for (int i = 0; i < 10; i++) {
-      ctxOccupancy[i].set_alphabet(256);
-      if (neighbourContextsEnabled)
-        ctxOccupancy[i].reset(kInitCtxOccupancy + 256 * i, true);
-    }
+    CtxModelOctreeOccupancy ctxOccupancy;
 
     // init main fifo
     //  -- worst case size is the last level containing every input poit
