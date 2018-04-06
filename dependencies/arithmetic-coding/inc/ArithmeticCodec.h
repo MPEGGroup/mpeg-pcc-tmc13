@@ -125,6 +125,7 @@ public:
     Adaptive_Bit_Model(void);
 
     void reset(void); // reset to equiprobable model
+    void reset(bool); // reset to equiprobable model, setting speed
 
 private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
     void update(void);

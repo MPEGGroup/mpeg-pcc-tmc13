@@ -731,6 +731,14 @@ void Adaptive_Bit_Model::reset(void)
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+void Adaptive_Bit_Model::reset(bool set_use_faster_update)
+{
+    reset();
+    use_faster_update = set_use_faster_update;
+}
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 void Adaptive_Bit_Model::update(void)
 {
     // halve counts when a threshold is reached
