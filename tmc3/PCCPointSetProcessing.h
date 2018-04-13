@@ -42,6 +42,11 @@
 #include "PCCKdTree.h"
 #include "PCCPointSet.h"
 
+// The recolouring method of m42141 option2.
+// NB: CE1.3 (M42538) suggests that searchRange = 0 in this case rather than
+//     the previous default of 2.
+static const bool kUseM42141RecolourMethod2 = true;
+
 namespace pcc {
 
 inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchRange,
@@ -100,7 +105,9 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
       const double r = double(pointCountTarget) / double(pointCountSource);
       const double delta2 = (centroid2 - centroid1).getNorm2();
       const double eps = 0.000001;
-      if (delta2 > eps) {  // centroid2 != centroid1
+
+      if (kUseM42141RecolourMethod2 || delta2 > eps) {
+        // when delta2 > eps: centroid2 != centroid1
         double w = 0.0;
         const double alpha = D2 / delta2;
         const double a = H * r - 1.0;
@@ -113,6 +120,11 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
             w = (-1.0 + sqrt(delta)) / a;
           }
         }
+
+        if (kUseM42141RecolourMethod2) {
+          w = 0.0f;
+        }
+
         const double oneMinusW = 1.0 - w;
         PCCVector3D color0;
         for (size_t k = 0; k < 3; ++k) {
@@ -218,7 +230,8 @@ inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t s
       const double delta2 = pow(centroid2 - centroid1, 2.0);
       const double eps = 0.000001;
 
-      if (delta2 > eps) {  // centroid2 != centroid1
+      if (kUseM42141RecolourMethod2 || delta2 > eps) {
+        // when delta2 > eps: centroid2 != centroid1
         double w = 0.0;
         const double alpha = D2 / delta2;
         const double r = double(pointCountTarget) / double(pointCountSource);
@@ -232,6 +245,11 @@ inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t s
             w = (-1.0 + sqrt(delta)) / a;
           }
         }
+
+        if (kUseM42141RecolourMethod2) {
+          w = 0.0f;
+        }
+
         const double oneMinusW = 1.0 - w;
         // todo(df): clipping range should be based on the input data type
         const double maxValue = std::numeric_limits<uint16_t>::max();

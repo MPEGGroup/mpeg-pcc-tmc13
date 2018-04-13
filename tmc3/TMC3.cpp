@@ -182,7 +182,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "following attribute parameters)")
 
   ("searchRange",
-     params_attr.searchRange, size_t(2),
+     params_attr.searchRange, size_t(0),
      "Attribute's todo(kmammou)")
 
   ("numberOfNearestNeighborsInPrediction",
