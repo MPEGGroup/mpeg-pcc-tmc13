@@ -411,6 +411,11 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
     uint8_t hasReflectances = 0;
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
+
+    uint8_t u8value;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
+    geometryPointsAreUnique = bool(u8value);
+
     if (hasColors) {
       pointCloud.addColors();
     } else {
@@ -527,10 +532,14 @@ class PCCTMC3Decoder3 {
         // point counts for leaf nodes are coded immediately upon
         // encountering the leaf node.
         if (childSizeLog2 == 0) {
-          int numPoints = decodePositionLeafNumPoints(
-            &arithmeticDecoder,
-            ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
-          );
+          int numPoints = 1;
+
+          if (!geometryPointsAreUnique) {
+            numPoints = decodePositionLeafNumPoints(
+              &arithmeticDecoder,
+              ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
+            );
+          }
 
           const PCCVector3D point(
             node0.pos[0] + (x << childSizeLog2),
@@ -590,6 +599,10 @@ class PCCTMC3Decoder3 {
   double positionQuantizationScale;
   size_t numberOfNearestNeighborsInPrediction;
   size_t levelOfDetailCount;
+
+  // When not equal to zero, indicates that a count of points is present in
+  // each geometry octree leaf node.
+  bool geometryPointsAreUnique;
 };
 }
 

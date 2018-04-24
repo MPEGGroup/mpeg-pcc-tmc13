@@ -168,7 +168,7 @@ class PCCTMC3Encoder3 {
     if (int ret = encodePositionsHeader(params, bitstream)) {
       return ret;
     }
-    if (int ret = encodePositions(bitstream)) {
+    if (int ret = encodePositions(params, bitstream)) {
       return ret;
     }
     positionsSize = bitstream.size - positionsSize;
@@ -617,7 +617,10 @@ class PCCTMC3Encoder3 {
 
   //-------------------------------------------------------------------------
 
-  int encodePositions(PCCBitstream &bitstream) {
+  int encodePositions(
+    const PCCTMC3Encoder3Parameters& params,
+    PCCBitstream& bitstream
+  ) {
     uint64_t startSize = bitstream.size;
     bitstream.size += 4;  // placehoder for bitstream size
     o3dgc::Arithmetic_Codec arithmeticEncoder;
@@ -702,6 +705,13 @@ class PCCTMC3Encoder3 {
             continue;
           }
 
+          // if the bitstream is configured to represent unique points,
+          // no point count is sent.
+          if (params.mergeDuplicatedPoints) {
+            assert(childCounts[i] == 1);
+            continue;
+          }
+
           processedPointCount += encodePositionLeafNumPoints(
             childCounts[i], &arithmeticEncoder,
             ctxSinglePointPerBlock, ctxEquiProb, ctxPointCountPerBlock
@@ -751,6 +761,11 @@ class PCCTMC3Encoder3 {
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
                               bitstream.size);
+
+    // todo(df): syntax element name: geometryPointsAreUnique?
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(params.mergeDuplicatedPoints), bitstream.buffer, bitstream.size);
+
     for (int k = 0; k < 3; ++k) {
       PCCWriteToBuffer<double>(minPositions[k], bitstream.buffer, bitstream.size);
     }
