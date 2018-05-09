@@ -8,8 +8,30 @@ endif()
 include(CheckSymbolExists)
 check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
 
-set (TMC3_VERSION_MAJOR 1)
-set (TMC3_VERSION_MINOR 0)
+##
+# Determine the software version from VCS
+# Fallback to descriptive version if VCS unavailable
+set(VERSION_FALLBACK "unconfirmed-release-1.0b")
+set(VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
+set(VERSION_FILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/version.cpp.in)
+set(VERSION_CACHE_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cache)
+find_package(Git)
+add_custom_target(
+  genversion
+  COMMAND ${CMAKE_COMMAND} -D OUTPUT=${VERSION_FILE}
+                           -D TEMPLATE=${VERSION_FILE_IN}
+                           -D VERSION_FALLBACK=${VERSION_FALLBACK}
+                           -D VERSION_EXTRA=${VERSION_EXTRA}
+                           -D VERSION_CACHE_FILE=${VERSION_CACHE_FILE}
+                           -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
+                           -P ${CMAKE_SOURCE_DIR}/scripts/genversion.cmake
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+add_custom_command(
+  OUTPUT ${VERSION_FILE}
+  DEPENDS genversion
+)
 
 configure_file (
   "${CMAKE_CURRENT_SOURCE_DIR}/TMC3Config.h.in"
@@ -41,13 +63,24 @@ source_group (cl FILES ${PROJECT_CL_FILES})
 
 include_directories(
   "${PROJECT_BINARY_DIR}/tmc3"
+  "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/nanoflann"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/tbb/include"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/arithmetic-coding/inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/program-options-lite"
 )
 
-add_executable(tmc3 ${PROJECT_CPP_FILES} ${PROJECT_C_FILES} ${PROJECT_CL_FILES} ${PROJECT_PUB_FILES} ${PROJECT_INC_FILES} ${PROJECT_IN_FILES} ${PROJECT_INL_FILES})
+add_executable (tmc3
+  ${PROJECT_CPP_FILES}
+  ${PROJECT_C_FILES}
+  ${PROJECT_CL_FILES}
+  ${PROJECT_PUB_FILES}
+  ${PROJECT_INC_FILES}
+  ${PROJECT_IN_FILES}
+  ${PROJECT_INL_FILES}
+  ${VERSION_FILE}
+)
+add_dependencies(tmc3 genversion)
 target_link_libraries (tmc3 tbb_static)
 
 install (TARGETS tmc3 DESTINATION bin)
