@@ -11,7 +11,7 @@ check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
 ##
 # Determine the software version from VCS
 # Fallback to descriptive version if VCS unavailable
-set(VERSION_FALLBACK "unconfirmed-release-1.0b")
+set(VERSION_FALLBACK "unconfirmed-release-2.0-rc1")
 set(VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
 set(VERSION_FILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/version.cpp.in)
 set(VERSION_CACHE_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cache)
