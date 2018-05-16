@@ -221,6 +221,10 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
     int lod = attr.second.levelOfDetailCount;
 
+    if (lod > 255) {
+      err.error() << attr.first
+        << ".levelOfDetailCount must be less than 256\n";
+    }
     if (attr.second.dist2.size() != lod) {
       err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
     }
