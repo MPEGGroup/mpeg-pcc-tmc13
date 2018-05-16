@@ -54,6 +54,7 @@ file(GLOB PROJECT_IN_FILES
 )
 
 file(GLOB PROJECT_INC_FILES
+  "AttributeDecoder.h"
   "AttributeEncoder.h"
   "PCCKdTree.h"
   "PCCMath.h"
@@ -75,6 +76,7 @@ file(GLOB PROJECT_INC_FILES
 )
 
 file(GLOB PROJECT_CPP_FILES
+  "AttributeDecoder.cpp"
   "AttributeEncoder.cpp"
   "TMC3.cpp"
   "pcc_chrono.cpp"

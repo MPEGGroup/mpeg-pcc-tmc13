@@ -41,6 +41,7 @@
 #include <string>
 #include "ringbuf.h"
 
+#include "AttributeDecoder.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCTMC3Common.h"
@@ -51,51 +52,6 @@
 namespace pcc {
 
 class PCCTMC3Decoder3 {
-  struct PCCResidualsDecoder {
-    uint32_t alphabetSize;
-    o3dgc::Arithmetic_Codec arithmeticDecoder;
-    o3dgc::Static_Bit_Model binaryModel0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff1;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
-    PCCResidualsDecoder() { alphabetSize = 0; }
-
-    void start(PCCBitstream &bitstream, const uint32_t alphabetSize = 64) {
-      this->alphabetSize = alphabetSize;
-      multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
-      binaryModelDiff0.reset();
-      multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
-      binaryModelDiff1.reset();
-      arithmeticDecoder.set_buffer(
-        static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-        bitstream.buffer + bitstream.size
-      );
-      arithmeticDecoder.start_decoder();
-    }
-
-    void stop() { arithmeticDecoder.stop_decoder(); }
-
-    uint32_t decode0() {
-      uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff0);
-      if (value == alphabetSize) {
-        value += arithmeticDecoder.ExpGolombDecode(
-          0, binaryModel0, binaryModelDiff0
-        );
-      }
-      return value;
-    }
-    uint32_t decode1() {
-      uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff1);
-      if (value == alphabetSize) {
-        value += arithmeticDecoder.ExpGolombDecode(
-          0, binaryModel0, binaryModelDiff1
-        );
-      }
-      return value;
-    }
-  };
-
  public:
   PCCTMC3Decoder3() { init(); }
   PCCTMC3Decoder3(const PCCTMC3Decoder3 &) = default;
@@ -107,12 +63,8 @@ class PCCTMC3Decoder3 {
     minPositions = 0.0;
     boundingBox.min = uint32_t(0);
     boundingBox.max = uint32_t(0);
-    numberOfNearestNeighborsInPrediction = 0;
-    levelOfDetailCount = 0;
-    dist2.clear();
-    quantizationSteps.clear();
-    predictors.clear();
   }
+
   int decompressWithLosslessGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     init();
     uint32_t magicNumber = 0;
@@ -142,13 +94,15 @@ class PCCTMC3Decoder3 {
       pointCloud.removeReflectances();
     }
 
+    AttributeDecoder attrDecoder;
+
     if (pointCloud.hasColors()) {
       uint64_t colorsSize = bitstream.size;
-      if (int ret = decodeAttributeHeader("color", bitstream)) {
+      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud);
-      if (int ret = decodeColors(bitstream, pointCloud)) {
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
         return ret;
       }
       colorsSize = bitstream.size - colorsSize;
@@ -158,11 +112,11 @@ class PCCTMC3Decoder3 {
 
     if (pointCloud.hasReflectances()) {
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = decodeAttributeHeader("reflectance", bitstream)) {
+      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud);
-      if (int ret = decodeReflectances(bitstream, pointCloud)) {
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
         return ret;
       }
       reflectancesSize = bitstream.size - reflectancesSize;
@@ -196,12 +150,13 @@ class PCCTMC3Decoder3 {
     std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
 
     if (pointCloud.hasColors()) {
+      AttributeDecoder attrDecoder;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = decodeAttributeHeader("color", bitstream)) {
+      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud);
-      if (int ret = decodeColors(bitstream, pointCloud)) {
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
         return ret;
       }
       colorsSize = bitstream.size - colorsSize;
@@ -210,12 +165,13 @@ class PCCTMC3Decoder3 {
     }
 
     if (pointCloud.hasReflectances()) {
+      AttributeDecoder attrDecoder;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = decodeAttributeHeader("reflectance", bitstream)) {
+      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(pointCloud);
-      if (int ret = decodeReflectances(bitstream, pointCloud)) {
+      attrDecoder.buildPredictors(pointCloud);
+      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
         return ret;
       }
       reflectancesSize = bitstream.size - reflectancesSize;
@@ -227,101 +183,6 @@ class PCCTMC3Decoder3 {
   }
 
  private:
-  int decodeReflectances(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
-    uint32_t compressedBitstreamSize = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
-    PCCResidualsDecoder decoder;
-    const uint32_t alphabetSize = 64;
-    decoder.start(bitstream, alphabetSize);
-
-    const size_t pointCount = predictors.size();
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      auto &predictor = predictors[predictorIndex];
-      uint16_t &reflectance = pointCloud.getReflectance(predictor.index);
-      const size_t lodIndex = predictor.levelOfDetailIndex;
-      const int64_t qs = quantizationSteps[lodIndex];
-      const uint32_t attValue0 = decoder.decode0();
-      const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-      const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
-      const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-      reflectance = uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0),
-                                     int64_t(std::numeric_limits<uint16_t>::max())));
-    }
-    decoder.stop();
-    bitstream.size += compressedBitstreamSize;
-    return 0;
-  }
-
-  int decodeColors(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
-    uint32_t compressedBitstreamSize = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
-    PCCResidualsDecoder decoder;
-    const uint32_t alphabetSize = 64;
-    decoder.start(bitstream, alphabetSize);
-
-    const size_t pointCount = predictors.size();
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      auto &predictor = predictors[predictorIndex];
-      PCCColor3B &color = pointCloud.getColor(predictor.index);
-      const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-      const size_t lodIndex = predictor.levelOfDetailIndex;
-      const int64_t qs = quantizationSteps[lodIndex];
-      const uint32_t attValue0 = decoder.decode0();
-      const int64_t quantPredAttValue = predictedColor[0];
-      const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
-      const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-      color[0] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-
-      for (size_t k = 1; k < 3; ++k) {
-        const uint32_t attValue = decoder.decode1();
-        const int64_t quantPredAttValue = predictedColor[k];
-        const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue), qs);
-        const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-        color[k] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-      }
-    }
-    decoder.stop();
-    bitstream.size += compressedBitstreamSize;
-    return 0;
-  }
-
-  void buildPredictors(const PCCPointSet3 &pointCloud) {
-    std::vector<uint32_t> numberOfPointsPerLOD;
-    std::vector<uint32_t> indexes;
-    PCCBuildPredictors(pointCloud, numberOfNearestNeighborsInPrediction, levelOfDetailCount, dist2,
-                       predictors, numberOfPointsPerLOD, indexes);
-
-    for (auto &predictor : predictors) {
-      predictor.computeWeights(numberOfNearestNeighborsInPrediction);
-    }
-  }
-
-  int decodeAttributeHeader(const std::string &attributeName, PCCBitstream &bitstream) {
-    uint8_t numberOfNearestNeighborsCount = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
-    numberOfNearestNeighborsInPrediction = numberOfNearestNeighborsCount;
-
-    uint8_t lodCount = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, lodCount, bitstream.size);
-    levelOfDetailCount = lodCount;
-
-    dist2.resize(levelOfDetailCount);
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint32_t d2 = 0;
-      PCCReadFromBuffer<uint32_t>(bitstream.buffer, d2, bitstream.size);
-      dist2[lodIndex] = d2;
-    }
-
-    quantizationSteps.resize(levelOfDetailCount);
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint32_t qs = 0;
-      PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
-      quantizationSteps[lodIndex] = qs;
-    }
-
-    return 0;
-  }
-
   int decodePositionsHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t pointCount = 0;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
@@ -694,14 +555,9 @@ class PCCTMC3Decoder3 {
   }
 
  private:
-  std::vector<PCCPredictor> predictors;
-  std::vector<size_t> dist2;
-  std::vector<int64_t> quantizationSteps;
   PCCVector3D minPositions;
   PCCBox3<uint32_t> boundingBox;
   double positionQuantizationScale;
-  size_t numberOfNearestNeighborsInPrediction;
-  size_t levelOfDetailCount;
 
   // When not equal to zero, indicates that a count of points is present in
   // each geometry octree leaf node.
