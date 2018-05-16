@@ -45,6 +45,7 @@
 #include <vector>
 #include "ringbuf.h"
 
+#include "AttributeEncoder.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCPointSetProcessing.h"
@@ -54,14 +55,6 @@
 #include "tables.h"
 
 namespace pcc {
-struct PCCAttributeEncodeParamaters {
-  size_t numberOfNearestNeighborsInPrediction;
-  size_t levelOfDetailCount;
-  size_t searchRange;
-  std::vector<size_t> dist2;
-  std::vector<size_t> quantizationSteps;
-};
-
 struct PCCTMC3Encoder3Parameters {
   double positionQuantizationScale;
   bool mergeDuplicatedPoints;
@@ -78,47 +71,6 @@ struct PCCTMC3Encoder3Parameters {
 };
 
 class PCCTMC3Encoder3 {
-  struct PCCResidualsEncoder {
-    uint32_t alphabetSize;
-    o3dgc::Arithmetic_Codec arithmeticEncoder;
-    o3dgc::Static_Bit_Model binaryModel0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-    o3dgc::Adaptive_Bit_Model binaryModelDiff1;
-    o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
-    PCCResidualsEncoder() { alphabetSize = 0; }
-
-    void start(PCCBitstream &bitstream, const uint32_t alphabetSize = 64) {
-      this->alphabetSize = alphabetSize;
-      multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
-      binaryModelDiff0.reset();
-      multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
-      binaryModelDiff1.reset();
-      arithmeticEncoder.set_buffer(static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-                                   bitstream.buffer + bitstream.size);
-      arithmeticEncoder.start_encoder();
-    }
-
-    uint32_t stop() { return arithmeticEncoder.stop_encoder(); }
-
-    void encode0(const uint32_t value) {
-      if (value < alphabetSize) {
-        arithmeticEncoder.encode(value, multiSymbolModelDiff0);
-      } else {
-        arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff0);
-        arithmeticEncoder.ExpGolombEncode(value - alphabetSize, 0, binaryModel0, binaryModelDiff0);
-      }
-    }
-    void encode1(const uint32_t value) {
-      if (value < alphabetSize) {
-        arithmeticEncoder.encode(value, multiSymbolModelDiff1);
-      } else {
-        arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff1);
-        arithmeticEncoder.ExpGolombEncode(value - alphabetSize, 0, binaryModel0, binaryModelDiff1);
-      }
-    }
-  };
-
  public:
   PCCTMC3Encoder3() { init(); }
   PCCTMC3Encoder3(const PCCTMC3Encoder3 &) = default;
@@ -169,13 +121,14 @@ class PCCTMC3Encoder3 {
                               bitstream.size);
 
     if (pointCloud.hasColors()) {
+      AttributeEncoder attrEncoder;
       const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = encodeAttributeHeader(colorParams, "color", bitstream)) {
+      if (int ret = attrEncoder.encodeHeader(colorParams, "color", bitstream)) {
         return ret;
       }
-      buildPredictors(colorParams);
-      if (int ret = encodeColors(colorParams, bitstream)) {
+      attrEncoder.buildPredictors(colorParams, pointCloud);
+      if (int ret = attrEncoder.encodeColors(colorParams, pointCloud, bitstream)) {
         return ret;
       }
       colorsSize = bitstream.size - colorsSize;
@@ -184,13 +137,14 @@ class PCCTMC3Encoder3 {
     }
 
     if (pointCloud.hasReflectances()) {
+      AttributeEncoder attrEncoder;
       const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = encodeAttributeHeader(reflectanceParams, "reflectance", bitstream)) {
+      if (int ret = attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(reflectanceParams);
-      if (int ret = encodeReflectances(reflectanceParams, bitstream)) {
+      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
+      if (int ret = attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream)) {
         return ret;
       }
       reflectancesSize = bitstream.size - reflectancesSize;
@@ -225,13 +179,14 @@ class PCCTMC3Encoder3 {
               << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
 
     if (pointCloud.hasColors()) {
+      AttributeEncoder attrEncoder;
       const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = encodeAttributeHeader(colorParams, "color", bitstream)) {
+      if (int ret = attrEncoder.encodeHeader(colorParams, "color", bitstream)) {
         return ret;
       }
-      buildPredictors(colorParams);
-      if (int ret = encodeColors(colorParams, bitstream)) {
+      attrEncoder.buildPredictors(colorParams, pointCloud);
+      if (int ret = attrEncoder.encodeColors(colorParams, pointCloud, bitstream)) {
         return ret;
       }
       colorsSize = bitstream.size - colorsSize;
@@ -240,13 +195,14 @@ class PCCTMC3Encoder3 {
     }
 
     if (pointCloud.hasReflectances()) {
+      AttributeEncoder attrEncoder;
       const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = encodeAttributeHeader(reflectanceParams, "reflectance", bitstream)) {
+      if (int ret = attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream)) {
         return ret;
       }
-      buildPredictors(reflectanceParams);
-      if (int ret = encodeReflectances(reflectanceParams, bitstream)) {
+      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
+      if (int ret = attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream)) {
         return ret;
       }
       reflectancesSize = bitstream.size - reflectancesSize;
@@ -260,110 +216,6 @@ class PCCTMC3Encoder3 {
   }
 
  private:
-  int encodeReflectances(const PCCAttributeEncodeParamaters &reflectanceParams,
-                         PCCBitstream &bitstream) {
-    uint64_t startSize = bitstream.size;
-    bitstream.size += 4;  // placehoder for bitstream size
-    PCCResidualsEncoder encoder;
-    const uint32_t alphabetSize = 64;
-    encoder.start(bitstream, alphabetSize);
-
-    const size_t pointCount = predictors.size();
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      const auto &predictor = predictors[predictorIndex];
-      const size_t lodIndex = predictor.levelOfDetailIndex;
-      const int64_t qs = reflectanceParams.quantizationSteps[lodIndex];
-
-      const int64_t quantAttValue = pointCloud.getReflectance(predictor.index);
-      const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-      const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-      const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
-      const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-      const uint16_t reconstructedReflectance = uint16_t(PCCClip(
-          reconstructedQuantAttValue, int64_t(0), int64_t(std::numeric_limits<uint16_t>::max())));
-      encoder.encode0(attValue0);
-      pointCloud.setReflectance(predictor.index, reconstructedReflectance);
-    }
-    uint32_t compressedBitstreamSize = encoder.stop();
-    bitstream.size += compressedBitstreamSize;
-    PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
-    return 0;
-  }
-
-  int encodeAttributeHeader(const PCCAttributeEncodeParamaters &attributeParams,
-                            const std::string &attributeName, PCCBitstream &bitstream) const {
-    PCCWriteToBuffer<uint8_t>(uint8_t(attributeParams.numberOfNearestNeighborsInPrediction),
-                              bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(uint8_t(attributeParams.levelOfDetailCount), bitstream.buffer,
-                              bitstream.size);
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      const uint32_t d2 = uint32_t(attributeParams.dist2[lodIndex]);
-      PCCWriteToBuffer<uint32_t>(d2, bitstream.buffer, bitstream.size);
-    }
-    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-      const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
-      PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
-    }
-    return 0;
-  }
-
-  int encodeColors(const PCCAttributeEncodeParamaters &colorParams, PCCBitstream &bitstream) {
-    uint64_t startSize = bitstream.size;
-    bitstream.size += 4;  // placehoder for bitstream size
-    PCCResidualsEncoder encoder;
-    const uint32_t alphabetSize = 64;
-    encoder.start(bitstream, alphabetSize);
-
-    const size_t pointCount = predictors.size();
-    for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-      const auto &predictor = predictors[predictorIndex];
-      const PCCColor3B color = pointCloud.getColor(predictor.index);
-      const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-      const size_t lodIndex = predictor.levelOfDetailIndex;
-      const int64_t qs = colorParams.quantizationSteps[lodIndex];
-      const int64_t quantAttValue = color[0];
-      const int64_t quantPredAttValue = predictedColor[0];
-      const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-      const uint32_t attValue0 = uint32_t(o3dgc::IntToUInt(long(delta)));
-      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
-      const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-      encoder.encode0(attValue0);
-      PCCColor3B reconstructedColor;
-      reconstructedColor[0] =
-          uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-      for (size_t k = 1; k < 3; ++k) {
-        const int64_t quantAttValue = color[k];
-        const int64_t quantPredAttValue = predictedColor[k];
-        const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
-        const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
-        const int64_t reconstructedQuantAttValue = quantPredAttValue + reconstructedDelta;
-        const uint32_t attValue1 = uint32_t(o3dgc::IntToUInt(long(delta)));
-        encoder.encode1(attValue1);
-        reconstructedColor[k] =
-            uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
-      }
-      pointCloud.setColor(predictor.index, reconstructedColor);
-    }
-    uint32_t compressedBitstreamSize = encoder.stop();
-    bitstream.size += compressedBitstreamSize;
-    PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
-    return 0;
-  }
-
-  void buildPredictors(const PCCAttributeEncodeParamaters &attributeParams) {
-    std::vector<uint32_t> numberOfPointsPerLOD;
-    std::vector<uint32_t> indexes;
-    PCCBuildPredictors(pointCloud, attributeParams.numberOfNearestNeighborsInPrediction,
-                       attributeParams.levelOfDetailCount, attributeParams.dist2,
-                       predictors, numberOfPointsPerLOD, indexes);
-
-    for (auto &predictor : predictors) {
-      predictor.computeWeights(
-        attributeParams.numberOfNearestNeighborsInPrediction);
-    }
-  }
-
   void reconstructedPointCloud(const PCCTMC3Encoder3Parameters &params,
                                PCCPointSet3 *reconstructedCloud) {
     if (reconstructedCloud == nullptr) {
@@ -924,7 +776,6 @@ class PCCTMC3Encoder3 {
   }
 
  private:
-  std::vector<PCCPredictor> predictors;
   PCCVector3D minPositions;
   PCCBox3<uint32_t> boundingBox;
   PCCPointSet3 pointCloud;

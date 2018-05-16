@@ -39,6 +39,8 @@
 #include <array>
 #include <iterator>
 #include <utility>
+#include <stddef.h>
+#include <stdint.h>
 #include <vector>
 
 //#define PCC_UNDEFINED_INDEX (uint32_t(-1))

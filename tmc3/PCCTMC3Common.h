@@ -37,6 +37,7 @@
 #define PCCTMC3Common_h
 #include "PCCKdTree.h"
 #include "PCCMath.h"
+#include "ringbuf.h"
 
 #include <cstdint>
 #include <vector>
@@ -220,7 +221,7 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
 // Update the neighbour pattern flags for a node and the 'left' neighbour on
 // each axis.  This update should be applied to each newly inserted node.
 
-void
+inline void
 updateGeometryNeighState(
   const ringbuf<PCCOctree3Node>::iterator& bufEnd,
   int64_t numNodesNextLvl, int childSizeLog2,
@@ -302,7 +303,7 @@ updateGeometryNeighState(
 //   - Block must not be near the bottom of the tree
 //   - The parent / grandparent are sparsely occupied
 
-bool
+inline bool
 isDirectModeEligible(
   bool featureEnabled,
   int nodeSizeLog2, const PCCOctree3Node& node, const PCCOctree3Node& child
