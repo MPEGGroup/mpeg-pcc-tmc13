@@ -1,0 +1,229 @@
+# This makefile governs the processing of a tmc13 job step for a single
+# input file.
+#
+# Example usage:
+#
+#  $ make -f /path/to/Makefile.tmc3-step -C $JOBDIR \
+#      ENCODER=/path/to/tmc13 \
+#      DECODER=/path/to/tmc13 \
+#      PCERROR=/path/to/pc_error \
+#      SRCSEQ=/path/to/input/frame.ply \
+#      NORMSEQ=/path/to/input/frame.ply
+#
+# The default target performs the following:
+#  - encodes the source $SRCSEQ using $CWD/encoder.cfg
+#  - decodes the bitstream using an optional $CWD/decoder.cfg
+#  - computes distortion using an optional $CWD/pcerror.cfg
+#
+# Outputs are written to the current working directory using the
+# basename of $SRCSEQ as a prefix as follows:
+#
+#  - $basename.bin                  = the encoded bitstream
+#  - $basename.bin.md5              = md5sum of the encoded bitstream
+#  - $basename.bin.ply              = encoder's locally-decoded output
+#  - $basename.bin.ply.md5          = md5sum of locally-decoded output
+#  - $basename.bin.status           = exit status of the encoder
+#  - $basename.bin.time             = encoding external runtime measurement
+#  - $basename.bin.log              = encoder standard output logging
+#  - $basename.bin.err              = encoder standard error logging
+#
+#  - $basename.bin.decoded.ply      = decoded ouput
+#  - $basename.bin.decoded.ply.md5  = md5sum of decoded output
+#  - $basename.bin.decoded.status   = exit status of the decoder
+#  - $basename.bin.decoded.time     = decoding external runtime measurement
+#  - $basename.bin.decoded.log      = decoder standard output logging
+#  - $basename.bin.decoded.err      = decoder standard error logging
+#
+#  - $basename.bin.decoded.pc_error = output of distortion metric tool
+#
+# The following make / environment variables are used:
+#
+#  - SRCSEQ:   path to the source PLY file
+#  - NORMSEQ:  path to the source PLY file (with normals)
+#  - ENCODER:  path to encoder binary
+#  - DECODER:  path to decoder binary
+#  - PCERROR:  path to pcerror binary
+#  - PRELOAD:  environment or wrapper for encoder/decoder invocation
+#  - ENCFLAGS: additional arguments for the encoder
+#  - DECFLAGS: additional arguments for the decoder
+#  - VERBOSE:  show commands being executed by make
+#  - MD5SUM:   md5sum tool (default=md5sum)
+#  - TIME:     time tool (default=/usr/bin/time)
+#
+#  - WITH_ENCDEP: rebuild if ENCODER updates (default=1) unset to disable
+#  - WITH_DECDEP: rebuild if DECODER updates (default=1) unset to disable
+#  - WITH_ERRDEP: rebuild if PCERROR updates (default=1) unset to disable
+#  - WITH_SRCDEP: rebuild if source updates  (default=1) unset to disable
+
+##
+# being helpful
+$(if $(SRCSEQ),,$(error Error: SRCSEQ not set))
+$(if $(NORMSEQ),,$(info Warning: NORMSEQ not set))
+$(if $(ENCODER),,$(info Warning: ENCODER not set))
+$(if $(DECODER),,$(info Warning: DECODER not set))
+$(if $(PCERROR),,$(info Warning: PCERROR not set))
+
+##
+# Defaults
+MD5SUM := md5sum
+TIME := /usr/bin/time
+WITH_ENCDEP := 1 # rebuild if encoder updates
+WITH_DECDEP := 1 # rebuild if decoder updates
+WITH_ERRDEP := 1 # rebuild if pc_error updates
+WITH_SRCDEP := 1 # rebuild if source updates
+
+##
+# Bash is required for interpretation of shell embedded shell scripts
+SHELL := bash
+
+##
+# script to handle parsing a configuration file
+#  $1: filename to open
+#  $2: argument prefix (eg --, or -). assumed to be -- if empty.
+define read_cfg
+$(if $(wildcard $1),$(shell
+	IFS=":$$IFS"; \
+	while read ARG VAL; do \
+		[[ $$ARG =~ ^" "*# ]] && continue ; \
+		echo $(if $2,$2,--)$$ARG $$VAL; done < "$1"))
+endef
+
+##
+# Prety output unless verbose requested
+quiet = $(if $(V)$(VERBOSE),,@$(if $1,$(info $1)))
+quiet_ENC=$(call quiet,$(quiet_txt_ENC))
+quiet_DEC=$(call quiet,$(quiet_txt_DEC))
+quiet_ERR=$(call quiet,$(quiet_txt_ERR))
+quiet_MD5=$(call quiet,$(quiet_txt_MD5))
+quiet_CLN=$(call quiet,$(quiet_txt_CLN))
+quiet_txt_ENC=$(empty)  [encode]  $*.bin <- $(SRCSEQ)
+quiet_txt_DEC=$(empty)  [decode]  $*.bin.decoded.ply <- $<
+quiet_txt_ERR=$(empty)  [metric]  $*.bin.decoded.ply.pc_error <- $<
+quiet_txt_MD5=$(empty)  [md5sum]  $@
+quiet_txt_CLN=$(empty)  [clean ]
+
+##
+# vpath <file> : function to search for <file> in $(VPATH).
+# Expands to the full path of <file>
+vpath=$(firstword $(wildcard $1 $(addsuffix /$1,$(subst :, ,$(VPATH)))))
+
+
+##
+# avoid deleting expensive files
+.SECONDARY:
+
+##
+# The toplevel rule dependencies
+output_basename := $(notdir $(SRCSEQ))
+ifneq ($(ENCODER),)
+outputs += $(output_basename).bin.status
+outputs += $(output_basename).bin.md5
+outputs += $(output_basename).bin.ply
+outputs += $(output_basename).bin.ply.md5
+outputs += $(output_basename).bin
+endif
+
+ifneq ($(DECODER),)
+outputs += $(output_basename).bin.decoded.status
+outputs += $(output_basename).bin.decoded.ply
+outputs += $(output_basename).bin.decoded.ply.md5
+endif
+
+ifneq ($(PCERROR),)
+outputs += $(output_basename).bin.decoded.pc_error
+endif
+
+##
+# the default target
+.PHONY: all
+all: $(outputs) ;
+
+##
+# remove files
+.PHONY: clean
+clean:
+	$(quiet_CLN)rm -f $(outputs)
+
+
+##
+# helpers to say what went wrong
+ifeq ($(if $(ENCODER),$(if $(wildcard $(ENCODER)),,1)),1)
+$(ENCODER): ; $(error ENCODER $(ENCODER) does not exist)
+endif
+
+ifneq ($(DECODER),$(ENCODER))
+ifeq ($(if $(DECODER),$(if $(wildcard $(DECODER)),,1)),1)
+$(DECODER): ; $(error DECODER $(DECODER) does not exist)
+endif
+
+endif
+ifeq ($(if $(PCERROR),$(if $(wildcard $(PCERROR)),,1)),1)
+$(PCERROR): ; $(error PCERROR $(PCERROR) does not exist)
+endif
+
+
+##
+# dummy rule to handle missing files
+pcerror.cfg: ;
+decoder.cfg: ;
+
+
+##
+# generating md5 sums
+%.md5: %
+	$(quiet_MD5)md5sum '$<' > '$@'
+
+
+##
+# encode using encoder.cfg
+#  -- NB: old versions of the codec don't have any config file support.
+#     This may be eulated using $(call read_cfg,$(call vpath,encoder.cfg))
+#
+%.bin %.bin.ply %.bin.log %.bin.err %.bin.time \
+%.bin.status: encoder.cfg $(if $(WITH_ENCDEP),$(ENCODER))
+	$(quiet)echo running > "$*.bin.status"
+	$(quiet_ENC)$(TIME) -o "$*.bin.time" \
+		${PRELOAD} ${ENCODER} ${ENCFLAGS} \
+			-c $(call vpath,encoder.cfg) \
+			--uncompressedDataPath="$(SRCSEQ)" \
+			--reconstructedDataPath="$*.bin.ply" \
+			--compressedStreamPath="$*.bin" \
+			2> "$*.bin.err" 1> "$*.bin.log" \
+	; RETCODE=$$? ; echo $$RETCODE > "$*.bin.status"; exit $$RETCODE
+
+
+##
+# decode using decoder.cfg (if it exists)
+#  -- NB: old versions of the codec don't have any config file support.
+#     This may be eulated using $(call read_cfg,$(call vpath,decoder.cfg))
+#
+#  -- NB: uncompressedDataPath is required to decode sequences without
+#     geometry.
+#
+%.bin.decoded.ply %.bin.decoded.log %.bin.decoded.err \
+%.bin.decoded.status: %.bin decoder.cfg $(if $(WITH_DECDEP),$(DECODER))
+	$(quiet)echo running > "$*.bin.decoded.status"
+	$(quiet_DEC)$(TIME) -o "$*.bin.decoded.time" \
+		${PRELOAD} ${DECODER} \
+			$(foreach cfg,$(call vpath,decoder.cfg),-c "${cfg}") \
+			--reconstructedDataPath="$*.bin.decoded.ply" \
+			--uncompressedDataPath="$(SRCSEQ)" \
+			--compressedStreamPath="$<" \
+			${DECFLAGS} \
+			2> "$*.bin.decoded.err" 1> "$*.bin.decoded.log" \
+	; RETCODE=$$? ; echo $$RETCODE > "$*.bin.decoded.status" $$RETCODE
+
+
+##
+# generate pc_error report
+#  -- NB, pc_error dies if the -n sequence doesn't contain normals
+#     in such a case retry without -n and forgoe the d2 error.
+PCERROR_FLAGS := -c -l $(call read_cfg,$(call vpath,pcerror.cfg))
+
+%.bin.decoded.pc_error: $(if $(WITH_ERRDEP),$(PCERROR))
+%.bin.decoded.pc_error: %.bin.decoded.ply pcerror.cfg
+	$(quiet_ERR)( \
+		${PCERROR} -a "${SRCSEQ}" -b "$<" -n "${NORMSEQ}" ${PCERROR_FLAGS} \
+		|| ${PCERROR} -a "${SRCSEQ}" -b "$<" ${PCERROR_FLAGS} ) \
+		> "$@"
+
