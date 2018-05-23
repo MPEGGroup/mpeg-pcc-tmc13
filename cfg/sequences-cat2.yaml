@@ -1,0 +1,74 @@
+# Common configuration parameters according to N17523 CTC.
+---
+sequences:
+  8ivfbv2_longdress_vox10:
+    src-dir: 8iVFBv2/longdress/Ply
+    src: longdress_vox10_{1051..1350}.ply
+    norm-dir: longdress_n
+    norm: longdress_vox10_{1051..1350}_n.ply
+    #src: longdress_vox10_%04d.ply
+    #norm: longdress_vox10_%04d_n.ply
+    frame-rate: 30
+    num-frames: 300
+    group: cat2-B
+    src-geometry-precision: 10
+    pcerrorflags:
+     - resolution: 1023
+
+  8ivfbv2_loot_vox10:
+    src-dir: 8iVFBv2/loot/Ply
+    src: loot_vox10_{1000..1299}.ply
+    norm-dir: loot_n
+    norm: loot_vox10_{1000..1299}_n.ply
+    #src: loot_vox10_%04d.ply
+    #norm: loot_vox10_%04d_n.ply
+    frame-rate: 30
+    num-frames: 300
+    group: cat2-A
+    src-geometry-precision: 10
+    pcerrorflags:
+     - resolution: 1023
+
+  8ivfbv2_redandblack_vox10:
+    src-dir: 8iVFBv2/redandblack/Ply
+    src: redandblack_vox10_{1450..1749}.ply
+    norm-dir: redandblack_n
+    norm: redandblack_vox10_{1450..1749}_n.ply
+    #src: redandblack_vox10_%04d.ply
+    #norm: redandblack_vox10_%04d_n.ply
+    frame-rate: 30
+    num-frames: 300
+    group: cat2-A
+    src-geometry-precision: 10
+    pcerrorflags:
+     - resolution: 1023
+
+  8ivfbv2_soldier_vox10:
+    src-dir: 8iVFBv2/soldier/Ply
+    src: soldier_vox10_{0536..0835}.ply
+    norm-dir: soldier_n
+    norm: soldier_vox10_{0536..0835}_n.ply
+    #src: soldier_vox10_%04d.ply
+    #norm: soldier_vox10_%04d_n.ply
+    frame-rate: 30
+    num-frames: 300
+    group: cat2-A
+    src-geometry-precision: 10
+    pcerrorflags:
+     - resolution: 1023
+
+  queen:
+    src-dir: queen
+    src: frame_{0000..0249}.ply
+    norm-dir: queen_n
+    norm: frame_{0000..0249}_n.ply
+    #src: frame_%04d.ply
+    #norm: frame_%04d_n.ply
+    first-frame: 0
+    frame-rate: 50
+    num-frames: 250
+    group: cat2-A
+    src-geometry-precision: 10
+    pcerrorflags:
+     - resolution: 1023
+

@@ -1,0 +1,61 @@
+# Common configuration parameters according to N17523 CTC.
+---
+sequences:
+  # fused scene (with RGB + Reflectance)
+  citytunnel_q1mm:
+    src: citytunnel_q1mm.ply
+    group: cat3-fused
+    # precision is actually (21, 20, 16)
+    src-geometry-precision: 21
+    pcerrorflags:
+     - resolution: 30000
+
+  overpass_q1mm:
+    src: overpass_q1mm.ply
+    group: cat3-fused
+    # precision is actually (20, 20, 16)
+    src-geometry-precision: 20
+    pcerrorflags:
+     - resolution: 30000
+
+  tollbooth_q1mm:
+    src: tollbooth_q1mm.ply
+    group: cat3-fused
+    # precision is actually (21, 20, 17)
+    src-geometry-precision: 21
+    pcerrorflags:
+     - resolution: 30000
+
+  # temporal sequences (Reflectance only)
+  ford_01_q1mm:
+    src-dir: Ford_01_q_1mm
+    src: Ford_01_vox1mm-{0100..1599}.ply
+    first-frame: 100
+    frame-rate: 10
+    num-frames: 1500
+    group: cat3-frame
+    src-geometry-precision: 18
+    pcerrorflags:
+     - resolution: 30000
+
+  ford_02_q1mm:
+    src-dir: Ford_02_q_1mm
+    src: Ford_02_vox1mm-{0100..1599}.ply
+    first-frame: 100
+    frame-rate: 10
+    num-frames: 1500
+    group: cat3-frame
+    src-geometry-precision: 18
+    pcerrorflags:
+     - resolution: 30000
+
+  ford_03_q1mm:
+    src-dir: Ford_03_q_1mm
+    src: Ford_03_vox1mm-{0200..1699}.ply
+    first-frame: 200
+    frame-rate: 10
+    num-frames: 1500
+    group: cat3-frame
+    src-geometry-precision: 18
+    pcerrorflags:
+     - resolution: 30000

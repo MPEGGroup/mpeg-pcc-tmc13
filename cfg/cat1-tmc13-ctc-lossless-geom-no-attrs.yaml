@@ -1,0 +1,57 @@
+# Test conditions for N17523 CTC C1.1 (formerly CfP C00) using TMC13
+---
+categories:
+  lossless-geom-no-attrs:
+    encflags:
+     - mode: 0
+     - geometryCodec: 2
+     - triSoupDepth: ${src-geometry-precision}
+     - triSoupLevel: ${src-geometry-precision}
+     - triSoupIntToOrigScale: 1
+     # geomstepsize -> default
+     # colorstepsize -> default
+     # translation -> default
+    decflags:
+     - mode: 1
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
+    sequences:
+      arco_valentino_dense_vox12:
+      arco_valentino_dense_vox20:
+      egyptian_mask_vox12:
+      egyptian_mask_vox20:
+      facade_00009_vox12:
+      facade_00009_vox20:
+      facade_00015_vox14:
+      facade_00015_vox20:
+      facade_00064_vox11:
+      facade_00064_vox14:
+      facade_00064_vox20:
+      frog_00067_vox12:
+      frog_00067_vox20:
+      head_00039_vox12:
+      head_00039_vox20:
+      house_without_roof_00057_vox12:
+      house_without_roof_00057_vox20:
+      landscape_00014_vox14:
+      landscape_00014_vox20:
+      longdress_vox10_1300:
+      loot_vox10_1200:
+      palazzo_carignano_dense_vox14:
+      palazzo_carignano_dense_vox20:
+      queen_0200:
+      redandblack_vox10_1550:
+      shiva_00035_vox12:
+      shiva_00035_vox20:
+      soldier_vox10_0690:
+      stanford_area_2_vox16:
+      stanford_area_2_vox20:
+      stanford_area_4_vox16:
+      stanford_area_4_vox20:
+      staue_klimt_vox12:
+      staue_klimt_vox20:
+      ulb_unicorn_hires_vox15:
+      ulb_unicorn_hires_vox20:
+      ulb_unicorn_vox13:
+      ulb_unicorn_vox20:

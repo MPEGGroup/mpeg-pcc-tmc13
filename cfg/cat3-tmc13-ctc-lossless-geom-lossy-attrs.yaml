@@ -1,4 +1,4 @@
-# Test conditions for N17351 CTC C3.2 & C3.3 (formerly C06/7) using TMC3
+# Test conditions for N17523 CTC C3.2 & C3.3 using TMC13
 #  -- derived from svn:r1262 documentation
 #
 # todo(df): can these two categories be unified by coding both attrs?
@@ -11,12 +11,19 @@ categories:
   # NB, texture to stop complaints about colour/color
   lossless-geom-lossy-texture:
     encflags:
-     - mode: 2
+     - mode: 0
+     # NB: geometry coding is bypassed in this condition
+     - geometryCodec: 0
      - colorTransform: 1
      - positionQuantizationScale: 1
 
     decflags:
-     - mode: 3
+     - mode: 1
+     - geometryCodec: 0
+
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
 
     sequences:
       citytunnel_q1mm:
@@ -52,12 +59,19 @@ categories:
 
   lossless-geom-lossy-reflectance:
     encflags:
-     - mode: 2
+     - mode: 0
+     # NB: geometry coding is bypassed in this condition
+     - geometryCodec: 0
      - colorTransform: 1
      - positionQuantizationScale: 1
 
     decflags:
-     - mode: 3
+     - mode: 1
+     - geometryCodec: 0
+
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
 
     sequences:
       citytunnel_q1mm:

@@ -1,14 +1,19 @@
-# Test conditions for N17351 CTC C3.4 & C3.8 (formerly C08/12) using TMC3
+# Test conditions for N17523 CTC C3.4 & C3.8 using TMC13
 #  -- derived from svn:r1262 documentation
 ---
 categories:
   lossy-geom-no-attrs:
     encflags:
      - mode: 0
+     - geometryCodec: 1
      - mergeDuplicatedPoints: 1
 
     decflags:
      - mode: 1
+
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
 
     sequences:
       ##
