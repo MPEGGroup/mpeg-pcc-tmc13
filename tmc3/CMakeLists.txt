@@ -38,28 +38,52 @@ configure_file (
   "${PROJECT_BINARY_DIR}/tmc3/TMC3Config.h"
 )
 
-file(GLOB PROJECT_IN_FILES "*.in")
+#
+# NB: avoid the use of wild cards for source files in this directory,
+# since cmake is unable to detect additions or removals in such cases
+# resulting in obscure broken builds when switching branches or
+# otherwise adding/removing files.
+#
+# Dependencies are permitted to use the wild card since they are
+# not expected to change without modifying this CMakeLists.txt.
+#
+
+file(GLOB PROJECT_IN_FILES
+  "TMC3Config.h.in"
+  "version.cpp.in"
+)
+
 file(GLOB PROJECT_INC_FILES
-  "*.h"
+  "PCCKdTree.h"
+  "PCCMath.h"
+  "PCCMisc.h"
+  "PCCPointSet.h"
+  "PCCPointSetProcessing.h"
+  "PCCTMC3Common.h"
+  "PCCTMC3Decoder.h"
+  "PCCTMC3Encoder.h"
+  "TMC3.h"
+  "pcc_chrono.h"
+  "ringbuf.h"
+  "tables.h"
+  "version.h"
   "../dependencies/nanoflann/*.hpp"
   "../dependencies/nanoflann/*.h"
   "../dependencies/arithmetic-coding/inc/*.h"
   "../dependencies/program-options-lite/*.h"
 )
-file(GLOB PROJECT_INL_FILES "*.inl")
+
 file(GLOB PROJECT_CPP_FILES
-  "*.cpp"
+  "TMC3.cpp"
+  "pcc_chrono.cpp"
+  "tables.cpp"
   "../dependencies/arithmetic-coding/src/*.cpp"
   "../dependencies/program-options-lite/*.cpp"
 )
-file(GLOB PROJECT_C_FILES "*.c")
-file(GLOB PROJECT_CL_FILES "*.cl")
+
 source_group (inc FILES ${PROJECT_INC_FILES})
 source_group (input FILES ${PROJECT_IN_FILES})
-source_group (inl FILES ${PROJECT_INL_FILES})
 source_group (cpp FILES ${PROJECT_CPP_FILES})
-source_group (c FILES ${PROJECT_C_FILES})
-source_group (cl FILES ${PROJECT_CL_FILES})
 
 include_directories(
   "${PROJECT_BINARY_DIR}/tmc3"
@@ -72,12 +96,8 @@ include_directories(
 
 add_executable (tmc3
   ${PROJECT_CPP_FILES}
-  ${PROJECT_C_FILES}
-  ${PROJECT_CL_FILES}
-  ${PROJECT_PUB_FILES}
   ${PROJECT_INC_FILES}
   ${PROJECT_IN_FILES}
-  ${PROJECT_INL_FILES}
   ${VERSION_FILE}
 )
 add_dependencies(tmc3 genversion)
