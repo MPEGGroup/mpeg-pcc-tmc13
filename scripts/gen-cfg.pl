@@ -2,8 +2,10 @@
 
 use Digest::MD5;
 use File::Path qw(make_path);
+use File::Basename qw(basename);
 use Getopt::Long;
 use List::MoreUtils;
+use Module::Load::Conditional qw(can_load);
 use Pod::Usage;
 use YAML;
 use strict;
@@ -41,6 +43,15 @@ to effectively remove a sequence from being used in an experiment.
 It may be useful to disable this option when generating config files when
 the source location of the input data is not known.
 
+=item B<--batch-template>=script.tt
+
+Generate a script from the template script.tt.  The output is written to
+the current working directory.
+
+=item B<--experiment-name>=name
+
+A generic name that may be referenced by a batch template for any purpose.
+
 =back
 
 =head1 Config specification files
@@ -55,12 +66,16 @@ the source location of the input data is not known.
 my $do_help = '';
 my $output_src_glob_sh = 0;
 my $skip_sequences_without_src = 1;
+my $experiment_name = '';
+my $batch_template = '';
 my $prefix = '.';
 GetOptions(
 	'help' => \$do_help,
 	'prefix=s' => \$prefix,
 	'output-src-glob-sh!' => \$output_src_glob_sh,
 	'skip-sequences-without-src!' => \$skip_sequences_without_src,
+	'batch-template=s' => \$batch_template,
+	'experiment-name=s' => \$experiment_name,
 );
 
 ##
@@ -115,6 +130,27 @@ foreach my $cat_name (sort keys %{$cfg->{categories}}) {
 			genSeqVariants($cat, $cat_name, $cat_seq, $gop_name, $gop, $seq);
 		}
 	}
+}
+
+##
+# write out batch-job configuration
+#
+if ($batch_template) {
+	can_load(modules => {'Template' => undef})
+		|| die $Module::Load::Conditional::ERROR;
+
+	my $output = basename($batch_template,'.tt');
+
+	my $vars = {
+		jobs => \@jobs,
+		experiment_name => $experiment_name,
+	};
+
+	my $tt = Template->new({
+		RELATIVE => 1, # allow relative paths as $batch_template
+		ABSOLUTE => 1, # allow absolute paths too
+	}) || die "$Template::ERROR\n";
+	$tt->process($batch_template, $vars, $output) || die $tt->error(), "\n";
 }
 
 
@@ -250,7 +286,7 @@ sub merge {
 	##
 	# overwrite existing scalar
 	unless (ref $src) {
-		$$dst = $$src;
+		$$dst = $src;
 		return;
 	}
 
@@ -297,6 +333,7 @@ sub variants_from_node {
 		grep {ref $_ eq 'HASH'}
 		map {values %$_}
 		grep {ref $_ eq 'HASH'}
+		map {ref $_ eq 'ARRAY' ? @$_ : $_}
 		@{$node};
 }
 
@@ -407,7 +444,7 @@ sub write_cfg {
 
 	# format config in memory
 	my $new_cfg = "";
-	open my $fd, ">", \$new_cfg;
+	open my $fd, ">:encoding(utf8)", \$new_cfg;
 	print_cfg($fd, $flags);
 	close $fd;
 
@@ -417,14 +454,14 @@ sub write_cfg {
 
 	my $md5_old = Digest::MD5->new;
 	if (-f $filename) {
-		open $fd, "<", $filename;
+		open $fd, "<:encoding(utf8)", $filename;
 		$md5_old->addfile($fd);
 		close $fd;
 	}
 
 	if ($md5_new->digest ne $md5_old->digest) {
 		print "writing $filename\n";
-		open $fd, ">", $filename;
+		open $fd, ">:bytes", $filename;
 		print $fd $new_cfg;
 		close $fd;
 	}
