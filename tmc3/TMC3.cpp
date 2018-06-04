@@ -249,28 +249,37 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     return false;
   }
 
+  // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
+  for (auto &attr : params.encodeParameters.attributeEncodeParameters) {
+    if (attr.second.transformType != TransformType::kIntegerLift) {
+      attr.second.levelOfDetailCount = 0;
+    }
+  }
+
   // sanity checks
   //  - validate that quantizationSteps, dist2
   //    of each attribute contain levelOfDetailCount elements.
   for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
-    int lod = attr.second.levelOfDetailCount;
+    if (attr.second.transformType == TransformType::kIntegerLift) {
+      int lod = attr.second.levelOfDetailCount;
 
-    if (lod > 255) {
-      err.error() << attr.first
-        << ".levelOfDetailCount must be less than 256\n";
-    }
-    if (attr.second.dist2.size() != lod) {
-      err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
-    }
-    if (attr.second.quantizationSteps.size() != lod) {
-      err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
-    }
-    if (attr.second.numberOfNearestNeighborsInPrediction >
-        PCCTMC3MaxPredictionNearestNeighborCount)
-    {
-      err.error() << attr.first
-        << ".numberOfNearestNeighborsInPrediction must be less than "
-        << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
+      if (lod > 255) {
+        err.error() << attr.first
+          << ".levelOfDetailCount must be less than 256\n";
+      }
+      if (attr.second.dist2.size() != lod) {
+        err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
+      }
+      if (attr.second.quantizationSteps.size() != lod) {
+        err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
+      }
+      if (attr.second.numberOfNearestNeighborsInPrediction >
+          PCCTMC3MaxPredictionNearestNeighborCount)
+      {
+        err.error() << attr.first
+          << ".numberOfNearestNeighborsInPrediction must be less than "
+          << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
+      }
     }
   }
 
@@ -326,26 +335,32 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       cout << "\t " << attributeEncodeParameters.first << endl;
       cout << "\t\t transformType                          "
            << attributeEncodeParameters.second.transformType << endl;
-      cout << "\t\t rahtQuantizationStep                   "
-           << attributeEncodeParameters.second.quantizationStepRaht << endl;
-      cout << "\t\t rahtDepth                              "
-           << attributeEncodeParameters.second.depthRaht << endl;
-      cout << "\t\t numberOfNearestNeighborsInPrediction   "
-           << attributeEncodeParameters.second.numberOfNearestNeighborsInPrediction << endl;
-      cout << "\t\t searchRange                            "
-           << attributeEncodeParameters.second.searchRange << endl;
-      cout << "\t\t levelOfDetailCount                     "
-           << attributeEncodeParameters.second.levelOfDetailCount << endl;
-      cout << "\t\t dist2                                  ";
-      for (const auto qs : attributeEncodeParameters.second.dist2) {
-        cout << qs << " ";
+
+      if (attributeEncodeParameters.second.transformType == TransformType::kRAHT) {
+        cout << "\t\t rahtQuantizationStep                   "
+             << attributeEncodeParameters.second.quantizationStepRaht << endl;
+        cout << "\t\t rahtDepth                              "
+             << attributeEncodeParameters.second.depthRaht << endl;
       }
-      cout << endl;
-      cout << "\t\t quantizationSteps                      ";
-      for (const auto qs : attributeEncodeParameters.second.quantizationSteps) {
-        cout << qs << " ";
+
+      if (attributeEncodeParameters.second.transformType == TransformType::kIntegerLift) {
+        cout << "\t\t numberOfNearestNeighborsInPrediction   "
+             << attributeEncodeParameters.second.numberOfNearestNeighborsInPrediction << endl;
+        cout << "\t\t searchRange                            "
+             << attributeEncodeParameters.second.searchRange << endl;
+        cout << "\t\t levelOfDetailCount                     "
+             << attributeEncodeParameters.second.levelOfDetailCount << endl;
+        cout << "\t\t dist2                                  ";
+        for (const auto qs : attributeEncodeParameters.second.dist2) {
+          cout << qs << " ";
+        }
+        cout << endl;
+        cout << "\t\t quantizationSteps                      ";
+        for (const auto qs : attributeEncodeParameters.second.quantizationSteps) {
+          cout << qs << " ";
+        }
+        cout << endl;
       }
-      cout << endl;
     }
     cout << endl;
   } else {

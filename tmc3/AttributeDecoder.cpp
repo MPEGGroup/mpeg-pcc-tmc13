@@ -127,35 +127,40 @@ int AttributeDecoder::decodeHeader(
   const std::string &attributeName,
   PCCBitstream &bitstream
 ) {
-  uint8_t numberOfNearestNeighborsCount = 0;
-  PCCReadFromBuffer<uint8_t>(bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
-  numberOfNearestNeighborsInPrediction = numberOfNearestNeighborsCount;
-
-  uint8_t lodCount = 0;
-  PCCReadFromBuffer<uint8_t>(bitstream.buffer, lodCount, bitstream.size);
-  levelOfDetailCount = lodCount;
-
-  dist2.resize(levelOfDetailCount);
-  for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-    uint32_t d2 = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, d2, bitstream.size);
-    dist2[lodIndex] = d2;
-  }
-
-  quantizationSteps.resize(levelOfDetailCount);
-  for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-    uint32_t qs = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
-    quantizationSteps[lodIndex] = qs;
-  }
-
   uint8_t transType;
   PCCReadFromBuffer<uint8_t>(bitstream.buffer, transType, bitstream.size);
   transformType = TransformType(transType);
 
-  PCCReadFromBuffer<uint8_t>(bitstream.buffer, depthRaht, bitstream.size);
-  PCCReadFromBuffer<uint8_t>(bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
-  PCCReadFromBuffer<uint32_t>(bitstream.buffer, quantizationStepRaht, bitstream.size);
+  if (transformType == TransformType::kIntegerLift) {
+    uint8_t numberOfNearestNeighborsCount = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
+    numberOfNearestNeighborsInPrediction = numberOfNearestNeighborsCount;
+
+    uint8_t lodCount = 0;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, lodCount, bitstream.size);
+    levelOfDetailCount = lodCount;
+
+    dist2.resize(levelOfDetailCount);
+    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
+      uint32_t d2 = 0;
+      PCCReadFromBuffer<uint32_t>(bitstream.buffer, d2, bitstream.size);
+      dist2[lodIndex] = d2;
+    }
+
+    quantizationSteps.resize(levelOfDetailCount);
+    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
+      uint32_t qs = 0;
+      PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
+      quantizationSteps[lodIndex] = qs;
+    }
+  }
+
+  if (transformType == TransformType::kRAHT) {
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, depthRaht, bitstream.size);
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, quantizationStepRaht, bitstream.size);
+  }
+
   return 0;
 }
 

@@ -112,6 +112,10 @@ void AttributeEncoder::buildPredictors(
   const PCCAttributeEncodeParamaters &attributeParams,
   const PCCPointSet3 &pointCloud
 ) {
+  // NB: predictors are only used by the TMC3 integer lifting scheme
+  if (attributeParams.transformType != TransformType::kIntegerLift)
+    return;
+
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexes;
   PCCBuildPredictors(
@@ -133,35 +137,39 @@ int AttributeEncoder::encodeHeader(
   PCCBitstream &bitstream
 ) const {
   PCCWriteToBuffer<uint8_t>(
-    uint8_t(attributeParams.numberOfNearestNeighborsInPrediction),
-    bitstream.buffer, bitstream.size);
-
-  PCCWriteToBuffer<uint8_t>(
-    uint8_t(attributeParams.levelOfDetailCount),
-    bitstream.buffer, bitstream.size);
-
-  for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-    const uint32_t d2 = uint32_t(attributeParams.dist2[lodIndex]);
-    PCCWriteToBuffer<uint32_t>(d2, bitstream.buffer, bitstream.size);
-  }
-  for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
-    const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
-    PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
-  }
-
-  PCCWriteToBuffer<uint8_t>(
     uint8_t(attributeParams.transformType), bitstream.buffer, bitstream.size);
 
-  PCCWriteToBuffer<uint8_t>(
-    uint8_t(attributeParams.depthRaht), bitstream.buffer, bitstream.size);
+  if (attributeParams.transformType == TransformType::kIntegerLift) {
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(attributeParams.numberOfNearestNeighborsInPrediction),
+      bitstream.buffer, bitstream.size);
 
-  PCCWriteToBuffer<uint8_t>(
-    uint8_t(attributeParams.binaryLevelThresholdRaht),
-    bitstream.buffer, bitstream.size);
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(attributeParams.levelOfDetailCount),
+      bitstream.buffer, bitstream.size);
 
-  PCCWriteToBuffer<uint32_t>(
-    uint32_t(attributeParams.quantizationStepRaht),
-    bitstream.buffer, bitstream.size);
+    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
+      const uint32_t d2 = uint32_t(attributeParams.dist2[lodIndex]);
+      PCCWriteToBuffer<uint32_t>(d2, bitstream.buffer, bitstream.size);
+    }
+    for (size_t lodIndex = 0; lodIndex < attributeParams.levelOfDetailCount; ++lodIndex) {
+      const uint32_t qs = uint32_t(attributeParams.quantizationSteps[lodIndex]);
+      PCCWriteToBuffer<uint32_t>(qs, bitstream.buffer, bitstream.size);
+    }
+  }
+
+  if (attributeParams.transformType == TransformType::kRAHT) {
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(attributeParams.depthRaht), bitstream.buffer, bitstream.size);
+
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(attributeParams.binaryLevelThresholdRaht),
+      bitstream.buffer, bitstream.size);
+
+    PCCWriteToBuffer<uint32_t>(
+      uint32_t(attributeParams.quantizationStepRaht),
+      bitstream.buffer, bitstream.size);
+  }
 
   return 0;
 }
