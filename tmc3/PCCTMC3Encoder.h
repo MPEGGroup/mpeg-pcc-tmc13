@@ -85,6 +85,9 @@ struct PCCTMC3Encoder3Parameters {
     std::vector<double> intToOrigTranslation;
   } triSoup;
 
+  // Filename for saving recoloured point cloud.
+  std::string postRecolorPath;
+
   std::map<std::string, PCCAttributeEncodeParamaters> attributeEncodeParameters;
 
   //--------------------------------------------------------------------------
@@ -128,58 +131,6 @@ class PCCTMC3Encoder3 {
     return bitstreamSize;
   }
 
-  int compressWithLosslessGeometry(const PCCPointSet3 &inputPointCloud,
-                                   const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream,
-                                   PCCPointSet3 *reconstructedCloud = nullptr) {
-    init();
-    auto paramsColor =
-      params.getAttrParams(inputPointCloud.hasColors(), "color");
-
-    auto paramsReflectance =
-      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
-
-    pointCloud = inputPointCloud;
-    pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
-
-    PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
-                              bitstream.size);
-
-    if (paramsColor) {
-      AttributeEncoder attrEncoder;
-      uint64_t colorsSize = bitstream.size;
-
-      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
-      attrEncoder.buildPredictors(*paramsColor, pointCloud);
-      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
-
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B ("
-                << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
-    }
-
-    if (paramsReflectance) {
-      AttributeEncoder attrEncoder;
-      uint64_t reflectancesSize = bitstream.size;
-
-      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
-      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
-      attrEncoder.encodeReflectances(*paramsReflectance, pointCloud, bitstream);
-
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
-                << (8.0 * reflectancesSize) / inputPointCloud.getPointCount() << " bpp)"
-                << std::endl;
-    }
-
-    if (reconstructedCloud) {
-      (*reconstructedCloud) = pointCloud;
-    }
-    return 0;
-  }
   int compress(const PCCPointSet3 &inputPointCloud, const PCCTMC3Encoder3Parameters &params,
                PCCBitstream &bitstream, PCCPointSet3 *reconstructedCloud = nullptr) {
     init();
@@ -187,146 +138,73 @@ class PCCTMC3Encoder3 {
     PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
 
-    if (int ret = quantization(inputPointCloud, params)) {
-      return ret;
-    }
-
-    uint64_t positionsSize = bitstream.size;
-    encodePositionsHeader(params, bitstream);
-    encodePositions(params, bitstream);
-
-    positionsSize = bitstream.size - positionsSize;
-    std::cout << "positions bitstream size " << positionsSize << " B ("
-              << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
-
-    auto paramsColor =
-      params.getAttrParams(pointCloud.hasColors(), "color");
-
-    if (paramsColor) {
-      AttributeEncoder attrEncoder;
-      uint64_t colorsSize = bitstream.size;
-
-      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
-      attrEncoder.buildPredictors(*paramsColor, pointCloud);
-      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
-
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B ("
-                << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
-    }
-
-    auto paramsReflectance =
-      params.getAttrParams(pointCloud.hasReflectances(), "reflectance");
-
-    if (paramsReflectance) {
-      AttributeEncoder attrEncoder;
-      uint64_t reflectancesSize = bitstream.size;
-
-      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
-      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
-      attrEncoder.encodeReflectances(*paramsReflectance, pointCloud, bitstream);
-
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
-                << (8.0 * reflectancesSize) / inputPointCloud.getPointCount() << " bpp)"
-                << std::endl;
-    }
-
-    reconstructedPointCloud(params, reconstructedCloud);
-    return 0;
-  }
-  int compressWithTrisoupGeometry(const PCCPointSet3 &inputPointCloud,
-                                  const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream,
-                                  PCCPointSet3 *reconstructedCloud = nullptr) {
-    init();
-    PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
-
-    // Write out inputPointCloud file, just so that we can get it into the TMC1 pipeline.
-    pcc::PCCPointSet3 tempPointCloud(inputPointCloud);
-    tempPointCloud.write("verticesInWorldCoords.ply", true);
-
-    // Compress geometry with TMC1.
-    pcc::mkdir("outbin");
-    std::string cmd;
-    cmd =
-        "TMC1_coordinateTransform -inworld verticesInWorldCoords.ply -outframe "
-        "verticesInFrameCoords.ply";
-    cmd += " -depth " + std::to_string(params.triSoup.depth) + " -scale " +
-           std::to_string(params.triSoup.intToOrigScale) + " -format binary_little_endian";
-    system(cmd.c_str());
-    cmd =
-        "TMC1_geometryEncode -inframe verticesInFrameCoords.ply -outbin outbin -outref "
-        "refinedVertices.ply";
-    cmd += " -depth " + std::to_string(params.triSoup.depth) + " -level " + std::to_string(params.triSoup.level) +
-           " -format binary_little_endian";
-    system(cmd.c_str());
-    cmd = "TMC1_voxelize -inref refinedVertices.ply -outvox voxelizedVertices.ply";
-    cmd += " -depth " + std::to_string(params.triSoup.depth) + " -format binary_little_endian";
-    system(cmd.c_str());
-
-    // Read in quantizedPointCloud file, so that we can recolor it.
-    pointCloud.read("voxelizedVertices.ply");
-
-    // Transform from integer to original coordinates.
-    const size_t pointCount = pointCloud.getPointCount();
-    for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-      pointCloud[pointIndex] *= params.triSoup.intToOrigScale;
-      // Should add intToOrigTranslation here.
-    }
-
     auto paramsColor =
       params.getAttrParams(inputPointCloud.hasColors(), "color");
 
     auto paramsReflectance =
       params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
 
-    if (paramsColor) {
-      pointCloud.addColors();
-      int32_t searchRange = paramsColor->searchRange;
-      if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
-        std::cout << "Error: can't transfer colors!" << std::endl;
-        return -1;
+    // geometry compression consists of the following stages:
+    //  - prefilter/quantize geometry (non-normative)
+    //  - recolour
+    //  - encode geometry
+    if (params.geometryCodec == GeometryCodecType::kBypass) {
+      // todo(df): this should go away now that reporting counts attribute bits
+      pointCloud = inputPointCloud;
+      pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
+    }
+    if (params.geometryCodec == GeometryCodecType::kOctree) {
+      quantization(inputPointCloud, params);
+    }
+    if (params.geometryCodec == GeometryCodecType::kTriSoup) {
+      // todo(?): this ought to be replaced with quantization(...)
+      inputPointCloud.write("verticesInWorldCoords.ply", true);
+      std::string cmd =
+        "TMC1_coordinateTransform"
+        " -inworld verticesInWorldCoords.ply"
+        " -outframe verticesInFrameCoords.ply"
+        " -depth " + std::to_string(params.triSoup.depth) +
+        " -scale " + std::to_string(params.triSoup.intToOrigScale) +
+        " -format binary_little_endian";
+      system(cmd.c_str());
+    }
+
+    // geometry encoding
+
+    if (params.geometryCodec == GeometryCodecType::kBypass) {
+      // only a header is sent in this case
+      PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
+      PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer, bitstream.size);
+    } else {
+      uint64_t positionsSize = bitstream.size;
+
+      if (params.geometryCodec == GeometryCodecType::kOctree) {
+        encodePositionsHeader(params, bitstream);
+        encodePositions(params, bitstream);
       }
+      if (params.geometryCodec == GeometryCodecType::kTriSoup) {
+        bool hasColor = !!paramsColor;
+        bool hasReflectance = !!paramsReflectance;
+        encodeTrisoupHeader(params, hasColor, hasReflectance, bitstream);
+        if (encodeTrisoup(params, hasColor, hasReflectance, bitstream))
+          return -1;
+        if (recolorTrisoup(params, paramsColor, paramsReflectance, inputPointCloud))
+          return -1;
+      }
+
+      positionsSize = bitstream.size - positionsSize;
+      std::cout << "positions bitstream size " << positionsSize << " B ("
+                << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
     }
 
-    // Transform from original to integer coordinates.
-    for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-      // Should subtract intToOrigTranslation here.
-      pointCloud[pointIndex] /= params.triSoup.intToOrigScale;
+    // attributeCoding
+
+    // dump recoloured point cloud
+    if (!params.postRecolorPath.empty()) {
+      PCCPointSet3 tempPointCloud(pointCloud);
+      tempPointCloud.convertYUVToRGB();
+      tempPointCloud.write(params.postRecolorPath);
     }
-
-    // Optionally write out point cloud with lossy geometry and lossless color, for later
-    // comparison.
-    tempPointCloud = pointCloud;  // deep copy
-    tempPointCloud.convertYUVToRGB();
-    tempPointCloud.write("decodedVoxelsAndTransferredColors.ply");
-
-    // Encode positions.
-    uint64_t positionsSize = bitstream.size;
-    encodeTrisoupHeader(params, bitstream);
-
-    // Read in TMC1 geometry bitstream and put it into the converged TMC13 bitstream.
-    std::ifstream fin("outbin/outbin_0000.bin", std::ios::binary);
-    if (!fin.is_open()) {
-      return -1;
-    }
-    fin.seekg(0, std::ios::end);
-    uint64_t binSize = fin.tellg();
-    fin.seekg(0, std::ios::beg);
-    std::unique_ptr<uint8_t[]> tempbuf(new uint8_t[binSize]);
-    PCCWriteToBuffer<uint32_t>(uint32_t(binSize), bitstream.buffer, bitstream.size);
-    fin.read(reinterpret_cast<char *>(&bitstream.buffer[bitstream.size]), binSize);
-    if (!fin) {
-      return -1;
-    }
-    bitstream.size += binSize;
-    fin.close();
-
-    positionsSize = bitstream.size - positionsSize;
-    std::cout << "positions bitstream size " << positionsSize << " B ("
-              << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
 
     if (paramsColor) {
       AttributeEncoder attrEncoder;
@@ -355,7 +233,13 @@ class PCCTMC3Encoder3 {
                 << std::endl;
     }
 
-    reconstructedPointCloud(params, reconstructedCloud);
+    if (params.geometryCodec == GeometryCodecType::kBypass) {
+      *reconstructedCloud = pointCloud;
+    }
+    else {
+      reconstructedPointCloud(params, reconstructedCloud);
+    }
+
     return 0;
   }
 
@@ -787,11 +671,72 @@ class PCCTMC3Encoder3 {
     PCCWriteToBuffer<double>(params.positionQuantizationScale, bitstream.buffer, bitstream.size);
   }
 
-  void encodeTrisoupHeader(const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream) const {
+  //--------------------------------------------------------------------------
+
+  int encodeTrisoup(
+    const PCCTMC3Encoder3Parameters &params,
+    bool hasColor, bool hasReflectance,
+    PCCBitstream &bitstream
+  ) {
+    // todo(?): port TMC1 geometry encoder
+    // todo(?): fix TMC1 to output where it is told not requiring an extra
+    //          level of guesswork to find the output file.
+    pcc::mkdir("outbin");
+    std::string cmd =
+      "TMC1_geometryEncode"
+      " -inframe verticesInFrameCoords.ply"
+      " -outbin outbin"
+      " -outref refinedVertices.ply"
+      " -depth " + std::to_string(params.triSoup.depth) +
+      " -level " + std::to_string(params.triSoup.level) +
+      " -format binary_little_endian";
+    system(cmd.c_str());
+
+    // todo(?): port interpolator
+    cmd =
+      "TMC1_voxelize"
+      " -inref refinedVertices.ply"
+      " -outvox voxelizedVertices.ply"
+      " -depth " + std::to_string(params.triSoup.depth) +
+      " -format binary_little_endian";
+    system(cmd.c_str());
+
+    // Read in quantizedPointCloud file.
+    pointCloud.read("voxelizedVertices.ply");
+    pointCloud.addRemoveAttributes(hasColor, hasReflectance);
+
+    // encapsulate the TMC1 "bitstream"
+    std::ifstream fin("outbin/outbin_0000.bin", std::ios::binary);
+    if (!fin.is_open()) {
+      std::cerr << "failed to open tmc1 bitstream\n";
+      return -1;
+    }
+
+    fin.seekg(0, std::ios::end);
+    uint64_t binSize = fin.tellg();
+    fin.seekg(0, std::ios::beg);
+    PCCWriteToBuffer<uint32_t>(uint32_t(binSize), bitstream.buffer, bitstream.size);
+    fin.read(reinterpret_cast<char *>(&bitstream.buffer[bitstream.size]), binSize);
+    if (!fin) {
+      std::cerr << "error reading tmc1 bitstream\n";
+      return -1;
+    }
+    bitstream.size += binSize;
+    fin.close();
+    return 0;
+  }
+
+  //--------------------------------------------------------------------------
+
+  void encodeTrisoupHeader(
+    const PCCTMC3Encoder3Parameters &params,
+    bool hasColor, bool hasReflectance,
+    PCCBitstream &bitstream
+  ) const {
     PCCWriteToBuffer<uint32_t>(uint32_t(pointCloud.getPointCount()), bitstream.buffer,
                                bitstream.size);
-    PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
+    PCCWriteToBuffer<uint8_t>(uint8_t(hasColor), bitstream.buffer, bitstream.size);
+    PCCWriteToBuffer<uint8_t>(uint8_t(hasReflectance), bitstream.buffer,
                               bitstream.size);
     for (int k = 0; k < 3; ++k) {
       PCCWriteToBuffer<double>(minPositions[k], bitstream.buffer, bitstream.size);
@@ -917,6 +862,47 @@ class PCCTMC3Encoder3 {
         }
       }
     }
+    return 0;
+  }
+
+  //--------------------------------------------------------------------------
+
+  int recolorTrisoup(
+    const PCCTMC3Encoder3Parameters &params,
+    const PCCAttributeEncodeParamaters *paramsColor,
+    const PCCAttributeEncodeParamaters *paramsReflectance,
+    const PCCPointSet3 &inputPointCloud
+  ) {
+    // Transform from integer to original coordinates.
+    const size_t pointCount = pointCloud.getPointCount();
+    for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
+      pointCloud[pointIndex] *= params.triSoup.intToOrigScale;
+      // todo(pchou): should add intToOrigTranslation here.
+    }
+
+    // Recolour attributes.
+    if (paramsColor) {
+      int32_t searchRange = int32_t(paramsColor->searchRange);
+      if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
+        std::cout << "Error: can't transfer colors!" << std::endl;
+        return -1;
+      }
+    }
+    if (paramsReflectance) {
+      int32_t searchRange = int32_t(paramsReflectance->searchRange);
+      if (!PCCTransfertReflectances(inputPointCloud, searchRange, pointCloud)) {
+        std::cout << "Error: can't transfer reflectance!" << std::endl;
+        return -1;
+      }
+    }
+
+    // Transform from original to integer coordinates.
+    for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
+      // todo(pchou): should subtract intToOrigTranslation here.
+      // todo(?): don't use division here
+      pointCloud[pointIndex] /= params.triSoup.intToOrigScale;
+    }
+
     return 0;
   }
 

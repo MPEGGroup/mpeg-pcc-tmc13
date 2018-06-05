@@ -54,6 +54,9 @@ namespace pcc {
 
 struct DecoderParameters {
   bool roundOutputPositions;
+
+  // Filename for saving pre inverse scaled point cloud.
+  std::string preInvScalePath;
 };
 
 class PCCTMC3Decoder3 {
@@ -68,71 +71,6 @@ class PCCTMC3Decoder3 {
     minPositions = 0.0;
     boundingBox.min = uint32_t(0);
     boundingBox.max = uint32_t(0);
-  }
-
-  int decompressWithLosslessGeometry(
-    const DecoderParameters& params,
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud
-  ) {
-    init();
-    uint32_t magicNumber = 0;
-    uint32_t formatVersion = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, magicNumber, bitstream.size);
-    if (magicNumber != PCCTMC3MagicNumber) {
-      std::cout << "Error: corrupted bistream!" << std::endl;
-      return -1;
-    }
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, formatVersion, bitstream.size);
-    if (formatVersion != PCCTMC3FormatVersion) {
-      std::cout << "Error: bistream version not supported!" << std::endl;
-      return -1;
-    }
-
-    // determine the geometry codec type
-    uint8_t geometryCodecRaw;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
-
-    uint8_t hasColors = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
-    uint8_t hasReflectances = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
-    if (hasColors) {
-      pointCloud.addColors();
-    } else {
-      pointCloud.removeColors();
-    }
-    if (hasReflectances) {
-      pointCloud.addReflectances();
-    } else {
-      pointCloud.removeReflectances();
-    }
-
-    AttributeDecoder attrDecoder;
-
-    if (pointCloud.hasColors()) {
-      uint64_t colorsSize = bitstream.size;
-
-      attrDecoder.decodeHeader("color", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
-      attrDecoder.decodeColors(bitstream, pointCloud);
-
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
-      std::cout << std::endl;
-    }
-
-    if (pointCloud.hasReflectances()) {
-      uint64_t reflectancesSize = bitstream.size;
-
-      attrDecoder.decodeHeader("reflectance", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
-      attrDecoder.decodeReflectances(bitstream, pointCloud);
-
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
-    }
-    return 0;
   }
 
   int decompress(
@@ -157,14 +95,32 @@ class PCCTMC3Decoder3 {
     // determine the geometry codec type
     uint8_t geometryCodecRaw;
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
+    GeometryCodecType geometryCodec{GeometryCodecType(geometryCodecRaw)};
 
-    uint64_t positionsSize = bitstream.size;
+    if (geometryCodec == GeometryCodecType::kBypass) {
+      uint8_t hasColors = 0;
+      PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
+      uint8_t hasReflectances = 0;
+      PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
+      pointCloud.addRemoveAttributes(hasColors, hasReflectances);
+    }
 
-    decodePositionsHeader(bitstream, pointCloud);
-    decodePositions(bitstream, pointCloud);
+    if (geometryCodec != GeometryCodecType::kBypass) {
+      uint64_t positionsSize = bitstream.size;
 
-    positionsSize = bitstream.size - positionsSize;
-    std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
+      if (geometryCodec == GeometryCodecType::kOctree) {
+        decodePositionsHeader(bitstream, pointCloud);
+        decodePositions(bitstream, pointCloud);
+      }
+      if (geometryCodec == GeometryCodecType::kTriSoup) {
+        decodeTrisoupHeader(bitstream, pointCloud);
+        if (decodeTrisoup(bitstream, pointCloud))
+          return -1;
+      }
+
+      positionsSize = bitstream.size - positionsSize;
+      std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
+    }
 
     if (pointCloud.hasColors()) {
       AttributeDecoder attrDecoder;
@@ -191,109 +147,17 @@ class PCCTMC3Decoder3 {
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
 
-    inverseQuantization(pointCloud, params.roundOutputPositions);
-    return 0;
-  }
-
-  int decompressWithTrisoupGeometry(
-    const DecoderParameters& params,
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud
-  ) {
-    init();
-    uint32_t magicNumber = 0;
-    uint32_t formatVersion = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, magicNumber, bitstream.size);
-    if (magicNumber != PCCTMC3MagicNumber) {
-      std::cout << "Error: corrupted bistream!" << std::endl;
-      return -1;
-    }
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, formatVersion, bitstream.size);
-    if (formatVersion != PCCTMC3FormatVersion) {
-      std::cout << "Error: bistream version not supported!" << std::endl;
-      return -1;
+    // Dump the decoded colour using the pre inverse scaled geometry
+    if (!params.preInvScalePath.empty()) {
+      pcc::PCCPointSet3 tempPointCloud(pointCloud);
+      tempPointCloud.convertYUVToRGB();
+      tempPointCloud.write(params.preInvScalePath);
     }
 
-    // determine the geometry codec type
-    uint8_t geometryCodecRaw;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
-
-    uint64_t positionsSize = bitstream.size;
-    size_t depth;
-    size_t level;
-    double intToOrigScale;
-    PCCPoint3D intToOrigTranslation;
-
-    decodeTrisoupHeader(
-      bitstream, pointCloud,
-      depth, level, intToOrigScale, intToOrigTranslation);
-
-    // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
-    uint32_t binSize = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, binSize, bitstream.size);
-    std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
-    if (!fout.is_open()) {
-      // maybe because directory does not exist; try again...
-      pcc::mkdir("outbin");
-      fout.open("outbin/outbin_0000.bin", std::ios::binary);
-      if (!fout.is_open()) return -1;
-    }
-    fout.write(reinterpret_cast<char *>(&bitstream.buffer[bitstream.size]), binSize);
-    if (!fout) {
-      return -1;
-    }
-    bitstream.size += binSize;
-    fout.close();
-
-    positionsSize = bitstream.size - positionsSize;
-    std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
-
-    // Decompress geometry with TMC1.
-    std::string cmd;
-    cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
-    system(cmd.c_str());
-    cmd = "TMC1_geometryDecode -inbin outbin\\outbin -outref refinedVerticesDecoded.ply";
-    cmd += " -depth " + std::to_string(depth) + " -level " + std::to_string(level) +
-           " -format binary_little_endian";
-    system(cmd.c_str());
-    cmd = "TMC1_voxelize -inref refinedVerticesDecoded.ply -outvox quantizedPointCloudDecoded.ply";
-    cmd += " -depth " + std::to_string(depth) + " -format binary_little_endian";
-    system(cmd.c_str());
-    pointCloud.read("quantizedPointCloudDecoded.ply");
-    pointCloud.addColors();
-    pointCloud.removeReflectances();
-
-    if (pointCloud.hasColors()) {
-      AttributeDecoder attrDecoder;
-      uint64_t colorsSize = bitstream.size;
-
-      attrDecoder.decodeHeader("color", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
-      attrDecoder.decodeColors(bitstream, pointCloud);
-
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
-      std::cout << std::endl;
+    if (geometryCodec != GeometryCodecType::kBypass) {
+      inverseQuantization(pointCloud, params.roundOutputPositions);
     }
 
-    if (pointCloud.hasReflectances()) {
-      AttributeDecoder attrDecoder;
-      uint64_t reflectancesSize = bitstream.size;
-
-      attrDecoder.decodeHeader("reflectance", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
-      attrDecoder.decodeReflectances(bitstream, pointCloud);
-
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
-    }
-
-    // Optionally write out point cloud with lossy geometry and lossy color, for later comparison.
-    pcc::PCCPointSet3 tempPointCloud(pointCloud);
-    tempPointCloud.convertYUVToRGB();
-    tempPointCloud.write("decodedVoxelsAndDecodedColors.ply");
-
-    inverseQuantization(pointCloud, params.roundOutputPositions);
     return 0;
   }
 
@@ -332,8 +196,7 @@ class PCCTMC3Decoder3 {
     }
   }
 
-  void decodeTrisoupHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, size_t &depth,
-                          size_t &level, double &intToOrigScale, PCCPoint3D &intToOrigTranslation) {
+  void decodeTrisoupHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t pointCount = 0;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
     uint8_t hasColors = 0;
@@ -355,10 +218,59 @@ class PCCTMC3Decoder3 {
     if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
       positionQuantizationScale = 1.0;
     }
-    PCCReadFromBuffer<size_t>(bitstream.buffer, depth, bitstream.size);
-    PCCReadFromBuffer<size_t>(bitstream.buffer, level, bitstream.size);
-    PCCReadFromBuffer<double>(bitstream.buffer, intToOrigScale, bitstream.size);
-    PCCReadFromBuffer<PCCPoint3D>(bitstream.buffer, intToOrigTranslation, bitstream.size);
+    PCCReadFromBuffer<size_t>(bitstream.buffer, triSoup.depth, bitstream.size);
+    PCCReadFromBuffer<size_t>(bitstream.buffer, triSoup.level, bitstream.size);
+    PCCReadFromBuffer<double>(bitstream.buffer, triSoup.intToOrigScale, bitstream.size);
+    PCCReadFromBuffer<PCCPoint3D>(bitstream.buffer, triSoup.intToOrigTranslation, bitstream.size);
+  }
+
+  //--------------------------------------------------------------------------
+
+  int decodeTrisoup(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+    // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
+    uint32_t binSize = 0;
+    PCCReadFromBuffer<uint32_t>(bitstream.buffer, binSize, bitstream.size);
+    std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
+    if (!fout.is_open()) {
+      // maybe because directory does not exist; try again...
+      pcc::mkdir("outbin");
+      fout.open("outbin/outbin_0000.bin", std::ios::binary);
+      if (!fout.is_open()) return -1;
+    }
+    fout.write(reinterpret_cast<char *>(&bitstream.buffer[bitstream.size]), binSize);
+    if (!fout) {
+      return -1;
+    }
+    bitstream.size += binSize;
+    fout.close();
+
+    // Decompress geometry with TMC1.
+    std::string cmd;
+    cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
+    system(cmd.c_str());
+
+    cmd =
+      "TMC1_geometryDecode"
+      " -inbin outbin/outbin"
+      " -outref refinedVerticesDecoded.ply"
+      " -depth " + std::to_string(triSoup.depth) +
+      " -level " + std::to_string(triSoup.level) +
+      " -format binary_little_endian";
+    system(cmd.c_str());
+
+    cmd =
+      "TMC1_voxelize"
+      " -inref refinedVerticesDecoded.ply"
+      " -outvox quantizedPointCloudDecoded.ply"
+      " -depth " + std::to_string(triSoup.depth) +
+      " -format binary_little_endian";
+    system(cmd.c_str());
+
+    bool hasColors = pointCloud.hasColors();
+    bool hasReflectances = pointCloud.hasReflectances();
+    pointCloud.read("quantizedPointCloudDecoded.ply");
+    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
+    return 0;
   }
 
   //-------------------------------------------------------------------------
@@ -703,6 +615,13 @@ class PCCTMC3Decoder3 {
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.
   bool inferredDirectCodingModeEnabled;
+
+  struct TriSoup {
+    size_t depth;
+    size_t level;
+    double intToOrigScale;
+    PCCPoint3D intToOrigTranslation;
+  } triSoup;
 };
 }
 

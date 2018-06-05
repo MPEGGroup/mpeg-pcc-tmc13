@@ -177,6 +177,14 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      params.compressedStreamPath, {},
      "The compressed bitstream path (encoder=output, decoder=input)")
 
+  ("postRecolorPath",
+     params.encodeParameters.postRecolorPath, {},
+     "Recolored pointcloud file path (encoder only)")
+
+  ("preInvScalePath",
+     params.decodeParameters.preInvScalePath, {},
+     "Pre inverse scaled pointcloud file path (decoder only)")
+
   // general
   ("colorTransform",
      params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
@@ -469,17 +477,7 @@ int Compress(const Parameters &params, Stopwatch& clock) {
     reconstructedPointCloud.reset(new PCCPointSet3);
   }
 
-  int ret;
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree)
-    ret = encoder.compress(
-      pointCloud, params.encodeParameters, bitstream,
-      reconstructedPointCloud.get());
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass)
-    ret = encoder.compressWithLosslessGeometry(
-      pointCloud, params.encodeParameters, bitstream,
-      reconstructedPointCloud.get());
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup)
-    ret = encoder.compressWithTrisoupGeometry(
+  int ret = encoder.compress(
       pointCloud, params.encodeParameters, bitstream,
       reconstructedPointCloud.get());
   if (ret) {
@@ -541,16 +539,7 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
     pointCloud.removeColors();
   }
 
-  int ret;
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree)
-    ret = decoder.decompress(
-      params.decodeParameters, bitstream, pointCloud);
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass)
-    ret = decoder.decompressWithLosslessGeometry(
-      params.decodeParameters, bitstream, pointCloud);
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup)
-    ret = decoder.decompressWithTrisoupGeometry(
-      params.decodeParameters, bitstream, pointCloud);
+  int ret = decoder.decompress(params.decodeParameters, bitstream, pointCloud);
   if (ret) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;

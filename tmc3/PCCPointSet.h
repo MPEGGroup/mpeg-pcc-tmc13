@@ -405,7 +405,7 @@ class PCCPointSet3 {
     if (!buf.empty()) tokens.push_back(buf);
     return !tokens.empty();
   }
-  bool write(const std::string &fileName, const bool asAscii = false) {
+  bool write(const std::string &fileName, const bool asAscii = false) const {
     std::ofstream fout(fileName, std::ofstream::out);
     if (!fout.is_open()) {
       return false;
