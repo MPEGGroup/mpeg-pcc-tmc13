@@ -123,7 +123,7 @@ void AttributeDecoder::buildPredictors(const PCCPointSet3 &pointCloud) {
 
 //----------------------------------------------------------------------------
 
-int AttributeDecoder::decodeHeader(
+void AttributeDecoder::decodeHeader(
   const std::string &attributeName,
   PCCBitstream &bitstream
 ) {
@@ -160,13 +160,11 @@ int AttributeDecoder::decodeHeader(
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, quantizationStepRaht, bitstream.size);
   }
-
-  return 0;
 }
 
 //----------------------------------------------------------------------------
 
-int AttributeDecoder::decodeReflectances(
+void AttributeDecoder::decodeReflectances(
   PCCBitstream &bitstream,
   PCCPointSet3 &pointCloud
 ) {
@@ -188,12 +186,11 @@ int AttributeDecoder::decodeReflectances(
 
   decoder.stop();
   bitstream.size += compressedBitstreamSize;
-  return 0;
 }
 
 //----------------------------------------------------------------------------
 
-int AttributeDecoder::decodeColors(
+void AttributeDecoder::decodeColors(
   PCCBitstream &bitstream,
   PCCPointSet3 &pointCloud
 ) {
@@ -215,7 +212,6 @@ int AttributeDecoder::decodeColors(
 
   decoder.stop();
   bitstream.size += compressedBitstreamSize;
-  return 0;
 }
 
 //----------------------------------------------------------------------------

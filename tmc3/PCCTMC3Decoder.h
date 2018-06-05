@@ -99,13 +99,11 @@ class PCCTMC3Decoder3 {
 
     if (pointCloud.hasColors()) {
       uint64_t colorsSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("color", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeColors(bitstream, pointCloud);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
       std::cout << std::endl;
@@ -113,13 +111,11 @@ class PCCTMC3Decoder3 {
 
     if (pointCloud.hasReflectances()) {
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("reflectance", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeReflectances(bitstream, pointCloud);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
@@ -141,25 +137,21 @@ class PCCTMC3Decoder3 {
     }
 
     uint64_t positionsSize = bitstream.size;
-    if (int ret = decodePositionsHeader(bitstream, pointCloud)) {
-      return ret;
-    }
-    if (int ret = decodePositions(bitstream, pointCloud)) {
-      return ret;
-    }
+
+    decodePositionsHeader(bitstream, pointCloud);
+    decodePositions(bitstream, pointCloud);
+
     positionsSize = bitstream.size - positionsSize;
     std::cout << "positions bitstream size " << positionsSize << " B" << std::endl;
 
     if (pointCloud.hasColors()) {
       AttributeDecoder attrDecoder;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("color", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeColors(bitstream, pointCloud);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
       std::cout << std::endl;
@@ -168,13 +160,11 @@ class PCCTMC3Decoder3 {
     if (pointCloud.hasReflectances()) {
       AttributeDecoder attrDecoder;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("reflectance", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeReflectances(bitstream, pointCloud);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
@@ -204,10 +194,10 @@ class PCCTMC3Decoder3 {
     size_t level;
     double intToOrigScale;
     PCCPoint3D intToOrigTranslation;
-    if (int ret = decodeTrisoupHeader(bitstream, pointCloud, depth, level, intToOrigScale,
-                                      intToOrigTranslation)) {
-      return ret;
-    }
+
+    decodeTrisoupHeader(
+      bitstream, pointCloud,
+      depth, level, intToOrigScale, intToOrigTranslation);
 
     // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
     uint32_t binSize = 0;
@@ -247,13 +237,11 @@ class PCCTMC3Decoder3 {
     if (pointCloud.hasColors()) {
       AttributeDecoder attrDecoder;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("color", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("color", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeColors(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeColors(bitstream, pointCloud);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
       std::cout << std::endl;
@@ -262,13 +250,11 @@ class PCCTMC3Decoder3 {
     if (pointCloud.hasReflectances()) {
       AttributeDecoder attrDecoder;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = attrDecoder.decodeHeader("reflectance", bitstream)) {
-        return ret;
-      }
+
+      attrDecoder.decodeHeader("reflectance", bitstream);
       attrDecoder.buildPredictors(pointCloud);
-      if (int ret = attrDecoder.decodeReflectances(bitstream, pointCloud)) {
-        return ret;
-      }
+      attrDecoder.decodeReflectances(bitstream, pointCloud);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
@@ -283,7 +269,7 @@ class PCCTMC3Decoder3 {
   }
 
  private:
-  int decodePositionsHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+  void decodePositionsHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t pointCount = 0;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
     uint8_t hasColors = 0;
@@ -324,10 +310,9 @@ class PCCTMC3Decoder3 {
     if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
       positionQuantizationScale = 1.0;
     }
-    return 0;
   }
 
-  int decodeTrisoupHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, size_t &depth,
+  void decodeTrisoupHeader(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, size_t &depth,
                           size_t &level, double &intToOrigScale, PCCPoint3D &intToOrigTranslation) {
     uint32_t pointCount = 0;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
@@ -362,7 +347,6 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<size_t>(bitstream.buffer, level, bitstream.size);
     PCCReadFromBuffer<double>(bitstream.buffer, intToOrigScale, bitstream.size);
     PCCReadFromBuffer<PCCPoint3D>(bitstream.buffer, intToOrigTranslation, bitstream.size);
-    return 0;
   }
 
   //-------------------------------------------------------------------------
@@ -515,7 +499,7 @@ class PCCTMC3Decoder3 {
 
   //-------------------------------------------------------------------------
 
-  int decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+  void decodePositions(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
     uint32_t compressedBitstreamSize;
     PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
     o3dgc::Arithmetic_Codec arithmeticDecoder;
@@ -668,7 +652,6 @@ class PCCTMC3Decoder3 {
 
     arithmeticDecoder.stop_decoder();
     bitstream.size += compressedBitstreamSize;
-    return 0;
   }
 
   void inverseQuantization(PCCPointSet3 &pointCloud, const bool roundOutputPositions) {

@@ -72,20 +72,17 @@ public:
     const PCCAttributeEncodeParamaters &attributeParams,
     const PCCPointSet3 &pointCloud);
 
-  // todo(df): return value is always 0 => should be void?
-  int encodeHeader(
+  void encodeHeader(
     const PCCAttributeEncodeParamaters &attributeParams,
     const std::string &attributeName,
     PCCBitstream &bitstream) const;
 
-  // todo(df): return value is always 0 => should be void?
-  int encodeReflectances(
+  void encodeReflectances(
     const PCCAttributeEncodeParamaters &reflectanceParams,
     PCCPointSet3 &pointCloud,
     PCCBitstream &bitstream);
 
-  // todo(df): return value is always 0 => should be void?
-  int encodeColors(
+  void encodeColors(
     const PCCAttributeEncodeParamaters &colorParams,
     PCCPointSet3 &pointCloud,
     PCCBitstream &bitstream);

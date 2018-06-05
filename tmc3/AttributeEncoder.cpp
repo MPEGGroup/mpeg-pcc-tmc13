@@ -131,7 +131,7 @@ void AttributeEncoder::buildPredictors(
 
 //----------------------------------------------------------------------------
 
-int AttributeEncoder::encodeHeader(
+void AttributeEncoder::encodeHeader(
   const PCCAttributeEncodeParamaters &attributeParams,
   const std::string &attributeName,
   PCCBitstream &bitstream
@@ -170,13 +170,11 @@ int AttributeEncoder::encodeHeader(
       uint32_t(attributeParams.quantizationStepRaht),
       bitstream.buffer, bitstream.size);
   }
-
-  return 0;
 }
 
 //----------------------------------------------------------------------------
 
-int AttributeEncoder::encodeReflectances(
+void AttributeEncoder::encodeReflectances(
   const PCCAttributeEncodeParamaters &reflectanceParams,
   PCCPointSet3 &pointCloud,
   PCCBitstream &bitstream
@@ -200,12 +198,11 @@ int AttributeEncoder::encodeReflectances(
   uint32_t compressedBitstreamSize = encoder.stop();
   bitstream.size += compressedBitstreamSize;
   PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
-  return 0;
 }
 
 //----------------------------------------------------------------------------
 
-int AttributeEncoder::encodeColors(
+void AttributeEncoder::encodeColors(
   const PCCAttributeEncodeParamaters &colorParams,
   PCCPointSet3 &pointCloud,
   PCCBitstream &bitstream
@@ -229,7 +226,6 @@ int AttributeEncoder::encodeColors(
   uint32_t compressedBitstreamSize = encoder.stop();
   bitstream.size += compressedBitstreamSize;
   PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
-  return 0;
 }
 
 //----------------------------------------------------------------------------

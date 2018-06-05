@@ -57,18 +57,15 @@ public:
   void buildPredictors(
     const PCCPointSet3 &pointCloud);
 
-  // todo(df): return value is always 0 => should be void?
-  int decodeHeader(
+  void decodeHeader(
     const std::string &attributeName,
     PCCBitstream &bitstream);
 
-  // todo(df): return value is always 0 =>  should be void?
-  int decodeReflectances(
+  void decodeReflectances(
     PCCBitstream &bitstream,
     PCCPointSet3 &pointCloud);
 
-  // todo(df): return value is always 0 => should be void?
-  int decodeColors(
+  void decodeColors(
     PCCBitstream &bitstream,
     PCCPointSet3 &pointCloud);
 

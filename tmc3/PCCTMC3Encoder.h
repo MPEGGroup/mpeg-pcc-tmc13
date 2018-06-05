@@ -139,13 +139,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = attrEncoder.encodeHeader(colorParams, "color", bitstream)) {
-        return ret;
-      }
+
+      attrEncoder.encodeHeader(colorParams, "color", bitstream);
       attrEncoder.buildPredictors(colorParams, pointCloud);
-      if (int ret = attrEncoder.encodeColors(colorParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
@@ -155,13 +153,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream)) {
-        return ret;
-      }
+
+      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
       attrEncoder.buildPredictors(reflectanceParams, pointCloud);
-      if (int ret = attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
                 << (8.0 * reflectancesSize) / inputPointCloud.getPointCount() << " bpp)"
@@ -182,13 +178,11 @@ class PCCTMC3Encoder3 {
     if (int ret = quantization(inputPointCloud, params)) {
       return ret;
     }
+
     uint64_t positionsSize = bitstream.size;
-    if (int ret = encodePositionsHeader(params, bitstream)) {
-      return ret;
-    }
-    if (int ret = encodePositions(params, bitstream)) {
-      return ret;
-    }
+    encodePositionsHeader(params, bitstream);
+    encodePositions(params, bitstream);
+
     positionsSize = bitstream.size - positionsSize;
     std::cout << "positions bitstream size " << positionsSize << " B ("
               << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
@@ -197,13 +191,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
-      if (int ret = attrEncoder.encodeHeader(colorParams, "color", bitstream)) {
-        return ret;
-      }
+
+      attrEncoder.encodeHeader(colorParams, "color", bitstream);
       attrEncoder.buildPredictors(colorParams, pointCloud);
-      if (int ret = attrEncoder.encodeColors(colorParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
@@ -213,13 +205,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
-      if (int ret = attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream)) {
-        return ret;
-      }
+
+      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
       attrEncoder.buildPredictors(reflectanceParams, pointCloud);
-      if (int ret = attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
                 << (8.0 * reflectancesSize) / inputPointCloud.getPointCount() << " bpp)"
@@ -296,9 +286,8 @@ class PCCTMC3Encoder3 {
 
     // Encode positions.
     uint64_t positionsSize = bitstream.size;
-    if (int ret = encodeTrisoupHeader(params, bitstream)) {
-      return ret;
-    }
+    encodeTrisoupHeader(params, bitstream);
+
     // Read in TMC1 geometry bitstream and put it into the converged TMC13 bitstream.
     std::ifstream fin("outbin/outbin_0000.bin", std::ios::binary);
     if (!fin.is_open()) {
@@ -324,13 +313,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
+
       attrEncoder.buildPredictors(colorParams, pointCloud);
-      if (int ret = attrEncoder.encodeHeader(colorParams, "color", bitstream)) {
-        return ret;
-      }
-      if (int ret = attrEncoder.encodeColors(colorParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.encodeHeader(colorParams, "color", bitstream);
+      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
@@ -340,14 +327,11 @@ class PCCTMC3Encoder3 {
       AttributeEncoder attrEncoder;
       const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
-      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
 
-      if (int ret = attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream)) {
-        return ret;
-      }
-      if (int ret = attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream)) {
-        return ret;
-      }
+      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
+      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
+      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
                 << (8.0 * reflectancesSize) / inputPointCloud.getPointCount() << " bpp)"
@@ -542,7 +526,7 @@ class PCCTMC3Encoder3 {
 
   //-------------------------------------------------------------------------
 
-  int encodePositions(
+  void encodePositions(
     const PCCTMC3Encoder3Parameters& params,
     PCCBitstream& bitstream
   ) {
@@ -767,10 +751,9 @@ class PCCTMC3Encoder3 {
     const uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
     bitstream.size += compressedBitstreamSize;
     PCCWriteToBuffer<uint32_t>(compressedBitstreamSize, bitstream.buffer, startSize);
-    return 0;
   }
 
-  int encodePositionsHeader(const PCCTMC3Encoder3Parameters &params,
+  void encodePositionsHeader(const PCCTMC3Encoder3Parameters &params,
                             PCCBitstream &bitstream) const {
     PCCWriteToBuffer<uint32_t>(uint32_t(pointCloud.getPointCount()), bitstream.buffer,
                                bitstream.size);
@@ -795,10 +778,9 @@ class PCCTMC3Encoder3 {
       PCCWriteToBuffer<uint32_t>(boundingBox.max[k], bitstream.buffer, bitstream.size);
     }
     PCCWriteToBuffer<double>(params.positionQuantizationScale, bitstream.buffer, bitstream.size);
-    return 0;
   }
 
-  int encodeTrisoupHeader(const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream) const {
+  void encodeTrisoupHeader(const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream) const {
     PCCWriteToBuffer<uint32_t>(uint32_t(pointCloud.getPointCount()), bitstream.buffer,
                                bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
@@ -820,9 +802,8 @@ class PCCTMC3Encoder3 {
         params.triSoup.intToOrigTranslation[1],
         params.triSoup.intToOrigTranslation[2]
       ), bitstream.buffer, bitstream.size);
-
-    return 0;
   }
+
   void computeMinPositions(const PCCPointSet3 &inputPointCloud) {
     const size_t inputPointCount = inputPointCloud.getPointCount();
     minPositions = inputPointCloud[0];
