@@ -316,6 +316,18 @@ class PCCPointSet3 {
     colors.resize(0);
   }
 
+  void addRemoveAttributes(bool withColors, bool withReflectances) {
+    if (withColors)
+      addColors();
+    else
+      removeColors();
+
+    if (withReflectances)
+      addReflectances();
+    else
+      removeReflectances();
+  }
+
   size_t getPointCount() const { return positions.size(); }
   void resize(const size_t size) {
     positions.resize(size);

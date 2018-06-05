@@ -129,21 +129,14 @@ class PCCTMC3Encoder3 {
                                    const PCCTMC3Encoder3Parameters &params, PCCBitstream &bitstream,
                                    PCCPointSet3 *reconstructedCloud = nullptr) {
     init();
-    pointCloud = inputPointCloud;
-
     auto paramsColor =
       params.getAttrParams(inputPointCloud.hasColors(), "color");
-
-    if (!paramsColor) {
-      pointCloud.removeColors();
-    }
 
     auto paramsReflectance =
       params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
 
-    if (!paramsReflectance) {
-      pointCloud.removeReflectances();
-    }
+    pointCloud = inputPointCloud;
+    pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
 
     PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
@@ -368,16 +361,8 @@ class PCCTMC3Encoder3 {
     }
     const size_t pointCount = pointCloud.getPointCount();
 
-    if (pointCloud.hasColors()) {
-      reconstructedCloud->addColors();
-    } else {
-      pointCloud.removeColors();
-    }
-    if (pointCloud.hasReflectances()) {
-      reconstructedCloud->addReflectances();
-    } else {
-      pointCloud.removeReflectances();
-    }
+    reconstructedCloud->addRemoveAttributes(
+      pointCloud.hasColors(), pointCloud.hasReflectances());
     reconstructedCloud->resize(pointCount);
 
     const double minPositionQuantizationScale = 0.0000000001;
@@ -743,10 +728,8 @@ class PCCTMC3Encoder3 {
     // order since IDCM causes leaves to be coded earlier than they
     // otherwise would.
     PCCPointSet3 pointCloud2;
-    if (pointCloud.hasColors())
-      pointCloud2.addColors();
-    if (pointCloud.hasReflectances())
-      pointCloud2.addReflectances();
+    pointCloud2.addRemoveAttributes(
+      pointCloud.hasColors(), pointCloud.hasReflectances());
     pointCloud2.resize(pointCloud.getPointCount());
 
     // copy points with DM points first, the rest second
@@ -837,25 +820,14 @@ class PCCTMC3Encoder3 {
   int quantization(const PCCPointSet3 &inputPointCloud, const PCCTMC3Encoder3Parameters &params) {
     computeMinPositions(inputPointCloud);
 
-    pointCloud.resize(0);
-
     auto paramsColor =
       params.getAttrParams(inputPointCloud.hasColors(), "color");
-
-    if (paramsColor) {
-      pointCloud.addColors();
-    } else {
-      pointCloud.removeColors();
-    }
 
     auto paramsReflectance =
       params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
 
-    if (paramsReflectance) {
-      pointCloud.addReflectances();
-    } else {
-      pointCloud.removeReflectances();
-    }
+    pointCloud.resize(0);
+    pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
 
     const size_t inputPointCount = inputPointCloud.getPointCount();
     if (params.mergeDuplicatedPoints) {  // retain unique quantized points

@@ -287,16 +287,7 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     inferredDirectCodingModeEnabled = bool(u8value);
 
-    if (hasColors) {
-      pointCloud.addColors();
-    } else {
-      pointCloud.removeColors();
-    }
-    if (hasReflectances) {
-      pointCloud.addReflectances();
-    } else {
-      pointCloud.removeReflectances();
-    }
+    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
     pointCloud.resize(pointCount);
 
     for (int k = 0; k < 3; ++k) {
@@ -320,16 +311,8 @@ class PCCTMC3Decoder3 {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
     uint8_t hasReflectances = 0;
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasReflectances, bitstream.size);
-    if (hasColors) {
-      pointCloud.addColors();
-    } else {
-      pointCloud.removeColors();
-    }
-    if (hasReflectances) {
-      pointCloud.addReflectances();
-    } else {
-      pointCloud.removeReflectances();
-    }
+
+    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
     pointCloud.resize(pointCount);
 
     for (int k = 0; k < 3; ++k) {
