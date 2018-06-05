@@ -193,7 +193,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "Enables removal of duplicated points")
 
   ("roundOutputPositions",
-     params.roundOutputPositions, false,
+     params.decodeParameters.roundOutputPositions, false,
      "todo(kmammou)")
 
   // tools
@@ -436,7 +436,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     }
     cout << endl;
   } else {
-      cout << "\t roundOutputPositions        " << params.roundOutputPositions << endl;
+      cout << "\t roundOutputPositions        "
+           << params.decodeParameters.roundOutputPositions << '\n';
   }
 
   return true;
@@ -543,13 +544,13 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
   int ret;
   if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree)
     ret = decoder.decompress(
-      bitstream, pointCloud, params.roundOutputPositions);
+      params.decodeParameters, bitstream, pointCloud);
   if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass)
     ret = decoder.decompressWithLosslessGeometry(
-      bitstream, pointCloud);
+      params.decodeParameters, bitstream, pointCloud);
   if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup)
     ret = decoder.decompressWithTrisoupGeometry(
-      bitstream, pointCloud, params.roundOutputPositions);
+      params.decodeParameters, bitstream, pointCloud);
   if (ret) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;

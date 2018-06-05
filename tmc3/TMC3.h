@@ -75,6 +75,7 @@ struct Parameters {
   CodecMode mode;
   bool roundOutputPositions;
   pcc::PCCTMC3Encoder3Parameters encodeParameters;
+  pcc::DecoderParameters decodeParameters;
 };
 
 typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> Stopwatch;

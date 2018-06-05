@@ -52,6 +52,10 @@
 
 namespace pcc {
 
+struct DecoderParameters {
+  bool roundOutputPositions;
+};
+
 class PCCTMC3Decoder3 {
  public:
   PCCTMC3Decoder3() { init(); }
@@ -66,7 +70,11 @@ class PCCTMC3Decoder3 {
     boundingBox.max = uint32_t(0);
   }
 
-  int decompressWithLosslessGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud) {
+  int decompressWithLosslessGeometry(
+    const DecoderParameters& params,
+    PCCBitstream &bitstream,
+    PCCPointSet3 &pointCloud
+  ) {
     init();
     uint32_t magicNumber = 0;
     uint32_t formatVersion = 0;
@@ -126,7 +134,12 @@ class PCCTMC3Decoder3 {
     }
     return 0;
   }
-  int decompress(PCCBitstream &bitstream, PCCPointSet3 &pointCloud, const bool roundOutputPositions) {
+
+  int decompress(
+    const DecoderParameters& params,
+    PCCBitstream &bitstream,
+    PCCPointSet3 &pointCloud
+  ) {
     init();
     uint32_t magicNumber = 0;
     uint32_t formatVersion = 0;
@@ -178,12 +191,15 @@ class PCCTMC3Decoder3 {
       std::cout << "reflectances bitstream size " << reflectancesSize << " B" << std::endl;
     }
 
-    inverseQuantization(pointCloud, roundOutputPositions);
+    inverseQuantization(pointCloud, params.roundOutputPositions);
     return 0;
   }
 
-  int decompressWithTrisoupGeometry(PCCBitstream &bitstream, PCCPointSet3 &pointCloud,
-                                    const bool roundOutputPositions) {
+  int decompressWithTrisoupGeometry(
+    const DecoderParameters& params,
+    PCCBitstream &bitstream,
+    PCCPointSet3 &pointCloud
+  ) {
     init();
     uint32_t magicNumber = 0;
     uint32_t formatVersion = 0;
@@ -277,7 +293,7 @@ class PCCTMC3Decoder3 {
     tempPointCloud.convertYUVToRGB();
     tempPointCloud.write("decodedVoxelsAndDecodedColors.ply");
 
-    inverseQuantization(pointCloud, roundOutputPositions);
+    inverseQuantization(pointCloud, params.roundOutputPositions);
     return 0;
   }
 
