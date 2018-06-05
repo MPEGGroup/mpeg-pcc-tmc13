@@ -143,6 +143,7 @@ class PCCTMC3Encoder3 {
 
     PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
+    PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
                               bitstream.size);
@@ -184,6 +185,7 @@ class PCCTMC3Encoder3 {
     init();
     PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
+    PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
 
     if (int ret = quantization(inputPointCloud, params)) {
       return ret;
@@ -239,6 +241,7 @@ class PCCTMC3Encoder3 {
     init();
     PCCWriteToBuffer<uint32_t>(PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
     PCCWriteToBuffer<uint32_t>(PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
+    PCCWriteToBuffer<uint8_t>(int(params.geometryCodec), bitstream.buffer, bitstream.size);
 
     // Write out inputPointCloud file, just so that we can get it into the TMC1 pipeline.
     pcc::PCCPointSet3 tempPointCloud(inputPointCloud);

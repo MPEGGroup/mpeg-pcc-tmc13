@@ -80,6 +80,11 @@ class PCCTMC3Decoder3 {
       std::cout << "Error: bistream version not supported!" << std::endl;
       return -1;
     }
+
+    // determine the geometry codec type
+    uint8_t geometryCodecRaw;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
+
     uint8_t hasColors = 0;
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
     uint8_t hasReflectances = 0;
@@ -136,6 +141,10 @@ class PCCTMC3Decoder3 {
       return -1;
     }
 
+    // determine the geometry codec type
+    uint8_t geometryCodecRaw;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
+
     uint64_t positionsSize = bitstream.size;
 
     decodePositionsHeader(bitstream, pointCloud);
@@ -188,6 +197,10 @@ class PCCTMC3Decoder3 {
       std::cout << "Error: bistream version not supported!" << std::endl;
       return -1;
     }
+
+    // determine the geometry codec type
+    uint8_t geometryCodecRaw;
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, geometryCodecRaw, bitstream.size);
 
     uint64_t positionsSize = bitstream.size;
     size_t depth;
