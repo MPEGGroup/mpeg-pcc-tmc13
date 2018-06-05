@@ -56,6 +56,9 @@
 
 namespace pcc {
 struct PCCTMC3Encoder3Parameters {
+  // The method used for geometry coding.
+  GeometryCodecType geometryCodec;
+
   double positionQuantizationScale;
   bool mergeDuplicatedPoints;
 

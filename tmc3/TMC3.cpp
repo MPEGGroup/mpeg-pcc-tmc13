@@ -98,10 +98,25 @@ static std::istream& operator>>(std::istream &in, TransformType &val) {
 }}
 
 namespace pcc {
+static std::istream& operator>>(std::istream &in, GeometryCodecType &val) {
+  return readUInt(in, val);
+}}
+
+namespace pcc {
 static std::ostream& operator<<(std::ostream &out, const TransformType &val) {
   switch (val) {
   case TransformType::kIntegerLift: out << "0 (IntegerLifting)"; break;
   case TransformType::kRAHT:        out << "1 (RAHT)"; break;
+  }
+  return out;
+}}
+
+namespace pcc {
+static std::ostream& operator<<(std::ostream &out, const GeometryCodecType &val) {
+  switch (val) {
+  case GeometryCodecType::kBypass:  out << "0 (Bypass)"; break;
+  case GeometryCodecType::kOctree:  out << "1 (TMC1 Octree)"; break;
+  case GeometryCodecType::kTriSoup: out << "2 (TMC3 TriSoup)"; break;
   }
   return out;
 }}
@@ -145,10 +160,9 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "The encoding/decoding mode:\n"
      "  0: encode\n"
      "  1: decode\n"
+     // NB: the following forms are deprecated
      "  2: encode with lossless geometry\n"
-     "  3: decode with lossless geometry\n"
-     "  4: encode with trisoup geometry\n"
-     "  5: decode with trisoup geoemtry")
+     "  3: decode with lossless geometry")
 
   // i/o parameters
   ("reconstructedDataPath",
@@ -183,6 +197,13 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
      "todo(kmammou)")
 
   // tools
+  ("geometryCodec",
+     params.encodeParameters.geometryCodec, GeometryCodecType::kOctree,
+     "Controls the method used to encode geometry:"
+     "  0: bypass (a priori)\n"
+     "  1: octree (TMC3)\n"
+     "  2: trisoup (TMC1)")
+
   ("neighbourContextualisation",
      params.encodeParameters.neighbourContextsEnabled, true,
      "Contextualise geometry octree occupancy based on neighbour patterns")
@@ -270,10 +291,20 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     return false;
   }
 
+  // Set GeometryCodecType according to codec mode
+  // NB: for bypass, the decoder must load the a priori geometry
+  if (params.mode == 2 || params.mode == 3) {
+    params.encodeParameters.geometryCodec = GeometryCodecType::kBypass;
+  }
+  if (params.mode == 4) {
+    params.encodeParameters.geometryCodec = GeometryCodecType::kTriSoup;
+  }
+
+  // Restore params.mode to be encode vs decode
+  params.mode = CodecMode(params.mode & 1);
+
   // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
-  if (params.mode == 4 &&
-      params.encodeParameters.positionQuantizationScale !=
-          1.0 / params.encodeParameters.triSoup.intToOrigScale) {
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
     params.encodeParameters.positionQuantizationScale =
         1.0 / params.encodeParameters.triSoup.intToOrigScale;
   }
@@ -314,10 +345,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
 
   // check required arguments are specified
 
-  const bool encode =
-      params.mode == CODEC_MODE_ENCODE
-      || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY
-      || params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY;
+  const bool encode = params.mode == CODEC_MODE_ENCODE;
 
   if (encode && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
@@ -330,7 +358,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
 
   // currently the attributes with lossless geometry require the source data
   // todo(?): remove this dependency by improving reporting
-  if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass
    && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
 
@@ -340,32 +368,32 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     return false;
 
   cout << "+ Parameters" << endl;
-  cout << "\t mode                        ";
   if (params.mode == CODEC_MODE_ENCODE) {
-    cout << "encode" << endl;
-  } else if (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY) {
-    cout << "encode with lossless geometry" << endl;
-  } else if (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
-    cout << "encode with trisoup geometry" << endl;
+    cout << "\t mode                        encode\n";
   } else if (params.mode == CODEC_MODE_DECODE) {
-    cout << "decode" << endl;
-  } else if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY) {
-    cout << "decode with lossless geometry" << endl;
-  } else if (params.mode == CODEC_MODE_DECODE_TRISOUP_GEOMETRY) {
-    cout << "decode with trisoup geometry" << endl;
+    cout << "\t mode                        decode\n";
   }
   cout << "\t uncompressedDataPath        " << params.uncompressedDataPath << endl;
   cout << "\t compressedStreamPath        " << params.compressedStreamPath << endl;
   cout << "\t reconstructedDataPath       " << params.reconstructedDataPath << endl;
   cout << "\t colorTransform              " << params.colorTransform << endl;
   if (encode) {
-    cout << "\t mergeDuplicatedPoints       " << params.encodeParameters.mergeDuplicatedPoints
-         << endl;
+    cout << "\t geometryCodec               "
+         << params.encodeParameters.geometryCodec << endl;
+
     cout << "\t positionQuantizationScale   " << params.encodeParameters.positionQuantizationScale
          << endl;
-    cout << "\t neighbourContextualisation  " << params.encodeParameters.neighbourContextsEnabled
-         << endl;
-    if (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
+
+    if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree) {
+      cout << "\t mergeDuplicatedPoints       "
+           << params.encodeParameters.mergeDuplicatedPoints << '\n';
+      cout << "\t neighbourContextualisation  "
+           << params.encodeParameters.neighbourContextsEnabled << '\n';
+      cout << "\t inferredDirectCodingMode    "
+           << params.encodeParameters.inferredDirectCodingModeEnabled << '\n';
+    }
+
+    if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
       cout << "\t triSoupDepth                " << params.encodeParameters.triSoup.depth << endl;
       cout << "\t triSoupLevel                " << params.encodeParameters.triSoup.level << endl;
       cout << "\t triSoupIntToOrigScale       " << params.encodeParameters.triSoup.intToOrigScale << endl;
@@ -440,15 +468,20 @@ int Compress(const Parameters &params, Stopwatch& clock) {
     reconstructedPointCloud.reset(new PCCPointSet3);
   }
 
-  if ((params.mode == CODEC_MODE_ENCODE &&
-       encoder.compress(pointCloud, params.encodeParameters, bitstream,
-                        reconstructedPointCloud.get())) ||
-      (params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY &&
-       encoder.compressWithLosslessGeometry(pointCloud, params.encodeParameters, bitstream,
-                                            reconstructedPointCloud.get())) ||
-      (params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY &&
-       encoder.compressWithTrisoupGeometry(pointCloud, params.encodeParameters, bitstream,
-                                           reconstructedPointCloud.get()))) {
+  int ret;
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree)
+    ret = encoder.compress(
+      pointCloud, params.encodeParameters, bitstream,
+      reconstructedPointCloud.get());
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass)
+    ret = encoder.compressWithLosslessGeometry(
+      pointCloud, params.encodeParameters, bitstream,
+      reconstructedPointCloud.get());
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup)
+    ret = encoder.compressWithTrisoupGeometry(
+      pointCloud, params.encodeParameters, bitstream,
+      reconstructedPointCloud.get());
+  if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
   }
@@ -496,7 +529,9 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
 
   PCCTMC3Decoder3 decoder;
   PCCPointSet3 pointCloud;
-  if (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY) {  // read geometry from input file
+
+  // read a priori geometry from input file for bypass case
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass) {
     if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
       cout << "Error: can't open input file!" << endl;
       return -1;
@@ -505,11 +540,17 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
     pointCloud.removeColors();
   }
 
-  if ((params.mode == CODEC_MODE_DECODE && decoder.decompress(bitstream, pointCloud, params.roundOutputPositions)) ||
-      (params.mode == CODEC_MODE_DECODE_LOSSLESS_GEOMETRY &&
-       decoder.decompressWithLosslessGeometry(bitstream, pointCloud)) ||
-      (params.mode == CODEC_MODE_DECODE_TRISOUP_GEOMETRY &&
-       decoder.decompressWithTrisoupGeometry(bitstream, pointCloud, params.roundOutputPositions))) {
+  int ret;
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree)
+    ret = decoder.decompress(
+      bitstream, pointCloud, params.roundOutputPositions);
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass)
+    ret = decoder.decompressWithLosslessGeometry(
+      bitstream, pointCloud);
+  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup)
+    ret = decoder.decompressWithTrisoupGeometry(
+      bitstream, pointCloud, params.roundOutputPositions);
+  if (ret) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;
   }

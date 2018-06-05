@@ -49,6 +49,16 @@ const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
+// Describes the geometry coding method.
+enum class GeometryCodecType {
+  // No geometry coding is performed (geometry is known a priori)
+  kBypass = 0,
+  // TMC3 lossless geometry codec using ocrees
+  kOctree = 1,
+  // TMC1 octree + triangulation
+  kTriSoup = 2,
+};
+
 enum class TransformType {
   kIntegerLift = 0,
   kRAHT = 1
