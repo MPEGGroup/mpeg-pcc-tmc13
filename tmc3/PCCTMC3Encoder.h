@@ -83,6 +83,21 @@ struct PCCTMC3Encoder3Parameters {
   } triSoup;
 
   std::map<std::string, PCCAttributeEncodeParamaters> attributeEncodeParameters;
+
+  //--------------------------------------------------------------------------
+  // Retrieve the a set of parameters, or nullptr if they either do not exist
+  // or guard is false.
+
+  const PCCAttributeEncodeParamaters*
+  getAttrParams(bool guard, const std::string& what) const
+  {
+    if (!guard)
+      return nullptr;
+    auto it = attributeEncodeParameters.find(what);
+    if (it == attributeEncodeParameters.end())
+      return nullptr;
+    return &it->second;
+  }
 };
 
 class PCCTMC3Encoder3 {
@@ -115,17 +130,18 @@ class PCCTMC3Encoder3 {
                                    PCCPointSet3 *reconstructedCloud = nullptr) {
     init();
     pointCloud = inputPointCloud;
-    const bool compressColors =
-        inputPointCloud.hasColors() &&
-        params.attributeEncodeParameters.find("color") != params.attributeEncodeParameters.end();
-    if (!compressColors) {
+
+    auto paramsColor =
+      params.getAttrParams(inputPointCloud.hasColors(), "color");
+
+    if (!paramsColor) {
       pointCloud.removeColors();
     }
 
-    const bool compressReflectances = inputPointCloud.hasReflectances() &&
-                                      params.attributeEncodeParameters.find("reflectance") !=
-                                          params.attributeEncodeParameters.end();
-    if (!compressReflectances) {
+    auto paramsReflectance =
+      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
+
+    if (!paramsReflectance) {
       pointCloud.removeReflectances();
     }
 
@@ -135,28 +151,26 @@ class PCCTMC3Encoder3 {
     PCCWriteToBuffer<uint8_t>(uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
                               bitstream.size);
 
-    if (pointCloud.hasColors()) {
+    if (paramsColor) {
       AttributeEncoder attrEncoder;
-      const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
 
-      attrEncoder.encodeHeader(colorParams, "color", bitstream);
-      attrEncoder.buildPredictors(colorParams, pointCloud);
-      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
+      attrEncoder.buildPredictors(*paramsColor, pointCloud);
+      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
 
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
     }
 
-    if (pointCloud.hasReflectances()) {
+    if (paramsReflectance) {
       AttributeEncoder attrEncoder;
-      const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
 
-      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
-      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
-      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
+      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
+      attrEncoder.encodeReflectances(*paramsReflectance, pointCloud, bitstream);
 
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
@@ -187,28 +201,32 @@ class PCCTMC3Encoder3 {
     std::cout << "positions bitstream size " << positionsSize << " B ("
               << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
 
-    if (pointCloud.hasColors()) {
+    auto paramsColor =
+      params.getAttrParams(pointCloud.hasColors(), "color");
+
+    if (paramsColor) {
       AttributeEncoder attrEncoder;
-      const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
 
-      attrEncoder.encodeHeader(colorParams, "color", bitstream);
-      attrEncoder.buildPredictors(colorParams, pointCloud);
-      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
+      attrEncoder.buildPredictors(*paramsColor, pointCloud);
+      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
 
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
     }
 
-    if (pointCloud.hasReflectances()) {
+    auto paramsReflectance =
+      params.getAttrParams(pointCloud.hasReflectances(), "reflectance");
+
+    if (paramsReflectance) {
       AttributeEncoder attrEncoder;
-      const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
 
-      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
-      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
-      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
+      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
+      attrEncoder.encodeReflectances(*paramsReflectance, pointCloud, bitstream);
 
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
@@ -259,14 +277,16 @@ class PCCTMC3Encoder3 {
       // Should add intToOrigTranslation here.
     }
 
-    // Transfer colors.
-    const bool compressColors =
-        inputPointCloud.hasColors() &&
-        params.attributeEncodeParameters.find("color") != params.attributeEncodeParameters.end();
-    if (compressColors) {
+    auto paramsColor =
+      params.getAttrParams(inputPointCloud.hasColors(), "color");
+
+    auto paramsReflectance =
+      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
+
+    if (paramsColor) {
       pointCloud.addColors();
-      const auto &attributeParams = params.attributeEncodeParameters.find("color")->second;
-      if (!PCCTransfertColors(inputPointCloud, int32_t(attributeParams.searchRange), pointCloud)) {
+      int32_t searchRange = paramsColor->searchRange;
+      if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
         std::cout << "Error: can't transfer colors!" << std::endl;
         return -1;
       }
@@ -309,28 +329,26 @@ class PCCTMC3Encoder3 {
     std::cout << "positions bitstream size " << positionsSize << " B ("
               << (8.0 * positionsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
 
-    if (pointCloud.hasColors()) {
+    if (paramsColor) {
       AttributeEncoder attrEncoder;
-      const auto &colorParams = params.attributeEncodeParameters.find("color")->second;
       uint64_t colorsSize = bitstream.size;
 
-      attrEncoder.buildPredictors(colorParams, pointCloud);
-      attrEncoder.encodeHeader(colorParams, "color", bitstream);
-      attrEncoder.encodeColors(colorParams, pointCloud, bitstream);
+      attrEncoder.buildPredictors(*paramsColor, pointCloud);
+      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
+      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
 
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount() << " bpp)" << std::endl;
     }
 
-    if (pointCloud.hasReflectances()) {
+    if (paramsReflectance) {
       AttributeEncoder attrEncoder;
-      const auto &reflectanceParams = params.attributeEncodeParameters.find("reflectance")->second;
       uint64_t reflectancesSize = bitstream.size;
 
-      attrEncoder.buildPredictors(reflectanceParams, pointCloud);
-      attrEncoder.encodeHeader(reflectanceParams, "reflectance", bitstream);
-      attrEncoder.encodeReflectances(reflectanceParams, pointCloud, bitstream);
+      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
+      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
+      attrEncoder.encodeReflectances(*paramsReflectance, pointCloud, bitstream);
 
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
@@ -820,19 +838,20 @@ class PCCTMC3Encoder3 {
     computeMinPositions(inputPointCloud);
 
     pointCloud.resize(0);
-    const bool compressColors =
-        inputPointCloud.hasColors() &&
-        params.attributeEncodeParameters.find("color") != params.attributeEncodeParameters.end();
-    if (compressColors) {
+
+    auto paramsColor =
+      params.getAttrParams(inputPointCloud.hasColors(), "color");
+
+    if (paramsColor) {
       pointCloud.addColors();
     } else {
       pointCloud.removeColors();
     }
 
-    const bool compressReflectances = inputPointCloud.hasReflectances() &&
-                                      params.attributeEncodeParameters.find("reflectance") !=
-                                          params.attributeEncodeParameters.end();
-    if (compressReflectances) {
+    auto paramsReflectance =
+      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
+
+    if (paramsReflectance) {
       pointCloud.addReflectances();
     } else {
       pointCloud.removeReflectances();
@@ -865,19 +884,17 @@ class PCCTMC3Encoder3 {
         }
       }
 
-      if (compressColors) {  // transfer colors
-        const auto &attributeParams = params.attributeEncodeParameters.find("color")->second;
-        if (!PCCTransfertColors(inputPointCloud, int32_t(attributeParams.searchRange),
-                                pointCloud)) {
+      if (paramsColor) {  // transfer colors
+        int32_t searchRange = paramsColor->searchRange;
+        if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
           std::cout << "Error: can't transfer colors!" << std::endl;
           return -1;
         }
       }
 
-      if (compressReflectances) {  // transfer reflectances
-        const auto &attributeParams = params.attributeEncodeParameters.find("reflectance")->second;
-        if (!PCCTransfertReflectances(inputPointCloud, int32_t(attributeParams.searchRange),
-                                      pointCloud)) {
+      if (paramsReflectance) {  // transfer reflectances
+        int32_t searchRange = paramsReflectance->searchRange;
+        if (!PCCTransfertReflectances(inputPointCloud, searchRange, pointCloud)) {
           std::cout << "Error: can't transfer reflectances!" << std::endl;
           return -1;
         }
@@ -901,10 +918,10 @@ class PCCTMC3Encoder3 {
         quantizedPoint[0] = std::round(point[0]);
         quantizedPoint[1] = std::round(point[1]);
         quantizedPoint[2] = std::round(point[2]);
-        if (compressColors) {
+        if (paramsColor) {
           pointCloud.setColor(i, inputPointCloud.getColor(i));
         }
-        if (compressReflectances) {
+        if (paramsReflectance) {
           pointCloud.setReflectance(i, inputPointCloud.getReflectance(i));
         }
       }
