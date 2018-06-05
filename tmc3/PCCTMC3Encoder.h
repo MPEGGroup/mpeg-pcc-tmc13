@@ -158,7 +158,10 @@ class PCCTMC3Encoder3 {
     }
     if (params.geometryCodec == GeometryCodecType::kTriSoup) {
       // todo(?): this ought to be replaced with quantization(...)
-      inputPointCloud.write("verticesInWorldCoords.ply", true);
+      if (!inputPointCloud.write("verticesInWorldCoords.ply", true)) {
+        std::cerr << "Failed to write verticesInWorldCoords.ply\n";
+        return -1;
+      }
       std::string cmd =
         "TMC1_coordinateTransform"
         " -inworld verticesInWorldCoords.ply"
@@ -166,7 +169,10 @@ class PCCTMC3Encoder3 {
         " -depth " + std::to_string(params.triSoup.depth) +
         " -scale " + std::to_string(params.triSoup.intToOrigScale) +
         " -format binary_little_endian";
-      system(cmd.c_str());
+      if (int err = system(cmd.c_str())) {
+        std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+        return -1;
+      }
     }
 
     // geometry encoding
@@ -690,7 +696,10 @@ class PCCTMC3Encoder3 {
       " -depth " + std::to_string(params.triSoup.depth) +
       " -level " + std::to_string(params.triSoup.level) +
       " -format binary_little_endian";
-    system(cmd.c_str());
+    if (int err = system(cmd.c_str())) {
+      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+      return -1;
+    }
 
     // todo(?): port interpolator
     cmd =
@@ -699,10 +708,16 @@ class PCCTMC3Encoder3 {
       " -outvox voxelizedVertices.ply"
       " -depth " + std::to_string(params.triSoup.depth) +
       " -format binary_little_endian";
-    system(cmd.c_str());
+    if (int err = system(cmd.c_str())) {
+      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+      return -1;
+    }
 
     // Read in quantizedPointCloud file.
-    pointCloud.read("voxelizedVertices.ply");
+    if (!pointCloud.read("voxelizedVertices.ply")) {
+      std::cerr << "Failed to open voxelizedVertices.ply\n";
+      return -1;
+    }
     pointCloud.addRemoveAttributes(hasColor, hasReflectance);
 
     // encapsulate the TMC1 "bitstream"

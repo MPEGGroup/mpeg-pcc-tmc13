@@ -247,7 +247,10 @@ class PCCTMC3Decoder3 {
     // Decompress geometry with TMC1.
     std::string cmd;
     cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
-    system(cmd.c_str());
+    if (int err = system(cmd.c_str())) {
+      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+      return -1;
+    }
 
     cmd =
       "TMC1_geometryDecode"
@@ -256,7 +259,10 @@ class PCCTMC3Decoder3 {
       " -depth " + std::to_string(triSoup.depth) +
       " -level " + std::to_string(triSoup.level) +
       " -format binary_little_endian";
-    system(cmd.c_str());
+    if (int err = system(cmd.c_str())) {
+      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+      return -1;
+    }
 
     cmd =
       "TMC1_voxelize"
@@ -264,11 +270,17 @@ class PCCTMC3Decoder3 {
       " -outvox quantizedPointCloudDecoded.ply"
       " -depth " + std::to_string(triSoup.depth) +
       " -format binary_little_endian";
-    system(cmd.c_str());
+    if (int err = system(cmd.c_str())) {
+      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
+      return -1;
+    }
 
     bool hasColors = pointCloud.hasColors();
     bool hasReflectances = pointCloud.hasReflectances();
-    pointCloud.read("quantizedPointCloudDecoded.ply");
+    if (!pointCloud.read("quantizedPointCloudDecoded.ply")) {
+      std::cerr << "Failed to read quantizedPointCloudDecoded.ply\n";
+      return -1;
+    }
     pointCloud.addRemoveAttributes(hasColors, hasReflectances);
     return 0;
   }
