@@ -28,19 +28,15 @@ Configuration generation proceeds as follows:
     - `$prefix/$category/$sequence/$variant/decoder.cfg`
     - `$prefix/$category/$sequence/$variant/pcerror.cfg`
 
-To generate an encoder or decoder configuration, cfgOptions are gathered in
-the following order:
+To generate an encoder, decoder or pcerror configuration, cfgOptions are
+gathered in the following order:
 
- - `encflags`/`decflags` from the global 'sequences'
+ - `encflags`/`decflags`/`pcerrorflags` from the global 'sequences'
     for the current sequence name
- - `encflags`/`decflags` for the current variant
+ - `encflags`/`decflags`/`pcerrorflags` for the current variant
     from the current category
- - `encflags`/`decflags` for the current variant
+ - `encflags`/`decflags`/`pcerrorflags` for the current variant
     from the current category-sequence
-
-To generate a pcerror configuration, options are the pcerrorflags from the
-global sequences for the current sequence name.
-
 
 Semantics of a yaml-cfg-file
 ----------------------------
@@ -116,6 +112,9 @@ configuration option in the form `$key: $value`
 - `.decflags=[].$cfgOption`  
   (optional) an ordered list of category-specific options for decoder.cfg
 
+- `.pcerrorflags=[].$cfgOption`  
+  (optional) an ordered list of category-specific options for pcerror.cfg
+
 - `.sequences=...`  
   A set of sequences to generate configurations for in the context
   of the current category
@@ -130,6 +129,9 @@ configuration option in the form `$key: $value`
   (optional) an ordered list of category-sequence-specific options
   for decoder.cfg
 
+- `.pcerrorflags=[].$cfgOption`  
+  (optional) an ordered list of category-sequence-specific options
+  for pcerror.cfg
 
 ## Merging rules
 

@@ -255,6 +255,9 @@ sub genSeqVariants {
 		# pcerror configuration
 		my @pcerrorflags = (
 			params_from_node($seq->{pcerrorflags}),
+			params_from_node($cat->{pcerrorflags}),
+			params_from_node($cat_seq->{pcerrorflags}, $var),
+			params_from_node($cat_seq->{$var}{pcerrorflags}),
 		);
 
 		# evaluate any value expressions
