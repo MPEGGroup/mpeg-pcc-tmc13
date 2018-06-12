@@ -240,7 +240,8 @@ class PCCTMC3Encoder3 {
     }
 
     if (params.geometryCodec == GeometryCodecType::kBypass) {
-      *reconstructedCloud = pointCloud;
+      if (reconstructedCloud)
+        *reconstructedCloud = pointCloud;
     }
     else {
       reconstructedPointCloud(params, reconstructedCloud);
