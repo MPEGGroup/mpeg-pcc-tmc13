@@ -319,11 +319,12 @@ sub merge {
 	#  -- this is really only for an array of scalars
 	if (ref $src eq 'ARRAY') {
 		my @vals;
-		push @vals, $dst if defined $dst and ref $dst eq '';
+		push @vals, $$dst if ref $dst eq 'SCALAR';
 		push @vals, @$dst if ref $dst eq 'ARRAY';
 		push @vals, @$src;
 
-		$$dst = [List::MoreUtils::uniq(@vals)];
+		$$dst = [List::MoreUtils::uniq(@vals)] if ref $dst eq 'SCALAR';
+		@$dst = List::MoreUtils::uniq(@vals) if ref $dst eq 'ARRAY';
 		return;
 	}
 }

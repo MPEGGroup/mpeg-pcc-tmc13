@@ -140,5 +140,5 @@ Multiple YAML config spec files are recursively merged as follows:
 - src:*      → dst:undef  ⇒ assign src to dst
 - src:scalar → dst:scalar ⇒ replaced
 - src:hash   → dst:hash   ⇒ recursive merge of key-value pairs
-- src:list   → dst:scalar ⇒ assign [src, dst] to dst, removing unique values
-- src:list   → dst:list   ⇒ assign [src, dst] to dst, removing unique values
+- src:list   → dst:scalar ⇒ assign [src, dst] to dst
+- src:list   → dst:list   ⇒ assign [src, dst] to dst
