@@ -75,8 +75,7 @@ payloadStartsNewSlice(PayloadType type)
 
 int
 PCCTMC3Decoder3::decompress(
-  const PayloadBuffer* buf,
-  std::function<void(const PCCPointSet3&)> onOutputCloud)
+  const PayloadBuffer* buf, PCCTMC3Decoder3::Callbacks* callback)
 {
   // Starting a new geometry brick/slice/tile, transfer any
   // finished points to the output accumulator
@@ -91,7 +90,7 @@ PCCTMC3Decoder3::decompress(
 
   if (!buf) {
     // flush decoder, output pending cloud if any
-    onOutputCloud(_accumCloud);
+    callback->onOutputCloud(_accumCloud);
     _accumCloud.clear();
     return 0;
   }
@@ -107,7 +106,7 @@ PCCTMC3Decoder3::decompress(
   // NB: frame counter is reset to avoid outputing a runt point cloud
   //     on the next slice.
   case PayloadType::kFrameBoundaryMarker:
-    onOutputCloud(_accumCloud);
+    callback->onOutputCloud(_accumCloud);
     _accumCloud.clear();
     _currentFrameIdx = -1;
     return 0;
@@ -115,7 +114,7 @@ PCCTMC3Decoder3::decompress(
   case PayloadType::kGeometryBrick:
     activateParameterSets(parseGbhIds(*buf));
     if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr))) {
-      onOutputCloud(_accumCloud);
+      callback->onOutputCloud(_accumCloud);
       _accumCloud.clear();
     }
     return decodeGeometryBrick(*buf);

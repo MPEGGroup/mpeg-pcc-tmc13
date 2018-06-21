@@ -59,7 +59,7 @@ int
 PCCTMC3Encoder3::compress(
   const PCCPointSet3& inputPointCloud,
   EncoderParams* params,
-  std::function<void(const PayloadBuffer&)> outputFn,
+  PCCTMC3Encoder3::Callbacks* callback,
   PCCPointSet3* reconstructedCloud)
 {
   // start of frame
@@ -93,10 +93,10 @@ PCCTMC3Encoder3::compress(
   }
 
   // write out all parameter sets prior to encoding
-  outputFn(write(*_sps));
-  outputFn(write(*_gps));
+  callback->onOutputBuffer(write(*_sps));
+  callback->onOutputBuffer(write(*_gps));
   for (const auto aps : _aps) {
-    outputFn(write(*aps));
+    callback->onOutputBuffer(write(*aps));
   }
 
   // initial geometry IDs
@@ -151,7 +151,7 @@ PCCTMC3Encoder3::compress(
     // todo(df): params->gps.geom_box_present_flag = false;
     _sliceOrigin = Vec3<int>{0};
     compressPartition(
-      quantizedInputCloud, inputPointCloud, params, outputFn,
+      quantizedInputCloud, inputPointCloud, params, callback,
       reconstructedCloud);
     return 0;
   }
@@ -218,7 +218,7 @@ PCCTMC3Encoder3::compress(
   if (partitions.tileInventory.tiles.size() > 1) {
     assert(partitions.tileInventory.tiles.size() == tileMaps.size());
     std::cout << "Tile number: " << tileMaps.size() << std::endl;
-    outputFn(write(partitions.tileInventory));
+    callback->onOutputBuffer(write(partitions.tileInventory));
   }
 
   // Encode each partition:
@@ -247,7 +247,7 @@ PCCTMC3Encoder3::compress(
     _tileId = partition.tileId;
     _sliceOrigin = partition.origin;
     compressPartition(
-      srcPartition, partitionInOriginCloud, params, outputFn,
+      srcPartition, partitionInOriginCloud, params, callback,
       reconstructedCloud);
   }
 
@@ -327,7 +327,7 @@ PCCTMC3Encoder3::compressPartition(
   const PCCPointSet3& inputPointCloud,
   const PCCPointSet3& originPartCloud,
   EncoderParams* params,
-  std::function<void(const PayloadBuffer&)> outputFn,
+  PCCTMC3Encoder3::Callbacks* callback,
   PCCPointSet3* reconstructedCloud)
 {
   // geometry compression consists of the following stages:
@@ -379,7 +379,7 @@ PCCTMC3Encoder3::compressPartition(
     std::cout << "positions processing time (user): "
               << total_user.count() / 1000.0 << " s" << std::endl;
 
-    outputFn(payload);
+    callback->onOutputBuffer(payload);
   }
 
   // recolouring
@@ -393,11 +393,7 @@ PCCTMC3Encoder3::compressPartition(
 
   // dump recoloured point cloud
   // todo(df): this needs to work with partitioned clouds
-  if (!params->postRecolorPath.empty()) {
-    PCCPointSet3 tempPointCloud(pointCloud);
-    tempPointCloud.convertYUVToRGB();
-    tempPointCloud.write(params->postRecolorPath);
-  }
+  callback->onPostRecolour(pointCloud);
 
   // attributeCoding
 
@@ -441,7 +437,7 @@ PCCTMC3Encoder3::compressPartition(
               << "s processing time (user): " << time_user.count() / 1000.0
               << " s" << std::endl;
 
-    outputFn(payload);
+    callback->onOutputBuffer(payload);
   }
 
   // prevent re-use of this sliceId:  the next slice (geometry + attributes)

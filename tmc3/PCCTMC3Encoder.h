@@ -72,9 +72,6 @@ struct EncoderParams {
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
 
-  // Filename for saving recoloured point cloud.
-  std::string postRecolorPath;
-
   // Parameters that control partitioning
   PartitionParams partition;
 
@@ -86,6 +83,8 @@ struct EncoderParams {
 
 class PCCTMC3Encoder3 {
 public:
+  class Callbacks;
+
   PCCTMC3Encoder3();
   PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
   PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
@@ -94,14 +93,14 @@ public:
   int compress(
     const PCCPointSet3& inputPointCloud,
     EncoderParams* params,
-    std::function<void(const PayloadBuffer&)> outputFn,
+    Callbacks*,
     PCCPointSet3* reconstructedCloud = nullptr);
 
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
     const PCCPointSet3& originPartCloud,
     EncoderParams* params,
-    std::function<void(const PayloadBuffer&)> outputFn,
+    Callbacks*,
     PCCPointSet3* reconstructedCloud = nullptr);
 
   static void fixupParameterSets(EncoderParams* params);
@@ -144,6 +143,14 @@ private:
 
   // Map quantized points to the original input points
   std::multimap<Vec3<double>, int32_t> quantizedToOrigin;
+};
+
+//----------------------------------------------------------------------------
+
+class PCCTMC3Encoder3::Callbacks {
+public:
+  virtual void onOutputBuffer(const PayloadBuffer&) = 0;
+  virtual void onPostRecolour(const PCCPointSet3&) = 0;
 };
 
 //============================================================================

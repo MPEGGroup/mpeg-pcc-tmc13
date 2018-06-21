@@ -58,6 +58,8 @@ struct DecoderParams {
 
 class PCCTMC3Decoder3 {
 public:
+  class Callbacks;
+
   PCCTMC3Decoder3(const DecoderParams& params) : _params(params) { init(); }
 
   PCCTMC3Decoder3(const PCCTMC3Decoder3&) = default;
@@ -66,9 +68,7 @@ public:
 
   void init();
 
-  int decompress(
-    const PayloadBuffer* buf,
-    std::function<void(const PCCPointSet3&)> onOutputCloud);
+  int decompress(const PayloadBuffer* buf, Callbacks* callback);
 
   //==========================================================================
 
@@ -122,6 +122,13 @@ private:
   const GeometryParameterSet* _gps;
 
   GeometryBrickHeader _gbh;
+};
+
+//----------------------------------------------------------------------------
+
+class PCCTMC3Decoder3::Callbacks {
+public:
+  virtual void onOutputCloud(const PCCPointSet3&) = 0;
 };
 
 //============================================================================

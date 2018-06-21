@@ -40,6 +40,7 @@
 #include <cstdint>
 #include <iterator>
 #include <utility>
+#include <string>
 #include <vector>
 
 #if _MSC_VER
@@ -74,7 +75,6 @@ PCCSystemEndianness()
 //---------------------------------------------------------------------------
 // Replace any occurence of %d with formatted number.  The %d format
 // specifier may use the formatting conventions of snprintf().
-
 std::string expandNum(const std::string& src, int num);
 
 //---------------------------------------------------------------------------

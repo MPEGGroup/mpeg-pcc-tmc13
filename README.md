@@ -23,7 +23,7 @@
 
 ## Running
 
-This TMC13 codec implementation encodes single frames.  A single binary
+This TMC13 codec implementation encodes frame sequences.  A single binary
 contains the encoder and decoder implementation, with selection using
 the `--mode` option.  Documentation of options is provided via the
 `--help` command line option.

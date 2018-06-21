@@ -16,9 +16,30 @@ encoding functionality.  A value of 1 switches to decoding mode.
 I/O parameters
 --------------
 
+### `--firstFrameNum=INT-VALUE`
+The initial frame number of the input or output sequence.
+The software replaces any instance of a '%d' printf format directive
+with the current frame number when evaluating the following options:
+
+- uncompressedDataPath
+- reconstructedDataPath
+- postRecolourPath
+- preInvScalePath
+
+NB: When decoding, this option relates only to the output file names.
+
+In order to have the decoder produce identically numbered output ply
+files as the encoder input, specify the same value of firstFrameNum for
+the decoder.
+
+### `--frameCount=INT-VALUE`
+(Encoder only)
+The number of frames to be encoded.
+
 ### `--uncompressedDataPath=FILE`
 (Encoder only)
-The input source point cloud to be compressed.
+The input source point cloud to be compressed.  The first instance of
+'%d' in FILE will be expanded with the current frame number.
 
 ### `--compressedStreamPath=FILE`
 The compressed bitstream file output when encoding or input when decoding.
@@ -28,12 +49,18 @@ The reconstructed point cloud file.  When encoding, the output is the
 locally decoded picture.  It is expected that the reconstructed output
 of the encoder and decoder match exactly.
 
+The first instance of '%d' in FILE will be expanded with the current
+frame number.
+
 ### `--postRecolourPath=FILE`
 (Encoder only)
 As part of the encoding process, it may be necessary to re-colour the
 point cloud if the point geometry is altered.  This diagnostic output
 file corresponds to the re-coloured point cloud prior to attribute
 coding without output geometry scaling.
+
+The first instance of '%d' in FILE will be expanded with the current
+frame number.
 
 ### `--preInvScalePath=FILE`
 (Decoder only)
@@ -43,6 +70,9 @@ and attributes) prior to output geometry scaling.
 When compared to the output of `postRecolourPath`, the performance of
 attribute coding may be directly measured without being confounded
 by any geometry losses.
+
+The first instance of '%d' in FILE will be expanded with the current
+frame number.
 
 ### `--outputBinaryPly=0|1`
 Sets the output format of PLY files (Binary=1, ASCII=0).  Reading and

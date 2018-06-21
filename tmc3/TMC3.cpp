@@ -61,11 +61,20 @@ struct Parameters {
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
 
+  // Frame number of first file in input sequence.
+  int firstFrameNum;
+
+  // Number of frames to process.
+  int frameCount;
+
   std::string uncompressedDataPath;
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
 
-  // Filename for saving pre inverse scaled point cloud.
+  // Filename for saving recoloured point cloud (encoder).
+  std::string postRecolorPath;
+
+  // Filename for saving pre inverse scaled point cloud (decoder).
   std::string preInvScalePath;
 
   pcc::EncoderParams encoder;
@@ -76,6 +85,52 @@ struct Parameters {
 
   // todo(df): this should be per-attribute
   int reflectanceScale;
+};
+
+//----------------------------------------------------------------------------
+
+class SequenceEncoder : public PCCTMC3Encoder3::Callbacks {
+public:
+  // NB: params must outlive the lifetime of the decoder.
+  SequenceEncoder(Parameters* params);
+
+  int compress(Stopwatch* clock);
+
+protected:
+  int compressOneFrame(Stopwatch* clock);
+
+  void onOutputBuffer(const PayloadBuffer& buf) override;
+  void onPostRecolour(const PCCPointSet3& cloud) override;
+
+private:
+  Parameters* params;
+  PCCTMC3Encoder3 encoder;
+
+  std::ofstream bytestreamFile;
+
+  int frameNum;
+};
+
+//----------------------------------------------------------------------------
+
+class SequenceDecoder : public PCCTMC3Decoder3::Callbacks {
+public:
+  // NB: params must outlive the lifetime of the decoder.
+  SequenceDecoder(const Parameters* params);
+
+  int decompress(Stopwatch* clock);
+
+protected:
+  void onOutputCloud(const PCCPointSet3& decodedPointCloud) override;
+
+private:
+  const Parameters* params;
+  PCCTMC3Decoder3 decoder;
+
+  std::ofstream bytestreamFile;
+
+  int frameNum;
+  Stopwatch* clock;
 };
 
 //============================================================================
@@ -98,9 +153,9 @@ main(int argc, char* argv[])
 
   int ret = 0;
   if (params.isDecoder) {
-    ret = Decompress(params, clock_user);
+    ret = SequenceDecoder(&params).decompress(&clock_user);
   } else {
-    ret = Compress(params, clock_user);
+    ret = SequenceEncoder(&params).compress(&clock_user);
   }
 
   clock_wall.stop();
@@ -258,6 +313,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: decode")
 
   // i/o parameters
+  ("firstFrameNum",
+     params.firstFrameNum, 0,
+     "Frame number for use with interpolating %d format specifiers"
+     "in input/output filenames")
+
+  ("frameCount",
+     params.frameCount, 1,
+     "Number of frames to encode")
+
   ("reconstructedDataPath",
     params.reconstructedDataPath, {},
     "The ouput reconstructed pointcloud file path (decoder only)")
@@ -271,7 +335,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "The compressed bitstream path (encoder=output, decoder=input)")
 
   ("postRecolorPath",
-    params.encoder.postRecolorPath, {},
+    params.postRecolorPath, {},
     "Recolored pointcloud file path (encoder only)")
 
   ("preInvScalePath",
@@ -779,101 +843,166 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   return true;
 }
 
+//============================================================================
+
+SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
+{}
+
+//----------------------------------------------------------------------------
+
 int
-Compress(Parameters& params, Stopwatch& clock)
+SequenceEncoder::compress(Stopwatch* clock)
 {
+  bytestreamFile.open(params->compressedStreamPath, ios::binary);
+  if (!bytestreamFile.is_open()) {
+    return -1;
+  }
+
+  const int lastFrameNum = params->firstFrameNum + params->frameCount;
+  for (frameNum = params->firstFrameNum; frameNum < lastFrameNum; frameNum++) {
+    if (compressOneFrame(clock))
+      return -1;
+  }
+
+  std::cout << "Total bitstream size " << bytestreamFile.tellp() << " B\n";
+  bytestreamFile.close();
+
+  return 0;
+}
+
+//----------------------------------------------------------------------------
+
+int
+SequenceEncoder::compressOneFrame(Stopwatch* clock)
+{
+  std::string srcName{expandNum(params->uncompressedDataPath, frameNum)};
   PCCPointSet3 pointCloud;
-  if (
-    !pointCloud.read(params.uncompressedDataPath)
-    || pointCloud.getPointCount() == 0) {
+  if (!pointCloud.read(srcName) || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
 
   // Sanitise the input point cloud
   // todo(df): remove the following with generic handling of properties
-  bool codeColour = params.encoder.attributeIdxMap.count("color");
+  bool codeColour = params->encoder.attributeIdxMap.count("color");
   if (!codeColour)
     pointCloud.removeColors();
   assert(codeColour == pointCloud.hasColors());
 
-  bool codeReflectance = params.encoder.attributeIdxMap.count("reflectance");
+  bool codeReflectance = params->encoder.attributeIdxMap.count("reflectance");
   if (!codeReflectance)
     pointCloud.removeReflectances();
   assert(codeReflectance == pointCloud.hasReflectances());
 
-  ofstream fout(params.compressedStreamPath, ios::binary);
-  if (!fout.is_open()) {
-    return -1;
-  }
+  clock->start();
 
-  clock.start();
-
-  if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
+  if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertRGBToYUV();
   }
 
-  if (params.reflectanceScale > 1 && pointCloud.hasReflectances()) {
+  if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
     const auto pointCount = pointCloud.getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
-      int val = pointCloud.getReflectance(i) / params.reflectanceScale;
+      int val = pointCloud.getReflectance(i) / params->reflectanceScale;
       pointCloud.setReflectance(i, val);
     }
   }
 
-  PCCTMC3Encoder3 encoder;
-
   // The reconstructed point cloud
   std::unique_ptr<PCCPointSet3> reconPointCloud;
-  if (!params.reconstructedDataPath.empty()) {
+  if (!params->reconstructedDataPath.empty()) {
     reconPointCloud.reset(new PCCPointSet3);
   }
 
+  auto bytestreamLenFrameStart = bytestreamFile.tellp();
+
   int ret = encoder.compress(
-    pointCloud, &params.encoder,
-    [&](const PayloadBuffer& buf) { writeTlv(buf, fout); },
-    reconPointCloud.get());
+    pointCloud, &params->encoder, this, reconPointCloud.get());
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
   }
 
-  std::cout << "Total bitstream size " << fout.tellp() << " B" << std::endl;
-  fout.close();
+  auto bytestreamLenFrameEnd = bytestreamFile.tellp();
+  int frameLen = bytestreamLenFrameEnd - bytestreamLenFrameStart;
 
-  clock.stop();
+  std::cout << "Total frame size " << frameLen << " B" << std::endl;
 
-  if (!params.reconstructedDataPath.empty()) {
-    if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
+  clock->stop();
+
+  if (!params->reconstructedDataPath.empty()) {
+    if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
       reconPointCloud->convertYUVToRGB();
     }
 
-    if (params.reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
+    if (params->reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
       const auto pointCount = reconPointCloud->getPointCount();
       for (size_t i = 0; i < pointCount; ++i) {
-        int val = reconPointCloud->getReflectance(i) * params.reflectanceScale;
+        int val =
+          reconPointCloud->getReflectance(i) * params->reflectanceScale;
         reconPointCloud->setReflectance(i, val);
       }
     }
 
-    reconPointCloud->write(
-      params.reconstructedDataPath, !params.outputBinaryPly);
+    std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
+    reconPointCloud->write(recName, !params->outputBinaryPly);
   }
 
   return 0;
 }
-int
-Decompress(Parameters& params, Stopwatch& clock)
+
+//----------------------------------------------------------------------------
+
+void
+SequenceEncoder::onOutputBuffer(const PayloadBuffer& buf)
 {
-  ifstream fin(params.compressedStreamPath, ios::binary);
+  writeTlv(buf, bytestreamFile);
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
+{
+  if (params->postRecolorPath.empty()) {
+    return;
+  }
+
+  std::string plyName{expandNum(params->postRecolorPath, frameNum)};
+
+  // todo(df): stop the clock
+  if (params->colorTransform != COLOR_TRANSFORM_RGB_TO_YCBCR) {
+    cloud.write(plyName);
+    return;
+  }
+
+  PCCPointSet3 tmpCloud(cloud);
+  tmpCloud.convertYUVToRGB();
+  tmpCloud.write(plyName);
+}
+
+//============================================================================
+
+SequenceDecoder::SequenceDecoder(const Parameters* params)
+  : params(params), decoder(params->decoder)
+{}
+
+//----------------------------------------------------------------------------
+
+int
+SequenceDecoder::decompress(Stopwatch* clock)
+{
+  ifstream fin(params->compressedStreamPath, ios::binary);
   if (!fin.is_open()) {
     return -1;
   }
 
-  clock.start();
+  frameNum = params->firstFrameNum;
+  this->clock = clock;
 
   PayloadBuffer buf;
-  PCCTMC3Decoder3 decoder(params.decoder);
+
+  clock->start();
 
   while (true) {
     PayloadBuffer* buf_ptr = &buf;
@@ -883,40 +1012,7 @@ Decompress(Parameters& params, Stopwatch& clock)
     if (!fin)
       buf_ptr = nullptr;
 
-    int ret =
-      decoder.decompress(buf_ptr, [&](const PCCPointSet3& decodedPointCloud) {
-        PCCPointSet3 pointCloud(decodedPointCloud);
-
-        if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-          pointCloud.convertYUVToRGB();
-        }
-
-        if (params.reflectanceScale > 1 && pointCloud.hasReflectances()) {
-          const auto pointCount = pointCloud.getPointCount();
-          for (size_t i = 0; i < pointCount; ++i) {
-            int val = pointCloud.getReflectance(i) * params.reflectanceScale;
-            pointCloud.setReflectance(i, val);
-          }
-        }
-
-        // Dump the decoded colour using the pre inverse scaled geometry
-        if (!params.preInvScalePath.empty()) {
-          pointCloud.write(params.preInvScalePath, !params.outputBinaryPly);
-        }
-
-        decoder.inverseQuantization(pointCloud);
-
-        clock.stop();
-
-        if (!pointCloud.write(
-              params.reconstructedDataPath, !params.outputBinaryPly)) {
-          cout << "Error: can't open output file!" << endl;
-        }
-
-        clock.start();
-      });
-
-    if (ret) {
+    if (decoder.decompress(buf_ptr, this)) {
       cout << "Error: can't decompress point cloud!" << endl;
       return -1;
     }
@@ -929,7 +1025,48 @@ Decompress(Parameters& params, Stopwatch& clock)
   fin.seekg(0, ios_base::end);
   std::cout << "Total bitstream size " << fin.tellg() << " B" << std::endl;
 
-  clock.stop();
+  clock->stop();
 
   return 0;
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
+{
+  // copy the point cloud in order to modify it according to the output options
+  PCCPointSet3 pointCloud(decodedPointCloud);
+
+  if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
+    pointCloud.convertYUVToRGB();
+  }
+
+  if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
+    const auto pointCount = pointCloud.getPointCount();
+    for (size_t i = 0; i < pointCount; ++i) {
+      int val = pointCloud.getReflectance(i) * params->reflectanceScale;
+      pointCloud.setReflectance(i, val);
+    }
+  }
+
+  // Dump the decoded colour using the pre inverse scaled geometry
+  if (!params->preInvScalePath.empty()) {
+    std::string filename{expandNum(params->preInvScalePath, frameNum)};
+    pointCloud.write(params->preInvScalePath, !params->outputBinaryPly);
+  }
+
+  decoder.inverseQuantization(pointCloud);
+
+  clock->stop();
+
+  std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
+  if (!pointCloud.write(decName, !params->outputBinaryPly)) {
+    cout << "Error: can't open output file!" << endl;
+  }
+
+  clock->start();
+
+  // todo(df): frame number should be derived from the bitstream
+  frameNum++;
 }
