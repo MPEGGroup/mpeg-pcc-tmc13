@@ -323,7 +323,7 @@ isDirectModeEligible(
   bool featureEnabled,
   int nodeSizeLog2, const PCCOctree3Node& node, const PCCOctree3Node& child
 ) {
-  return featureEnabled && (nodeSizeLog2 >= 2)
+  return featureEnabled && (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
       && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 }
 
