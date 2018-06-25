@@ -106,43 +106,23 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
 void
 GeometryOctreeEncoder::encodeOccupancyNeighZ(int mappedOccupancy)
 {
-  int occupancyB0 = !!(mappedOccupancy & 2);
-  int occupancyB1 = !!(mappedOccupancy & 128);
-  int occupancyB2 = !!(mappedOccupancy & 32);
-  int occupancyB3 = !!(mappedOccupancy & 8);
-  int occupancyB4 = !!(mappedOccupancy & 4);
-  int occupancyB5 = !!(mappedOccupancy & 16);
-  int occupancyB6 = !!(mappedOccupancy & 64);
-  int occupancyB7 = !!(mappedOccupancy & 1);
-
+  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
+  int minOccupied = 2;
   int numOccupiedAcc = 0;
 
-  _arithmeticEncoder->encode(occupancyB0, _ctxOccupancy.b0[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB0;
+  for (int i = 0; i < 8; i++) {
+    // NB: There must be at least minOccupied child nodes
+    //  -- avoid coding the occupancyBit if it is implied.
+    if (numOccupiedAcc < minOccupied + i - 7) {
+      assert(i >= 6);
+      break;
+    }
 
-  _arithmeticEncoder->encode(occupancyB1, _ctxOccupancy.b1[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB1;
-
-  _arithmeticEncoder->encode(occupancyB2, _ctxOccupancy.b2[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB2;
-
-  _arithmeticEncoder->encode(occupancyB3, _ctxOccupancy.b3[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB3;
-
-  _arithmeticEncoder->encode(occupancyB4, _ctxOccupancy.b4[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB4;
-
-  _arithmeticEncoder->encode(occupancyB5, _ctxOccupancy.b5[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB5;
-
-  // NB: There must be at least two occupied child nodes
-  //  -- avoid coding the occupancyB if it is implied.
-  if (numOccupiedAcc >= 1)
-    _arithmeticEncoder->encode(occupancyB6, _ctxOccupancy.b6[numOccupiedAcc]);
-  numOccupiedAcc += occupancyB6;
-
-  if (numOccupiedAcc >= 2)
-    _arithmeticEncoder->encode(occupancyB7, _ctxOccupancy.b7[numOccupiedAcc]);
+    int occupancyBit = (mappedOccupancy >> occupancyCodingOrder[i]) & 1;
+    int idx = numOccupiedAcc;
+    _arithmeticEncoder->encode(occupancyBit, _ctxOccupancy[i][idx]);
+    numOccupiedAcc += occupancyBit;
+  }
 }
 
 //-------------------------------------------------------------------------
@@ -152,57 +132,43 @@ void
 GeometryOctreeEncoder::encodeOccupancyNeighNZ(
   int mappedOccupancy, int neighPattern10)
 {
-  int occupancyB0 = !!(mappedOccupancy & 2);
-  int occupancyB1 = !!(mappedOccupancy & 128);
-  int occupancyB2 = !!(mappedOccupancy & 32);
-  int occupancyB3 = !!(mappedOccupancy & 8);
-  int occupancyB4 = !!(mappedOccupancy & 4);
-  int occupancyB5 = !!(mappedOccupancy & 16);
-  int occupancyB6 = !!(mappedOccupancy & 64);
-  int occupancyB7 = !!(mappedOccupancy & 1);
-
-  uint32_t partialOccupancy = 0;
-  int idx;
-
-  idx = neighPattern10;
-  _arithmeticEncoder->encode(occupancyB0, _ctxOccupancy.b0[idx]);
-  partialOccupancy |= occupancyB0;
-
-  idx = (neighPattern10 << 1) + partialOccupancy;
-  _arithmeticEncoder->encode(occupancyB1, _ctxOccupancy.b1[idx]);
-  partialOccupancy |= occupancyB1 << 1;
-
-  idx = (neighPattern10 << 2) + partialOccupancy;
-  _arithmeticEncoder->encode(occupancyB2, _ctxOccupancy.b2[idx]);
-  partialOccupancy |= occupancyB2 << 2;
-
-  idx = (neighPattern10 << 3) + partialOccupancy;
-  _arithmeticEncoder->encode(occupancyB3, _ctxOccupancy.b3[idx]);
-  partialOccupancy |= occupancyB3 << 3;
-
-  // todo(df): merge constants into lut.
-  idx = ((neighPattern10 - 1) << 4) + partialOccupancy;
-  idx = kOccMapBit4CtxIdx[idx] - 1 + 5;
-  _arithmeticEncoder->encode(occupancyB4, _ctxOccupancy.b4[idx]);
-  partialOccupancy |= occupancyB4 << 4;
-
-  idx = ((neighPattern10 - 1) << 5) + partialOccupancy;
-  idx = kOccMapBit5CtxIdx[idx] - 1 + 6;
-  _arithmeticEncoder->encode(occupancyB5, _ctxOccupancy.b5[idx]);
-  partialOccupancy |= occupancyB5 << 5;
+  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
 
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
-  idx = ((neighPattern7 - 1) << 6) + partialOccupancy;
-  idx = kOccMapBit6CtxIdx[idx] - 1 + 7;
-  _arithmeticEncoder->encode(occupancyB6, _ctxOccupancy.b6[idx]);
-  partialOccupancy |= occupancyB6 << 6;
-
   int neighPattern5 = kNeighPattern7to5[neighPattern7];
-  idx = ((neighPattern5 - 1) << 7) + partialOccupancy;
-  idx = kOccMapBit7CtxIdx[idx] - 1 + 8;
-  // NB: if firt 7 bits are 0, then the last is implicitly 1.
-  if (partialOccupancy)
-    _arithmeticEncoder->encode(occupancyB7, _ctxOccupancy.b7[idx]);
+
+  uint32_t partialOccupancy = 0;
+
+  // NB: it is impossible for pattern to be 0 (handled in Z case).
+  for (int i = 0; i < 8; i++) {
+    int occupancyBit = (mappedOccupancy >> occupancyCodingOrder[i]) & 1;
+
+    int idx;
+    if (i < 4)
+      idx = (neighPattern10 << i) + partialOccupancy;
+    else if (i == 4) {
+      idx = ((neighPattern10 - 1) << i) + partialOccupancy;
+      idx = kOccMapBit4CtxIdx[idx] + i;
+    } else if (i == 5) {
+      idx = ((neighPattern10 - 1) << i) + partialOccupancy;
+      idx = kOccMapBit5CtxIdx[idx] + i;
+    } else if (i == 6) {
+      idx = ((neighPattern7 - 1) << i) + partialOccupancy;
+      idx = kOccMapBit6CtxIdx[idx] + i;
+    } else if (i == 7) {
+      // NB: if firt 7 bits are 0, then the last is implicitly 1.
+      if (!partialOccupancy)
+        break;
+      idx = ((neighPattern5 - 1) << i) + partialOccupancy;
+      idx = kOccMapBit7CtxIdx[idx] + i;
+    } else {
+      // work around clang -Wsometimes-uninitialized fault
+      break;
+    }
+
+    _arithmeticEncoder->encode(occupancyBit, _ctxOccupancy[i][idx]);
+    partialOccupancy |= occupancyBit << i;
+  }
 }
 
 //-------------------------------------------------------------------------

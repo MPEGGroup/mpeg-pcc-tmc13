@@ -121,6 +121,22 @@ struct CtxModelOctreeOccupancy {
   o3dgc::Adaptive_Bit_Model b7[127];
 
   CtxModelOctreeOccupancy();
+
+  o3dgc::Adaptive_Bit_Model* operator[](int bit_pos)
+  {
+    assert(unsigned(bit_pos) < 8);
+    switch (bit_pos) {
+    case 0: return b0;
+    case 1: return b1;
+    case 2: return b2;
+    case 3: return b3;
+    case 4: return b4;
+    case 5: return b5;
+    case 6: return b6;
+    case 7: return b7;
+    default: return nullptr;
+    }
+  }
 };
 
 //---------------------------------------------------------------------------
