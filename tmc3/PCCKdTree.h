@@ -322,12 +322,10 @@ private:
       }
       std::swap(nodes[store], nodes[end - 1]);
 
-      while (
-        store < medianIndex
-        && PCCApproximatelyEqual(
-             nodes[store].pos[splitAxis],
-             nodes[store + 1].pos
-               [splitAxis])) {  // optimization in case of duplicated values
+      while (store < medianIndex
+             && nodes[store].pos[splitAxis]
+               == nodes[store + 1].pos[splitAxis]) {
+        // optimization in case of duplicated values
         ++store;
       }
 
