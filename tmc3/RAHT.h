@@ -42,7 +42,7 @@ namespace pcc {
 
 struct MortonCodeWithIndex {
   uint64_t mortonCode;
-  size_t index;
+  int index;
 
   bool operator<(const MortonCodeWithIndex& rhs) const
   {
