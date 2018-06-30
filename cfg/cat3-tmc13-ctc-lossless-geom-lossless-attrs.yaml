@@ -32,7 +32,8 @@ categories:
             - numberOfNearestNeighborsInPrediction: 4
             - levelOfDetailCount: 9
             - dist2: 134217728 33554432 8388608 2097152 524288 131072 32768 8192 0
-            - quantizationSteps: 0 0 0 0 0 0 0 0 0
+            - quantizationStepsLuma: 0 0 0 0 0 0 0 0 0
+            - quantizationStepsChroma: 0 0 0 0 0 0 0 0 0
          - attribute: color
 
       overpass_q1mm:
@@ -86,7 +87,7 @@ categories:
             - numberOfNearestNeighborsInPrediction: 4
             - levelOfDetailCount: 6
             - dist2: 4194301 1048582 262149 65534 16383 0
-            - quantizationSteps: 0 0 0 0 0 0
+            - quantizationStepsLuma: 0 0 0 0 0 0
          - attribute: reflectance
 
       ford_02_q1mm:

@@ -33,7 +33,13 @@ categories:
             - numberOfNearestNeighborsInPrediction: 4
             - levelOfDetailCount: 9
             - dist2: 134217728 33554432 8388608 2097152 524288 131072 32768 8192 0
-            - quantizationSteps:
+            - quantizationStepsLuma:
+                r01: 2 2 2 2 2 2 2 2 2
+                r02: 4 4 4 4 4 4 4 4 4
+                r03: 8 8 8 8 8 8 8 8 8
+                r04: 16 16 16 16 16 16 16 16 16
+                r05: 32 32 32 32 32 32 32 32 32
+            - quantizationStepsChroma:
                 r01: 2 2 2 2 2 2 2 2 2
                 r02: 4 4 4 4 4 4 4 4 4
                 r03: 8 8 8 8 8 8 8 8 8
@@ -93,7 +99,7 @@ categories:
             - numberOfNearestNeighborsInPrediction: 4
             - levelOfDetailCount: 6
             - dist2: 4194301 1048582 262149 65534 16383 0
-            - quantizationSteps:
+            - quantizationStepsLuma:
                 r01: 2 2 2 2 2 2
                 r02: 4 4 4 4 4 4
                 r03: 8 8 8 8 8 8

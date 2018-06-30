@@ -312,8 +312,16 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Attribute's number of levels of detail")
 
   ("quantizationSteps",
-    params_attr.quantizationSteps, {},
-    "Attribute's list of quantization step sizes (one for each LoD)")
+    params_attr.quantizationStepsLuma, {},
+    "deprecated -- use quantizationStepsLuma/Chroma")
+
+  ("quantizationStepsLuma",
+    params_attr.quantizationStepsLuma, {},
+    "Attribute's luma quantization step sizes (one for each LoD)")
+
+  ("quantizationStepsChroma",
+    params_attr.quantizationStepsChroma, {},
+    "Attribute's chroma quantization step sizes (one for each LoD)")
 
   ("dist2", params_attr.dist2, {},
     "Attribute's list of squared distances (one for each LoD)")
@@ -354,13 +362,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
   for (auto& attr : params.encodeParameters.attributeEncodeParameters) {
-    if (attr.second.transformType != TransformType::kIntegerLift) {
+    if (attr.second.transformType == TransformType::kRAHT) {
       attr.second.levelOfDetailCount = 0;
     }
   }
 
   // sanity checks
-  //  - validate that quantizationSteps, dist2
+  //  - validate that quantizationStepsLuma/Chroma, dist2
   //    of each attribute contain levelOfDetailCount elements.
   for (const auto& attr : params.encodeParameters.attributeEncodeParameters) {
     if (attr.second.transformType == TransformType::kIntegerLift) {
@@ -370,13 +378,21 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         err.error() << attr.first
                     << ".levelOfDetailCount must be less than 256\n";
       }
+      // todo(df): the following two checks are removed in m42640/2
       if (attr.second.dist2.size() != lod) {
         err.error() << attr.first << ".dist2 does not have " << lod
                     << " entries\n";
       }
-      if (attr.second.quantizationSteps.size() != lod) {
-        err.error() << attr.first << ".quantizationSteps does not have " << lod
-                    << " entries\n";
+      if (attr.second.quantizationStepsLuma.size() != lod) {
+        err.error() << attr.first << ".quantizationStepsLuma does not have "
+                    << lod << " entries\n";
+      }
+      if (attr.first == "color") {
+        if (attr.second.quantizationStepsChroma.size() != lod) {
+          err.error() << attr.first
+                      << ".quantizationStepsChroma does not have " << lod
+                      << " entries\n";
+        }
       }
       if (
         attr.second.numberOfNearestNeighborsInPrediction

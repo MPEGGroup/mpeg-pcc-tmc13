@@ -54,8 +54,6 @@ struct PCCResidualsDecoder;
 
 class AttributeDecoder {
 public:
-  void buildPredictors(const PCCPointSet3& pointCloud);
-
   void decodeHeader(const std::string& attributeName, PCCBitstream& bitstream);
 
   void decodeReflectances(PCCBitstream& bitstream, PCCPointSet3& pointCloud);
@@ -77,16 +75,23 @@ protected:
   void
   decodeColorsRaht(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
+  static void computeColorPredictionWeights(
+    const PCCPointSet3& pointCloud,
+    const size_t numberOfNearestNeighborsInPrediction,
+    const int64_t threshold,
+    PCCPredictor& predictor,
+    PCCResidualsDecoder& decoder);
+
 private:
-  std::vector<PCCPredictor> predictors;
-  std::vector<int64_t> quantizationSteps;
+  std::vector<int64_t> quantizationStepsLuma;
+  std::vector<int64_t> quantizationStepsChroma;
   std::vector<size_t> dist2;
   size_t numberOfNearestNeighborsInPrediction;
   size_t levelOfDetailCount;
-  uint32_t quantizationStepRaht;
-  uint8_t depthRaht;
-  uint8_t binaryLevelThresholdRaht;
-  TransformType transformType;
+  uint32_t quantizationStepRaht = 0;
+  uint8_t depthRaht = 0;
+  uint8_t binaryLevelThresholdRaht = 0;
+  TransformType transformType = TransformType::kIntegerLift;
 };
 
 //============================================================================

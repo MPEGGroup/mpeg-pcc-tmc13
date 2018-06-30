@@ -43,8 +43,6 @@
 #include <stdint.h>
 #include <vector>
 
-//#define PCC_UNDEFINED_INDEX (uint32_t(-1))
-
 namespace pcc {
 const uint32_t PCC_UNDEFINED_INDEX = -1;
 

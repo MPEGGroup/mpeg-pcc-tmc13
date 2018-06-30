@@ -133,7 +133,6 @@ public:
       uint64_t colorsSize = bitstream.size;
 
       attrDecoder.decodeHeader("color", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
       attrDecoder.decodeColors(bitstream, pointCloud);
 
       colorsSize = bitstream.size - colorsSize;
@@ -146,7 +145,6 @@ public:
       uint64_t reflectancesSize = bitstream.size;
 
       attrDecoder.decodeHeader("reflectance", bitstream);
-      attrDecoder.buildPredictors(pointCloud);
       attrDecoder.decodeReflectances(bitstream, pointCloud);
 
       reflectancesSize = bitstream.size - reflectancesSize;

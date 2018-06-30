@@ -48,6 +48,7 @@ namespace pcc {
 const uint32_t PCCTMC3MagicNumber = 20110904;
 const uint32_t PCCTMC3FormatVersion = 1;
 const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
+const uint32_t PCCTMC3SymbolCount = 64;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
@@ -96,13 +97,12 @@ struct PCCOctree3Node {
 };
 
 struct PCCNeighborInfo {
-  double invDistance;
   double weight;
   uint32_t index;
+  uint32_t predictorIndex;
 };
 
 struct PCCPredictor {
-  size_t maxNeighborCount;
   size_t neighborCount;
   uint32_t index;
   uint32_t levelOfDetailIndex;
@@ -132,15 +132,14 @@ struct PCCPredictor {
     return uint16_t(std::round(predicted));
   }
 
-  void computeWeights(const size_t neighborCount0)
+  void computeWeights()
   {
-    neighborCount = std::min(neighborCount0, maxNeighborCount);
-    if (!neighborCount) {
+    if (neighborCount <= 1) {
+      neighbors[0].weight = 1.0;
       return;
     }
     double sum = 0.0;
     for (size_t n = 0; n < neighborCount; ++n) {
-      neighbors[n].weight = neighbors[n].invDistance;
       sum += neighbors[n].weight;
     }
     assert(sum > 0.0);
@@ -150,18 +149,19 @@ struct PCCPredictor {
   }
 
   void init(
-    const uint32_t current, const uint32_t reference, const uint32_t lodIndex)
+    const uint32_t current,
+    const uint32_t reference,
+    const uint32_t predictorIndex,
+    const uint32_t lodIndex)
   {
     index = current;
-    neighborCount = (reference != PCC_UNDEFINED_INDEX);
-    maxNeighborCount = neighborCount;
+    neighborCount = (reference != PCC_UNDEFINED_INDEX) ? 1 : 0;
     neighbors[0].index = reference;
-    neighbors[0].invDistance = 1.0;
+    neighbors[0].predictorIndex = predictorIndex;
     neighbors[0].weight = 1.0;
     levelOfDetailIndex = lodIndex;
   }
 };
-
 inline int64_t
 PCCQuantization(const int64_t value, const int64_t qs)
 {
@@ -182,17 +182,14 @@ PCCInverseQuantization(const int64_t value, const int64_t qs)
 }
 
 inline void
-PCCBuildPredictors(
+PCCBuildLevelOfDetail2(
   const PCCPointSet3& pointCloud,
-  const size_t numberOfNearestNeighborsInPrediction,
   const size_t levelOfDetailCount,
   const std::vector<size_t>& dist2,
-  std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLOD,
   std::vector<uint32_t>& indexes)
 {
   const size_t pointCount = pointCloud.getPointCount();
-  predictors.resize(pointCount);
   const size_t initialBalanceTargetPointCount = 16;
   std::vector<bool> visited;
   visited.resize(pointCount, false);
@@ -203,8 +200,6 @@ PCCBuildPredictors(
   size_t prevIndexesSize = 0;
   PCCPointDistInfo nearestNeighbors[PCCTMC3MaxPredictionNearestNeighborCount];
   PCCNNQuery3 nNQuery = {PCCVector3D(0.0), 0.0, 1};
-  PCCNNQuery3 nNQuery2 = {PCCVector3D(0.0), std::numeric_limits<double>::max(),
-                          numberOfNearestNeighborsInPrediction};
   PCCNNResult nNResult = {nearestNeighbors, 0};
   PCCIncrementalKdTree3 kdtree;
 
@@ -224,29 +219,6 @@ PCCBuildPredictors(
         if (
           !filterByDistance || !nNResult.resultCount
           || nNResult.neighbors[0].dist2 >= minDist2) {
-          nNQuery2.point = pointCloud[current];
-          kdtree.findNearestNeighbors2(nNQuery2, nNResult);
-          auto& predictor = predictors[indexes.size()];
-          if (!nNResult.resultCount) {
-            predictor.init(current, PCC_UNDEFINED_INDEX, uint32_t(lodIndex));
-          } else if (
-            nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
-            const uint32_t reference =
-              static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
-            predictor.init(current, reference, uint32_t(lodIndex));
-          } else {
-            predictor.levelOfDetailIndex = uint32_t(lodIndex);
-            predictor.index = current;
-            predictor.neighborCount = predictor.maxNeighborCount =
-              nNResult.resultCount;
-            for (size_t n = 0; n < nNResult.resultCount; ++n) {
-              predictor.neighbors[n].index =
-                indexes[nNResult.neighbors[n].index];
-              predictor.neighbors[n].weight =
-                predictor.neighbors[n].invDistance =
-                  1.0 / nNResult.neighbors[n].dist2;
-            }
-          }
           indexes.push_back(current);
           visited[current] = true;
           kdtree.insert(pointCloud[current]);
@@ -259,6 +231,67 @@ PCCBuildPredictors(
     }
     numberOfPointsPerLOD.push_back(uint32_t(indexes.size()));
     prevIndexesSize = indexes.size();
+  }
+}
+
+inline void
+PCCComputePredictors2(
+  const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& numberOfPointsPerLOD,
+  const std::vector<uint32_t>& indexes,
+  const size_t numberOfNearestNeighborsInPrediction,
+  std::vector<PCCPredictor>& predictors)
+{
+  const size_t pointCount = pointCloud.getPointCount();
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  predictors.resize(pointCount);
+  PCCPointDistInfo nearestNeighbors[PCCTMC3MaxPredictionNearestNeighborCount];
+  PCCNNQuery3 nNQuery = {PCCVector3D(0.0), std::numeric_limits<double>::max(),
+                         numberOfNearestNeighborsInPrediction};
+  PCCNNResult nNResult = {nearestNeighbors, 0};
+  PCCIncrementalKdTree3 kdtree;
+  uint32_t i0 = 0;
+  size_t balanceTargetPointCount = 16;
+  for (uint32_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
+    const uint32_t i1 = numberOfPointsPerLOD[lodIndex];
+    for (uint32_t i = i0; i < i1; ++i) {
+      const uint32_t pointIndex = indexes[i];
+      const auto& point = pointCloud[pointIndex];
+      auto& predictor = predictors[i];
+      nNQuery.point = point;
+      kdtree.findNearestNeighbors2(nNQuery, nNResult);
+      if (!nNResult.resultCount) {
+        predictor.init(
+          pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX,
+          uint32_t(lodIndex));
+      } else if (
+        nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
+        const uint32_t reference =
+          static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
+        assert(nNResult.neighbors[0].index < i);
+        predictor.init(
+          pointIndex, reference, nNResult.neighbors[0].index,
+          uint32_t(lodIndex));
+      } else {
+        predictor.levelOfDetailIndex = uint32_t(lodIndex);
+        predictor.index = pointIndex;
+        predictor.neighborCount = nNResult.resultCount;
+        for (size_t n = 0; n < nNResult.resultCount; ++n) {
+          const uint32_t neighborIndex = nNResult.neighbors[n].index;
+          assert(neighborIndex < i);
+          assert(predictors[neighborIndex].levelOfDetailIndex <= lodIndex);
+          predictor.neighbors[n].predictorIndex = neighborIndex;
+          predictor.neighbors[n].index = indexes[neighborIndex];
+          predictor.neighbors[n].weight = 1.0 / nNResult.neighbors[n].dist2;
+        }
+      }
+      kdtree.insert(point);
+      if (balanceTargetPointCount <= kdtree.size()) {
+        kdtree.balance();
+        balanceTargetPointCount = 2 * kdtree.size();
+      }
+    }
+    i0 = i1;
   }
 }
 

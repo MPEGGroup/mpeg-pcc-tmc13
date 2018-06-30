@@ -33,7 +33,14 @@ categories:
            - numberOfNearestNeighborsInPrediction: 4
            - levelOfDetailCount: 9
            - dist2: 134217728 33554432 8388608 2097152 524288 131072 32768 8192 0
-         - quantizationSteps:
+         - quantizationStepsLuma:
+             r01: 1 2 4 8 16 32 64 128 128
+             r02: 1 2 4 8 16 32 64 64 66
+             r03: 1 2 4 8 16 32 32 32 34
+             r04: 1 2 4 8 8 8 16 16 16
+             r05: 1 2 4 4 4 4 4 8 8
+             r06: 0 1 1 1 2 2 2 2 2
+         - quantizationStepsChroma:
              r01: 1 2 4 8 16 32 64 128 128
              r02: 1 2 4 8 16 32 64 64 66
              r03: 1 2 4 8 16 32 32 32 34
@@ -45,7 +52,14 @@ categories:
       tollbooth_q1mm:
         encflags:
          - *commonAttr
-         - quantizationSteps:
+         - quantizationStepsLuma:
+             r01: 1 2 4 8 16 32 64 128 128
+             r02: 1 2 4 8 16 32 32 64 64
+             r03: 1 2 4 8 16 16 16 32 32
+             r04: 1 2 4 8 8 8 8 10 16
+             r05: 1 2 4 4 4 4 4 4 6
+             r06: 0 0 0 0 0 0 1 1 2
+         - quantizationStepsChroma:
              r01: 1 2 4 8 16 32 64 128 128
              r02: 1 2 4 8 16 32 32 64 64
              r03: 1 2 4 8 16 16 16 32 32
@@ -78,7 +92,7 @@ categories:
       citytunnel_q1mm:
         encflags:
          - *commonAttr
-         - quantizationSteps:
+         - quantizationStepsLuma:
              r01: 286 571 1143 2286 4571 9143 18286 36571 65536
              r02:  77 154  308  615 1231 2462  4923  9846 19692
              r03:  29  57  114  229  457  914  1829  3657  7314
@@ -90,7 +104,7 @@ categories:
       tollbooth_q1mm:
         encflags:
          - *commonAttr
-         - quantizationSteps:
+         - quantizationStepsLuma:
              r01: 286 571 1143 2286 4571 9143 18286 36571 65536
              r02: 100 200  400  800 1600 3200  6400 12800 25600
              r03:  50 100  200  400  800 1600  3200  6400 12800

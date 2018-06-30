@@ -49,6 +49,7 @@ namespace pcc {
 // Opaque definitions (Internal detail)
 
 struct PCCResidualsEncoder;
+struct PCCResidualsEntropyEstimator;
 
 //============================================================================
 
@@ -60,17 +61,14 @@ struct PCCAttributeEncodeParamaters {
   int binaryLevelThresholdRaht;
   TransformType transformType;
   std::vector<size_t> dist2;
-  std::vector<size_t> quantizationSteps;
+  std::vector<size_t> quantizationStepsLuma;
+  std::vector<size_t> quantizationStepsChroma;
 };
 
 //============================================================================
 
 class AttributeEncoder {
 public:
-  void buildPredictors(
-    const PCCAttributeEncodeParamaters& attributeParams,
-    const PCCPointSet3& pointCloud);
-
   void encodeHeader(
     const PCCAttributeEncodeParamaters& attributeParams,
     const std::string& attributeName,
@@ -109,8 +107,35 @@ protected:
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
-private:
-  std::vector<PCCPredictor> predictors;
+  static PCCVector3<int64_t> computeColorResiduals(
+    const PCCColor3B color,
+    const PCCColor3B predictedColor,
+    const int64_t qs,
+    const int64_t qs2);
+
+  static void computeColorPredictionWeights(
+    const PCCPointSet3& pointCloud,
+    const size_t numberOfNearestNeighborsInPrediction,
+    const int64_t threshold,
+    const int64_t qs,
+    const int64_t qs2,
+    PCCPredictor& predictor,
+    PCCResidualsEncoder& encoder,
+    PCCResidualsEntropyEstimator& context);
+
+  static int64_t computeReflectanceResidual(
+    const uint64_t reflectance,
+    const uint64_t predictedReflectance,
+    const int64_t qs);
+
+  static void computeReflectancePredictionWeights(
+    const PCCPointSet3& pointCloud,
+    const size_t numberOfNearestNeighborsInPrediction,
+    const int64_t threshold,
+    const int64_t qs,
+    PCCPredictor& predictor,
+    PCCResidualsEncoder& encoder,
+    PCCResidualsEntropyEstimator& context);
 };
 
 //============================================================================

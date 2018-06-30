@@ -240,8 +240,6 @@ public:
     if (paramsColor) {
       AttributeEncoder attrEncoder;
       uint64_t colorsSize = bitstream.size;
-
-      attrEncoder.buildPredictors(*paramsColor, pointCloud);
       attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
       attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
 
@@ -254,8 +252,6 @@ public:
     if (paramsReflectance) {
       AttributeEncoder attrEncoder;
       uint64_t reflectancesSize = bitstream.size;
-
-      attrEncoder.buildPredictors(*paramsReflectance, pointCloud);
       attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
       attrEncoder.encodeReflectances(
         *paramsReflectance, pointCloud, bitstream);
