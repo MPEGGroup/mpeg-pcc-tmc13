@@ -248,6 +248,12 @@ public:
     findNeighbors(root, query2, result);
   }
 
+  uint32_t
+  hasNeighborWithinRange(const PCCVector3D& point, const double radius2) const
+  {
+    return hasNeighborWithinRange(root, point, radius2);
+  }
+
 private:
   static PCCAxis3 nextAxis(const PCCAxis3 axis)
   {
@@ -425,6 +431,40 @@ private:
       return;
     }
     findNeighbors(second, query2, result);
+  }
+
+  uint32_t hasNeighborWithinRange(
+    const uint32_t current,
+    const PCCVector3D& point,
+    const double radius2) const
+  {
+    if (current == PCC_UNDEFINED_INDEX) {
+      return PCC_UNDEFINED_INDEX;
+    }
+    const PCCIncrementalKdTree3Node& node = nodes[current];
+    const double dist2 = (point - node.pos).getNorm2();
+    if (dist2 < radius2) {
+      return node.id;
+    }
+    const PCCAxis3 splitAxis = node.axis;
+    const int32_t coord = node.pos[splitAxis];
+    const int32_t dx = point[splitAxis] - coord;
+    uint32_t first, second;
+    if (dx < 0) {
+      first = node.left;
+      second = node.right;
+    } else {
+      first = node.right;
+      second = node.left;
+    }
+    const uint32_t index = hasNeighborWithinRange(first, point, radius2);
+    if (index != PCC_UNDEFINED_INDEX) {
+      return index;
+    }
+    if ((dx * dx) > radius2) {
+      return PCC_UNDEFINED_INDEX;
+    }
+    return hasNeighborWithinRange(second, point, radius2);
   }
 
 private:

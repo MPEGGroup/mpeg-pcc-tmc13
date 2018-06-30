@@ -41,7 +41,11 @@
 #include "PCCMath.h"
 #include "ringbuf.h"
 
+#include "nanoflann.hpp"
+
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace pcc {
@@ -66,7 +70,8 @@ enum class GeometryCodecType
 enum class TransformType
 {
   kIntegerLift = 0,
-  kRAHT = 1
+  kRAHT = 1,
+  kLift = 2
 };
 
 struct PCCOctree3Node {
@@ -94,6 +99,27 @@ struct PCCOctree3Node {
 
   // The occupancy map used describing the current node and its siblings.
   uint8_t siblingOccupancy;
+};
+
+// Structure for sorting weights.
+struct WeightWithIndex {
+  float weight;
+  int index;
+
+  WeightWithIndex() = default;
+
+  WeightWithIndex(const int index, const float weight)
+    : weight(weight), index(index)
+  {}
+
+  // NB: this definition ranks larger weights before smaller values.
+  bool operator<(const WeightWithIndex& rhs) const
+  {
+    // NB: index used to maintain stable sort
+    if (weight == rhs.weight)
+      return index < rhs.index;
+    return weight > rhs.weight;
+  }
 };
 
 struct PCCNeighborInfo {
@@ -181,6 +207,116 @@ PCCInverseQuantization(const int64_t value, const int64_t qs)
   return qs == 0 ? value : (value * qs);
 }
 
+inline int64_t
+PCCQuantization(const double value, const int64_t qs)
+{
+  return int64_t(
+    value >= 0.0 ? std::floor(value / qs + 1.0 / 3.0)
+                 : -std::floor(-value / qs + 1.0 / 3.0));
+}
+
+//---------------------------------------------------------------------------
+
+template<typename T>
+void
+PCCLiftPredict(
+  const std::vector<PCCPredictor>& predictors,
+  const size_t startIndex,
+  const size_t endIndex,
+  const bool direct,
+  std::vector<T>& attributes)
+{
+  const size_t predictorCount = endIndex - startIndex;
+  for (size_t index = 0; index < predictorCount; ++index) {
+    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
+    const auto& predictor = predictors[predictorIndex];
+    T predicted(0.0);
+    for (size_t i = 0; i < predictor.neighborCount; ++i) {
+      const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
+      const double weight = predictor.neighbors[i].weight;
+      assert(neighborPredIndex < startIndex);
+      predicted += weight * attributes[neighborPredIndex];
+    }
+    if (direct) {
+      attributes[predictorIndex] -= predicted;
+    } else {
+      attributes[predictorIndex] += predicted;
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
+template<typename T>
+void
+PCCLiftUpdate(
+  const std::vector<PCCPredictor>& predictors,
+  const std::vector<double>& quantizationWeights,
+  const size_t startIndex,
+  const size_t endIndex,
+  const bool direct,
+  std::vector<T>& attributes)
+{
+  std::vector<double> updateWeights;
+  updateWeights.resize(startIndex, 0.0);
+  std::vector<T> updates;
+  updates.resize(startIndex);
+  for (size_t index = 0; index < startIndex; ++index) {
+    updates[index] = 0.0;
+  }
+  const size_t predictorCount = endIndex - startIndex;
+  for (size_t index = 0; index < predictorCount; ++index) {
+    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
+    const auto& predictor = predictors[predictorIndex];
+    const double currentQuantWeight = quantizationWeights[predictorIndex];
+    for (size_t i = 0; i < predictor.neighborCount; ++i) {
+      const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
+      const double weight = predictor.neighbors[i].weight * currentQuantWeight;
+      assert(neighborPredIndex < startIndex);
+      updateWeights[neighborPredIndex] += weight;
+      updates[neighborPredIndex] += weight * attributes[predictorIndex];
+    }
+  }
+  for (size_t predictorIndex = 0; predictorIndex < startIndex;
+       ++predictorIndex) {
+    const double sumWeights = updateWeights[predictorIndex];
+    if (sumWeights > 0.0) {
+      const double alpha = 1.0 / sumWeights;
+      if (direct) {
+        attributes[predictorIndex] += alpha * updates[predictorIndex];
+      } else {
+        attributes[predictorIndex] -= alpha * updates[predictorIndex];
+      }
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+PCCComputeQuantizationWeights(
+  const std::vector<PCCPredictor>& predictors,
+  std::vector<double>& quantizationWeights)
+{
+  const size_t pointCount = predictors.size();
+  quantizationWeights.resize(pointCount);
+  for (size_t i = 0; i < pointCount; ++i) {
+    quantizationWeights[i] = 1.0;
+  }
+  for (size_t i = 0; i < pointCount; ++i) {
+    const size_t predictorIndex = pointCount - i - 1;
+    const auto& predictor = predictors[predictorIndex];
+    const double currentQuantWeight = quantizationWeights[predictorIndex];
+    for (size_t i = 0; i < predictor.neighborCount; ++i) {
+      const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
+      const double weight = predictor.neighbors[i].weight;
+      quantizationWeights[neighborPredIndex] += weight * currentQuantWeight;
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
 inline void
 PCCBuildLevelOfDetail2(
   const PCCPointSet3& pointCloud,
@@ -233,6 +369,139 @@ PCCBuildLevelOfDetail2(
     prevIndexesSize = indexes.size();
   }
 }
+
+//---------------------------------------------------------------------------
+
+inline void
+CheckPoint(
+  const PCCPointSet3& pointCloud,
+  const int32_t index,
+  const double radius2,
+  const int32_t searchRange1,
+  const int32_t searchRange2,
+  uint32_t& lastNNIndex,
+  std::vector<bool>& visited,
+  std::vector<uint32_t>& retained,
+  PCCIncrementalKdTree3& kdtree)
+{
+  const auto& point = pointCloud[index];
+  if (retained.empty()) {
+    kdtree.insert(point);
+    visited[index] = true;
+    retained.push_back(index);
+    return;
+  }
+
+  const int32_t retainedPointCount = retained.size();
+  for (int32_t k = 0, j = retainedPointCount - 1; j >= 0 && k < searchRange1;
+       --j, ++k) {
+    if ((point - pointCloud[retained[j]]).getNorm2() < radius2) {
+      return;
+    }
+  }
+
+  if (lastNNIndex != PCC_UNDEFINED_INDEX) {
+    for (int32_t k = 0; k < searchRange2; ++k) {
+      const int32_t j1 = lastNNIndex - k;
+      if (j1 > 0 && (point - pointCloud[retained[j1]]).getNorm2() < radius2) {
+        lastNNIndex = j1;
+        return;
+      }
+      const int32_t j2 = lastNNIndex + k;
+      if (
+        j2 < retainedPointCount
+        && (point - pointCloud[retained[j2]]).getNorm2() < radius2) {
+        lastNNIndex = j2;
+        return;
+      }
+    }
+  }
+  const uint32_t nnIndex = kdtree.hasNeighborWithinRange(point, radius2);
+  if (nnIndex != PCC_UNDEFINED_INDEX) {
+    lastNNIndex = nnIndex;
+    return;
+  }
+  kdtree.insert(point);
+  visited[index] = true;
+  retained.push_back(index);
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+PCCBuildLevelOfDetail(
+  const PCCPointSet3& pointCloud,
+  const size_t levelOfDetailCount,
+  const std::vector<size_t>& dist2,
+  std::vector<uint32_t>& numberOfPointsPerLOD,
+  std::vector<uint32_t>& indexes)
+{
+  const size_t pointCount = pointCloud.getPointCount();
+  std::vector<bool> visited(pointCount, false);
+  indexes.resize(0);
+  indexes.reserve(pointCount);
+  numberOfPointsPerLOD.resize(0);
+  numberOfPointsPerLOD.reserve(levelOfDetailCount);
+  size_t prevIndexesSize = 0;
+  const int32_t searchRange1 = 16;
+  const int32_t searchRange2 = 8;
+  PCCIncrementalKdTree3 kdtree;
+  kdtree.reserve(pointCount / 2);
+  for (size_t lodIndex = 0;
+       lodIndex < levelOfDetailCount && indexes.size() < pointCount;
+       ++lodIndex) {
+    if ((lodIndex + 1) != levelOfDetailCount) {
+      const double radius2 = 3.0 * pow(2.0, 2 * dist2[lodIndex]);
+      uint32_t lastNNIndex = PCC_UNDEFINED_INDEX;
+      kdtree.balance();
+      for (uint32_t current = 0; current < pointCount; ++current) {
+        if (!visited[current]) {
+          CheckPoint(
+            pointCloud, current, radius2, searchRange1, searchRange2,
+            lastNNIndex, visited, indexes, kdtree);
+        }
+      }
+    } else {
+      for (uint32_t current = 0; current < pointCount; ++current) {
+        if (!visited[current]) {
+          indexes.push_back(current);
+        }
+      }
+    }
+    numberOfPointsPerLOD.push_back(uint32_t(indexes.size()));
+    prevIndexesSize = indexes.size();
+  }
+}
+
+struct PointCloudWrapper {
+  PointCloudWrapper(
+    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes)
+    : _pointCloud(pointCloud), _indexes(indexes)
+  {}
+  inline size_t kdtree_get_point_count() const { return _pointCount; }
+  inline void kdtree_set_point_count(const size_t pointCount)
+  {
+    assert(pointCount < _indexes.size());
+    assert(pointCount < _pointCloud.getPointCount());
+    _pointCount = pointCount;
+  }
+  inline double kdtree_get_pt(const size_t idx, int dim) const
+  {
+    assert(idx < _pointCount && dim < 3);
+    return _pointCloud[_indexes[idx]][dim];
+  }
+  template<class BBOX>
+  bool kdtree_get_bbox(BBOX& /* bb */) const
+  {
+    return false;
+  }
+
+  const PCCPointSet3& _pointCloud;
+  const std::vector<uint32_t>& _indexes;
+  size_t _pointCount = 0;
+};
+
+//---------------------------------------------------------------------------
 
 inline void
 PCCComputePredictors2(
@@ -289,6 +558,79 @@ PCCComputePredictors2(
       if (balanceTargetPointCount <= kdtree.size()) {
         kdtree.balance();
         balanceTargetPointCount = 2 * kdtree.size();
+      }
+    }
+    i0 = i1;
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+PCCComputePredictors(
+  const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& numberOfPointsPerLOD,
+  const std::vector<uint32_t>& indexes,
+  const size_t numberOfNearestNeighborsInPrediction,
+  std::vector<PCCPredictor>& predictors)
+{
+  const size_t pointCount = pointCloud.getPointCount();
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  assert(lodCount);
+  predictors.resize(pointCount);
+
+  // delta prediction for LOD0
+  uint32_t i0 = numberOfPointsPerLOD[0];
+  for (uint32_t i = 0; i < i0; ++i) {
+    const uint32_t pointIndex = indexes[i];
+    auto& predictor = predictors[i];
+    if (i == 0) {
+      predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX, 0);
+    } else {
+      predictor.init(pointIndex, predictors[i - 1].index, i - 1, 0);
+    }
+  }
+  PointCloudWrapper pointCloudWrapper(pointCloud, indexes);
+  const nanoflann::SearchParams params(10, 0.0f, true);
+  size_t indices[PCCTMC3MaxPredictionNearestNeighborCount];
+  double sqrDist[PCCTMC3MaxPredictionNearestNeighborCount];
+  nanoflann::KNNResultSet<double> resultSet(
+    numberOfNearestNeighborsInPrediction);
+  for (uint32_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
+    pointCloudWrapper.kdtree_set_point_count(i0);
+    nanoflann::KDTreeSingleIndexAdaptor<
+      nanoflann::L2_Simple_Adaptor<double, PointCloudWrapper>,
+      PointCloudWrapper, 3>
+      kdtree(
+        3, pointCloudWrapper, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+    kdtree.buildIndex();
+    const uint32_t i1 = numberOfPointsPerLOD[lodIndex];
+
+    for (uint32_t i = i0; i < i1; ++i) {
+      const uint32_t pointIndex = indexes[i];
+      const auto& point = pointCloud[pointIndex];
+      auto& predictor = predictors[i];
+      resultSet.init(indices, sqrDist);
+      kdtree.findNeighbors(resultSet, &point[0], params);
+      const uint32_t resultCount = resultSet.size();
+      if (sqrDist[0] == 0.0 || resultCount == 1) {
+        const uint32_t predIndex = indices[0];
+        predictor.init(
+          pointIndex, predictors[predIndex].index, predIndex, lodIndex);
+      } else {
+        predictor.levelOfDetailIndex = uint32_t(lodIndex);
+        predictor.index = pointIndex;
+        predictor.neighborCount = resultCount;
+        for (size_t n = 0; n < resultCount; ++n) {
+          const uint32_t predIndex = indices[n];
+          assert(predIndex < i);
+          assert(predictors[predIndex].levelOfDetailIndex <= lodIndex);
+          predictor.neighbors[n].predictorIndex = predIndex;
+          const uint32_t pointIndex1 = indexes[predIndex];
+          predictor.neighbors[n].index = pointIndex1;
+          const auto& point1 = pointCloud[pointIndex1];
+          predictor.neighbors[n].weight = 1.0 / (point - point1).getNorm2();
+        }
       }
     }
     i0 = i1;

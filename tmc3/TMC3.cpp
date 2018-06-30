@@ -125,6 +125,7 @@ operator<<(std::ostream& out, const TransformType& val)
   switch (val) {
   case TransformType::kIntegerLift: out << "0 (IntegerLifting)"; break;
   case TransformType::kRAHT: out << "1 (RAHT)"; break;
+  case TransformType::kLift: out << "2 (Lift)"; break;
   }
   return out;
 }
@@ -287,7 +288,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.transformType, TransformType::kIntegerLift,
     "Coding method to use for attribute:\n"
     "  0: Nearest neighbour prediction with integer lifting transform\n"
-    "  1: Region Adaptive Hierarchical Transform (RAHT)")
+    "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
+    "  2: Nearest neighbour prediction with lifting transform")
 
   ("rahtLeafDecimationDepth",
     params_attr.binaryLevelThresholdRaht, 3,

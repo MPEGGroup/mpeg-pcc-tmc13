@@ -40,21 +40,6 @@
 
 namespace pcc {
 
-// Structure for sorting weights.
-struct WeightWithIndex {
-  float weight;
-  int index;
-
-  // NB: this definition ranks larger weights before smaller values.
-  bool operator<(const WeightWithIndex& rhs) const
-  {
-    // NB: index used to maintain stable sort
-    if (weight == rhs.weight)
-      return index < rhs.index;
-    return weight > rhs.weight;
-  }
-};
-
 struct MortonCodeWithIndex {
   uint64_t mortonCode;
   size_t index;

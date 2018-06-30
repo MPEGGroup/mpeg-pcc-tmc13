@@ -63,6 +63,12 @@ public:
 protected:
   // todo(df): consider alternative encapsulation
 
+  void decodeReflectancesLift(
+    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+
+  void
+  decodeColorsLift(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+
   void decodeReflectancesIntegerLift(
     PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 

@@ -87,6 +87,16 @@ public:
 protected:
   // todo(df): consider alternative encapsulation
 
+  void encodeReflectancesLift(
+    const PCCAttributeEncodeParamaters& reflectanceParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
+
+  void encodeColorsLift(
+    const PCCAttributeEncodeParamaters& colorParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
+
   void encodeReflectancesIntegerLift(
     const PCCAttributeEncodeParamaters& reflectanceParams,
     PCCPointSet3& pointCloud,
