@@ -46,6 +46,7 @@
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCTMC3Common.h"
+#include "pcc_chrono.h"
 #include "osspecific.h"
 
 #include "ArithmeticCodec.h"
@@ -112,6 +113,8 @@ public:
 
     if (geometryCodec != GeometryCodecType::kBypass) {
       uint64_t positionsSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
+      clock_user.start();
 
       if (geometryCodec == GeometryCodecType::kOctree) {
         decodePositionsHeader(bitstream, pointCloud);
@@ -122,34 +125,58 @@ public:
         if (decodeTrisoup(bitstream, pointCloud))
           return -1;
       }
+      clock_user.stop();
 
       positionsSize = bitstream.size - positionsSize;
       std::cout << "positions bitstream size " << positionsSize << " B"
                 << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "positions processing time (user): "
+                << total_user.count() / 1000.0 << " s\n";
+      std::cout << std::endl;
     }
 
     if (pointCloud.hasColors()) {
       AttributeDecoder attrDecoder;
       uint64_t colorsSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
+      clock_user.start();
       attrDecoder.decodeHeader("color", bitstream);
       attrDecoder.decodeColors(bitstream, pointCloud);
+      clock_user.stop();
 
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "colors processing time (user): "
+                << total_user.count() / 1000.0 << " s\n";
       std::cout << std::endl;
     }
 
     if (pointCloud.hasReflectances()) {
       AttributeDecoder attrDecoder;
       uint64_t reflectancesSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
+      clock_user.start();
       attrDecoder.decodeHeader("reflectance", bitstream);
       attrDecoder.decodeReflectances(bitstream, pointCloud);
+      clock_user.stop();
 
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B"
                 << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "reflectances processing time (user): "
+                << total_user.count() / 1000.0 << " s\n";
+      std::cout << std::endl;
     }
 
     // Dump the decoded colour using the pre inverse scaled geometry

@@ -51,6 +51,7 @@
 #include "PCCPointSet.h"
 #include "PCCPointSetProcessing.h"
 #include "PCCTMC3Common.h"
+#include "pcc_chrono.h"
 
 #include "ArithmeticCodec.h"
 #include "tables.h"
@@ -206,6 +207,8 @@ public:
         bitstream.size);
     } else {
       uint64_t positionsSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
+      clock_user.start();
 
       if (params.geometryCodec == GeometryCodecType::kOctree) {
         encodePositionsHeader(params, bitstream);
@@ -222,10 +225,17 @@ public:
           return -1;
       }
 
+      clock_user.stop();
+
       positionsSize = bitstream.size - positionsSize;
       std::cout << "positions bitstream size " << positionsSize << " B ("
                 << (8.0 * positionsSize) / inputPointCloud.getPointCount()
                 << " bpp)" << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "positions processing time (user): "
+                << total_user.count() / 1000.0 << " s" << std::endl;
     }
 
     // attributeCoding
@@ -240,26 +250,43 @@ public:
     if (paramsColor) {
       AttributeEncoder attrEncoder;
       uint64_t colorsSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
+      clock_user.start();
       attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
       attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
+      clock_user.stop();
 
       colorsSize = bitstream.size - colorsSize;
       std::cout << "colors bitstream size " << colorsSize << " B ("
                 << (8.0 * colorsSize) / inputPointCloud.getPointCount()
                 << " bpp)" << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "colors processing time (user): "
+                << total_user.count() / 1000.0 << " s" << std::endl;
     }
 
     if (paramsReflectance) {
       AttributeEncoder attrEncoder;
       uint64_t reflectancesSize = bitstream.size;
+      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
+
+      clock_user.start();
       attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
       attrEncoder.encodeReflectances(
         *paramsReflectance, pointCloud, bitstream);
+      clock_user.stop();
 
       reflectancesSize = bitstream.size - reflectancesSize;
       std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
                 << (8.0 * reflectancesSize) / inputPointCloud.getPointCount()
                 << " bpp)" << std::endl;
+
+      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+        clock_user.count());
+      std::cout << "reflectances processing time (user): "
+                << total_user.count() / 1000.0 << " s" << std::endl;
     }
 
     if (params.geometryCodec == GeometryCodecType::kBypass) {
