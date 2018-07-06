@@ -117,7 +117,7 @@ schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
   int i;
   int size;
 
-  orc_memset (arith, 0, sizeof (SchroArith));
+  memset (arith, 0, sizeof (SchroArith));
   arith->range[0] = 0;
   arith->range[1] = 0xffff0000;
   arith->range_size = arith->range[1] - arith->range[0];
@@ -138,7 +138,7 @@ schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
     arith->probabilities[i] = 0x8000;
   }
 
-  orc_memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
+  memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
 }
 
 void
@@ -146,7 +146,7 @@ schro_arith_encode_init (SchroArith * arith, SchroBuffer * buffer)
 {
   int i;
 
-  orc_memset (arith, 0, sizeof (SchroArith));
+  memset (arith, 0, sizeof (SchroArith));
   arith->range[0] = 0;
   arith->range[1] = 0xffff;
   arith->range_size = arith->range[1] - arith->range[0];
