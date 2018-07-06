@@ -31,8 +31,6 @@ struct _SchroArith {
   uint16_t lut[512];
 };
 
-SchroArith * schro_arith_new (void);
-void schro_arith_free (SchroArith *arith);
 void schro_arith_decode_init (SchroArith *arith, SchroBuffer *buffer);
 void schro_arith_encode_init (SchroArith *arith, SchroBuffer *buffer);
 void schro_arith_flush (SchroArith *arith);

@@ -111,22 +111,6 @@ static const int16_t lut_interleaved[512] = {
       8,  -553,     5,  -471,     2,  -376,     0,  -255
 };
 
-SchroArith *
-schro_arith_new (void)
-{
-  SchroArith *arith;
-
-  arith = schro_malloc (sizeof (*arith));
-
-  return arith;
-}
-
-void
-schro_arith_free (SchroArith * arith)
-{
-  schro_free (arith);
-}
-
 void
 schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
 {
