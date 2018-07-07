@@ -116,7 +116,6 @@ static const int16_t lut_interleaved[512] = {
 void
 schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
 {
-  int i;
   int size;
 
   memset (arith, 0, sizeof (SchroArith));
@@ -136,10 +135,6 @@ schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
   arith->code |= ((size > 3) ? arith->dataptr[3] : 0xff);
   arith->offset = 3;
 
-  for (i = 0; i < SCHRO_CTX_LAST; i++) {
-    arith->probabilities[i] = 0x8000;
-  }
-
   memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
 }
 
@@ -157,10 +152,6 @@ schro_arith_encode_init (SchroArith * arith, SchroBuffer * buffer)
   arith->buffer = buffer;
   arith->offset = 0;
   arith->dataptr = arith->buffer->data;
-
-  for (i = 0; i < SCHRO_CTX_LAST; i++) {
-    arith->probabilities[i] = 0x8000;
-  }
 
   for (i = 0; i < 256; i++) {
     arith->lut[i] = lut[i];
@@ -232,13 +223,13 @@ schro_arith_flush (SchroArith * arith)
 /* wrappers */
 
 void
-schro_arith_encode_bit (SchroArith * arith, int i, int value)
+schro_arith_encode_bit (SchroArith * arith, uint16_t *probability, int value)
 {
-  _schro_arith_encode_bit (arith, i, value);
+  _schro_arith_encode_bit (arith, probability, value);
 }
 
 int
-schro_arith_decode_bit (SchroArith * arith, unsigned int context)
+schro_arith_decode_bit (SchroArith * arith, uint16_t *probability)
 {
-  return _schro_arith_decode_bit (arith, context);
+  return _schro_arith_decode_bit (arith, probability);
 }

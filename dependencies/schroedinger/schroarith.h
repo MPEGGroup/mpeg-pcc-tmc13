@@ -20,16 +20,6 @@ struct _SchroBuffer {
 
 
 typedef struct _SchroArith SchroArith;
-typedef struct _SchroArithContext SchroArithContext;
-
-struct _SchroArithContext {
-#ifdef unused
-  int stat_range;
-  int n_bits;
-  int n_symbols;
-  int ones;
-#endif
-};
 
 struct _SchroArith {
   SchroBuffer *buffer;
@@ -42,7 +32,6 @@ struct _SchroArith {
   int cntr;
   int carry;
 
-  uint16_t probabilities[SCHRO_CTX_LAST];
   uint16_t lut[512];
 };
 
@@ -51,13 +40,13 @@ void schro_arith_encode_init (SchroArith *arith, SchroBuffer *buffer);
 void schro_arith_flush (SchroArith *arith);
 void schro_arith_decode_flush (SchroArith *arith);
 
-void schro_arith_encode_bit (SchroArith *arith, int context, int value);
+void schro_arith_encode_bit (SchroArith *arith, uint16_t *probability,  int value);
 
-int schro_arith_decode_bit (SchroArith *arith, unsigned int context);
+int schro_arith_decode_bit (SchroArith *arith, uint16_t *probability);
 
 #ifdef SCHRO_ARITH_DEFINE_INLINE
 static inline int
-_schro_arith_decode_bit (SchroArith *arith, unsigned int i)
+_schro_arith_decode_bit (SchroArith *arith, uint16_t *probability)
 {
   unsigned int range_x_prob;
   unsigned int value;
@@ -89,11 +78,11 @@ _schro_arith_decode_bit (SchroArith *arith, unsigned int i)
     }
   }
 
-  range_x_prob = ((range >> 16) * arith->probabilities[i]) & 0xFFFF0000;
-  lut_index = arith->probabilities[i]>>7 & ~1;
+  range_x_prob = ((range >> 16) * (*probability)) & 0xFFFF0000;
+  lut_index = (*probability)>>7 & ~1;
 
   value = (code_minus_low  >= range_x_prob);
-  arith->probabilities[i] += arith->lut[lut_index | value];
+  (*probability) += arith->lut[lut_index | value];
 
   if (value) {
     code_minus_low -= range_x_prob;
@@ -109,23 +98,23 @@ _schro_arith_decode_bit (SchroArith *arith, unsigned int i)
 }
 
 static inline void
-_schro_arith_encode_bit (SchroArith *arith, int i, int value)
+_schro_arith_encode_bit (SchroArith *arith, uint16_t *probability, int value)
 {
   unsigned int range;
   unsigned int probability0;
   unsigned int range_x_prob;
 
-  probability0 = arith->probabilities[i];
+  probability0 = (*probability);
   range = arith->range[1];
   range_x_prob = (range * probability0) >> 16;
 
   if (value) {
     arith->range[0] = arith->range[0] + range_x_prob;
     arith->range[1] -= range_x_prob;
-    arith->probabilities[i] -= arith->lut[arith->probabilities[i]>>8];
+    (*probability) -= arith->lut[(*probability)>>8];
   } else {
     arith->range[1] = range_x_prob;
-    arith->probabilities[i] += arith->lut[255-(arith->probabilities[i]>>8)];
+    (*probability) += arith->lut[255-((*probability)>>8)];
   }
 
   while (arith->range[1] <= 0x4000) {
@@ -198,8 +187,8 @@ maxbit (unsigned int x)
 }
 
 #else /* SCHRO_ARITH_DEFINE_INLINE */
-int _schro_arith_decode_bit (SchroArith *arith, unsigned int context);
-void _schro_arith_encode_bit (SchroArith *arith, int context, int
+int _schro_arith_decode_bit (SchroArith *arith, uint16_t *probability);
+void _schro_arith_encode_bit (SchroArith *arith, uint16_t *probability, int
     value) SCHRO_INTERNAL;
 
 #endif /* SCHRO_ARITH_DEFINE_INLINE */
