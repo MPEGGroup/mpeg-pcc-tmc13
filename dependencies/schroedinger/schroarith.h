@@ -2,7 +2,13 @@
 #ifndef _SCHRO_ARITH_H_
 #define _SCHRO_ARITH_H_
 
-SCHRO_BEGIN_DECLS
+#define SCHRO_INTERNAL
+
+#include <stdint.h>
+
+#if __cplusplus
+extern "C" {
+#endif
 
 typedef struct _SchroArith SchroArith;
 typedef struct _SchroArithContext SchroArithContext;
@@ -189,7 +195,9 @@ void _schro_arith_encode_bit (SchroArith *arith, int context, int
 
 #endif /* SCHRO_ARITH_DEFINE_INLINE */
 
-SCHRO_END_DECLS
+#if __cplusplus
+} // extern "C"
+#endif
 
 #endif
 

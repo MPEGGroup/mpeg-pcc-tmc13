@@ -2,6 +2,8 @@
 #include <string.h>
 
 #define SCHRO_ARITH_DEFINE_INLINE
+#define TRUE 1
+#define FALSE 0
 
 #include "schroarith.h"
 
