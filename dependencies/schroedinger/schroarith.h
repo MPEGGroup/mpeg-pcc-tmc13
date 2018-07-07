@@ -10,6 +10,15 @@
 extern "C" {
 #endif
 
+/* This definition of SchroBuffer is simplified version of the
+ * real version for the purpose of this integration test */
+typedef struct _SchroBuffer SchroBuffer;
+struct _SchroBuffer {
+	unsigned char *data;
+	unsigned int length;
+};
+
+
 typedef struct _SchroArith SchroArith;
 typedef struct _SchroArithContext SchroArithContext;
 
