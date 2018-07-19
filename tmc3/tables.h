@@ -86,4 +86,10 @@ extern const uint8_t kOccMapBit5CtxIdx[32 * 9];
 extern const uint8_t kOccMapBit6CtxIdx[64 * 6];
 extern const uint8_t kOccMapBit7CtxIdx[128 * 4];
 
+//============================================================================
+// Mapping of (x,y,z) components to 3D Morton code.
+extern const uint32_t kMortonCode256X[256];
+extern const uint32_t kMortonCode256Y[256];
+extern const uint32_t kMortonCode256Z[256];
+
 } /* namespace pcc */

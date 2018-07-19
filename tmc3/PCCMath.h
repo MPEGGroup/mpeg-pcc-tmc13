@@ -115,6 +115,13 @@ public:
     data[2] <<= val;
     return *this;
   }
+  PCCVector3& operator>>=(int val)
+  {
+    data[0] >>= val;
+    data[1] >>= val;
+    data[2] >>= val;
+    return *this;
+  }
   PCCVector3& operator/=(const T a)
   {
     assert(a != 0);
@@ -200,6 +207,16 @@ public:
     assert(rhs != 0);
     return PCCVector3<T>(
       lhs.data[0] / rhs, lhs.data[1] / rhs, lhs.data[2] / rhs);
+  }
+  friend PCCVector3 operator<<(const PCCVector3& lhs, int val)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] << val, lhs.data[1] << val, lhs.data[2] << val);
+  }
+  friend PCCVector3 operator>>(const PCCVector3& lhs, int val)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] >> val, lhs.data[1] >> val, lhs.data[2] >> val);
   }
   bool operator<(const PCCVector3& rhs) const
   {

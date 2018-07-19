@@ -46,6 +46,7 @@
 #include "ringbuf.h"
 
 #include "AttributeEncoder.h"
+#include "OctreeNeighMap.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCPointSetProcessing.h"
@@ -66,6 +67,11 @@ struct PCCTMC3Encoder3Parameters {
   // occupancy during geometry coding.  When true, only neighbours that
   // are direct siblings are available.
   bool neighbourContextRestriction;
+
+  // Defines the size of the neighbour availiability volume (aka
+  // look-ahead cube size) for occupancy searches.  A value of 0
+  // indicates that the feature is disabled.
+  int neighbourAvailBoundaryLog2;
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.
@@ -589,6 +595,7 @@ private:
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
     node00.numSiblingsPlus1 = 8;
+    node00.siblingOccupancy = 0;
     fifo.push_back(node00);
 
     // map of pointCloud idx to DM idx, used to reorder the points
@@ -605,11 +612,19 @@ private:
     // ie, the number of nodes added to the next level of the tree
     int numNodesNextLvl = 0;
 
+    MortonMap3D occupancyAtlas;
+    if (params.neighbourAvailBoundaryLog2) {
+      occupancyAtlas.resize(params.neighbourAvailBoundaryLog2);
+      occupancyAtlas.clear();
+    }
+    PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+
     for (; !fifo.empty(); fifo.pop_front()) {
       if (fifo.begin() == fifoCurrLvlEnd) {
         // transition to the next level
         fifoCurrLvlEnd = fifo.end();
         numNodesNextLvl = 0;
+        occupancyAtlasOrigin = 0xffffffff;
         nodeSizeLog2--;
       }
 
@@ -639,6 +654,15 @@ private:
           occupancy |= 1 << i;
           numSiblings++;
         }
+      }
+
+      if (params.neighbourAvailBoundaryLog2) {
+        updateGeometryOccupancyAtlas(
+          node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          &occupancyAtlasOrigin);
+
+        node0.neighPattern =
+          makeGeometryNeighPattern(node0.pos, nodeSizeLog2, occupancyAtlas);
       }
 
       // encode child occupancy map
@@ -699,6 +723,7 @@ private:
         childPointsStartIdx += childCounts[i];
         child.end = childPointsStartIdx;
         child.numSiblingsPlus1 = numSiblings;
+        child.siblingOccupancy = occupancy;
 
         bool idcmEnabled = params.inferredDirectCodingModeEnabled;
         if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
@@ -723,9 +748,13 @@ private:
 
         numNodesNextLvl++;
 
-        updateGeometryNeighState(
-          params.neighbourContextRestriction, fifo.end(), numNodesNextLvl,
-          childSizeLog2, child, i, node0.neighPattern, occupancy);
+        // NB: when neighbourAvailBoundaryLog2 is set, an alternative
+        //     implementation is used to calculate neighPattern.
+        if (!params.neighbourAvailBoundaryLog2) {
+          updateGeometryNeighState(
+            params.neighbourContextRestriction, fifo.end(), numNodesNextLvl,
+            childSizeLog2, child, i, node0.neighPattern, occupancy);
+        }
       }
     }
 
@@ -777,6 +806,10 @@ private:
 
     PCCWriteToBuffer<uint8_t>(
       uint8_t(params.neighbourContextRestriction), bitstream.buffer,
+      bitstream.size);
+
+    PCCWriteToBuffer<uint8_t>(
+      uint8_t(params.neighbourAvailBoundaryLog2), bitstream.buffer,
       bitstream.size);
 
     PCCWriteToBuffer<uint8_t>(

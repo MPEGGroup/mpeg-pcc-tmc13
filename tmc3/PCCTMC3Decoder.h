@@ -42,6 +42,7 @@
 #include "ringbuf.h"
 
 #include "AttributeDecoder.h"
+#include "OctreeNeighMap.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCTMC3Common.h"
@@ -184,6 +185,9 @@ private:
 
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     neighbourContextRestriction = bool(u8value);
+
+    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
+    neighbourAvailBoundaryLog2 = u8value;
 
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     inferredDirectCodingModeEnabled = bool(u8value);
@@ -604,6 +608,7 @@ private:
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
     node00.numSiblingsPlus1 = 8;
+    node00.siblingOccupancy = 0;
     fifo.push_back(node00);
 
     size_t processedPointCount = 0;
@@ -615,14 +620,31 @@ private:
     // ie, the number of nodes added to the next level of the tree
     int numNodesNextLvl = 0;
 
+    PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+    MortonMap3D occupancyAtlas;
+    if (neighbourAvailBoundaryLog2) {
+      occupancyAtlas.resize(neighbourAvailBoundaryLog2);
+      occupancyAtlas.clear();
+    }
+
     for (; !fifo.empty(); fifo.pop_front()) {
       if (fifo.begin() == fifoCurrLvlEnd) {
         // transition to the next level
         fifoCurrLvlEnd = fifo.end();
         nodeSizeLog2--;
         numNodesNextLvl = 0;
+        occupancyAtlasOrigin = 0xffffffff;
       }
       PCCOctree3Node& node0 = fifo.front();
+
+      if (neighbourAvailBoundaryLog2) {
+        updateGeometryOccupancyAtlas(
+          node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          &occupancyAtlasOrigin);
+
+        node0.neighPattern =
+          makeGeometryNeighPattern(node0.pos, nodeSizeLog2, occupancyAtlas);
+      }
 
       // decode occupancy pattern
       uint8_t occupancy = decodeGeometryOccupancy(
@@ -678,6 +700,7 @@ private:
         child.pos[1] = node0.pos[1] + (y << childSizeLog2);
         child.pos[2] = node0.pos[2] + (z << childSizeLog2);
         child.numSiblingsPlus1 = numOccupied;
+        child.siblingOccupancy = occupancy;
 
         bool idcmEnabled = inferredDirectCodingModeEnabled;
         if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
@@ -699,9 +722,11 @@ private:
 
         numNodesNextLvl++;
 
-        updateGeometryNeighState(
-          neighbourContextRestriction, fifo.end(), numNodesNextLvl,
-          childSizeLog2, child, i, node0.neighPattern, occupancy);
+        if (!neighbourAvailBoundaryLog2) {
+          updateGeometryNeighState(
+            neighbourContextRestriction, fifo.end(), numNodesNextLvl,
+            childSizeLog2, child, i, node0.neighPattern, occupancy);
+        }
       }
     }
 
@@ -744,6 +769,11 @@ private:
   // Controls the use of neighbour based contextualisation of octree
   // occupancy during geometry coding.
   bool neighbourContextRestriction;
+
+  // Defines the size of the neighbour availiability volume (aka
+  // look-ahead cube size) for occupancy searches.  A value of 0
+  // indicates that the feature is disabled.
+  int neighbourAvailBoundaryLog2;
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.

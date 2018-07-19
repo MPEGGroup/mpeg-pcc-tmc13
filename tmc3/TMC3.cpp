@@ -248,6 +248,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encodeParameters.neighbourContextRestriction, false,
     "Limit geometry octree occupancy contextualisation to sibling nodes")
 
+  ("neighbourAvailBoundaryLog2",
+    params.encodeParameters.neighbourAvailBoundaryLog2, 0,
+    "Defines the avaliability volume for neighbour occupancy lookups."
+    " 0: unconstrained")
+
   ("inferredDirectCodingMode",
     params.encodeParameters.inferredDirectCodingModeEnabled, true,
     "Permits early termination of the geometry octree for isolated points")

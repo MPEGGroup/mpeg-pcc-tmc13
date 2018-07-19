@@ -57,6 +57,7 @@ file(GLOB PROJECT_IN_FILES
 file(GLOB PROJECT_INC_FILES
   "AttributeDecoder.h"
   "AttributeEncoder.h"
+  "OctreeNeighMap.h"
   "PCCKdTree.h"
   "PCCMath.h"
   "PCCMisc.h"
@@ -81,6 +82,7 @@ file(GLOB PROJECT_INC_FILES
 file(GLOB PROJECT_CPP_FILES
   "AttributeDecoder.cpp"
   "AttributeEncoder.cpp"
+  "OctreeNeighMap.cpp"
   "RAHT.cpp"
   "TMC3.cpp"
   "osspecific.cpp"

@@ -90,6 +90,9 @@ struct PCCOctree3Node {
   // The current node's number of siblings plus one.
   // ie, the number of child nodes present in this node's parent.
   uint8_t numSiblingsPlus1;
+
+  // The occupancy map used describing the current node and its siblings.
+  uint8_t siblingOccupancy;
 };
 
 struct PCCNeighborInfo {
