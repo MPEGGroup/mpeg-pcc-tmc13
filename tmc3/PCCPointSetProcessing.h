@@ -48,8 +48,8 @@ namespace pcc {
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
-// Points in the @src point cloud are translated by @offset, then quantised
-// by a multiplicitive @scaleFactor with rounding.
+// Points in the @src point cloud are translated by @offset, quantised by a
+// multiplicitive @scaleFactor with rounding, then clamped to @clamp.
 //
 // The destination and source point clouds may be the same object.
 //
@@ -59,6 +59,7 @@ inline void
 quantizePositionsUniq(
   const float scaleFactor,
   const PCCVector3D offset,
+  const PCCBox3<int32_t> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
@@ -70,9 +71,10 @@ quantizePositionsUniq(
     const PCCVector3D point = (src[i] + offset) * scaleFactor;
 
     PCCVector3<int32_t> quantizedPoint;
-    quantizedPoint[0] = int64_t(std::round(point[0]));
-    quantizedPoint[1] = int64_t(std::round(point[1]));
-    quantizedPoint[2] = int64_t(std::round(point[2]));
+    for (int k = 0; k < 3; k++) {
+      quantizedPoint[k] =
+        PCCClip(int32_t(std::round(point[k])), clamp.min[k], clamp.max[k]);
+    }
 
     uniquePoints.insert(quantizedPoint);
   }
@@ -106,6 +108,7 @@ inline void
 quantizePositions(
   const float scaleFactor,
   const PCCVector3D offset,
+  const PCCBox3<int32_t> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
@@ -118,11 +121,17 @@ quantizePositions(
     dst->resize(numSrcPoints);
   }
 
+  PCCBox3D clampD{
+    {double(clamp.min[0]), double(clamp.min[1]), double(clamp.min[2])},
+    {double(clamp.max[0]), double(clamp.max[1]), double(clamp.max[2])},
+  };
+
   for (int i = 0; i < numSrcPoints; ++i) {
     const PCCVector3D point = (src[i] + offset) * scaleFactor;
     auto& dstPoint = (*dst)[i];
     for (int k = 0; k < 3; ++k)
-      dstPoint[k] = std::round(point[k]);
+      dstPoint[k] =
+        PCCClip(std::round(point[k]), clampD.min[k], clampD.max[k]);
   }
 
   // don't copy attributes if dst already has them
@@ -137,6 +146,21 @@ quantizePositions(
   if (src.hasReflectances()) {
     for (int i = 0; i < numSrcPoints; ++i)
       dst->setReflectance(i, src.getReflectance(i));
+  }
+}
+
+//============================================================================
+// Clamp point co-ordinates in @cloud to @bbox, preserving attributes.
+
+inline void
+clampVolume(PCCBox3D bbox, PCCPointSet3* cloud)
+{
+  int numSrcPoints = cloud->getPointCount();
+
+  for (int i = 0; i < numSrcPoints; ++i) {
+    auto& point = (*cloud)[i];
+    for (int k = 0; k < 3; ++k)
+      point[k] = PCCClip(point[k], bbox.min[k], bbox.max[k]);
   }
 }
 

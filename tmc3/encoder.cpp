@@ -126,46 +126,17 @@ PCCTMC3Encoder3::compress(
   //  - encode geometry
   //  - recolour
 
-  if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
-    quantization(inputPointCloud);
-  }
-  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
-    // todo(?): this ought to be replaced with quantization(...)
-    if (!inputPointCloud.write("verticesInWorldCoords.ply", true)) {
-      std::cerr << "Failed to write verticesInWorldCoords.ply\n";
-      return -1;
-    }
-    std::string cmd =
-      "TMC1_coordinateTransform"
-      " -inworld verticesInWorldCoords.ply"
-      " -outframe verticesInFrameCoords.ply"
-      " -depth "
-      + std::to_string(_gps->trisoup_depth) + " -scale "
-      + std::to_string(_sps->donotuse_trisoup_int_to_orig_scale)
-      + " -format binary_little_endian";
-    if (int err = system(cmd.c_str())) {
-      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-      return -1;
-    }
-  }
+  // The quantization process will determine the bounding box
+  quantization(inputPointCloud);
 
   // geometry encoding
-
   if (1) {
     PayloadBuffer payload(PayloadType::kGeometryBrick);
 
     pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
     clock_user.start();
 
-    if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
-      encodeGeometryBrick(&payload);
-    }
-    if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
-      bool hasColor = inputPointCloud.hasColors();
-      bool hasReflectance = inputPointCloud.hasReflectances();
-      if (encodeTrisoup(hasColor, hasReflectance, &payload))
-        return -1;
-    }
+    encodeGeometryBrick(&payload);
 
     clock_user.stop();
 
@@ -256,6 +227,10 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   // the current node dimension (log2) encompasing maxBB
   int nodeSizeLog2 = ceillog2(maxBB + 1);
 
+  // todo(df): consider removal of trisoup_depth
+  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup)
+    nodeSizeLog2 = _gps->trisoup_depth;
+
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geomBoxOrigin.x() = int(minPositions.x());
@@ -274,7 +249,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
     encodeGeometryOctree(*_gps, gbh, pointCloud, &arithmeticEncoder);
   }
-  // todo(df): move trisoup coding here
+  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+    encodeGeometryTrisoup(*_gps, gbh, pointCloud, &arithmeticEncoder);
+  }
 
   uint32_t dataLen = arithmeticEncoder.stop_encoder();
   std::copy_n(arithmeticEncoder.buffer(), dataLen, std::back_inserter(*buf));
@@ -316,62 +293,6 @@ PCCTMC3Encoder3::reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
 
 //----------------------------------------------------------------------------
 
-int
-PCCTMC3Encoder3::encodeTrisoup(
-  bool hasColor, bool hasReflectance, PayloadBuffer* buf)
-{
-  // todo(?): port TMC1 geometry encoder
-  // todo(?): fix TMC1 to output where it is told not requiring an extra
-  //          level of guesswork to find the output file.
-  pcc::mkdir("outbin");
-  std::string cmd =
-    "TMC1_geometryEncode"
-    " -inframe verticesInFrameCoords.ply"
-    " -outbin outbin"
-    " -outref refinedVertices.ply"
-    " -depth "
-    + std::to_string(_gps->trisoup_depth) + " -level "
-    + std::to_string(_gps->trisoup_triangle_level)
-    + " -format binary_little_endian";
-  if (int err = system(cmd.c_str())) {
-    std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-    return -1;
-  }
-
-  // todo(?): port interpolator
-  cmd =
-    "TMC1_voxelize"
-    " -inref refinedVertices.ply"
-    " -outvox voxelizedVertices.ply"
-    " -depth "
-    + std::to_string(_gps->trisoup_depth) + " -format binary_little_endian";
-  if (int err = system(cmd.c_str())) {
-    std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-    return -1;
-  }
-
-  // Read in quantizedPointCloud file.
-  if (!pointCloud.read("voxelizedVertices.ply")) {
-    std::cerr << "Failed to open voxelizedVertices.ply\n";
-    return -1;
-  }
-  pointCloud.addRemoveAttributes(hasColor, hasReflectance);
-
-  // encapsulate the TMC1 "bitstream"
-  std::ifstream fin("outbin/outbin_0000.bin", std::ios::binary);
-  if (!fin.is_open()) {
-    std::cerr << "failed to open tmc1 bitstream\n";
-    return -1;
-  }
-
-  std::copy(
-    std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>(),
-    std::back_inserter(*buf));
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-
 void
 PCCTMC3Encoder3::computeMinPositions(const PCCPointSet3& inputPointCloud)
 {
@@ -398,14 +319,25 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   if (_gps->geom_codec_type == GeometryCodecType::kOctree)
     computeMinPositions(inputPointCloud);
 
+  PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+    // NB: Since trisoup forces the octree root node size, and the
+    //     quantiser above rounds half away from zero it is possible that
+    //     an input ranged [0,2**n) becomes [0,2**m], requiring an octree
+    //     root node size of 2**(m+1).
+    // todo(??): consider truncation towards zero in quantisation.
+    int32_t maxval = (1 << _gps->trisoup_depth) - 1;
+    clampBox = PCCBox3<int32_t>{{0, 0, 0}, {maxval, maxval, maxval}};
+  }
+
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
-      _sps->seq_source_geom_scale_factor, -minPositions, inputPointCloud,
-      &pointCloud);
+      _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
+      inputPointCloud, &pointCloud);
   } else {
     quantizePositions(
-      _sps->seq_source_geom_scale_factor, -minPositions, inputPointCloud,
-      &pointCloud);
+      _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
+      inputPointCloud, &pointCloud);
   }
 
   const size_t pointCount = pointCloud.getPointCount();

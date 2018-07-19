@@ -55,6 +55,20 @@ void decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   o3dgc::Arithmetic_Codec* arithmeticDecoder);
 
+//----------------------------------------------------------------------------
+
+void encodeGeometryTrisoup(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticEncoder);
+
+void decodeGeometryTrisoup(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticDecoder);
+
 //============================================================================
 
 }  // namespace pcc

@@ -39,6 +39,8 @@
 
 #include "ArithmeticCodec.h"
 #include "PCCMath.h"
+#include "PCCPointSet.h"
+#include "hls.h"
 #include "ringbuf.h"
 
 namespace pcc {
@@ -90,6 +92,23 @@ void updateGeometryNeighState(
   int childIdx,
   uint8_t neighPattern,
   uint8_t parentOccupancy);
+
+//---------------------------------------------------------------------------
+// :: octree encoder exposing internal ringbuffer
+
+void encodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticEncoder,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
+
+void decodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticDecoder,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 //---------------------------------------------------------------------------
 // Determine if direct coding is permitted.

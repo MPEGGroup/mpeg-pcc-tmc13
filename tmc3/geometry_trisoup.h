@@ -35,70 +35,64 @@
 
 #pragma once
 
-#include <functional>
-#include <map>
-#include <string>
+#include <cstdint>
 #include <vector>
 
-#include "PayloadBuffer.h"
-#include "PCCMath.h"
 #include "PCCPointSet.h"
-#include "hls.h"
+#include "geometry_octree.h"
+#include "ringbuf.h"
 
 namespace pcc {
 
-struct EncoderParams {
-  SequenceParameterSet sps;
-  GeometryParameterSet gps;
+//============================================================================
 
-  // NB: information about attributes is split between the SPS and the APS.
-  //  => The SPS enumerates the attributes, the APS controls coding params.
-  std::vector<AttributeParameterSet> aps;
+void determineTrisoupVertices(
+  const ringbuf<PCCOctree3Node>& leaves,
+  std::vector<bool>& segind,
+  std::vector<uint8_t>& vertices,
+  const PCCPointSet3& pointCloud,
+  const int defaultBlockWidth);
 
-  // todo(df): this should go away
-  std::map<std::string, int> attributeIdxMap;
-
-  // Filename for saving recoloured point cloud.
-  std::string postRecolorPath;
-};
+void decodeTrisoupCommon(
+  const ringbuf<PCCOctree3Node>& leaves,
+  const std::vector<bool>& segind,
+  const std::vector<uint8_t>& vertices,
+  PCCPointSet3& pointCloud,
+  const int defaultBlockWidth);
 
 //============================================================================
 
-class PCCTMC3Encoder3 {
-public:
-  PCCTMC3Encoder3() { init(); }
-  PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
-  PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
-  ~PCCTMC3Encoder3() = default;
+struct TrisoupSegment {
+  PCCVector3<uint32_t> startpos;  // start point of edge segment
+  PCCVector3<uint32_t> endpos;    // end point of edge segment
 
-  void init();
-
-  int compress(
-    const PCCPointSet3& inputPointCloud,
-    EncoderParams* params,
-    std::function<void(const PayloadBuffer&)> outputFn,
-    PCCPointSet3* reconstructedCloud = nullptr);
-
-private:
-  void reconstructedPointCloud(PCCPointSet3* reconstructedCloud);
-
-  void encodeGeometryBrick(PayloadBuffer* buf);
-
-  void computeMinPositions(const PCCPointSet3& inputPointCloud);
-
-  void quantization(const PCCPointSet3& inputPointCloud);
-
-private:
-  // todo(df): minPositions is unscaled -- which isn't quite correct.
-  PCCVector3D minPositions;
-  PCCBox3<uint32_t> boundingBox;
-  PCCPointSet3 pointCloud;
-
-  // The active parameter sets
-  const SequenceParameterSet* _sps;
-  const GeometryParameterSet* _gps;
-  std::vector<const AttributeParameterSet*> _aps;
+  int index;        // index of segment, to reorder after sorting
+  int uniqueIndex;  // index of uniqueSegment
+  int vertex;       // distance along segment for intersection (else -1)
 };
+
+struct TrisoupSegmentEnc : public TrisoupSegment {
+  TrisoupSegmentEnc(
+    const PCCVector3<uint32_t>& startpos,
+    const PCCVector3<uint32_t>& endpos,
+    int index,
+    int uniqueIndex,
+    int vertex,
+    int count,
+    int distanceSum)
+    : TrisoupSegment{startpos, endpos, index, uniqueIndex, vertex}
+    , count(count)
+    , distanceSum(distanceSum)
+  {}
+
+  int count;        // count of voxels adjacent to this segment
+  int distanceSum;  // sum of distances (along segment) of adjacent voxels
+};
+
+//----------------------------------------------------------------------------
+// comparison for sorting
+
+bool operator<(const TrisoupSegment& s1, const TrisoupSegment& s2);
 
 //============================================================================
 

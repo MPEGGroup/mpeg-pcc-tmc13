@@ -254,7 +254,8 @@ decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder)
+  o3dgc::Arithmetic_Codec* arithmeticDecoder,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   GeometryOctreeDecoder decoder(arithmeticDecoder);
 
@@ -265,6 +266,11 @@ decodeGeometryOctree(
 
   // the current node dimension (log2)
   int nodeSizeLog2 = gbh.geom_max_node_size_log2;
+
+  // termination for trisoup
+  int terminalNodeSizeLog2 = 0;
+  if (gps.geom_codec_type == GeometryCodecType::kTriSoup)
+    terminalNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
 
   // push the first node
   fifo.emplace_back();
@@ -299,7 +305,12 @@ decodeGeometryOctree(
       nodeSizeLog2--;
       numNodesNextLvl = 0;
       occupancyAtlasOrigin = 0xffffffff;
+
+      // allow partial tree encoding using trisoup
+      if (nodeSizeLog2 == terminalNodeSizeLog2)
+        break;
     }
+
     PCCOctree3Node& node0 = fifo.front();
 
     if (gps.neighbour_avail_boundary_log2) {
@@ -389,6 +400,23 @@ decodeGeometryOctree(
       }
     }
   }
+
+  // return partial coding result
+  if (nodesRemaining) {
+    *nodesRemaining = std::move(fifo);
+  }
+}
+
+//-------------------------------------------------------------------------
+
+void
+decodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticDecoder)
+{
+  decodeGeometryOctree(gps, gbh, pointCloud, arithmeticDecoder, nullptr);
 }
 
 //============================================================================

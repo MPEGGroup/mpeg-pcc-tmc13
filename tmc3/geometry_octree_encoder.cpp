@@ -250,7 +250,8 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticEncoder)
+  o3dgc::Arithmetic_Codec* arithmeticEncoder,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   GeometryOctreeEncoder encoder(arithmeticEncoder);
 
@@ -282,6 +283,11 @@ encodeGeometryOctree(
   // the initial node size is the root node's
   int nodeSizeLog2 = gbh.geom_max_node_size_log2;
 
+  // termination for trisoup
+  int terminalNodeSizeLog2 = 0;
+  if (gps.geom_codec_type == GeometryCodecType::kTriSoup)
+    terminalNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
+
   // this counter represents fifo.end() - fifoCurrLvlEnd().
   // ie, the number of nodes added to the next level of the tree
   int numNodesNextLvl = 0;
@@ -300,6 +306,10 @@ encodeGeometryOctree(
       numNodesNextLvl = 0;
       occupancyAtlasOrigin = 0xffffffff;
       nodeSizeLog2--;
+
+      // allow partial tree encoding using trisoup
+      if (nodeSizeLog2 == terminalNodeSizeLog2)
+        break;
     }
 
     PCCOctree3Node& node0 = fifo.front();
@@ -428,6 +438,12 @@ encodeGeometryOctree(
     }
   }
 
+  // return partial coding result
+  if (nodesRemaining) {
+    *nodesRemaining = std::move(fifo);
+    return;
+  }
+
   ////
   // The following is to re-order the points according in the decoding
   // order since IDCM causes leaves to be coded earlier than they
@@ -453,6 +469,18 @@ encodeGeometryOctree(
   }
 
   swap(pointCloud, pointCloud2);
+}
+
+//============================================================================
+
+void
+encodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticEncoder)
+{
+  encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoder, nullptr);
 }
 
 //============================================================================

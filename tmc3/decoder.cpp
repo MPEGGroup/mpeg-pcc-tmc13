@@ -176,8 +176,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     decodeGeometryOctree(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
   }
   if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
-    if (decodeTrisoup(buf, _currentPointCloud))
-      return -1;
+    decodeGeometryTrisoup(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
   }
 
   arithmeticDecoder.stop_decoder();
@@ -232,71 +231,6 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
             << "s processing time (user): " << total_user.count() / 1000.0
             << " s\n";
   std::cout << std::endl;
-}
-
-//--------------------------------------------------------------------------
-
-int
-PCCTMC3Decoder3::decodeTrisoup(
-  const PayloadBuffer& buf, PCCPointSet3& pointCloud)
-{
-  assert(buf.type == PayloadType::kGeometryBrick);
-
-  // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
-  std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
-  if (!fout.is_open()) {
-    // maybe because directory does not exist; try again...
-    pcc::mkdir("outbin");
-    fout.open("outbin/outbin_0000.bin", std::ios::binary);
-    if (!fout.is_open())
-      return -1;
-  }
-  fout.write(buf.data(), buf.size());
-  if (!fout) {
-    return -1;
-  }
-  fout.close();
-
-  // Decompress geometry with TMC1.
-  std::string cmd;
-  cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
-  if (int err = system(cmd.c_str())) {
-    std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-    return -1;
-  }
-
-  cmd =
-    "TMC1_geometryDecode"
-    " -inbin outbin/outbin"
-    " -outref refinedVerticesDecoded.ply"
-    " -depth "
-    + std::to_string(_gps->trisoup_depth) + " -level "
-    + std::to_string(_gps->trisoup_triangle_level)
-    + " -format binary_little_endian";
-  if (int err = system(cmd.c_str())) {
-    std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-    return -1;
-  }
-
-  cmd =
-    "TMC1_voxelize"
-    " -inref refinedVerticesDecoded.ply"
-    " -outvox quantizedPointCloudDecoded.ply"
-    " -depth "
-    + std::to_string(_gps->trisoup_depth) + " -format binary_little_endian";
-  if (int err = system(cmd.c_str())) {
-    std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-    return -1;
-  }
-
-  bool hasColors = pointCloud.hasColors();
-  bool hasReflectances = pointCloud.hasReflectances();
-  if (!pointCloud.read("quantizedPointCloudDecoded.ply")) {
-    std::cerr << "Failed to read quantizedPointCloudDecoded.ply\n";
-    return -1;
-  }
-  pointCloud.addRemoveAttributes(hasColors, hasReflectances);
-  return 0;
 }
 
 //==========================================================================
