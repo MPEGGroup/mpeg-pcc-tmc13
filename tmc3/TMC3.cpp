@@ -145,6 +145,7 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
       params.encodeParameters.attributeEncodeParameters[name] = params_attr;
     };
 
+  /* clang-format off */
   // The definition of the program/config options, along with default values.
   //
   // NB: when updating the following tables:
@@ -157,132 +158,133 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   ("config,c", po::parseConfigFile, "configuration file name")
 
   ("mode", params.mode, CODEC_MODE_ENCODE,
-     "The encoding/decoding mode:\n"
-     "  0: encode\n"
-     "  1: decode\n"
-     // NB: the following forms are deprecated
-     "  2: encode with lossless geometry\n"
-     "  3: decode with lossless geometry")
+    "The encoding/decoding mode:\n"
+    "  0: encode\n"
+    "  1: decode\n"
+    // NB: the following forms are deprecated
+    "  2: encode with lossless geometry\n"
+    "  3: decode with lossless geometry")
 
   // i/o parameters
   ("reconstructedDataPath",
-     params.reconstructedDataPath, {},
-     "The ouput reconstructed pointcloud file path (decoder only)")
+    params.reconstructedDataPath, {},
+    "The ouput reconstructed pointcloud file path (decoder only)")
 
   ("uncompressedDataPath",
-     params.uncompressedDataPath, {},
-     "The input pointcloud file path")
+    params.uncompressedDataPath, {},
+    "The input pointcloud file path")
 
   ("compressedStreamPath",
-     params.compressedStreamPath, {},
-     "The compressed bitstream path (encoder=output, decoder=input)")
+    params.compressedStreamPath, {},
+    "The compressed bitstream path (encoder=output, decoder=input)")
 
   ("postRecolorPath",
-     params.encodeParameters.postRecolorPath, {},
-     "Recolored pointcloud file path (encoder only)")
+    params.encodeParameters.postRecolorPath, {},
+    "Recolored pointcloud file path (encoder only)")
 
   ("preInvScalePath",
-     params.decodeParameters.preInvScalePath, {},
-     "Pre inverse scaled pointcloud file path (decoder only)")
+    params.decodeParameters.preInvScalePath, {},
+    "Pre inverse scaled pointcloud file path (decoder only)")
 
   // general
   ("colorTransform",
-     params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
-     "The colour transform to be applied:\n"
-     "  0: none\n"
-     "  1: RGB to YCbCr (Rec.709)")
+    params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
+    "The colour transform to be applied:\n"
+    "  0: none\n"
+    "  1: RGB to YCbCr (Rec.709)")
 
   ("positionQuantizationScale",
-     params.encodeParameters.positionQuantizationScale, 1.,
-     "Scale factor to be applied to point positions during quantization process")
+    params.encodeParameters.positionQuantizationScale, 1.,
+    "Scale factor to be applied to point positions during quantization process")
 
   ("mergeDuplicatedPoints",
-     params.encodeParameters.mergeDuplicatedPoints, true,
-     "Enables removal of duplicated points")
+    params.encodeParameters.mergeDuplicatedPoints, true,
+    "Enables removal of duplicated points")
 
   ("roundOutputPositions",
-     params.decodeParameters.roundOutputPositions, false,
-     "todo(kmammou)")
+    params.decodeParameters.roundOutputPositions, false,
+    "todo(kmammou)")
 
   // tools
   ("geometryCodec",
-     params.encodeParameters.geometryCodec, GeometryCodecType::kOctree,
-     "Controls the method used to encode geometry:"
-     "  0: bypass (a priori)\n"
-     "  1: octree (TMC3)\n"
-     "  2: trisoup (TMC1)")
+    params.encodeParameters.geometryCodec, GeometryCodecType::kOctree,
+    "Controls the method used to encode geometry:"
+    "  0: bypass (a priori)\n"
+    "  1: octree (TMC3)\n"
+    "  2: trisoup (TMC1)")
 
   ("neighbourContextualisation",
-     params.encodeParameters.neighbourContextsEnabled, true,
-     "Contextualise geometry octree occupancy based on neighbour patterns")
+    params.encodeParameters.neighbourContextsEnabled, true,
+    "Contextualise geometry octree occupancy based on neighbour patterns")
 
   ("inferredDirectCodingMode",
-     params.encodeParameters.inferredDirectCodingModeEnabled, true,
-     "Permits early termination of the geometry octree for isolated points")
+    params.encodeParameters.inferredDirectCodingModeEnabled, true,
+    "Permits early termination of the geometry octree for isolated points")
 
   // (trisoup) geometry parameters
   ("triSoupDepth",  // log2(maxBB+1), where maxBB+1 is analogous to image width
-     params.encodeParameters.triSoup.depth, 10,
-     "Depth of voxels (reconstructed points) in trisoup geometry")
+    params.encodeParameters.triSoup.depth, 10,
+    "Depth of voxels (reconstructed points) in trisoup geometry")
 
   ("triSoupLevel",
-     params.encodeParameters.triSoup.level, 7,
-     "Level of triangles (reconstructed surface) in trisoup geometry")
+    params.encodeParameters.triSoup.level, 7,
+    "Level of triangles (reconstructed surface) in trisoup geometry")
 
   ("triSoupIntToOrigScale",  // reciprocal of positionQuantizationScale
-     params.encodeParameters.triSoup.intToOrigScale, 1.,
-     "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
+    params.encodeParameters.triSoup.intToOrigScale, 1.,
+    "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
 
   ("triSoupIntToOrigTranslation",
-     params.encodeParameters.triSoup.intToOrigTranslation, {0., 0., 0.},
-     "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
+    params.encodeParameters.triSoup.intToOrigTranslation, {0., 0., 0.},
+    "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
 
   // attribute processing
   //   NB: Attribute options are special in the way they are applied (see above)
   ("attribute",
-     attribute_setter,
-     "Encode the given attribute (NB, must appear after the"
-     "following attribute parameters)")
+    attribute_setter,
+    "Encode the given attribute (NB, must appear after the"
+    "following attribute parameters)")
 
   ("searchRange",
-     params_attr.searchRange, size_t(0),
-     "Attribute's todo(kmammou)")
+    params_attr.searchRange, size_t(0),
+    "Attribute's todo(kmammou)")
 
   ("transformType",
-     params_attr.transformType, TransformType::kIntegerLift,
-     "Coding method to use for attribute:\n"
-     "  0: Nearest neighbour prediction with integer lifting transform\n"
-     "  1: Region Adaptive Hierarchical Transform (RAHT)")
+    params_attr.transformType, TransformType::kIntegerLift,
+    "Coding method to use for attribute:\n"
+    "  0: Nearest neighbour prediction with integer lifting transform\n"
+    "  1: Region Adaptive Hierarchical Transform (RAHT)")
 
   ("rahtLeafDecimationDepth",
-     params_attr.binaryLevelThresholdRaht, 3,
-     "Sets coefficients to zero in the bottom n levels of RAHT tree. "
-     "Used for chroma-subsampling in attribute=color only.")
+    params_attr.binaryLevelThresholdRaht, 3,
+    "Sets coefficients to zero in the bottom n levels of RAHT tree. "
+    "Used for chroma-subsampling in attribute=color only.")
 
   ("rahtQuantizationStep",
-     params_attr.quantizationStepRaht, 1,
-     "Quantization step size used in RAHT")
+    params_attr.quantizationStepRaht, 1,
+    "Quantization step size used in RAHT")
 
   ("rahtDepth",
-     params_attr.depthRaht, 21,
-     "Number of bits for morton representation of an RAHT co-ordinate"
-     "component")
+    params_attr.depthRaht, 21,
+    "Number of bits for morton representation of an RAHT co-ordinate"
+    "component")
 
   ("numberOfNearestNeighborsInPrediction",
-     params_attr.numberOfNearestNeighborsInPrediction, size_t(4),
-     "Attribute's maximum number of nearest neighbors to be used for prediction")
+    params_attr.numberOfNearestNeighborsInPrediction, size_t(4),
+    "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("levelOfDetailCount",
-     params_attr.levelOfDetailCount, size_t(6),
-     "Attribute's number of levels of detail")
+    params_attr.levelOfDetailCount, size_t(6),
+    "Attribute's number of levels of detail")
 
   ("quantizationSteps",
-     params_attr.quantizationSteps, {},
-     "Attribute's list of quantization step sizes (one for each LoD)")
+    params_attr.quantizationSteps, {},
+    "Attribute's list of quantization step sizes (one for each LoD)")
 
   ("dist2", params_attr.dist2, {},
-     "Attribute's list of squared distances (one for each LoD)")
+    "Attribute's list of squared distances (one for each LoD)")
   ;
+  /* clang-format on */
 
 
   po::setDefaults(opts);
