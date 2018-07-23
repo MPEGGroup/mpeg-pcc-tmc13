@@ -1,0 +1,4 @@
+---
+# Don't apply project formatting to bundled third party dependencies
+DisableFormat: true
+SortIncludes: false
