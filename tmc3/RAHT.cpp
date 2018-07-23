@@ -60,9 +60,15 @@ namespace pcc {
  * Note output weights are typically used only for the purpose of
  * sorting or bucketing for entropy coding.
  */
-void regionAdaptiveHierarchicalTransform(
-  long long *mortonCode, float *attributes, float *weight, int *binaryLayer,
-  int attribCount, int voxelCount, int depth)
+void
+regionAdaptiveHierarchicalTransform(
+  long long* mortonCode,
+  float* attributes,
+  float* weight,
+  int* binaryLayer,
+  int attribCount,
+  int voxelCount,
+  int depth)
 {
   // Prologue, common to both RAHT and IRAHT:
 
@@ -83,11 +89,12 @@ void regionAdaptiveHierarchicalTransform(
   // I[b] = indices of Morton codes of lead voxels at binary level b
   // W[b] = weights of cells at binary level b
   // F[b] = boolean flags to indicate left siblings at binary level b
-  int **I = new int *[3 * depth];
-  int **W = new int *[3 * depth];
-  bool **F = new bool *[3 * depth];
-  int *N = new int[3 * depth];                // length of above arrays at each level
-  long long *Mb = new long long[voxelCount];  // Morton codes of lead voxels at binary level b
+  int** I = new int*[3 * depth];
+  int** W = new int*[3 * depth];
+  bool** F = new bool*[3 * depth];
+  int* N = new int[3 * depth];  // length of above arrays at each level
+  long long* Mb = new long long
+    [voxelCount];  // Morton codes of lead voxels at binary level b
 
   // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
   int Nparent = voxelCount;
@@ -95,16 +102,17 @@ void regionAdaptiveHierarchicalTransform(
     // Get indices for each node at this level.
     int Nb = Nparent;
     N[b] = Nb;
-    int *Ib = new int[Nb];
+    int* Ib = new int[Nb];
     I[b] = Ib;
     if (b == 0) {
       // Initialize indices of coefficients at level b.
-      for (int n = 0; n < Nb; n++) Ib[n] = n;
+      for (int n = 0; n < Nb; n++)
+        Ib[n] = n;
     } else {
       // Define indices of coefficients at level b.
       int Nchild = N[b - 1];    // number of nodes at child level
-      int *Ichild = I[b - 1];   // indices of nodes at child level
-      bool *Fchild = F[b - 1];  // left-sibling flags at child level
+      int* Ichild = I[b - 1];   // indices of nodes at child level
+      bool* Fchild = F[b - 1];  // left-sibling flags at child level
       int i = 0;
       Ib[i++] = Ichild[0];  // always promote index of child[0] to parent
       for (int n = 1; n < Nchild; n++) {
@@ -120,24 +128,27 @@ void regionAdaptiveHierarchicalTransform(
     }
 
     // Collect Morton codes for each node at this level.
-    for (int n = 0; n < Nb; n++) Mb[n] = mortonCode[Ib[n]];
+    for (int n = 0; n < Nb; n++)
+      Mb[n] = mortonCode[Ib[n]];
 
     // Compute Weights for each node at this level.
-    int *Wb = new int[Nb];
+    int* Wb = new int[Nb];
     W[b] = Wb;
-    for (int n = 0; n < Nb - 1; n++) Wb[n] = Ib[n + 1] - Ib[n];
+    for (int n = 0; n < Nb - 1; n++)
+      Wb[n] = Ib[n + 1] - Ib[n];
     Wb[Nb - 1] = voxelCount - Ib[Nb - 1];
 
     // Flag whether this is a left sibling for each node at this level.
-    bool *Fb = new bool[Nb - 1];
+    bool* Fb = new bool[Nb - 1];
     F[b] = Fb;
-    long long mask =
-        ((long long)1 << (3 * depth)) - ((long long)1 << (b + 1));  // turn on all bits above b
-    Nparent = 1;  // number of nodes at parent level
+    long long mask = ((long long)1 << (3 * depth))
+      - ((long long)1 << (b + 1));  // turn on all bits above b
+    Nparent = 1;                    // number of nodes at parent level
     for (int n = 0; n < Nb - 1; n++) {
       long long D = Mb[n + 1] ^ Mb[n];  // path difference
       Fb[n] = (D & mask) == 0;          // is left sibling if prefix is shared
-      if (Fb[n] == false) Nparent++;    // count non-left-siblings
+      if (Fb[n] == false)
+        Nparent++;  // count non-left-siblings
     }
   }
 
@@ -166,8 +177,8 @@ void regionAdaptiveHierarchicalTransform(
   // end
 
   // Allocate local workspace for attributes.
-  float *x0 = new float[attribCount];
-  float *x1 = new float[attribCount];
+  float* x0 = new float[attribCount];
+  float* x1 = new float[attribCount];
 
   // Initialize weights.
   for (int n = 0; n < voxelCount; n++) {
@@ -178,9 +189,9 @@ void regionAdaptiveHierarchicalTransform(
   // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
   for (int b = 0; b < 3 * depth; b++) {
     int Nb = N[b];
-    int *Ib = I[b];
-    int *Wb = W[b];
-    bool *Fb = F[b];
+    int* Ib = I[b];
+    int* Wb = W[b];
+    bool* Fb = F[b];
 
     // Process all (left,right) siblings.
     for (int n = 0; n < Nb - 1; n++) {
@@ -245,9 +256,13 @@ void regionAdaptiveHierarchicalTransform(
  * Note transform is done 'in-place' (i.e., array 'attributes' contains
  * transformed attributes on input, and attributes on output).
  */
-void regionAdaptiveHierarchicalInverseTransform(
-  long long *mortonCode, float *attributes,
-  int attribCount, int voxelCount, int depth)
+void
+regionAdaptiveHierarchicalInverseTransform(
+  long long* mortonCode,
+  float* attributes,
+  int attribCount,
+  int voxelCount,
+  int depth)
 {
   // Prologue, common to both RAHT and IRAHT:
 
@@ -268,11 +283,12 @@ void regionAdaptiveHierarchicalInverseTransform(
   // I[b] = indices of Morton codes of lead voxels at binary level b
   // W[b] = weights of cells at binary level b
   // F[b] = boolean flags to indicate left siblings at binary level b
-  int **I = new int *[3 * depth];
-  int **W = new int *[3 * depth];
-  bool **F = new bool *[3 * depth];
-  int *N = new int[3 * depth];                // length of above arrays at each level
-  long long *Mb = new long long[voxelCount];  // Morton codes of lead voxels at binary level b
+  int** I = new int*[3 * depth];
+  int** W = new int*[3 * depth];
+  bool** F = new bool*[3 * depth];
+  int* N = new int[3 * depth];  // length of above arrays at each level
+  long long* Mb = new long long
+    [voxelCount];  // Morton codes of lead voxels at binary level b
 
   // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
   int Nparent = voxelCount;
@@ -280,16 +296,17 @@ void regionAdaptiveHierarchicalInverseTransform(
     // Get indices for each node at this level.
     int Nb = Nparent;
     N[b] = Nb;
-    int *Ib = new int[Nb];
+    int* Ib = new int[Nb];
     I[b] = Ib;
     if (b == 0) {
       // Initialize indices of coefficients at level b.
-      for (int n = 0; n < Nb; n++) Ib[n] = n;
+      for (int n = 0; n < Nb; n++)
+        Ib[n] = n;
     } else {
       // Define indices of coefficients at level b.
       int Nchild = N[b - 1];    // number of nodes at child level
-      int *Ichild = I[b - 1];   // indices of nodes at child level
-      bool *Fchild = F[b - 1];  // left-sibling flags at child level
+      int* Ichild = I[b - 1];   // indices of nodes at child level
+      bool* Fchild = F[b - 1];  // left-sibling flags at child level
       int i = 0;
       Ib[i++] = Ichild[0];  // always promote index of child[0] to parent
       for (int n = 1; n < Nchild; n++) {
@@ -305,24 +322,27 @@ void regionAdaptiveHierarchicalInverseTransform(
     }
 
     // Collect Morton codes for each node at this level.
-    for (int n = 0; n < Nb; n++) Mb[n] = mortonCode[Ib[n]];
+    for (int n = 0; n < Nb; n++)
+      Mb[n] = mortonCode[Ib[n]];
 
     // Compute Weights for each node at this level.
-    int *Wb = new int[Nb];
+    int* Wb = new int[Nb];
     W[b] = Wb;
-    for (int n = 0; n < Nb - 1; n++) Wb[n] = Ib[n + 1] - Ib[n];
+    for (int n = 0; n < Nb - 1; n++)
+      Wb[n] = Ib[n + 1] - Ib[n];
     Wb[Nb - 1] = voxelCount - Ib[Nb - 1];
 
     // Flag whether this is a left sibling for each node at this level.
-    bool *Fb = new bool[Nb - 1];
+    bool* Fb = new bool[Nb - 1];
     F[b] = Fb;
-    long long mask =
-        ((long long)1 << (3 * depth)) - ((long long)1 << (b + 1));  // turn on all bits above b
-    Nparent = 1;  // number of nodes at parent level
+    long long mask = ((long long)1 << (3 * depth))
+      - ((long long)1 << (b + 1));  // turn on all bits above b
+    Nparent = 1;                    // number of nodes at parent level
     for (int n = 0; n < Nb - 1; n++) {
       long long D = Mb[n + 1] ^ Mb[n];  // path difference
       Fb[n] = (D & mask) == 0;          // is left sibling if prefix is shared
-      if (Fb[n] == false) Nparent++;    // count non-left-siblings
+      if (Fb[n] == false)
+        Nparent++;  // count non-left-siblings
     }
   }
 
@@ -346,15 +366,15 @@ void regionAdaptiveHierarchicalInverseTransform(
   // end
 
   // Allocate local workspace for attributes.
-  float *x0 = new float[attribCount];
-  float *x1 = new float[attribCount];
+  float* x0 = new float[attribCount];
+  float* x1 = new float[attribCount];
 
   // Process one level at a time, root (b=3*depth-1) to from leaves (b=0).
   for (int b = 3 * depth - 1; b >= 0; b--) {
     int Nb = N[b];
-    int *Ib = I[b];
-    int *Wb = W[b];
-    bool *Fb = F[b];
+    int* Ib = I[b];
+    int* Wb = W[b];
+    bool* Fb = F[b];
 
     // Process all (left,right) siblings.
     for (int n = 0; n < Nb - 1; n++) {

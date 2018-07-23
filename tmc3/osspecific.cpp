@@ -36,25 +36,27 @@
 #include "osspecific.h"
 
 #if _POSIX_C_SOURCE
-# include <fcntl.h>
-# include <sys/stat.h>
+#  include <fcntl.h>
+#  include <sys/stat.h>
 #endif
 
 #if _WIN32
-# include <direct.h>
+#  include <direct.h>
 #endif
 
 /* NB: if this file gets large, split into per-os variants */
 
 #if _WIN32
-int pcc::mkdir(const char* path)
+int
+pcc::mkdir(const char* path)
 {
   return _mkdir(path);
 }
 #endif
 
 #if _POSIX_C_SOURCE
-int pcc::mkdir(const char* path)
+int
+pcc::mkdir(const char* path)
 {
   return ::mkdir(path, 0775);
 }

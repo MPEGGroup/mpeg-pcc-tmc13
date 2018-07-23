@@ -40,7 +40,9 @@
 using namespace std;
 using namespace pcc;
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[])
+{
   cout << "MPEG PCC tmc3 version " << ::pcc::version << endl;
 
   Parameters params;
@@ -55,8 +57,10 @@ int main(int argc, char *argv[]) {
   clock_wall.start();
 
   int ret = 0;
-  if (params.mode == CODEC_MODE_ENCODE || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY ||
-      params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
+  if (
+    params.mode == CODEC_MODE_ENCODE
+    || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY
+    || params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
     ret = Compress(params, clock_user);
   } else {
     ret = Decompress(params, clock_user);
@@ -76,56 +80,75 @@ int main(int argc, char *argv[]) {
 //---------------------------------------------------------------------------
 // :: Command line / config parsing helpers
 
-template <typename T>
-static std::istream& readUInt(std::istream &in, T &val) {
+template<typename T>
+static std::istream&
+readUInt(std::istream& in, T& val)
+{
   unsigned int tmp;
   in >> tmp;
   val = T(tmp);
   return in;
 }
 
-static std::istream& operator>>(std::istream &in, CodecMode &val) {
+static std::istream&
+operator>>(std::istream& in, CodecMode& val)
+{
   return readUInt(in, val);
 }
 
-static std::istream& operator>>(std::istream &in, ColorTransform &val) {
+static std::istream&
+operator>>(std::istream& in, ColorTransform& val)
+{
   return readUInt(in, val);
 }
 
 namespace pcc {
-static std::istream& operator>>(std::istream &in, TransformType &val) {
+static std::istream&
+operator>>(std::istream& in, TransformType& val)
+{
   return readUInt(in, val);
-}}
+}
+}  // namespace pcc
 
 namespace pcc {
-static std::istream& operator>>(std::istream &in, GeometryCodecType &val) {
+static std::istream&
+operator>>(std::istream& in, GeometryCodecType& val)
+{
   return readUInt(in, val);
-}}
+}
+}  // namespace pcc
 
 namespace pcc {
-static std::ostream& operator<<(std::ostream &out, const TransformType &val) {
+static std::ostream&
+operator<<(std::ostream& out, const TransformType& val)
+{
   switch (val) {
   case TransformType::kIntegerLift: out << "0 (IntegerLifting)"; break;
-  case TransformType::kRAHT:        out << "1 (RAHT)"; break;
+  case TransformType::kRAHT: out << "1 (RAHT)"; break;
   }
   return out;
-}}
+}
+}  // namespace pcc
 
 namespace pcc {
-static std::ostream& operator<<(std::ostream &out, const GeometryCodecType &val) {
+static std::ostream&
+operator<<(std::ostream& out, const GeometryCodecType& val)
+{
   switch (val) {
-  case GeometryCodecType::kBypass:  out << "0 (Bypass)"; break;
-  case GeometryCodecType::kOctree:  out << "1 (TMC1 Octree)"; break;
+  case GeometryCodecType::kBypass: out << "0 (Bypass)"; break;
+  case GeometryCodecType::kOctree: out << "1 (TMC1 Octree)"; break;
   case GeometryCodecType::kTriSoup: out << "2 (TMC3 TriSoup)"; break;
   }
   return out;
-}}
+}
+}  // namespace pcc
 
 //---------------------------------------------------------------------------
 // :: Command line / config parsing
 
-bool ParseParameters(int argc, char *argv[], Parameters &params) {
-
+bool
+ParseParameters(int argc, char* argv[], Parameters& params)
+{
   namespace po = df::program_options_lite;
 
   PCCAttributeEncodeParamaters params_attr;
@@ -286,7 +309,6 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   ;
   /* clang-format on */
 
-
   po::setDefaults(opts);
   po::ErrorReporter err;
   const list<const char*>& argv_unhandled =
@@ -316,11 +338,11 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
   if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
     params.encodeParameters.positionQuantizationScale =
-        1.0 / params.encodeParameters.triSoup.intToOrigScale;
+      1.0 / params.encodeParameters.triSoup.intToOrigScale;
   }
 
   // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
-  for (auto &attr : params.encodeParameters.attributeEncodeParameters) {
+  for (auto& attr : params.encodeParameters.attributeEncodeParameters) {
     if (attr.second.transformType != TransformType::kIntegerLift) {
       attr.second.levelOfDetailCount = 0;
     }
@@ -329,24 +351,27 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   // sanity checks
   //  - validate that quantizationSteps, dist2
   //    of each attribute contain levelOfDetailCount elements.
-  for (const auto &attr : params.encodeParameters.attributeEncodeParameters) {
+  for (const auto& attr : params.encodeParameters.attributeEncodeParameters) {
     if (attr.second.transformType == TransformType::kIntegerLift) {
       int lod = attr.second.levelOfDetailCount;
 
       if (lod > 255) {
         err.error() << attr.first
-          << ".levelOfDetailCount must be less than 256\n";
+                    << ".levelOfDetailCount must be less than 256\n";
       }
       if (attr.second.dist2.size() != lod) {
-        err.error() << attr.first << ".dist2 does not have " << lod << " entries\n";
+        err.error() << attr.first << ".dist2 does not have " << lod
+                    << " entries\n";
       }
       if (attr.second.quantizationSteps.size() != lod) {
-        err.error() << attr.first << ".quantizationSteps does not have " << lod << " entries\n";
+        err.error() << attr.first << ".quantizationSteps does not have " << lod
+                    << " entries\n";
       }
-      if (attr.second.numberOfNearestNeighborsInPrediction >
-          PCCTMC3MaxPredictionNearestNeighborCount)
-      {
-        err.error() << attr.first
+      if (
+        attr.second.numberOfNearestNeighborsInPrediction
+        > PCCTMC3MaxPredictionNearestNeighborCount) {
+        err.error()
+          << attr.first
           << ".numberOfNearestNeighborsInPrediction must be less than "
           << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
       }
@@ -368,8 +393,9 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
 
   // currently the attributes with lossless geometry require the source data
   // todo(?): remove this dependency by improving reporting
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass
-   && params.uncompressedDataPath.empty())
+  if (
+    params.encodeParameters.geometryCodec == GeometryCodecType::kBypass
+    && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
 
   // report the current configuration (only in the absence of errors so
@@ -383,16 +409,19 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
   } else if (params.mode == CODEC_MODE_DECODE) {
     cout << "\t mode                        decode\n";
   }
-  cout << "\t uncompressedDataPath        " << params.uncompressedDataPath << endl;
-  cout << "\t compressedStreamPath        " << params.compressedStreamPath << endl;
-  cout << "\t reconstructedDataPath       " << params.reconstructedDataPath << endl;
+  cout << "\t uncompressedDataPath        " << params.uncompressedDataPath
+       << endl;
+  cout << "\t compressedStreamPath        " << params.compressedStreamPath
+       << endl;
+  cout << "\t reconstructedDataPath       " << params.reconstructedDataPath
+       << endl;
   cout << "\t colorTransform              " << params.colorTransform << endl;
   if (encode) {
     cout << "\t geometryCodec               "
          << params.encodeParameters.geometryCodec << endl;
 
-    cout << "\t positionQuantizationScale   " << params.encodeParameters.positionQuantizationScale
-         << endl;
+    cout << "\t positionQuantizationScale   "
+         << params.encodeParameters.positionQuantizationScale << endl;
 
     if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree) {
       cout << "\t mergeDuplicatedPoints       "
@@ -404,30 +433,41 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     }
 
     if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
-      cout << "\t triSoupDepth                " << params.encodeParameters.triSoup.depth << endl;
-      cout << "\t triSoupLevel                " << params.encodeParameters.triSoup.level << endl;
-      cout << "\t triSoupIntToOrigScale       " << params.encodeParameters.triSoup.intToOrigScale << endl;
+      cout << "\t triSoupDepth                "
+           << params.encodeParameters.triSoup.depth << endl;
+      cout << "\t triSoupLevel                "
+           << params.encodeParameters.triSoup.level << endl;
+      cout << "\t triSoupIntToOrigScale       "
+           << params.encodeParameters.triSoup.intToOrigScale << endl;
       cout << "\t triSoupIntToOrigTranslation ";
-      for (const auto tr : params.encodeParameters.triSoup.intToOrigTranslation) {
+      for (const auto tr :
+           params.encodeParameters.triSoup.intToOrigTranslation) {
         cout << tr << " ";
       }
       cout << endl;
     }
-    for (const auto & attributeEncodeParameters : params.encodeParameters.attributeEncodeParameters) {
+    for (const auto& attributeEncodeParameters :
+         params.encodeParameters.attributeEncodeParameters) {
       cout << "\t " << attributeEncodeParameters.first << endl;
       cout << "\t\t transformType                          "
            << attributeEncodeParameters.second.transformType << endl;
 
-      if (attributeEncodeParameters.second.transformType == TransformType::kRAHT) {
+      if (
+        attributeEncodeParameters.second.transformType
+        == TransformType::kRAHT) {
         cout << "\t\t rahtQuantizationStep                   "
              << attributeEncodeParameters.second.quantizationStepRaht << endl;
         cout << "\t\t rahtDepth                              "
              << attributeEncodeParameters.second.depthRaht << endl;
       }
 
-      if (attributeEncodeParameters.second.transformType == TransformType::kIntegerLift) {
+      if (
+        attributeEncodeParameters.second.transformType
+        == TransformType::kIntegerLift) {
         cout << "\t\t numberOfNearestNeighborsInPrediction   "
-             << attributeEncodeParameters.second.numberOfNearestNeighborsInPrediction << endl;
+             << attributeEncodeParameters.second
+                  .numberOfNearestNeighborsInPrediction
+             << endl;
         cout << "\t\t searchRange                            "
              << attributeEncodeParameters.second.searchRange << endl;
         cout << "\t\t levelOfDetailCount                     "
@@ -438,7 +478,8 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
         }
         cout << endl;
         cout << "\t\t quantizationSteps                      ";
-        for (const auto qs : attributeEncodeParameters.second.quantizationSteps) {
+        for (const auto qs :
+             attributeEncodeParameters.second.quantizationSteps) {
           cout << qs << " ";
         }
         cout << endl;
@@ -446,16 +487,20 @@ bool ParseParameters(int argc, char *argv[], Parameters &params) {
     }
     cout << endl;
   } else {
-      cout << "\t roundOutputPositions        "
-           << params.decodeParameters.roundOutputPositions << '\n';
+    cout << "\t roundOutputPositions        "
+         << params.decodeParameters.roundOutputPositions << '\n';
   }
 
   return true;
 }
 
-int Compress(const Parameters &params, Stopwatch& clock) {
+int
+Compress(const Parameters& params, Stopwatch& clock)
+{
   PCCPointSet3 pointCloud;
-  if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
+  if (
+    !pointCloud.read(params.uncompressedDataPath)
+    || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
@@ -468,7 +513,7 @@ int Compress(const Parameters &params, Stopwatch& clock) {
   PCCTMC3Encoder3 encoder;
   PCCBitstream bitstream = {};
   const size_t predictedBitstreamSize =
-      encoder.estimateBitstreamSize(pointCloud, params.encodeParameters);
+    encoder.estimateBitstreamSize(pointCloud, params.encodeParameters);
   std::unique_ptr<uint8_t[]> buffer(new uint8_t[predictedBitstreamSize]);
   bitstream.buffer = buffer.get();
   bitstream.capacity = predictedBitstreamSize;
@@ -480,8 +525,8 @@ int Compress(const Parameters &params, Stopwatch& clock) {
   }
 
   int ret = encoder.compress(
-      pointCloud, params.encodeParameters, bitstream,
-      reconstructedPointCloud.get());
+    pointCloud, params.encodeParameters, bitstream,
+    reconstructedPointCloud.get());
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
@@ -495,7 +540,7 @@ int Compress(const Parameters &params, Stopwatch& clock) {
   if (!fout.is_open()) {
     return -1;
   }
-  fout.write(reinterpret_cast<const char *>(bitstream.buffer), bitstream.size);
+  fout.write(reinterpret_cast<const char*>(bitstream.buffer), bitstream.size);
   fout.close();
 
   if (!params.reconstructedDataPath.empty()) {
@@ -507,7 +552,9 @@ int Compress(const Parameters &params, Stopwatch& clock) {
 
   return 0;
 }
-int Decompress(const Parameters &params, Stopwatch &clock) {
+int
+Decompress(const Parameters& params, Stopwatch& clock)
+{
   PCCBitstream bitstream = {};
   ifstream fin(params.compressedStreamPath, ios::binary);
   if (!fin.is_open()) {
@@ -520,7 +567,7 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
   bitstream.buffer = buffer.get();
   bitstream.capacity = bitStreamSize;
   bitstream.size = 0;
-  fin.read(reinterpret_cast<char *>(bitstream.buffer), bitStreamSize);
+  fin.read(reinterpret_cast<char*>(bitstream.buffer), bitStreamSize);
   if (!fin) {
     return -1;
   }
@@ -533,7 +580,9 @@ int Decompress(const Parameters &params, Stopwatch &clock) {
 
   // read a priori geometry from input file for bypass case
   if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass) {
-    if (!pointCloud.read(params.uncompressedDataPath) || pointCloud.getPointCount() == 0) {
+    if (
+      !pointCloud.read(params.uncompressedDataPath)
+      || pointCloud.getPointCount() == 0) {
       cout << "Error: can't open input file!" << endl;
       return -1;
     }

@@ -69,46 +69,46 @@ struct PCCAttributeEncodeParamaters {
 class AttributeEncoder {
 public:
   void buildPredictors(
-    const PCCAttributeEncodeParamaters &attributeParams,
-    const PCCPointSet3 &pointCloud);
+    const PCCAttributeEncodeParamaters& attributeParams,
+    const PCCPointSet3& pointCloud);
 
   void encodeHeader(
-    const PCCAttributeEncodeParamaters &attributeParams,
-    const std::string &attributeName,
-    PCCBitstream &bitstream) const;
+    const PCCAttributeEncodeParamaters& attributeParams,
+    const std::string& attributeName,
+    PCCBitstream& bitstream) const;
 
   void encodeReflectances(
-    const PCCAttributeEncodeParamaters &reflectanceParams,
-    PCCPointSet3 &pointCloud,
-    PCCBitstream &bitstream);
+    const PCCAttributeEncodeParamaters& reflectanceParams,
+    PCCPointSet3& pointCloud,
+    PCCBitstream& bitstream);
 
   void encodeColors(
-    const PCCAttributeEncodeParamaters &colorParams,
-    PCCPointSet3 &pointCloud,
-    PCCBitstream &bitstream);
+    const PCCAttributeEncodeParamaters& colorParams,
+    PCCPointSet3& pointCloud,
+    PCCBitstream& bitstream);
 
 protected:
   // todo(df): consider alternative encapsulation
 
   void encodeReflectancesIntegerLift(
-    const PCCAttributeEncodeParamaters &reflectanceParams,
-    PCCPointSet3 &pointCloud,
-    PCCResidualsEncoder &encoder);
+    const PCCAttributeEncodeParamaters& reflectanceParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
 
   void encodeColorsIntegerLift(
-    const PCCAttributeEncodeParamaters &colorParams,
-    PCCPointSet3 &pointCloud,
-    PCCResidualsEncoder &encoder);
+    const PCCAttributeEncodeParamaters& colorParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
-    const PCCAttributeEncodeParamaters &reflectanceParams,
-    PCCPointSet3 &pointCloud,
-    PCCResidualsEncoder &encoder);
+    const PCCAttributeEncodeParamaters& reflectanceParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
-    const PCCAttributeEncodeParamaters &colorParams,
-    PCCPointSet3 &pointCloud,
-    PCCResidualsEncoder &encoder);
+    const PCCAttributeEncodeParamaters& colorParams,
+    PCCPointSet3& pointCloud,
+    PCCResidualsEncoder& encoder);
 
 private:
   std::vector<PCCPredictor> predictors;

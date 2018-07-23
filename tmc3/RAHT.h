@@ -46,7 +46,8 @@ struct WeightWithIndex {
   int index;
 
   // NB: this definition ranks larger weights before smaller values.
-  bool operator<(const WeightWithIndex &rhs) const {
+  bool operator<(const WeightWithIndex& rhs) const
+  {
     // NB: index used to maintain stable sort
     if (weight == rhs.weight)
       return index < rhs.index;
@@ -58,7 +59,8 @@ struct MortonCodeWithIndex {
   uint64_t mortonCode;
   size_t index;
 
-  bool operator<(const MortonCodeWithIndex &rhs) const {
+  bool operator<(const MortonCodeWithIndex& rhs) const
+  {
     // NB: index used to maintain stable sort
     if (mortonCode == rhs.mortonCode)
       return index < rhs.index;
@@ -67,11 +69,19 @@ struct MortonCodeWithIndex {
 };
 
 void regionAdaptiveHierarchicalTransform(
-  long long *mortonCode, float *attributes, float *weight, int *binaryLayer,
-  int attribCount, int voxelCount, int depth);
+  long long* mortonCode,
+  float* attributes,
+  float* weight,
+  int* binaryLayer,
+  int attribCount,
+  int voxelCount,
+  int depth);
 
 void regionAdaptiveHierarchicalInverseTransform(
-  long long *mortonCode, float *attributes,
-  int attribCount, int voxelCount, int depth);
+  long long* mortonCode,
+  float* attributes,
+  int attribCount,
+  int voxelCount,
+  int depth);
 
 } /* namespace pcc */

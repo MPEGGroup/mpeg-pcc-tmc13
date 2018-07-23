@@ -50,7 +50,8 @@ const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
 // Describes the geometry coding method.
-enum class GeometryCodecType {
+enum class GeometryCodecType
+{
   // No geometry coding is performed (geometry is known a priori)
   kBypass = 0,
   // TMC3 lossless geometry codec using ocrees
@@ -59,7 +60,8 @@ enum class GeometryCodecType {
   kTriSoup = 2,
 };
 
-enum class TransformType {
+enum class TransformType
+{
   kIntegerLift = 0,
   kRAHT = 1
 };
@@ -101,7 +103,8 @@ struct PCCPredictor {
   uint32_t levelOfDetailIndex;
   PCCNeighborInfo neighbors[PCCTMC3MaxPredictionNearestNeighborCount];
 
-  PCCColor3B predictColor(const PCCPointSet3 &pointCloud) const {
+  PCCColor3B predictColor(const PCCPointSet3& pointCloud) const
+  {
     PCCVector3D predicted(0.0);
     for (size_t i = 0; i < neighborCount; ++i) {
       const PCCColor3B color = pointCloud.getColor(neighbors[i].index);
@@ -110,18 +113,22 @@ struct PCCPredictor {
         predicted[k] += w * color[k];
       }
     }
-    return PCCColor3B(uint8_t(std::round(predicted[0])), uint8_t(std::round(predicted[1])),
-                      uint8_t(std::round(predicted[2])));
+    return PCCColor3B(
+      uint8_t(std::round(predicted[0])), uint8_t(std::round(predicted[1])),
+      uint8_t(std::round(predicted[2])));
   }
-  uint16_t predictReflectance(const PCCPointSet3 &pointCloud) const {
+  uint16_t predictReflectance(const PCCPointSet3& pointCloud) const
+  {
     double predicted(0.0);
     for (size_t i = 0; i < neighborCount; ++i) {
-      predicted += neighbors[i].weight * pointCloud.getReflectance(neighbors[i].index);
+      predicted +=
+        neighbors[i].weight * pointCloud.getReflectance(neighbors[i].index);
     }
     return uint16_t(std::round(predicted));
   }
 
-  void computeWeights(const size_t neighborCount0) {
+  void computeWeights(const size_t neighborCount0)
+  {
     neighborCount = std::min(neighborCount0, maxNeighborCount);
     if (!neighborCount) {
       return;
@@ -137,7 +144,9 @@ struct PCCPredictor {
     }
   }
 
-  void init(const uint32_t current, const uint32_t reference, const uint32_t lodIndex) {
+  void init(
+    const uint32_t current, const uint32_t reference, const uint32_t lodIndex)
+  {
     index = current;
     neighborCount = (reference != PCC_UNDEFINED_INDEX);
     maxNeighborCount = neighborCount;
@@ -148,7 +157,9 @@ struct PCCPredictor {
   }
 };
 
-inline int64_t PCCQuantization(const int64_t value, const int64_t qs) {
+inline int64_t
+PCCQuantization(const int64_t value, const int64_t qs)
+{
   const int64_t shift = (qs / 3);
   if (!qs) {
     return value;
@@ -159,16 +170,22 @@ inline int64_t PCCQuantization(const int64_t value, const int64_t qs) {
   return -((shift - value) / qs);
 }
 
-inline int64_t PCCInverseQuantization(const int64_t value, const int64_t qs) {
+inline int64_t
+PCCInverseQuantization(const int64_t value, const int64_t qs)
+{
   return qs == 0 ? value : (value * qs);
 }
 
-inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
-                               const size_t numberOfNearestNeighborsInPrediction,
-                               const size_t levelOfDetailCount, const std::vector<size_t> &dist2,
-                               std::vector<PCCPredictor> &predictors,
-                               std::vector<uint32_t> &numberOfPointsPerLOD,
-                               std::vector<uint32_t> &indexes) {
+inline void
+PCCBuildPredictors(
+  const PCCPointSet3& pointCloud,
+  const size_t numberOfNearestNeighborsInPrediction,
+  const size_t levelOfDetailCount,
+  const std::vector<size_t>& dist2,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& numberOfPointsPerLOD,
+  std::vector<uint32_t>& indexes)
+{
   const size_t pointCount = pointCloud.getPointCount();
   predictors.resize(pointCount);
   const size_t initialBalanceTargetPointCount = 16;
@@ -186,7 +203,8 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
   PCCNNResult nNResult = {nearestNeighbors, 0};
   PCCIncrementalKdTree3 kdtree;
 
-  for (size_t lodIndex = 0; lodIndex < levelOfDetailCount && indexes.size() < pointCount;
+  for (size_t lodIndex = 0;
+       lodIndex < levelOfDetailCount && indexes.size() < pointCount;
        ++lodIndex) {
     const bool filterByDistance = (lodIndex + 1) != levelOfDetailCount;
     const double minDist2 = dist2[lodIndex];
@@ -198,22 +216,29 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
           nNQuery.point = pointCloud[current];
           kdtree.findNearestNeighbors2(nNQuery, nNResult);
         }
-        if (!filterByDistance || !nNResult.resultCount || nNResult.neighbors[0].dist2 >= minDist2) {
+        if (
+          !filterByDistance || !nNResult.resultCount
+          || nNResult.neighbors[0].dist2 >= minDist2) {
           nNQuery2.point = pointCloud[current];
           kdtree.findNearestNeighbors2(nNQuery2, nNResult);
-          auto &predictor = predictors[indexes.size()];
+          auto& predictor = predictors[indexes.size()];
           if (!nNResult.resultCount) {
             predictor.init(current, PCC_UNDEFINED_INDEX, uint32_t(lodIndex));
-          } else if (nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
-            const uint32_t reference = static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
+          } else if (
+            nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
+            const uint32_t reference =
+              static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
             predictor.init(current, reference, uint32_t(lodIndex));
           } else {
             predictor.levelOfDetailIndex = uint32_t(lodIndex);
             predictor.index = current;
-            predictor.neighborCount = predictor.maxNeighborCount = nNResult.resultCount;
+            predictor.neighborCount = predictor.maxNeighborCount =
+              nNResult.resultCount;
             for (size_t n = 0; n < nNResult.resultCount; ++n) {
-              predictor.neighbors[n].index = indexes[nNResult.neighbors[n].index];
-              predictor.neighbors[n].weight = predictor.neighbors[n].invDistance =
+              predictor.neighbors[n].index =
+                indexes[nNResult.neighbors[n].index];
+              predictor.neighbors[n].weight =
+                predictor.neighbors[n].invDistance =
                   1.0 / nNResult.neighbors[n].dist2;
             }
           }
@@ -239,10 +264,13 @@ inline void PCCBuildPredictors(const PCCPointSet3 &pointCloud,
 inline void
 updateGeometryNeighState(
   const ringbuf<PCCOctree3Node>::iterator& bufEnd,
-  int64_t numNodesNextLvl, int childSizeLog2,
-  PCCOctree3Node& child, int childIdx, uint8_t neighPattern,
-  uint8_t parantOccupancy
-) {
+  int64_t numNodesNextLvl,
+  int childSizeLog2,
+  PCCOctree3Node& child,
+  int childIdx,
+  uint8_t neighPattern,
+  uint8_t parantOccupancy)
+{
   uint64_t midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
 
   static const struct {
@@ -251,9 +279,9 @@ updateGeometryNeighState(
     int patternFlagUs;
     int patternFlagThem;
   } neighParamMap[] = {
-    {4, 2, 1<<1, 1<<0}, // x
-    {2, 1, 1<<2, 1<<3}, // y
-    {1, 0, 1<<4, 1<<5}, // z
+    {4, 2, 1 << 1, 1 << 0},  // x
+    {2, 1, 1 << 2, 1 << 3},  // y
+    {1, 0, 1 << 4, 1 << 5},  // z
   };
 
   for (const auto& param : neighParamMap) {
@@ -261,14 +289,13 @@ updateGeometryNeighState(
     // is not present.
     if ((childIdx & param.childIdxBitPos) == 0) {
       // $axis co-ordinate = 0
-      if (parantOccupancy & (1<<(childIdx + param.childIdxBitPos)))
+      if (parantOccupancy & (1 << (childIdx + param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagThem;
 
       if (!(neighPattern & param.patternFlagUs))
         continue;
-    }
-    else {
-      if (parantOccupancy & (1<<(childIdx - param.childIdxBitPos)))
+    } else {
+      if (parantOccupancy & (1 << (childIdx - param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagUs;
 
       // no external search is required for $axis co-ordinate = 1
@@ -291,13 +318,13 @@ updateGeometryNeighState(
     std::advance(posEnd, -1);
 
     auto posStart = bufEnd;
-    std::advance(posStart, -std::min(numNodesNextLvl, mortonDelta+2));
+    std::advance(posStart, -std::min(numNodesNextLvl, mortonDelta + 2));
 
-    auto found = std::lower_bound(posStart, posEnd, mortonIdxNeigh,
+    auto found = std::lower_bound(
+      posStart, posEnd, mortonIdxNeigh,
       [](const PCCOctree3Node& node, uint64_t mortonIdx) {
         return node.mortonIdx < mortonIdx;
-      }
-    );
+      });
 
     // NB: found is always valid (see posEnd) => can skip check.
     if (found->mortonIdx != mortonIdxNeigh) {
@@ -321,14 +348,16 @@ updateGeometryNeighState(
 inline bool
 isDirectModeEligible(
   bool featureEnabled,
-  int nodeSizeLog2, const PCCOctree3Node& node, const PCCOctree3Node& child
-) {
+  int nodeSizeLog2,
+  const PCCOctree3Node& node,
+  const PCCOctree3Node& child)
+{
   return featureEnabled && (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
-      && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
+    && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 }
 
 //---------------------------------------------------------------------------
 
-}
+}  // namespace pcc
 
 #endif /* PCCTMC3Common_h */

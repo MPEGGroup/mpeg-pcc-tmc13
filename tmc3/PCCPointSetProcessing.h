@@ -49,15 +49,19 @@ static const bool kUseM42141RecolourMethod2 = true;
 
 namespace pcc {
 
-inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchRange,
-                               PCCPointSet3 &target) {
+inline bool
+PCCTransfertColors(
+  const PCCPointSet3& source, const int32_t searchRange, PCCPointSet3& target)
+{
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
   if (!pointCountSource || !pointCountTarget || !source.hasColors()) {
     return false;
   }
-  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeTarget(3, target, 10);
-  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(3, source, 10);
+  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeTarget(
+    3, target, 10);
+  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(
+    3, source, 10);
 
   target.addColors();
   std::vector<PCCColor3B> refinedColors1;
@@ -70,18 +74,20 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
   nanoflann::KNNResultSet<double> resultSet(num_results);
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
-    kdtreeSource.index->findNeighbors(resultSet, &target[index][0], nanoflann::SearchParams(10));
+    kdtreeSource.index->findNeighbors(
+      resultSet, &target[index][0], nanoflann::SearchParams(10));
     refinedColors1[index] = source.getColor(indices[0]);
   }
   for (size_t index = 0; index < pointCountSource; ++index) {
     const PCCColor3B color = source.getColor(index);
     resultSet.init(&indices[0], &sqrDist[0]);
-    kdtreeTarget.index->findNeighbors(resultSet, &source[index][0], nanoflann::SearchParams(10));
+    kdtreeTarget.index->findNeighbors(
+      resultSet, &source[index][0], nanoflann::SearchParams(10));
     refinedColors2[indices[0]].push_back(color);
   }
   for (size_t index = 0; index < pointCountTarget; ++index) {
     const PCCColor3B color1 = refinedColors1[index];
-    const std::vector<PCCColor3B> &colors2 = refinedColors2[index];
+    const std::vector<PCCColor3B>& colors2 = refinedColors2[index];
     if (colors2.empty()) {
       target.setColor(index, color1);
     } else {
@@ -128,7 +134,8 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
         const double oneMinusW = 1.0 - w;
         PCCVector3D color0;
         for (size_t k = 0; k < 3; ++k) {
-          color0[k] = PCCClip(round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, 255.0);
+          color0[k] = PCCClip(
+            round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, 255.0);
         }
         const double rSource = 1.0 / double(pointCountSource);
         const double rTarget = 1.0 / double(pointCountTarget);
@@ -168,7 +175,10 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
           }
         }
         target.setColor(
-            index, PCCColor3B(uint8_t(bestColor[0]), uint8_t(bestColor[1]), uint8_t(bestColor[2])));
+          index,
+          PCCColor3B(
+            uint8_t(bestColor[0]), uint8_t(bestColor[1]),
+            uint8_t(bestColor[2])));
       } else {  // centroid2 == centroid1
         target.setColor(index, color1);
       }
@@ -177,15 +187,19 @@ inline bool PCCTransfertColors(const PCCPointSet3 &source, const int32_t searchR
   return true;
 }
 
-inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t searchRange,
-                                     PCCPointSet3 &target) {
+inline bool
+PCCTransfertReflectances(
+  const PCCPointSet3& source, const int32_t searchRange, PCCPointSet3& target)
+{
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
   if (!pointCountSource || !pointCountTarget || !source.hasReflectances()) {
     return false;
   }
-  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeTarget(3, target, 10);
-  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(3, source, 10);
+  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeTarget(
+    3, target, 10);
+  KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(
+    3, source, 10);
 
   target.addReflectances();
   std::vector<uint16_t> refined1;
@@ -198,18 +212,20 @@ inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t s
   nanoflann::KNNResultSet<double> resultSet(num_results);
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
-    kdtreeSource.index->findNeighbors(resultSet, &target[index][0], nanoflann::SearchParams(10));
+    kdtreeSource.index->findNeighbors(
+      resultSet, &target[index][0], nanoflann::SearchParams(10));
     refined1[index] = source.getReflectance(indices[0]);
   }
   for (size_t index = 0; index < pointCountSource; ++index) {
     const uint16_t reflectance = source.getReflectance(index);
     resultSet.init(&indices[0], &sqrDist[0]);
-    kdtreeTarget.index->findNeighbors(resultSet, &source[index][0], nanoflann::SearchParams(10));
+    kdtreeTarget.index->findNeighbors(
+      resultSet, &source[index][0], nanoflann::SearchParams(10));
     refined2[indices[0]].push_back(reflectance);
   }
   for (size_t index = 0; index < pointCountTarget; ++index) {
     const uint16_t reflectance1 = refined1[index];
-    const std::vector<uint16_t> &reflectances2 = refined2[index];
+    const std::vector<uint16_t>& reflectances2 = refined2[index];
     if (reflectances2.empty()) {
       target.setReflectance(index, reflectance1);
     } else {
@@ -286,6 +302,6 @@ inline bool PCCTransfertReflectances(const PCCPointSet3 &source, const int32_t s
   }
   return true;
 }
-};
+};  // namespace pcc
 
 #endif /* PCCPointSetProcessing_h */

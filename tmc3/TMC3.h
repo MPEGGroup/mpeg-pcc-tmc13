@@ -56,9 +56,14 @@
 
 #include "pcc_chrono.h"
 
-enum ColorTransform { COLOR_TRANSFORM_NONE = 0, COLOR_TRANSFORM_RGB_TO_YCBCR = 1 };
+enum ColorTransform
+{
+  COLOR_TRANSFORM_NONE = 0,
+  COLOR_TRANSFORM_RGB_TO_YCBCR = 1
+};
 
-enum CodecMode {
+enum CodecMode
+{
   CODEC_MODE_ENCODE = 0,
   CODEC_MODE_DECODE = 1,
   CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY = 2,
@@ -78,10 +83,11 @@ struct Parameters {
   pcc::DecoderParameters decodeParameters;
 };
 
-typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> Stopwatch;
+typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock>
+  Stopwatch;
 
-bool ParseParameters(int argc, char *argv[], Parameters &params);
-int Compress(const Parameters &params, Stopwatch&);
-int Decompress(const Parameters &params, Stopwatch&);
+bool ParseParameters(int argc, char* argv[], Parameters& params);
+int Compress(const Parameters& params, Stopwatch&);
+int Decompress(const Parameters& params, Stopwatch&);
 
 #endif /* TMC3_h */

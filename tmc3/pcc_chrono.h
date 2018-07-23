@@ -41,70 +41,72 @@
 
 namespace pcc {
 namespace chrono {
-/**
+  /**
  * Clock reporting elapsed user time of the current process and children.
  *
  * NB: under winapi, only child processes that have completed execution
  *     via pcc::system() are reported.
  */
-struct utime_inc_children_clock {
-  typedef std::chrono::nanoseconds duration;
-  typedef duration::rep rep;
-  typedef duration::period period;
-  typedef std::chrono::time_point<utime_inc_children_clock, duration> time_point;
+  struct utime_inc_children_clock {
+    typedef std::chrono::nanoseconds duration;
+    typedef duration::rep rep;
+    typedef duration::period period;
+    typedef std::chrono::time_point<utime_inc_children_clock, duration>
+      time_point;
 
-  static constexpr bool is_steady = true;
+    static constexpr bool is_steady = true;
 
-  static time_point now() noexcept;
-};
-}}
+    static time_point now() noexcept;
+  };
+}  // namespace chrono
+}  // namespace pcc
 
 //===========================================================================
 
 namespace pcc {
 namespace chrono {
-/**
+  /**
  * Measurement of cumulative elapsed time intervals.
  *
  * This timer acts like a stopwatch and may be used to measure the
  * cumulative periods between successive calls to start() and stop().
  */
-template<typename Clock>
-class Stopwatch {
-public:
-  typedef typename Clock::duration duration;
+  template<typename Clock>
+  class Stopwatch {
+  public:
+    typedef typename Clock::duration duration;
 
-  /// Reset the accumulated interval count.
-  void reset();
+    /// Reset the accumulated interval count.
+    void reset();
 
-  /// Mark the beginning of a measurement period.
-  void start();
+    /// Mark the beginning of a measurement period.
+    void start();
 
-  /// Mark the end of a measurement period.
-  ///
-  /// @return  the duration of the elapsed Clock time since start()
-  duration stop();
+    /// Mark the end of a measurement period.
+    ///
+    /// @return  the duration of the elapsed Clock time since start()
+    duration stop();
 
-  /// The sum of the previous elapsed time intervals.
-  ///
-  /// NB: this excludes any currently active period marked by start().
-  ///
-  /// @return  cumulative elapsed time
-  constexpr duration count() const {
-    return cumulative_time_;
-  }
+    /// The sum of the previous elapsed time intervals.
+    ///
+    /// NB: this excludes any currently active period marked by start().
+    ///
+    /// @return  cumulative elapsed time
+    constexpr duration count() const { return cumulative_time_; }
 
-private:
-  typename Clock::time_point start_time_;
-  duration cumulative_time_ {duration::zero()};
-};
-}}
+  private:
+    typename Clock::time_point start_time_;
+    duration cumulative_time_{duration::zero()};
+  };
+}  // namespace chrono
+}  // namespace pcc
 
 //---------------------------------------------------------------------------
 
 template<typename Clock>
 void
-pcc::chrono::Stopwatch<Clock>::reset() {
+pcc::chrono::Stopwatch<Clock>::reset()
+{
   cumulative_time_ = cumulative_time_.zero();
 }
 
@@ -112,7 +114,8 @@ pcc::chrono::Stopwatch<Clock>::reset() {
 
 template<typename Clock>
 void
-pcc::chrono::Stopwatch<Clock>::start() {
+pcc::chrono::Stopwatch<Clock>::start()
+{
   start_time_ = Clock::now();
 }
 
@@ -120,7 +123,8 @@ pcc::chrono::Stopwatch<Clock>::start() {
 
 template<typename Clock>
 typename pcc::chrono::Stopwatch<Clock>::duration
-pcc::chrono::Stopwatch<Clock>::stop() {
+pcc::chrono::Stopwatch<Clock>::stop()
+{
   const auto& delta = duration(Clock::now() - start_time_);
   cumulative_time_ += delta;
   return delta;

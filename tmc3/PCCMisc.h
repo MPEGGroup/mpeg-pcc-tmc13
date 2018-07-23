@@ -48,20 +48,29 @@
 namespace pcc {
 const uint32_t PCC_UNDEFINED_INDEX = -1;
 
-enum PCCEndianness { PCC_BIG_ENDIAN = 0, PCC_LITTLE_ENDIAN = 1 };
+enum PCCEndianness
+{
+  PCC_BIG_ENDIAN = 0,
+  PCC_LITTLE_ENDIAN = 1
+};
 
 struct PCCBitstream {
-  uint8_t *buffer;
+  uint8_t* buffer;
   uint64_t size;
   uint64_t capacity;
 };
 
-inline PCCEndianness PCCSystemEndianness() {
+inline PCCEndianness
+PCCSystemEndianness()
+{
   uint32_t num = 1;
-  return (*(reinterpret_cast<char *>(&num)) == 1) ? PCC_LITTLE_ENDIAN : PCC_BIG_ENDIAN;
+  return (*(reinterpret_cast<char*>(&num)) == 1) ? PCC_LITTLE_ENDIAN
+                                                 : PCC_BIG_ENDIAN;
 }
-template <typename T>
-const T PCCEndianSwap(const T u) {
+template<typename T>
+const T
+PCCEndianSwap(const T u)
+{
   union {
     T u;
     uint8_t u8[sizeof(T)];
@@ -69,20 +78,27 @@ const T PCCEndianSwap(const T u) {
 
   source.u = u;
 
-  for (size_t k = 0; k < sizeof(T); k++) dest.u8[k] = source.u8[sizeof(T) - k - 1];
+  for (size_t k = 0; k < sizeof(T); k++)
+    dest.u8[k] = source.u8[sizeof(T) - k - 1];
 
   return dest.u;
 }
-template <typename T>
-const T PCCToLittleEndian(const T u) {
+template<typename T>
+const T
+PCCToLittleEndian(const T u)
+{
   return (PCCSystemEndianness() == PCC_BIG_ENDIAN) ? PCCEndianSwap(u) : u;
 }
-template <typename T>
-const T PCCFromLittleEndian(const T u) {
+template<typename T>
+const T
+PCCFromLittleEndian(const T u)
+{
   return (PCCSystemEndianness() == PCC_BIG_ENDIAN) ? PCCEndianSwap(u) : u;
 }
-template <typename T>
-void PCCWriteToBuffer(const T u, uint8_t *const buffer, uint64_t &size) {
+template<typename T>
+void
+PCCWriteToBuffer(const T u, uint8_t* const buffer, uint64_t& size)
+{
   union {
     T u;
     uint8_t u8[sizeof(T)];
@@ -98,8 +114,10 @@ void PCCWriteToBuffer(const T u, uint8_t *const buffer, uint64_t &size) {
     }
   }
 }
-template <typename T>
-void PCCReadFromBuffer(const uint8_t *const buffer, T &u, uint64_t &size) {
+template<typename T>
+void
+PCCReadFromBuffer(const uint8_t* const buffer, T& u, uint64_t& size)
+{
   union {
     T u;
     uint8_t u8[sizeof(T)];
@@ -120,7 +138,9 @@ void PCCReadFromBuffer(const uint8_t *const buffer, T &u, uint64_t &size) {
 //---------------------------------------------------------------------------
 // Population count -- return the number of bits set in @x.
 //
-static int popcnt(uint32_t x) {
+static int
+popcnt(uint32_t x)
+{
   x = x - ((x >> 1) & 0x55555555u);
   x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u);
   return ((x + (x >> 4) & 0xF0F0F0Fu) * 0x1010101u) >> 24;
@@ -129,7 +149,9 @@ static int popcnt(uint32_t x) {
 //---------------------------------------------------------------------------
 // Population count -- return the number of bits set in @x.
 //
-static int popcnt(uint8_t x) {
+static int
+popcnt(uint8_t x)
+{
   uint32_t val = x * 0x08040201u;
   val >>= 3;
   val &= 0x11111111u;
@@ -141,28 +163,34 @@ static int popcnt(uint8_t x) {
 // Test if population count is greater than 1.
 // Returns non-zero if true.
 //
-static uint32_t popcntGt1(uint32_t x) {
+static uint32_t
+popcntGt1(uint32_t x)
+{
   return x & (x - 1);
 }
 
 //---------------------------------------------------------------------------
 // Round @x up to next power of two.
 //
-static uint32_t ceilpow2(uint32_t x) {
+static uint32_t
+ceilpow2(uint32_t x)
+{
   x--;
   x = x | (x >> 1);
   x = x | (x >> 2);
   x = x | (x >> 4);
   x = x | (x >> 8);
   x = x | (x >> 16);
-  return x+1;
+  return x + 1;
 }
 
 //---------------------------------------------------------------------------
 // Compute \left\floor \text{log}_2(x) \right\floor.
 // NB: ilog2(0) = -1.
 
-static int ilog2(uint32_t x) {
+static int
+ilog2(uint32_t x)
+{
   x = ceilpow2(x + 1) - 1;
   return popcnt(x) - 1;
 }
@@ -171,28 +199,32 @@ static int ilog2(uint32_t x) {
 // Compute \left\ceil \text{log}_2(x) \right\ceil.
 // NB: ceillog2(0) = 32.
 
-static int ceillog2(uint32_t x) {
-  return ilog2(x-1) + 1;
+static int
+ceillog2(uint32_t x)
+{
+  return ilog2(x - 1) + 1;
 }
 
 //-------------------------------------------------------------------------
 // Shuffle bits of x so as to interleave 0b00 between each pair.
 // NB: x must be in the range [0, 2**21 - 1].
 //
-static int64_t interleave3b0(uint64_t x)
+static int64_t
+interleave3b0(uint64_t x)
 {
   x = ((x << 32) | x) & 0x00ff00000000ffffllu;
   x = ((x << 16) | x) & 0x00ff0000ff0000ffllu;
-  x = ((x <<  8) | x) & 0xf00f00f00f00f00fllu;
-  x = ((x <<  4) | x) & 0x30c30c30c30c30c3llu;
-  x = ((x <<  2) | x) & 0x9249249249249249llu;
+  x = ((x << 8) | x) & 0xf00f00f00f00f00fllu;
+  x = ((x << 4) | x) & 0x30c30c30c30c30c3llu;
+  x = ((x << 2) | x) & 0x9249249249249249llu;
   return x;
 }
 
 //---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
-static uint64_t morton3dAxisDec(uint64_t val, int axis)
+static uint64_t
+morton3dAxisDec(uint64_t val, int axis)
 {
   const uint64_t mask0 = 0x9249249249249249llu << axis;
   return ((val & mask0) - 1 & mask0) | (val & ~mask0);
@@ -210,21 +242,22 @@ static uint64_t morton3dAxisDec(uint64_t val, int axis)
 // NB: This is an in-place implementation and is not a stable sort.
 
 template<class RandomIt, class ValueOp, std::size_t Radix>
-void countingSort(
+void
+countingSort(
   RandomIt first,
   RandomIt last,
-  std::array<int,Radix>& counts,
-  ValueOp value_of
-) {
+  std::array<int, Radix>& counts,
+  ValueOp value_of)
+{
   // step 1: count each radix
   for (auto it = first; it != last; ++it) {
     counts[value_of(*it)]++;
   }
 
   // step 2: determine the output offsets
-  std::array<RandomIt,Radix> ptrs = {{first}};
+  std::array<RandomIt, Radix> ptrs = {{first}};
   for (int i = 1; i < Radix; i++) {
-    ptrs[i] = std::next(ptrs[i-1], counts[i-1]);
+    ptrs[i] = std::next(ptrs[i - 1], counts[i - 1]);
   }
 
   // step 3: re-order, completing each radix in turn.
@@ -241,6 +274,6 @@ void countingSort(
 
 //---------------------------------------------------------------------------
 
-}
+}  // namespace pcc
 
 #endif /* PCCMisc_h */

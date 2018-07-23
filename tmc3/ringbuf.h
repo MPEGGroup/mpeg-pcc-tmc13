@@ -75,21 +75,21 @@ public:
   //-------------------------------------------------------------------------
 
   explicit ring_iterator(T* base, size_t max, const iterator* start)
-    : base_(base), max_(max), idx_(), start_(start) {}
+    : base_(base), max_(max), idx_(), start_(start)
+  {}
 
-  operator ring_iterator<const T_nonconst>() const {
+  operator ring_iterator<const T_nonconst>() const
+  {
     return *(const_iterator*)this;
   }
 
   //-------------------------------------------------------------------------
   // Iterator
 
-  reference
-  operator*() const
-  { return base_[idx_]; }
+  reference operator*() const { return base_[idx_]; }
 
-  iterator&
-  operator++() {
+  iterator& operator++()
+  {
     idx_++;
     idx_ = idx_ == max_ ? 0 : idx_;
     return *this;
@@ -98,14 +98,13 @@ public:
   //-------------------------------------------------------------------------
   // InputIterator
 
-  bool operator==(const iterator& other) const {return idx_ == other.idx_;}
-  bool operator!=(const iterator& other) const {return !(*this == other);}
+  bool operator==(const iterator& other) const { return idx_ == other.idx_; }
+  bool operator!=(const iterator& other) const { return !(*this == other); }
 
-  pointer
-  operator->() const
-  { return &base_[idx_]; }
+  pointer operator->() const { return &base_[idx_]; }
 
-  iterator operator++(int) {
+  iterator operator++(int)
+  {
     iterator retval = *this;
     ++(*this);
     return retval;
@@ -114,14 +113,15 @@ public:
   //-------------------------------------------------------------------------
   // BidirectionalIterator
 
-  iterator&
-  operator--() {
+  iterator& operator--()
+  {
     idx_ = idx_ == 0 ? max_ : idx_;
     idx_--;
     return *this;
   }
 
-  iterator operator--(int) {
+  iterator operator--(int)
+  {
     iterator retval = *this;
     --(*this);
     return retval;
@@ -130,8 +130,8 @@ public:
   //-------------------------------------------------------------------------
   // RandomAccessIterator
 
-  reference
-  operator[](size_t n) {
+  reference operator[](size_t n)
+  {
     size_t idx = idx_ + n;
     if (idx_ >= max_)
       idx_ -= max_;
@@ -140,8 +140,8 @@ public:
 
   // Precondition: 0 < it + n < end;
   // ie, the calculated position is not modulo size().
-  iterator&
-  operator+=(difference_type n) {
+  iterator& operator+=(difference_type n)
+  {
     idx_ += n;
     if (idx_ >= max_) {
       if (n > 0)
@@ -154,8 +154,8 @@ public:
 
   // Precondition: 0 < it + n < end;
   // ie, the calculated position is not modulo size().
-  iterator
-  operator+(difference_type n) const {
+  iterator operator+(difference_type n) const
+  {
     iterator it(*this);
     it += n;
     return it;
@@ -163,56 +163,49 @@ public:
 
   // Precondition: 0 < it + n < end;
   // ie, the calculated position is not modulo size().
-  iterator&
-  operator-=(difference_type n) {
+  iterator& operator-=(difference_type n)
+  {
     *this += -n;
     return *this;
   }
 
   // Precondition: 0 < it + n < end;
   // ie, the calculated position is not modulo size().
-  iterator
-  operator-(difference_type n) const {
+  iterator operator-(difference_type n) const
+  {
     iterator it(*this);
     it -= n;
     return it;
   }
 
-  difference_type
-  operator-(const iterator& other) const {
+  difference_type operator-(const iterator& other) const
+  {
     size_t lin_pos_this = linear_idx(*start_, idx_);
     size_t lin_pos_other = linear_idx(*start_, other.idx_);
     return lin_pos_this - lin_pos_other;
   }
 
-  bool
-  operator<(const iterator& other) const {
-     difference_type dist = operator-(other);
-     return dist < 0;
+  bool operator<(const iterator& other) const
+  {
+    difference_type dist = operator-(other);
+    return dist < 0;
   }
 
-  bool
-  operator<=(const iterator& other) const {
-     difference_type dist = operator-(other);
-     return dist <= 0;
+  bool operator<=(const iterator& other) const
+  {
+    difference_type dist = operator-(other);
+    return dist <= 0;
   }
 
-  bool
-  operator>(const iterator& other) const {
-     return !operator<=(other);
-  }
+  bool operator>(const iterator& other) const { return !operator<=(other); }
 
-  bool
-  operator>=(const iterator& other) const {
-     return !operator<(other);
-  }
+  bool operator>=(const iterator& other) const { return !operator<(other); }
 
   //=========================================================================
 private:
-
   // calculate the linear position of idx_ with respect to origin
-  static size_t
-  linear_idx(const iterator& origin, size_t idx_) {
+  static size_t linear_idx(const iterator& origin, size_t idx_)
+  {
     difference_type dist = difference_type(idx_ - origin.idx_);
     if (dist < 0)
       dist += origin.max_;
@@ -248,9 +241,9 @@ private:
 //  - pop_front, pop_back do not invalidate any references to non-erased
 //    elements, and all iterators remain valid.
 
-template <typename T>
+template<typename T>
 class ringbuf {
- public:
+public:
   typedef T value_type;
   typedef T* pointer;
   typedef const T* const_pointer;
@@ -265,15 +258,16 @@ class ringbuf {
   //--------------------------------------------------------------------------
 
   ringbuf(size_t size)
-  : buf_(static_cast<T*>(operator new[](sizeof(T) * (size+1))))
-  , capacity_(size+1)
-  , rd_it_(iterator(buf_.get(), capacity_, &rd_it_))
-  , wr_it_(iterator(buf_.get(), capacity_, &rd_it_))
+    : buf_(static_cast<T*>(operator new[](sizeof(T) * (size + 1))))
+    , capacity_(size + 1)
+    , rd_it_(iterator(buf_.get(), capacity_, &rd_it_))
+    , wr_it_(iterator(buf_.get(), capacity_, &rd_it_))
   {}
 
   //--------------------------------------------------------------------------
 
-  ~ringbuf() {
+  ~ringbuf()
+  {
     while (rd_it_ != wr_it_) {
       pop_front();
     }
@@ -289,71 +283,64 @@ class ringbuf {
 
   //--------------------------------------------------------------------------
 
-  bool empty() const {
-    return begin() == end();
-  }
+  bool empty() const { return begin() == end(); }
 
   //--------------------------------------------------------------------------
 
-  void push_back(const value_type& val) {
-    emplace_back(val);
-  }
+  void push_back(const value_type& val) { emplace_back(val); }
 
   //--------------------------------------------------------------------------
 
-  void push_back(value_type&& val) {
-    emplace_back(std::move(val));
-  }
+  void push_back(value_type&& val) { emplace_back(std::move(val)); }
 
   //--------------------------------------------------------------------------
 
   template<class... Args>
-  void emplace_back(Args&&... args) {
-    new(&*wr_it_) T(args...);
+  void emplace_back(Args&&... args)
+  {
+    new (&*wr_it_) T(args...);
     ++wr_it_;
   }
 
   //--------------------------------------------------------------------------
 
-  void pop_back() {
+  void pop_back()
+  {
     --wr_it_;
     wr_it_->~T();
   }
 
   //--------------------------------------------------------------------------
 
-  void pop_front() {
+  void pop_front()
+  {
     rd_it_->~T();
     ++rd_it_;
   }
 
   //--------------------------------------------------------------------------
 
-  reference front() {
-    return *rd_it_;
-  }
+  reference front() { return *rd_it_; }
 
   //--------------------------------------------------------------------------
 
-  reference back() {
-    return *std::prev(wr_it_);
-  }
+  reference back() { return *std::prev(wr_it_); }
 
   //--------------------------------------------------------------------------
 
-  reference operator[](size_type idx) {
+  reference operator[](size_type idx) { return *std::next(rd_it_, idx); }
+
+  //--------------------------------------------------------------------------
+
+  const_reference operator[](size_type idx) const
+  {
     return *std::next(rd_it_, idx);
   }
 
   //--------------------------------------------------------------------------
 
-  const_reference operator[](size_type idx) const {
-    return *std::next(rd_it_, idx);
-  }
-
-  //--------------------------------------------------------------------------
-
-  void clear() {
+  void clear()
+  {
     while (!empty()) {
       pop_front();
     }
@@ -361,18 +348,17 @@ class ringbuf {
 
   //--------------------------------------------------------------------------
 
-  size_t size() const {
+  size_t size() const
+  {
     return size_t(const_iterator::difference(end(), begin()));
   }
 
   //--------------------------------------------------------------------------
 
-  size_t capacity() const {
-    return capacity_-1;
-  }
+  size_t capacity() const { return capacity_ - 1; }
 
   //--------------------------------------------------------------------------
- private:
+private:
   std::unique_ptr<T[]> buf_;
   size_t capacity_;
   iterator rd_it_;

@@ -52,7 +52,7 @@ struct PCCResidualsDecoder {
 
   PCCResidualsDecoder() { alphabetSize = 0; }
 
-  void start(PCCBitstream &bitstream, const uint32_t alphabetSize = 64);
+  void start(PCCBitstream& bitstream, const uint32_t alphabetSize = 64);
   void stop();
   uint32_t decode0();
   uint32_t decode1();
@@ -60,9 +60,10 @@ struct PCCResidualsDecoder {
 
 //----------------------------------------------------------------------------
 
-void PCCResidualsDecoder::start(
-  PCCBitstream &bitstream, const uint32_t alphabetSize
-) {
+void
+PCCResidualsDecoder::start(
+  PCCBitstream& bitstream, const uint32_t alphabetSize)
+{
   this->alphabetSize = alphabetSize;
   multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
   binaryModelDiff0.reset();
@@ -70,37 +71,40 @@ void PCCResidualsDecoder::start(
   binaryModelDiff1.reset();
   arithmeticDecoder.set_buffer(
     static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-    bitstream.buffer + bitstream.size
-  );
+    bitstream.buffer + bitstream.size);
   arithmeticDecoder.start_decoder();
 }
 
 //----------------------------------------------------------------------------
 
-void PCCResidualsDecoder::stop() {
+void
+PCCResidualsDecoder::stop()
+{
   arithmeticDecoder.stop_decoder();
 }
 
 //----------------------------------------------------------------------------
 
-uint32_t PCCResidualsDecoder::decode0() {
+uint32_t
+PCCResidualsDecoder::decode0()
+{
   uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff0);
   if (value == alphabetSize) {
-    value += arithmeticDecoder.ExpGolombDecode(
-      0, binaryModel0, binaryModelDiff0
-    );
+    value +=
+      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff0);
   }
   return value;
 }
 
 //----------------------------------------------------------------------------
 
-uint32_t PCCResidualsDecoder::decode1() {
+uint32_t
+PCCResidualsDecoder::decode1()
+{
   uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff1);
   if (value == alphabetSize) {
-    value += arithmeticDecoder.ExpGolombDecode(
-      0, binaryModel0, binaryModelDiff1
-    );
+    value +=
+      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff1);
   }
   return value;
 }
@@ -108,32 +112,34 @@ uint32_t PCCResidualsDecoder::decode1() {
 //============================================================================
 // AttributeDecoder Members
 
-void AttributeDecoder::buildPredictors(const PCCPointSet3 &pointCloud) {
+void
+AttributeDecoder::buildPredictors(const PCCPointSet3& pointCloud)
+{
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexes;
   PCCBuildPredictors(
     pointCloud, numberOfNearestNeighborsInPrediction, levelOfDetailCount,
-    dist2, predictors, numberOfPointsPerLOD, indexes
-  );
+    dist2, predictors, numberOfPointsPerLOD, indexes);
 
-  for (auto &predictor : predictors) {
+  for (auto& predictor : predictors) {
     predictor.computeWeights(numberOfNearestNeighborsInPrediction);
   }
 }
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeHeader(
-  const std::string &attributeName,
-  PCCBitstream &bitstream
-) {
+void
+AttributeDecoder::decodeHeader(
+  const std::string& attributeName, PCCBitstream& bitstream)
+{
   uint8_t transType;
   PCCReadFromBuffer<uint8_t>(bitstream.buffer, transType, bitstream.size);
   transformType = TransformType(transType);
 
   if (transformType == TransformType::kIntegerLift) {
     uint8_t numberOfNearestNeighborsCount = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
+    PCCReadFromBuffer<uint8_t>(
+      bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
     numberOfNearestNeighborsInPrediction = numberOfNearestNeighborsCount;
 
     uint8_t lodCount = 0;
@@ -157,19 +163,22 @@ void AttributeDecoder::decodeHeader(
 
   if (transformType == TransformType::kRAHT) {
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, depthRaht, bitstream.size);
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, quantizationStepRaht, bitstream.size);
+    PCCReadFromBuffer<uint8_t>(
+      bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
+    PCCReadFromBuffer<uint32_t>(
+      bitstream.buffer, quantizationStepRaht, bitstream.size);
   }
 }
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeReflectances(
-  PCCBitstream &bitstream,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeReflectances(
+  PCCBitstream& bitstream, PCCPointSet3& pointCloud)
+{
   uint32_t compressedBitstreamSize = 0;
-  PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
+  PCCReadFromBuffer<uint32_t>(
+    bitstream.buffer, compressedBitstreamSize, bitstream.size);
   PCCResidualsDecoder decoder;
   const uint32_t alphabetSize = 64;
   decoder.start(bitstream, alphabetSize);
@@ -190,20 +199,19 @@ void AttributeDecoder::decodeReflectances(
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeColors(
-  PCCBitstream &bitstream,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeColors(
+  PCCBitstream& bitstream, PCCPointSet3& pointCloud)
+{
   uint32_t compressedBitstreamSize = 0;
-  PCCReadFromBuffer<uint32_t>(bitstream.buffer, compressedBitstreamSize, bitstream.size);
+  PCCReadFromBuffer<uint32_t>(
+    bitstream.buffer, compressedBitstreamSize, bitstream.size);
   PCCResidualsDecoder decoder;
   const uint32_t alphabetSize = 64;
   decoder.start(bitstream, alphabetSize);
 
   switch (transformType) {
-  case TransformType::kRAHT:
-    decodeColorsRaht(decoder, pointCloud);
-    break;
+  case TransformType::kRAHT: decodeColorsRaht(decoder, pointCloud); break;
 
   case TransformType::kIntegerLift:
     decodeColorsIntegerLift(decoder, pointCloud);
@@ -216,60 +224,68 @@ void AttributeDecoder::decodeColors(
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeReflectancesIntegerLift(
-  PCCResidualsDecoder &decoder,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeReflectancesIntegerLift(
+  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+{
   const size_t pointCount = predictors.size();
-  for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-    auto &predictor = predictors[predictorIndex];
-    uint16_t &reflectance = pointCloud.getReflectance(predictor.index);
+  for (size_t predictorIndex = 0; predictorIndex < pointCount;
+       ++predictorIndex) {
+    auto& predictor = predictors[predictorIndex];
+    uint16_t& reflectance = pointCloud.getReflectance(predictor.index);
     const size_t lodIndex = predictor.levelOfDetailIndex;
     const int64_t qs = quantizationSteps[lodIndex];
     const uint32_t attValue0 = decoder.decode0();
     const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-    const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
+    const int64_t delta =
+      PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-    reflectance = uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0),
-                                   int64_t(std::numeric_limits<uint16_t>::max())));
+    reflectance = uint16_t(PCCClip(
+      reconstructedQuantAttValue, int64_t(0),
+      int64_t(std::numeric_limits<uint16_t>::max())));
   }
 }
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeColorsIntegerLift(
-  PCCResidualsDecoder &decoder,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeColorsIntegerLift(
+  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+{
   const size_t pointCount = predictors.size();
-  for (size_t predictorIndex = 0; predictorIndex < pointCount; ++predictorIndex) {
-    auto &predictor = predictors[predictorIndex];
-    PCCColor3B &color = pointCloud.getColor(predictor.index);
+  for (size_t predictorIndex = 0; predictorIndex < pointCount;
+       ++predictorIndex) {
+    auto& predictor = predictors[predictorIndex];
+    PCCColor3B& color = pointCloud.getColor(predictor.index);
     const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
     const size_t lodIndex = predictor.levelOfDetailIndex;
     const int64_t qs = quantizationSteps[lodIndex];
     const uint32_t attValue0 = decoder.decode0();
     const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
+    const int64_t delta =
+      PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-    color[0] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
+    color[0] =
+      uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
 
     for (size_t k = 1; k < 3; ++k) {
       const uint32_t attValue = decoder.decode1();
       const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta = PCCInverseQuantization(o3dgc::UIntToInt(attValue), qs);
+      const int64_t delta =
+        PCCInverseQuantization(o3dgc::UIntToInt(attValue), qs);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-      color[k] = uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
+      color[k] =
+        uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), int64_t(255)));
     }
   }
 }
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeReflectancesRaht(
-  PCCResidualsDecoder &decoder,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeReflectancesRaht(
+  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+{
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
@@ -289,16 +305,16 @@ void AttributeDecoder::decodeReflectancesRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Moroton codes
-  long long *mortonCode = new long long[voxelCount];
+  long long* mortonCode = new long long[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
 
   // Re-obtain weights at the decoder by calling RAHT without any attributes.
-  float *weight = new float[voxelCount];
-  int *binaryLayer = new int[voxelCount];
+  float* weight = new float[voxelCount];
+  int* binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
+    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -309,32 +325,34 @@ void AttributeDecoder::decodeReflectancesRaht(
   sort(sortedWeight.begin(), sortedWeight.end());
 
   // Entropy decode
-  int *sortedIntegerizedAttributes = new int[voxelCount];
+  int* sortedIntegerizedAttributes = new int[voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
     const uint32_t attValue0 = decoder.decode0();
     sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
   }
 
   // Unsort integerized attributes by weight.
-  int *integerizedAttributes = new int[voxelCount];
+  int* integerizedAttributes = new int[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
-    integerizedAttributes[sortedWeight[n].index] = sortedIntegerizedAttributes[n];
+    integerizedAttributes[sortedWeight[n].index] =
+      sortedIntegerizedAttributes[n];
   }
 
   // Inverse Quantize.
-  float *attributes = new float[voxelCount];
+  float* attributes = new float[voxelCount];
   const int qstep = int(quantizationStepRaht);
   for (int n = 0; n < voxelCount; n++) {
     attributes[n] = integerizedAttributes[n] * qstep;
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-      mortonCode, attributes, 1, voxelCount, depthRaht);
+    mortonCode, attributes, 1, voxelCount, depthRaht);
 
   const int maxReflectance = std::numeric_limits<uint16_t>::max();
   const int minReflectance = 0;
   for (int n = 0; n < voxelCount; n++) {
-    const int reflectance = PCCClip((int)round(attributes[n]), minReflectance, maxReflectance);
+    const int reflectance =
+      PCCClip((int)round(attributes[n]), minReflectance, maxReflectance);
     pointCloud.setReflectance(packedVoxel[n].index, uint16_t(reflectance));
   }
 
@@ -349,10 +367,10 @@ void AttributeDecoder::decodeReflectancesRaht(
 
 //----------------------------------------------------------------------------
 
-void AttributeDecoder::decodeColorsRaht(
-  PCCResidualsDecoder &decoder,
-  PCCPointSet3 &pointCloud
-) {
+void
+AttributeDecoder::decodeColorsRaht(
+  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+{
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
@@ -372,16 +390,16 @@ void AttributeDecoder::decodeColorsRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Moroton codes
-  long long *mortonCode = new long long[voxelCount];
+  long long* mortonCode = new long long[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
 
   // Re-obtain weights at the decoder by calling RAHT without any attributes.
-  float *weight = new float[voxelCount];
-  int *binaryLayer = new int[voxelCount];
+  float* weight = new float[voxelCount];
+  int* binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-      mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
+    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -393,14 +411,15 @@ void AttributeDecoder::decodeColorsRaht(
 
   // Entropy decode
   const int attribCount = 3;
-  int *sortedIntegerizedAttributes = new int[attribCount * voxelCount];
+  int* sortedIntegerizedAttributes = new int[attribCount * voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
     const uint32_t attValue0 = decoder.decode0();
     sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
     if (binaryLayer[sortedWeight[n].index] >= binaryLevelThresholdRaht) {
       for (int d = 1; d < 3; ++d) {
         const uint32_t attValue1 = decoder.decode1();
-        sortedIntegerizedAttributes[voxelCount * d + n] = o3dgc::UIntToInt(attValue1);
+        sortedIntegerizedAttributes[voxelCount * d + n] =
+          o3dgc::UIntToInt(attValue1);
       }
     } else {
       for (int d = 1; d < 3; d++) {
@@ -410,26 +429,27 @@ void AttributeDecoder::decodeColorsRaht(
   }
 
   // Unsort integerized attributes by weight.
-  int *integerizedAttributes = new int[attribCount * voxelCount];
+  int* integerizedAttributes = new int[attribCount * voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
       // Pull sorted integerized attributes out of column-major order.
       integerizedAttributes[attribCount * sortedWeight[n].index + k] =
-          sortedIntegerizedAttributes[voxelCount * k + n];
+        sortedIntegerizedAttributes[voxelCount * k + n];
     }
   }
 
   // Inverse Quantize.
-  float *attributes = new float[attribCount * voxelCount];
+  float* attributes = new float[attribCount * voxelCount];
   const int qstep = int(quantizationStepRaht);
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
-      attributes[attribCount * n + k] = integerizedAttributes[attribCount * n + k] * qstep;
+      attributes[attribCount * n + k] =
+        integerizedAttributes[attribCount * n + k] * qstep;
     }
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-      mortonCode, attributes, attribCount, voxelCount, depthRaht);
+    mortonCode, attributes, attribCount, voxelCount, depthRaht);
 
   for (int n = 0; n < voxelCount; n++) {
     const int r = (int)round(attributes[attribCount * n]);

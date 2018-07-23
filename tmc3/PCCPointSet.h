@@ -51,7 +51,7 @@
 
 namespace pcc {
 class PCCPointSet3 {
- public:
+public:
   typedef PCCVector3D PointType;
 
   //=========================================================================
@@ -66,32 +66,24 @@ class PCCPointSet3 {
     size_t idx_;
 
   public:
+    //-----------------------------------------------------------------------
+
+    Proxy() : parent_(nullptr), idx_() {}
+
+    Proxy(PCCPointSet3* parent, size_t idx) : parent_(parent), idx_(idx) {}
 
     //-----------------------------------------------------------------------
 
-    Proxy()
-      : parent_(nullptr), idx_() {}
+    PointType operator*() const { return (*parent_)[idx_]; }
 
-    Proxy(PCCPointSet3* parent, size_t idx)
-      : parent_(parent), idx_(idx) {}
-
-    //-----------------------------------------------------------------------
-
-    PointType
-    operator*() const {
-      return (*parent_)[idx_];
-    }
-
-    PointType&
-    operator*() {
-      return (*parent_)[idx_];
-    }
+    PointType& operator*() { return (*parent_)[idx_]; }
 
     //-----------------------------------------------------------------------
     // Swap the position of the current proxied point (including attributes)
     // with that of @other in the same PointSet.
 
-    void swap(const Proxy& other) const {
+    void swap(const Proxy& other) const
+    {
       assert(parent_ == other.parent_);
       parent_->swapPoints(idx_, other.idx_);
     }
@@ -120,24 +112,19 @@ class PCCPointSet3 {
 
     //-----------------------------------------------------------------------
 
-    explicit iterator(PCCPointSet3* parent)
-      : p_{parent, 0} {}
+    explicit iterator(PCCPointSet3* parent) : p_{parent, 0} {}
 
-    explicit iterator(PCCPointSet3* parent, size_t idx)
-      : p_{parent, idx} {}
+    explicit iterator(PCCPointSet3* parent, size_t idx) : p_{parent, idx} {}
 
     //-----------------------------------------------------------------------
     // :: Iterator
 
-    reference
-    operator*() const {
-      return p_;
-    }
+    reference operator*() const { return p_; }
 
     //-----------------------------------------------------------------------
 
-    iterator&
-    operator++() {
+    iterator& operator++()
+    {
       p_.idx_++;
       return *this;
     }
@@ -145,8 +132,8 @@ class PCCPointSet3 {
     //-----------------------------------------------------------------------
     // :: ForwardIterator
 
-    iterator
-    operator++(int) {
+    iterator operator++(int)
+    {
       iterator retval = *this;
       ++(*this);
       return retval;
@@ -154,38 +141,32 @@ class PCCPointSet3 {
 
     //-----------------------------------------------------------------------
 
-    pointer
-    operator->() const {
-      return &p_;
-    }
+    pointer operator->() const { return &p_; }
 
     //-----------------------------------------------------------------------
 
-    bool
-    operator==(const iterator& other) const {
+    bool operator==(const iterator& other) const
+    {
       return p_.idx_ == other.p_.idx_;
     }
 
     //-----------------------------------------------------------------------
 
-    bool
-    operator!=(const iterator& other) const {
-      return !(*this == other);
-    }
+    bool operator!=(const iterator& other) const { return !(*this == other); }
 
     //-----------------------------------------------------------------------
     // :: BidirectionalIterator
 
-    iterator&
-    operator--() {
+    iterator& operator--()
+    {
       p_.idx_--;
       return *this;
     }
 
     //-----------------------------------------------------------------------
 
-    iterator
-    operator--(int) {
+    iterator operator--(int)
+    {
       iterator retval = *this;
       --(*this);
       return retval;
@@ -194,23 +175,23 @@ class PCCPointSet3 {
     //-----------------------------------------------------------------------
     // :: RandomAccessIterator
 
-    value_type
-    operator[](difference_type n) {
+    value_type operator[](difference_type n)
+    {
       return Proxy{p_.parent_, p_.idx_ + n};
     }
 
     //-----------------------------------------------------------------------
 
-    iterator&
-    operator+=(difference_type n) {
+    iterator& operator+=(difference_type n)
+    {
       p_.idx_ += n;
       return *this;
     }
 
     //-----------------------------------------------------------------------
 
-    iterator
-    operator+(difference_type n) const {
+    iterator operator+(difference_type n) const
+    {
       iterator it(*this);
       it += n;
       return it;
@@ -218,16 +199,16 @@ class PCCPointSet3 {
 
     //-----------------------------------------------------------------------
 
-    iterator&
-    operator-=(difference_type n) {
+    iterator& operator-=(difference_type n)
+    {
       p_.idx_ -= n;
       return *this;
     }
 
     //-----------------------------------------------------------------------
 
-    iterator
-    operator-(difference_type n) const {
+    iterator operator-(difference_type n) const
+    {
       iterator it(*this);
       it -= n;
       return it;
@@ -235,8 +216,8 @@ class PCCPointSet3 {
 
     //-----------------------------------------------------------------------
 
-    difference_type
-    operator-(const iterator& other) const {
+    difference_type operator-(const iterator& other) const
+    {
       return p_.idx_ - other.p_.idx_;
     }
 
@@ -245,16 +226,17 @@ class PCCPointSet3 {
 
   //=========================================================================
 
-  PCCPointSet3() {
+  PCCPointSet3()
+  {
     withColors = false;
     withReflectances = false;
   }
-  PCCPointSet3(const PCCPointSet3 &) = default;
-  PCCPointSet3 &operator=(const PCCPointSet3 &rhs) = default;
+  PCCPointSet3(const PCCPointSet3&) = default;
+  PCCPointSet3& operator=(const PCCPointSet3& rhs) = default;
   ~PCCPointSet3() = default;
 
-  void
-  swap(PCCPointSet3& other) {
+  void swap(PCCPointSet3& other)
+  {
     using std::swap;
     swap(positions, other.positions);
     swap(colors, other.colors);
@@ -263,60 +245,73 @@ class PCCPointSet3 {
     swap(withReflectances, other.withReflectances);
   }
 
-  PCCPoint3D operator[](const size_t index) const {
+  PCCPoint3D operator[](const size_t index) const
+  {
     assert(index < positions.size());
     return positions[index];
   }
-  PCCPoint3D &operator[](const size_t index) {
+  PCCPoint3D& operator[](const size_t index)
+  {
     assert(index < positions.size());
     return positions[index];
   }
-  PCCColor3B getColor(const size_t index) const {
+  PCCColor3B getColor(const size_t index) const
+  {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  PCCColor3B &getColor(const size_t index) {
+  PCCColor3B& getColor(const size_t index)
+  {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  void setColor(const size_t index, const PCCColor3B color) {
+  void setColor(const size_t index, const PCCColor3B color)
+  {
     assert(index < colors.size() && withColors);
     colors[index] = color;
   }
-  uint16_t getReflectance(const size_t index) const {
+  uint16_t getReflectance(const size_t index) const
+  {
     assert(index < reflectances.size() && withReflectances);
     return reflectances[index];
   }
-  uint16_t &getReflectance(const size_t index) {
+  uint16_t& getReflectance(const size_t index)
+  {
     assert(index < reflectances.size() && withReflectances);
     return reflectances[index];
   }
-  void setReflectance(const size_t index, const uint16_t reflectance) {
+  void setReflectance(const size_t index, const uint16_t reflectance)
+  {
     assert(index < reflectances.size() && withReflectances);
     reflectances[index] = reflectance;
   }
 
   bool hasReflectances() const { return withReflectances; }
-  void addReflectances() {
+  void addReflectances()
+  {
     withReflectances = true;
     resize(getPointCount());
   }
-  void removeReflectances() {
+  void removeReflectances()
+  {
     withReflectances = false;
     reflectances.resize(0);
   }
 
   bool hasColors() const { return withColors; }
-  void addColors() {
+  void addColors()
+  {
     withColors = true;
     resize(getPointCount());
   }
-  void removeColors() {
+  void removeColors()
+  {
     withColors = false;
     colors.resize(0);
   }
 
-  void addRemoveAttributes(bool withColors, bool withReflectances) {
+  void addRemoveAttributes(bool withColors, bool withReflectances)
+  {
     if (withColors)
       addColors();
     else
@@ -329,7 +324,8 @@ class PCCPointSet3 {
   }
 
   size_t getPointCount() const { return positions.size(); }
-  void resize(const size_t size) {
+  void resize(const size_t size)
+  {
     positions.resize(size);
     if (hasColors()) {
       colors.resize(size);
@@ -338,7 +334,8 @@ class PCCPointSet3 {
       reflectances.resize(size);
     }
   }
-  void reserve(const size_t size) {
+  void reserve(const size_t size)
+  {
     positions.reserve(size);
     if (hasColors()) {
       colors.reserve(size);
@@ -347,12 +344,14 @@ class PCCPointSet3 {
       reflectances.reserve(size);
     }
   }
-  void clear() {
+  void clear()
+  {
     positions.clear();
     colors.clear();
     reflectances.clear();
   }
-  void swapPoints(const size_t index1, const size_t index2) {
+  void swapPoints(const size_t index1, const size_t index2)
+  {
     assert(index1 < getPointCount());
     assert(index2 < getPointCount());
     std::swap((*this)[index1], (*this)[index2]);
@@ -363,11 +362,13 @@ class PCCPointSet3 {
       std::swap(getReflectance(index1), getReflectance(index2));
     }
   }
-  PCCBox3D computeBoundingBox() const {
-    PCCBox3D bbox = {std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest()};
+  PCCBox3D computeBoundingBox() const
+  {
+    PCCBox3D bbox = {std::numeric_limits<double>::max(),
+                     std::numeric_limits<double>::lowest()};
     const size_t pointCount = getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
-      const PCCPoint3D &pt = (*this)[i];
+      const PCCPoint3D& pt = (*this)[i];
       for (int k = 0; k < 3; ++k) {
         if (pt[k] > bbox.max[k]) {
           bbox.max[k] = pt[k];
@@ -379,17 +380,21 @@ class PCCPointSet3 {
     }
     return bbox;
   }
-  static bool compareSeparators(char aChar, const char *const sep) {
+  static bool compareSeparators(char aChar, const char* const sep)
+  {
     int i = 0;
     while (sep[i] != '\0') {
-      if (aChar == sep[i]) return false;
+      if (aChar == sep[i])
+        return false;
       i++;
     }
     return true;
   }
-  static inline bool getTokens(const char *str, const char *const sep,
-                               std::vector<std::string> &tokens) {
-    if (!tokens.empty()) tokens.clear();
+  static inline bool getTokens(
+    const char* str, const char* const sep, std::vector<std::string>& tokens)
+  {
+    if (!tokens.empty())
+      tokens.clear();
     std::string buf = "";
     size_t i = 0;
     size_t length = ::strlen(str);
@@ -402,10 +407,12 @@ class PCCPointSet3 {
       }
       i++;
     }
-    if (!buf.empty()) tokens.push_back(buf);
+    if (!buf.empty())
+      tokens.push_back(buf);
     return !tokens.empty();
   }
-  bool write(const std::string &fileName, const bool asAscii = false) const {
+  bool write(const std::string& fileName, const bool asAscii = false) const
+  {
     std::ofstream fout(fileName, std::ofstream::out);
     if (!fout.is_open()) {
       return false;
@@ -449,11 +456,12 @@ class PCCPointSet3 {
       //      fout << std::setprecision(std::numeric_limits<double>::max_digits10);
       fout << std::fixed << std::setprecision(5);
       for (size_t i = 0; i < pointCount; ++i) {
-        const PCCPoint3D &position = (*this)[i];
+        const PCCPoint3D& position = (*this)[i];
         fout << position.x() << " " << position.y() << " " << position.z();
         if (hasColors()) {
-          const PCCColor3B &color = getColor(i);
-          fout << " " << static_cast<int>(color[0]) << " " << static_cast<int>(color[1]) << " "
+          const PCCColor3B& color = getColor(i);
+          fout << " " << static_cast<int>(color[0]) << " "
+               << static_cast<int>(color[1]) << " "
                << static_cast<int>(color[2]);
         }
         if (hasReflectances()) {
@@ -466,27 +474,32 @@ class PCCPointSet3 {
       fout.close();
       fout.open(fileName, std::ofstream::binary | std::ofstream::app);
       for (size_t i = 0; i < pointCount; ++i) {
-        const PCCPoint3D &position = (*this)[i];
-        fout.write(reinterpret_cast<const char *const>(&position), sizeof(double) * 3);
+        const PCCPoint3D& position = (*this)[i];
+        fout.write(
+          reinterpret_cast<const char* const>(&position), sizeof(double) * 3);
         if (hasColors()) {
-          const PCCColor3B &color = getColor(i);
-          fout.write(reinterpret_cast<const char *>(&color), sizeof(uint8_t) * 3);
+          const PCCColor3B& color = getColor(i);
+          fout.write(
+            reinterpret_cast<const char*>(&color), sizeof(uint8_t) * 3);
         }
         if (hasReflectances()) {
-          const uint16_t &reflectance = getReflectance(i);
-          fout.write(reinterpret_cast<const char *>(&reflectance), sizeof(uint16_t));
+          const uint16_t& reflectance = getReflectance(i);
+          fout.write(
+            reinterpret_cast<const char*>(&reflectance), sizeof(uint16_t));
         }
       }
     }
     fout.close();
     return true;
   }
-  bool read(const std::string &fileName) {
+  bool read(const std::string& fileName)
+  {
     std::ifstream ifs(fileName, std::ifstream::in | std::ifstream::binary);
     if (!ifs.is_open()) {
       return false;
     }
-    enum AttributeType {
+    enum AttributeType
+    {
       ATTRIBUTE_TYPE_FLOAT64 = 0,
       ATTRIBUTE_TYPE_FLOAT32 = 1,
       ATTRIBUTE_TYPE_UINT64 = 2,
@@ -508,7 +521,7 @@ class PCCPointSet3 {
     attributesInfo.reserve(16);
     const size_t MAX_BUFFER_SIZE = 4096;
     char tmp[MAX_BUFFER_SIZE];
-    const char *sep = " \t\r";
+    const char* sep = " \t\r";
     std::vector<std::string> tokens;
 
     ifs.getline(tmp, MAX_BUFFER_SIZE);
@@ -553,11 +566,11 @@ class PCCPointSet3 {
           std::cout << "Error: corrupted property info!" << std::endl;
           return false;
         }
-        const std::string &propertyType = tokens[1];
-        const std::string &propertyName = tokens[2];
+        const std::string& propertyType = tokens[1];
+        const std::string& propertyName = tokens[2];
         const size_t attributeIndex = attributesInfo.size();
         attributesInfo.resize(attributeIndex + 1);
-        AttributeInfo &attributeInfo = attributesInfo[attributeIndex];
+        AttributeInfo& attributeInfo = attributesInfo[attributeIndex];
         attributeInfo.name = propertyName;
         if (propertyType == "float64") {
           attributeInfo.type = ATTRIBUTE_TYPE_FLOAT64;
@@ -608,34 +621,41 @@ class PCCPointSet3 {
     size_t indexReflectance = PCC_UNDEFINED_INDEX;
     const size_t attributeCount = attributesInfo.size();
     for (size_t a = 0; a < attributeCount; ++a) {
-      const auto &attributeInfo = attributesInfo[a];
-      if (attributeInfo.name == "x" &&
-          (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+      const auto& attributeInfo = attributesInfo[a];
+      if (
+        attributeInfo.name == "x"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
         indexX = a;
-      } else if (attributeInfo.name == "y" &&
-                 (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+      } else if (
+        attributeInfo.name == "y"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
         indexY = a;
-      } else if (attributeInfo.name == "z" &&
-                 (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+      } else if (
+        attributeInfo.name == "z"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
         indexZ = a;
       } else if (attributeInfo.name == "red" && attributeInfo.byteCount == 1) {
         indexR = a;
-      } else if (attributeInfo.name == "green" && attributeInfo.byteCount == 1) {
+      } else if (
+        attributeInfo.name == "green" && attributeInfo.byteCount == 1) {
         indexG = a;
-      } else if (attributeInfo.name == "blue" && attributeInfo.byteCount == 1) {
+      } else if (
+        attributeInfo.name == "blue" && attributeInfo.byteCount == 1) {
         indexB = a;
-      } else if ((attributeInfo.name == "reflectance" || attributeInfo.name == "refc") &&
-                 attributeInfo.byteCount <= 2) {
+      } else if (
+        (attributeInfo.name == "reflectance" || attributeInfo.name == "refc")
+        && attributeInfo.byteCount <= 2) {
         indexReflectance = a;
       }
     }
-    if (indexX == PCC_UNDEFINED_INDEX || indexY == PCC_UNDEFINED_INDEX ||
-        indexZ == PCC_UNDEFINED_INDEX) {
+    if (
+      indexX == PCC_UNDEFINED_INDEX || indexY == PCC_UNDEFINED_INDEX
+      || indexZ == PCC_UNDEFINED_INDEX) {
       std::cout << "Error: missing coordinates!" << std::endl;
       return false;
     }
-    withColors = indexR != PCC_UNDEFINED_INDEX && indexG != PCC_UNDEFINED_INDEX &&
-                 indexB != PCC_UNDEFINED_INDEX;
+    withColors = indexR != PCC_UNDEFINED_INDEX && indexG != PCC_UNDEFINED_INDEX
+      && indexB != PCC_UNDEFINED_INDEX;
     withReflectances = indexReflectance != PCC_UNDEFINED_INDEX;
     resize(pointCount);
     if (isAscii) {
@@ -649,73 +669,75 @@ class PCCPointSet3 {
         if (tokens.size() < attributeCount) {
           return false;
         }
-        auto &position = positions[pointCounter];
+        auto& position = positions[pointCounter];
         position[0] = atof(tokens[indexX].c_str());
         position[1] = atof(tokens[indexY].c_str());
         position[2] = atof(tokens[indexZ].c_str());
         if (hasColors()) {
-          auto &color = colors[pointCounter];
+          auto& color = colors[pointCounter];
           color[0] = atoi(tokens[indexR].c_str());
           color[1] = atoi(tokens[indexG].c_str());
           color[2] = atoi(tokens[indexB].c_str());
         }
         if (hasReflectances()) {
-          reflectances[pointCounter] = uint16_t(atoi(tokens[indexReflectance].c_str()));
+          reflectances[pointCounter] =
+            uint16_t(atoi(tokens[indexReflectance].c_str()));
         }
         ++pointCounter;
       }
     } else {
-      for (size_t pointCounter = 0; pointCounter < pointCount && !ifs.eof(); ++pointCounter) {
-        auto &position = positions[pointCounter];
+      for (size_t pointCounter = 0; pointCounter < pointCount && !ifs.eof();
+           ++pointCounter) {
+        auto& position = positions[pointCounter];
         for (size_t a = 0; a < attributeCount && !ifs.eof(); ++a) {
-          const auto &attributeInfo = attributesInfo[a];
+          const auto& attributeInfo = attributesInfo[a];
           if (a == indexX) {
             if (attributeInfo.byteCount == 4) {
               float x;
-              ifs.read(reinterpret_cast<char *>(&x), sizeof(float));
+              ifs.read(reinterpret_cast<char*>(&x), sizeof(float));
               position[0] = x;
             } else {
               double x;
-              ifs.read(reinterpret_cast<char *>(&x), sizeof(double));
+              ifs.read(reinterpret_cast<char*>(&x), sizeof(double));
               position[0] = x;
             }
           } else if (a == indexY) {
             if (attributeInfo.byteCount == 4) {
               float y;
-              ifs.read(reinterpret_cast<char *>(&y), sizeof(float));
+              ifs.read(reinterpret_cast<char*>(&y), sizeof(float));
               position[1] = y;
             } else {
               double y;
-              ifs.read(reinterpret_cast<char *>(&y), sizeof(double));
+              ifs.read(reinterpret_cast<char*>(&y), sizeof(double));
               position[1] = y;
             }
           } else if (a == indexZ) {
             if (attributeInfo.byteCount == 4) {
               float z;
-              ifs.read(reinterpret_cast<char *>(&z), sizeof(float));
+              ifs.read(reinterpret_cast<char*>(&z), sizeof(float));
               position[2] = z;
             } else {
               double z;
-              ifs.read(reinterpret_cast<char *>(&z), sizeof(double));
+              ifs.read(reinterpret_cast<char*>(&z), sizeof(double));
               position[2] = z;
             }
           } else if (a == indexR && attributeInfo.byteCount == 1) {
-            auto &color = colors[pointCounter];
-            ifs.read(reinterpret_cast<char *>(&color[0]), sizeof(uint8_t));
+            auto& color = colors[pointCounter];
+            ifs.read(reinterpret_cast<char*>(&color[0]), sizeof(uint8_t));
           } else if (a == indexG && attributeInfo.byteCount == 1) {
-            auto &color = colors[pointCounter];
-            ifs.read(reinterpret_cast<char *>(&color[1]), sizeof(uint8_t));
+            auto& color = colors[pointCounter];
+            ifs.read(reinterpret_cast<char*>(&color[1]), sizeof(uint8_t));
           } else if (a == indexB && attributeInfo.byteCount == 1) {
-            auto &color = colors[pointCounter];
-            ifs.read(reinterpret_cast<char *>(&color[2]), sizeof(uint8_t));
+            auto& color = colors[pointCounter];
+            ifs.read(reinterpret_cast<char*>(&color[2]), sizeof(uint8_t));
           } else if (a == indexReflectance && attributeInfo.byteCount <= 2) {
             if (indexReflectance == 1) {
               uint8_t reflectance;
-              ifs.read(reinterpret_cast<char *>(&reflectance), sizeof(uint8_t));
+              ifs.read(reinterpret_cast<char*>(&reflectance), sizeof(uint8_t));
               reflectances[pointCounter] = reflectance;
             } else {
-              auto &reflectance = reflectances[pointCounter];
-              ifs.read(reinterpret_cast<char *>(reflectance), sizeof(uint16_t));
+              auto& reflectance = reflectances[pointCounter];
+              ifs.read(reinterpret_cast<char*>(reflectance), sizeof(uint16_t));
             }
           } else {
             char buffer[128];
@@ -726,49 +748,61 @@ class PCCPointSet3 {
     }
     return true;
   }
-  void convertRGBToYUV() {  // BT709
-    for (auto &color : colors) {
+  void convertRGBToYUV()
+  {  // BT709
+    for (auto& color : colors) {
       const uint8_t r = color[0];
       const uint8_t g = color[1];
       const uint8_t b = color[2];
       const double y = std::round(0.212600 * r + 0.715200 * g + 0.072200 * b);
-      const double u = std::round(-0.114572 * r - 0.385428 * g + 0.500000 * b + 128.0);
-      const double v = std::round(0.500000 * r - 0.454153 * g - 0.045847 * b + 128.0);
-      assert(y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0 && v <= 255.0);
+      const double u =
+        std::round(-0.114572 * r - 0.385428 * g + 0.500000 * b + 128.0);
+      const double v =
+        std::round(0.500000 * r - 0.454153 * g - 0.045847 * b + 128.0);
+      assert(
+        y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0
+        && v <= 255.0);
       color[0] = static_cast<uint8_t>(y);
       color[1] = static_cast<uint8_t>(u);
       color[2] = static_cast<uint8_t>(v);
     }
   }
-  void convertRGBToYUVClosedLoop() {  // BT709
-    for (auto &color : colors) {
+  void convertRGBToYUVClosedLoop()
+  {  // BT709
+    for (auto& color : colors) {
       const uint8_t r = color[0];
       const uint8_t g = color[1];
       const uint8_t b = color[2];
       const double y = std::round(0.212600 * r + 0.715200 * g + 0.072200 * b);
       const double u = std::round((b - y) / 1.8556 + 128.0);
       const double v = std::round((r - y) / 1.5748 + 128.0);
-      assert(y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0 && v <= 255.0);
+      assert(
+        y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0
+        && v <= 255.0);
       color[0] = static_cast<uint8_t>(y);
       color[1] = static_cast<uint8_t>(u);
       color[2] = static_cast<uint8_t>(v);
     }
   }
-  void convertYUVToRGB() {  // BT709
-    for (auto &color : colors) {
+  void convertYUVToRGB()
+  {  // BT709
+    for (auto& color : colors) {
       const double y1 = color[0];
       const double u1 = color[1] - 128.0;
       const double v1 = color[2] - 128.0;
-      const double r = PCCClip(round(y1 /*- 0.00000 * u1*/ + 1.57480 * v1), 0.0, 255.0);
-      const double g = PCCClip(round(y1 - 0.18733 * u1 - 0.46813 * v1), 0.0, 255.0);
-      const double b = PCCClip(round(y1 + 1.85563 * u1 /*+ 0.00000 * v1*/), 0.0, 255.0);
+      const double r =
+        PCCClip(round(y1 /*- 0.00000 * u1*/ + 1.57480 * v1), 0.0, 255.0);
+      const double g =
+        PCCClip(round(y1 - 0.18733 * u1 - 0.46813 * v1), 0.0, 255.0);
+      const double b =
+        PCCClip(round(y1 + 1.85563 * u1 /*+ 0.00000 * v1*/), 0.0, 255.0);
       color[0] = static_cast<uint8_t>(r);
       color[1] = static_cast<uint8_t>(g);
       color[2] = static_cast<uint8_t>(b);
     }
   }
 
- private:
+private:
   std::vector<PCCPoint3D> positions;
   std::vector<PCCColor3B> colors;
   std::vector<uint16_t> reflectances;
@@ -781,7 +815,8 @@ class PCCPointSet3 {
 // as referenced by the proxies a and b.
 
 static void
-swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b) {
+swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b)
+{
   a.swap(b);
 }
 
@@ -789,7 +824,8 @@ swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b) {
 // Swap two point clouds
 
 static void
-swap(PCCPointSet3& a, PCCPointSet3& b) {
+swap(PCCPointSet3& a, PCCPointSet3& b)
+{
   a.swap(b);
 }
 

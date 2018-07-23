@@ -46,127 +46,163 @@
 
 namespace pcc {
 /// Vector dim 3
-template <typename T>
+template<typename T>
 class PCCVector3 {
- public:
-  T &operator[](size_t i) {
+public:
+  T& operator[](size_t i)
+  {
     assert(i < 3);
     return data[i];
   }
-  const T &operator[](size_t i) const {
+  const T& operator[](size_t i) const
+  {
     assert(i < 3);
     return data[i];
   }
   size_t getElementCount() const { return 3; }
-  T &r() { return data[0]; }
-  T &g() { return data[1]; }
-  T &b() { return data[2]; }
-  const T &r() const { return data[0]; }
-  const T &g() const { return data[1]; }
-  const T &b() const { return data[2]; }
-  T &x() { return data[0]; }
-  T &y() { return data[1]; }
-  T &z() { return data[2]; }
-  const T &x() const { return data[0]; }
-  const T &y() const { return data[1]; }
-  const T &z() const { return data[2]; }
+  T& r() { return data[0]; }
+  T& g() { return data[1]; }
+  T& b() { return data[2]; }
+  const T& r() const { return data[0]; }
+  const T& g() const { return data[1]; }
+  const T& b() const { return data[2]; }
+  T& x() { return data[0]; }
+  T& y() { return data[1]; }
+  T& z() { return data[2]; }
+  const T& x() const { return data[0]; }
+  const T& y() const { return data[1]; }
+  const T& z() const { return data[2]; }
 
   T getNorm() const { return static_cast<T>(sqrt(getNorm2())); }
   T getNorm2() const { return (*this) * (*this); }
-  PCCVector3 &operator=(const PCCVector3 &rhs) {
+  PCCVector3& operator=(const PCCVector3& rhs)
+  {
     memcpy(data, rhs.data, sizeof(data));
     return *this;
   }
-  PCCVector3 &operator+=(const PCCVector3 &rhs) {
+  PCCVector3& operator+=(const PCCVector3& rhs)
+  {
     data[0] += rhs.data[0];
     data[1] += rhs.data[1];
     data[2] += rhs.data[2];
     return *this;
   }
-  PCCVector3 &operator-=(const PCCVector3 &rhs) {
+  PCCVector3& operator-=(const PCCVector3& rhs)
+  {
     data[0] -= rhs.data[0];
     data[1] -= rhs.data[1];
     data[2] -= rhs.data[2];
     return *this;
   }
-  PCCVector3 &operator-=(const T a) {
+  PCCVector3& operator-=(const T a)
+  {
     data[0] -= a;
     data[1] -= a;
     data[2] -= a;
     return *this;
   }
-  PCCVector3 &operator+=(const T a) {
+  PCCVector3& operator+=(const T a)
+  {
     data[0] += a;
     data[1] += a;
     data[2] += a;
     return *this;
   }
-  PCCVector3 &operator<<=(int val) {
+  PCCVector3& operator<<=(int val)
+  {
     data[0] <<= val;
     data[1] <<= val;
     data[2] <<= val;
     return *this;
   }
-  PCCVector3 &operator/=(const T a) {
+  PCCVector3& operator/=(const T a)
+  {
     assert(a != 0);
     data[0] /= a;
     data[1] /= a;
     data[2] /= a;
     return *this;
   }
-  PCCVector3 &operator*=(const T a) {
+  PCCVector3& operator*=(const T a)
+  {
     data[0] *= a;
     data[1] *= a;
     data[2] *= a;
     return *this;
   }
-  PCCVector3 &operator=(const T a) {
+  PCCVector3& operator=(const T a)
+  {
     data[0] = a;
     data[1] = a;
     data[2] = a;
     return *this;
   }
-  PCCVector3 &operator=(const T *const rhs) {
+  PCCVector3& operator=(const T* const rhs)
+  {
     data[0] = rhs[0];
     data[1] = rhs[1];
     data[2] = rhs[2];
     return *this;
   }
-  T operator*(const PCCVector3 &rhs) const {
-    return (data[0] * rhs.data[0] + data[1] * rhs.data[1] + data[2] * rhs.data[2]);
+  T operator*(const PCCVector3& rhs) const
+  {
+    return (
+      data[0] * rhs.data[0] + data[1] * rhs.data[1] + data[2] * rhs.data[2]);
   }
-  PCCVector3 operator-() const { return PCCVector3<T>(-data[0], -data[1], -data[2]); }
-  friend PCCVector3 operator+(const PCCVector3 &lhs, const PCCVector3 &rhs) {
-    return PCCVector3<T>(lhs.data[0] + rhs.data[0], lhs.data[1] + rhs.data[1],
-                         lhs.data[2] + rhs.data[2]);
+  PCCVector3 operator-() const
+  {
+    return PCCVector3<T>(-data[0], -data[1], -data[2]);
   }
-  friend PCCVector3 operator+(const T lhs, const PCCVector3 &rhs) {
-    return PCCVector3<T>(lhs + rhs.data[0], lhs + rhs.data[1], lhs + rhs.data[2]);
+  friend PCCVector3 operator+(const PCCVector3& lhs, const PCCVector3& rhs)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] + rhs.data[0], lhs.data[1] + rhs.data[1],
+      lhs.data[2] + rhs.data[2]);
   }
-  friend PCCVector3 operator+(const PCCVector3 &lhs, const T rhs) {
-    return PCCVector3<T>(lhs.data[0] + rhs, lhs.data[1] + rhs, lhs.data[2] + rhs);
+  friend PCCVector3 operator+(const T lhs, const PCCVector3& rhs)
+  {
+    return PCCVector3<T>(
+      lhs + rhs.data[0], lhs + rhs.data[1], lhs + rhs.data[2]);
   }
-  friend PCCVector3 operator-(const PCCVector3 &lhs, const PCCVector3 &rhs) {
-    return PCCVector3<T>(lhs.data[0] - rhs.data[0], lhs.data[1] - rhs.data[1],
-                         lhs.data[2] - rhs.data[2]);
+  friend PCCVector3 operator+(const PCCVector3& lhs, const T rhs)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] + rhs, lhs.data[1] + rhs, lhs.data[2] + rhs);
   }
-  friend PCCVector3 operator-(const T lhs, const PCCVector3 &rhs) {
-    return PCCVector3<T>(lhs - rhs.data[0], lhs - rhs.data[1], lhs - rhs.data[2]);
+  friend PCCVector3 operator-(const PCCVector3& lhs, const PCCVector3& rhs)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] - rhs.data[0], lhs.data[1] - rhs.data[1],
+      lhs.data[2] - rhs.data[2]);
   }
-  friend PCCVector3 operator-(const PCCVector3 &lhs, const T rhs) {
-    return PCCVector3<T>(lhs.data[0] - rhs, lhs.data[1] - rhs, lhs.data[2] - rhs);
+  friend PCCVector3 operator-(const T lhs, const PCCVector3& rhs)
+  {
+    return PCCVector3<T>(
+      lhs - rhs.data[0], lhs - rhs.data[1], lhs - rhs.data[2]);
   }
-  friend PCCVector3 operator*(const T lhs, const PCCVector3 &rhs) {
-    return PCCVector3<T>(lhs * rhs.data[0], lhs * rhs.data[1], lhs * rhs.data[2]);
+  friend PCCVector3 operator-(const PCCVector3& lhs, const T rhs)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] - rhs, lhs.data[1] - rhs, lhs.data[2] - rhs);
   }
-  friend PCCVector3 operator*(const PCCVector3 &lhs, const T rhs) {
-    return PCCVector3<T>(lhs.data[0] * rhs, lhs.data[1] * rhs, lhs.data[2] * rhs);
+  friend PCCVector3 operator*(const T lhs, const PCCVector3& rhs)
+  {
+    return PCCVector3<T>(
+      lhs * rhs.data[0], lhs * rhs.data[1], lhs * rhs.data[2]);
   }
-  friend PCCVector3 operator/(const PCCVector3 &lhs, const T rhs) {
+  friend PCCVector3 operator*(const PCCVector3& lhs, const T rhs)
+  {
+    return PCCVector3<T>(
+      lhs.data[0] * rhs, lhs.data[1] * rhs, lhs.data[2] * rhs);
+  }
+  friend PCCVector3 operator/(const PCCVector3& lhs, const T rhs)
+  {
     assert(rhs != 0);
-    return PCCVector3<T>(lhs.data[0] / rhs, lhs.data[1] / rhs, lhs.data[2] / rhs);
+    return PCCVector3<T>(
+      lhs.data[0] / rhs, lhs.data[1] / rhs, lhs.data[2] / rhs);
   }
-  bool operator<(const PCCVector3 &rhs) const {
+  bool operator<(const PCCVector3& rhs) const
+  {
     if (data[0] == rhs.data[0]) {
       if (data[1] == rhs.data[1]) {
         return (data[2] < rhs.data[2]);
@@ -175,7 +211,8 @@ class PCCVector3 {
     }
     return (data[0] < rhs.data[0]);
   }
-  bool operator>(const PCCVector3 &rhs) const {
+  bool operator>(const PCCVector3& rhs) const
+  {
     if (data[0] == rhs.data[0]) {
       if (data[1] == rhs.data[1]) {
         return (data[2] > rhs.data[2]);
@@ -184,27 +221,37 @@ class PCCVector3 {
     }
     return (data[0] > rhs.data[0]);
   }
-  bool operator==(const PCCVector3 &rhs) const {
-    return (data[0] == rhs.data[0] && data[1] == rhs.data[1] && data[2] == rhs.data[2]);
+  bool operator==(const PCCVector3& rhs) const
+  {
+    return (
+      data[0] == rhs.data[0] && data[1] == rhs.data[1]
+      && data[2] == rhs.data[2]);
   }
-  bool operator!=(const PCCVector3 &rhs) const {
-    return (data[0] != rhs.data[0] || data[1] != rhs.data[1] || data[2] != rhs.data[2]);
+  bool operator!=(const PCCVector3& rhs) const
+  {
+    return (
+      data[0] != rhs.data[0] || data[1] != rhs.data[1]
+      || data[2] != rhs.data[2]);
   }
-  friend std::ostream &operator<<(std::ostream &os, const PCCVector3 &vec) {
+  friend std::ostream& operator<<(std::ostream& os, const PCCVector3& vec)
+  {
     os << vec[0] << " " << vec[1] << " " << vec[2] << std::endl;
     return os;
   }
-  friend std::istream &operator>>(std::istream &is, PCCVector3 &vec) {
+  friend std::istream& operator>>(std::istream& is, PCCVector3& vec)
+  {
     is >> vec[0] >> vec[1] >> vec[2];
     return is;
   }
   PCCVector3(const T a) { data[0] = data[1] = data[2] = a; }
-  PCCVector3(const T x, const T y, const T z) {
+  PCCVector3(const T x, const T y, const T z)
+  {
     data[0] = x;
     data[1] = y;
     data[2] = z;
   }
-  PCCVector3(const PCCVector3 &vec) {
+  PCCVector3(const PCCVector3& vec)
+  {
     data[0] = vec.data[0];
     data[1] = vec.data[1];
     data[2] = vec.data[2];
@@ -212,20 +259,23 @@ class PCCVector3 {
   PCCVector3() = default;
   ~PCCVector3(void) = default;
 
- private:
+private:
   T data[3];
 };
 
-template <typename T>
+template<typename T>
 struct PCCBox3 {
   PCCVector3<T> min;
   PCCVector3<T> max;
-  bool contains(const PCCVector3<T> point) const {
-    return !(point.x() < min.x() || point.x() > max.x() || point.y() < min.y() ||
-             point.y() > max.y() || point.z() < min.z() || point.z() > max.z());
+  bool contains(const PCCVector3<T> point) const
+  {
+    return !(
+      point.x() < min.x() || point.x() > max.x() || point.y() < min.y()
+      || point.y() > max.y() || point.z() < min.z() || point.z() > max.z());
   }
 
-  PCCBox3 merge(const PCCBox3 &box) {
+  PCCBox3 merge(const PCCBox3& box)
+  {
     min.x() = std::min(min.x(), box.min.x());
     min.y() = std::min(min.y(), box.min.y());
     min.z() = std::min(min.z(), box.min.z());
@@ -235,18 +285,23 @@ struct PCCBox3 {
     return box;
   }
 
-  bool intersects(const PCCBox3 &box) {
-    return max.x() >= box.min.x() && min.x() <= box.max.x() && max.y() >= box.min.y() &&
-           min.y() <= box.max.y() && max.z() >= box.min.z() && min.z() <= box.max.z();
+  bool intersects(const PCCBox3& box)
+  {
+    return max.x() >= box.min.x() && min.x() <= box.max.x()
+      && max.y() >= box.min.y() && min.y() <= box.max.y()
+      && max.z() >= box.min.z() && min.z() <= box.max.z();
   }
 
-  friend std::ostream &operator<<(std::ostream &os, const PCCBox3 &box) {
-    os << box.min[0] << " " << box.min[1] << " " << box.min[2] << " " << box.max[0] << " "
-       << box.max[1] << " " << box.max[2] << std::endl;
+  friend std::ostream& operator<<(std::ostream& os, const PCCBox3& box)
+  {
+    os << box.min[0] << " " << box.min[1] << " " << box.min[2] << " "
+       << box.max[0] << " " << box.max[1] << " " << box.max[2] << std::endl;
     return os;
   }
-  friend std::istream &operator>>(std::istream &is, PCCBox3 &box) {
-    is >> box.min[0] >> box.min[1] >> box.min[2] >> box.max[0] >> box.max[1] >> box.max[2];
+  friend std::istream& operator>>(std::istream& is, PCCBox3& box)
+  {
+    is >> box.min[0] >> box.min[1] >> box.min[2] >> box.max[0] >> box.max[1]
+      >> box.max[2];
     return is;
   }
 };
@@ -256,20 +311,27 @@ typedef PCCVector3<double> PCCPoint3D;
 typedef PCCBox3<double> PCCBox3D;
 typedef PCCVector3<uint8_t> PCCColor3B;
 
-template <typename T>
-T PCCClip(const T &n, const T &lower, const T &upper) {
+template<typename T>
+T
+PCCClip(const T& n, const T& lower, const T& upper)
+{
   return std::max(lower, std::min(n, upper));
 }
-template <typename T>
-bool PCCApproximatelyEqual(T a, T b, T epsilon = std::numeric_limits<double>::epsilon()) {
+template<typename T>
+bool
+PCCApproximatelyEqual(
+  T a, T b, T epsilon = std::numeric_limits<double>::epsilon())
+{
   return fabs(a - b) <= ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
 }
 
 //---------------------------------------------------------------------------
 // Convert a vector position (divided by 2^depth) to morton order address.
 
-template <typename T>
-uint64_t mortonAddr(const PCCVector3<T>& vec, int depth) {
+template<typename T>
+uint64_t
+mortonAddr(const PCCVector3<T>& vec, int depth)
+{
   uint64_t addr = interleave3b0(uint64_t(vec.z()) >> depth);
   addr |= interleave3b0(uint64_t(vec.y()) >> depth) << 1;
   addr |= interleave3b0(uint64_t(vec.x()) >> depth) << 2;

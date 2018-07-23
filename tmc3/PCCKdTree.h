@@ -41,21 +41,30 @@
 #include "PCCPointSet.h"
 
 namespace pcc {
-enum PCCAxis3 { PCC_AXIS3_UNDEFINED = -1, PCC_AXIS3_X = 0, PCC_AXIS3_Y = 1, PCC_AXIS3_Z = 2 };
+enum PCCAxis3
+{
+  PCC_AXIS3_UNDEFINED = -1,
+  PCC_AXIS3_X = 0,
+  PCC_AXIS3_Y = 1,
+  PCC_AXIS3_Z = 2
+};
 
 struct PCCPointDistInfo {
   double dist2;
   uint32_t index;
-  bool operator<(const PCCPointDistInfo &rhs) const { return dist2 < rhs.dist2; }
+  bool operator<(const PCCPointDistInfo& rhs) const
+  {
+    return dist2 < rhs.dist2;
+  }
 };
 
 struct PCCNNResult {
-  PCCPointDistInfo *neighbors;
+  PCCPointDistInfo* neighbors;
   size_t resultCount;
 };
 
 struct PCCRangeResult {
-  PCCPointDistInfo *neighbors;
+  PCCPointDistInfo* neighbors;
   size_t resultCount;
 };
 
@@ -71,22 +80,25 @@ struct PCCRangeQuery3 {
   size_t maxResultCount;
 };
 
-template <typename T>
+template<typename T>
 class PCCHeap {
- public:
+public:
   PCCHeap(void) = default;
-  PCCHeap(const PCCHeap &) = delete;
-  PCCHeap &operator=(const PCCHeap &) = delete;
-  PCCHeap(T *array, size_t capacity) : array(array), cap(capacity), sz(0) {}
-  T &top() {
+  PCCHeap(const PCCHeap&) = delete;
+  PCCHeap& operator=(const PCCHeap&) = delete;
+  PCCHeap(T* array, size_t capacity) : array(array), cap(capacity), sz(0) {}
+  T& top()
+  {
     assert(sz > 0);
     return array[0];
   }
-  const T &top() const {
+  const T& top() const
+  {
     assert(sz > 0);
     return array[0];
   }
-  void push(const T &elem) {
+  void push(const T& elem)
+  {
     if (sz < cap) {
       size_t i = sz;
       array[i] = elem;
@@ -102,7 +114,8 @@ class PCCHeap {
       maxHeapify(0);
     }
   }
-  void pop() {
+  void pop()
+  {
     assert(sz > 0);
     array[0] = array[--sz];
     maxHeapify(0);
@@ -111,8 +124,9 @@ class PCCHeap {
   size_t size() const { return sz; }
   size_t capacity() const { return cap; }
 
- private:
-  void maxHeapify(size_t i) {
+private:
+  void maxHeapify(size_t i)
+  {
     size_t l = left(i);
     size_t r = right(i);
     size_t g = (l < sz && array[i] < array[l]) ? l : i;
@@ -128,12 +142,11 @@ class PCCHeap {
   size_t left(size_t index) const { return 2 * index + 1; }
   size_t right(size_t index) const { return 2 * index + 2; }
 
- private:
-  T *array;
+private:
+  T* array;
   size_t cap;
   size_t sz;
 };
-
 
 class PCCIncrementalKdTree3 {
   struct PCCIncrementalKdTree3Node {
@@ -144,28 +157,31 @@ class PCCIncrementalKdTree3 {
     PCCAxis3 axis;
   };
 
- public:
+public:
   PCCIncrementalKdTree3(void) { root = PCC_UNDEFINED_INDEX; }
-  PCCIncrementalKdTree3(const PCCIncrementalKdTree3 &) = default;
-  PCCIncrementalKdTree3 &operator=(const PCCIncrementalKdTree3 &) = default;
+  PCCIncrementalKdTree3(const PCCIncrementalKdTree3&) = default;
+  PCCIncrementalKdTree3& operator=(const PCCIncrementalKdTree3&) = default;
   ~PCCIncrementalKdTree3(void) = default;
 
-  void build(const PCCPointSet3 &pointCloud) {
+  void build(const PCCPointSet3& pointCloud)
+  {
     clear();
     insert(pointCloud);
   }
 
   size_t size() const { return nodes.size(); }
   size_t capacity() const { return nodes.capacity(); }
-  void clear() {
+  void clear()
+  {
     nodes.resize(0);
     root = PCC_UNDEFINED_INDEX;
   }
   void reserve(const size_t pointCount) { nodes.reserve(pointCount); }
-  uint32_t insert(const PCCPoint3D point) {
+  uint32_t insert(const PCCPoint3D point)
+  {
     const uint32_t id = static_cast<uint32_t>(nodes.size());
     nodes.resize(id + 1);
-    PCCIncrementalKdTree3Node &node = nodes[id];
+    PCCIncrementalKdTree3Node& node = nodes[id];
     node.pos = point;
     node.id = id;
     node.left = PCC_UNDEFINED_INDEX;
@@ -178,68 +194,77 @@ class PCCIncrementalKdTree3 {
     }
     return id;
   }
-  void insert(const PCCPointSet3 &pointCloud) {
+  void insert(const PCCPointSet3& pointCloud)
+  {
     if (pointCloud.getPointCount()) {
       const uint32_t start = static_cast<uint32_t>(nodes.size());
-      const uint32_t end = start + static_cast<uint32_t>(pointCloud.getPointCount());
+      const uint32_t end =
+        start + static_cast<uint32_t>(pointCloud.getPointCount());
       nodes.resize(end);
       for (uint32_t index = start; index < end; ++index) {
-        PCCIncrementalKdTree3Node &node = nodes[index];
+        PCCIncrementalKdTree3Node& node = nodes[index];
         node.pos = pointCloud[index - start];
         node.id = index;
       }
       root = balance(0, uint32_t(nodes.size()));
     }
   }
-  void balance() {
+  void balance()
+  {
     if (!nodes.empty()) {
       root = balance(0, uint32_t(nodes.size()));
     }
   }
-  void findNearestNeighbors(const PCCNNQuery3 &query, PCCNNResult &result) const {
+  void
+  findNearestNeighbors(const PCCNNQuery3& query, PCCNNResult& result) const
+  {
     assert(result.neighbors && query.nearestNeighborCount > 0);
     result.resultCount = 0;
     const PCCNNQuery3 query2 = {query.point, query.radius * query.radius,
                                 query.nearestNeighborCount};
-    PCCHeap<PCCPointDistInfo> neighbors(result.neighbors, query.nearestNeighborCount);
+    PCCHeap<PCCPointDistInfo> neighbors(
+      result.neighbors, query.nearestNeighborCount);
     findNearestNeighbors(root, query2, neighbors);
     std::sort(result.neighbors, result.neighbors + neighbors.size());
     result.resultCount = neighbors.size();
   }
-  void findNearestNeighbors2(const PCCNNQuery3 &query2, PCCNNResult &result) const {
+  void
+  findNearestNeighbors2(const PCCNNQuery3& query2, PCCNNResult& result) const
+  {
     assert(result.neighbors && query2.nearestNeighborCount > 0);
     result.resultCount = 0;
-    PCCHeap<PCCPointDistInfo> neighbors(result.neighbors, query2.nearestNeighborCount);
+    PCCHeap<PCCPointDistInfo> neighbors(
+      result.neighbors, query2.nearestNeighborCount);
     findNearestNeighbors(root, query2, neighbors);
     std::sort(result.neighbors, result.neighbors + neighbors.size());
     result.resultCount = neighbors.size();
   }
-  void findNeighbors(const PCCRangeQuery3 &query, PCCRangeResult &result) const {
+  void findNeighbors(const PCCRangeQuery3& query, PCCRangeResult& result) const
+  {
     assert(result.neighbors && query.maxResultCount > 0);
     result.resultCount = 0;
-    const PCCRangeQuery3 query2 = {query.point, query.radius * query.radius, query.maxResultCount};
+    const PCCRangeQuery3 query2 = {query.point, query.radius * query.radius,
+                                   query.maxResultCount};
     findNeighbors(root, query2, result);
   }
 
- private:
-  static PCCAxis3 nextAxis(const PCCAxis3 axis) {
+private:
+  static PCCAxis3 nextAxis(const PCCAxis3 axis)
+  {
     switch (axis) {
-      case PCC_AXIS3_X:
-        return PCC_AXIS3_Y;
-      case PCC_AXIS3_Y:
-        return PCC_AXIS3_Z;
-      case PCC_AXIS3_Z:
-        return PCC_AXIS3_X;
-      case PCC_AXIS3_UNDEFINED:
-        return PCC_AXIS3_X;
-      default:
-        return PCC_AXIS3_X;
+    case PCC_AXIS3_X: return PCC_AXIS3_Y;
+    case PCC_AXIS3_Y: return PCC_AXIS3_Z;
+    case PCC_AXIS3_Z: return PCC_AXIS3_X;
+    case PCC_AXIS3_UNDEFINED: return PCC_AXIS3_X;
+    default: return PCC_AXIS3_X;
     }
   }
-  void insert(PCCIncrementalKdTree3Node &node, const uint32_t parent) {
+  void insert(PCCIncrementalKdTree3Node& node, const uint32_t parent)
+  {
     const PCCAxis3 axis = nodes[parent].axis;
-    uint32_t &index =
-        (node.pos[axis] < nodes[parent].pos[axis]) ? nodes[parent].left : nodes[parent].right;
+    uint32_t& index = (node.pos[axis] < nodes[parent].pos[axis])
+      ? nodes[parent].left
+      : nodes[parent].right;
     if (index == PCC_UNDEFINED_INDEX) {
       index = node.id;
       node.axis = nextAxis(axis);
@@ -247,11 +272,12 @@ class PCCIncrementalKdTree3 {
       insert(node, index);
     }
   }
-  PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const {
+  PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const
+  {
     PCCPoint3D minBB = nodes[start].pos;
     PCCPoint3D maxBB = nodes[start].pos;
     for (size_t i = start + 1; i < end; ++i) {
-      const PCCPoint3D &pt = nodes[i].pos;
+      const PCCPoint3D& pt = nodes[i].pos;
       for (int32_t k = 0; k < 3; ++k) {
         if (minBB[k] > pt[k]) {
           minBB[k] = pt[k];
@@ -269,7 +295,8 @@ class PCCIncrementalKdTree3 {
       return PCC_AXIS3_Z;
     }
   }
-  uint32_t findMedian(uint32_t start, uint32_t end, const PCCAxis3 splitAxis) {
+  uint32_t findMedian(uint32_t start, uint32_t end, const PCCAxis3 splitAxis)
+  {
     assert(start < end);
     if (end == start + 1) {
       return start;
@@ -289,10 +316,12 @@ class PCCIncrementalKdTree3 {
       }
       std::swap(nodes[store], nodes[end - 1]);
 
-      while (store < medianIndex &&
-             PCCApproximatelyEqual(
-                 nodes[store].pos[splitAxis],
-                 nodes[store + 1].pos[splitAxis])) {  // optimization in case of duplicated values
+      while (
+        store < medianIndex
+        && PCCApproximatelyEqual(
+             nodes[store].pos[splitAxis],
+             nodes[store + 1].pos
+               [splitAxis])) {  // optimization in case of duplicated values
         ++store;
       }
 
@@ -305,12 +334,13 @@ class PCCIncrementalKdTree3 {
       }
     }
   }
-  uint32_t balance(const uint32_t start, const uint32_t end) {
+  uint32_t balance(const uint32_t start, const uint32_t end)
+  {
     assert(start < end);
     uint32_t index = start;
     PCCAxis3 splitAxis = computeSplitAxis(start, end);
     index = findMedian(start, end, splitAxis);
-    PCCIncrementalKdTree3Node &node = nodes[index];
+    PCCIncrementalKdTree3Node& node = nodes[index];
     node.axis = splitAxis;
     if (start < index) {
       node.left = balance(start, index);
@@ -324,12 +354,15 @@ class PCCIncrementalKdTree3 {
     }
     return index;
   }
-  void findNearestNeighbors(const uint32_t current, const PCCNNQuery3 &query2,
-                            PCCHeap<PCCPointDistInfo> &neighbors) const {
+  void findNearestNeighbors(
+    const uint32_t current,
+    const PCCNNQuery3& query2,
+    PCCHeap<PCCPointDistInfo>& neighbors) const
+  {
     if (current == PCC_UNDEFINED_INDEX) {
       return;
     }
-    const PCCIncrementalKdTree3Node &node = nodes[current];
+    const PCCIncrementalKdTree3Node& node = nodes[current];
     const double dist2 = (query2.point - node.pos).getNorm2();
     const PCCAxis3 splitAxis = node.axis;
     const double coord = node.pos[splitAxis];
@@ -348,18 +381,23 @@ class PCCIncrementalKdTree3 {
       neighbors.push(distInfo);
     }
     const double dx2 = dx * dx;
-    if (dx2 > query2.radius ||
-        (neighbors.size() == query2.nearestNeighborCount && dx2 > neighbors.top().dist2)) {
+    if (
+      dx2 > query2.radius
+      || (neighbors.size() == query2.nearestNeighborCount
+          && dx2 > neighbors.top().dist2)) {
       return;
     }
     findNearestNeighbors(second, query2, neighbors);
   }
-  void findNeighbors(const uint32_t current, const PCCRangeQuery3 &query2,
-                     PCCRangeResult &result) const {
+  void findNeighbors(
+    const uint32_t current,
+    const PCCRangeQuery3& query2,
+    PCCRangeResult& result) const
+  {
     if (current == PCC_UNDEFINED_INDEX) {
       return;
     }
-    const PCCIncrementalKdTree3Node &node = nodes[current];
+    const PCCIncrementalKdTree3Node& node = nodes[current];
     const double dist2 = (query2.point - node.pos).getNorm2();
     const PCCAxis3 splitAxis = node.axis;
     const double coord = node.pos[splitAxis];
@@ -381,15 +419,17 @@ class PCCIncrementalKdTree3 {
       result.neighbors[result.resultCount].index = node.id;
       result.resultCount++;
     }
-    if ((dx * dx) > query2.radius || result.resultCount == query2.maxResultCount) {
+    if (
+      (dx * dx) > query2.radius
+      || result.resultCount == query2.maxResultCount) {
       return;
     }
     findNeighbors(second, query2, result);
   }
 
- private:
+private:
   std::vector<PCCIncrementalKdTree3Node> nodes;
   uint32_t root;
 };
-}
+}  // namespace pcc
 #endif /* PCCKdTree_h */

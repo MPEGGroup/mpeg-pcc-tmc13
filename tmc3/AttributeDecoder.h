@@ -54,39 +54,28 @@ struct PCCResidualsDecoder;
 
 class AttributeDecoder {
 public:
-  void buildPredictors(
-    const PCCPointSet3 &pointCloud);
+  void buildPredictors(const PCCPointSet3& pointCloud);
 
-  void decodeHeader(
-    const std::string &attributeName,
-    PCCBitstream &bitstream);
+  void decodeHeader(const std::string& attributeName, PCCBitstream& bitstream);
 
-  void decodeReflectances(
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud);
+  void decodeReflectances(PCCBitstream& bitstream, PCCPointSet3& pointCloud);
 
-  void decodeColors(
-    PCCBitstream &bitstream,
-    PCCPointSet3 &pointCloud);
+  void decodeColors(PCCBitstream& bitstream, PCCPointSet3& pointCloud);
 
 protected:
   // todo(df): consider alternative encapsulation
 
   void decodeReflectancesIntegerLift(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
+    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
   void decodeColorsIntegerLift(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
+    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
   void decodeReflectancesRaht(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
+    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
-  void decodeColorsRaht(
-    PCCResidualsDecoder &decoder,
-    PCCPointSet3 &pointCloud);
+  void
+  decodeColorsRaht(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
 private:
   std::vector<PCCPredictor> predictors;
@@ -98,7 +87,6 @@ private:
   uint8_t depthRaht;
   uint8_t binaryLevelThresholdRaht;
   TransformType transformType;
-
 };
 
 //============================================================================

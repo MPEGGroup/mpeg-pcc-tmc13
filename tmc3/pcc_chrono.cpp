@@ -34,16 +34,16 @@
  */
 
 #if _WIN32
-# define _UNICODE
-# include <windows.h>
+#  define _UNICODE
+#  include <windows.h>
 #endif
 
 #include "TMC3Config.h"
 #include "pcc_chrono.h"
 
 #if HAVE_GETRUSAGE
-# include <sys/time.h>
-# include <sys/resource.h>
+#  include <sys/time.h>
+#  include <sys/resource.h>
 #endif
 
 //===========================================================================
@@ -51,12 +51,14 @@
 #if _WIN32
 namespace pcc {
 namespace chrono {
-namespace detail {
-  using hundredns = std::chrono::duration<int64_t, std::ratio<1, 10000000>>;
+  namespace detail {
+    using hundredns = std::chrono::duration<int64_t, std::ratio<1, 10000000>>;
 
-  // global state to emulate getrusage(RUSAGE_CHILDREN).
-  hundredns g_cumulative_time_children {0};
-}}}
+    // global state to emulate getrusage(RUSAGE_CHILDREN).
+    hundredns g_cumulative_time_children{0};
+  }  // namespace detail
+}  // namespace chrono
+}  // namespace pcc
 #endif
 
 //---------------------------------------------------------------------------
@@ -92,13 +94,13 @@ pcc::chrono::utime_inc_children_clock::now() noexcept
   getrusage(RUSAGE_SELF, &usage);
 
   total = std::chrono::seconds(usage.ru_utime.tv_sec)
-        + std::chrono::microseconds(usage.ru_utime.tv_usec);
+    + std::chrono::microseconds(usage.ru_utime.tv_usec);
 
   if (getrusage(RUSAGE_CHILDREN, &usage))
     return time_point(total);
 
   total += std::chrono::seconds(usage.ru_utime.tv_sec)
-         + std::chrono::microseconds(usage.ru_utime.tv_usec);
+    + std::chrono::microseconds(usage.ru_utime.tv_usec);
 
   return time_point(total);
 }
