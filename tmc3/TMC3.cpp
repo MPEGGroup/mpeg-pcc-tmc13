@@ -244,9 +244,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: octree (TMC3)\n"
     "  2: trisoup (TMC1)")
 
-  ("neighbourContextualisation",
-    params.encodeParameters.neighbourContextsEnabled, true,
-    "Contextualise geometry octree occupancy based on neighbour patterns")
+  ("neighbourContextRestriction",
+    params.encodeParameters.neighbourContextRestriction, false,
+    "Limit geometry octree occupancy contextualisation to sibling nodes")
 
   ("inferredDirectCodingMode",
     params.encodeParameters.inferredDirectCodingModeEnabled, true,

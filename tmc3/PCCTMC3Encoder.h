@@ -63,13 +63,15 @@ struct PCCTMC3Encoder3Parameters {
   bool mergeDuplicatedPoints;
 
   // Controls the use of neighbour based contextualisation of octree
-  // occupancy during geometry coding.
-  bool neighbourContextsEnabled;
+  // occupancy during geometry coding.  When true, only neighbours that
+  // are direct siblings are available.
+  bool neighbourContextRestriction;
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.
   bool inferredDirectCodingModeEnabled;
 
+  bool skipNeighborSearch;
   struct TriSoup {
     // depth of voxels (reconstructed points) in trisoup geometry
     int depth;
@@ -465,7 +467,6 @@ private:
   // decode node occupancy bits
   //
   void encodeGeometryOccupancy(
-    bool neighbourContextsEnabled,
     o3dgc::Arithmetic_Codec* arithmeticEncoder,
     o3dgc::Adaptive_Bit_Model& ctxSingleChild,
     o3dgc::Static_Bit_Model& ctxEquiProb,
@@ -473,12 +474,6 @@ private:
     const PCCOctree3Node& node0,
     int occupancy)
   {
-    if (!neighbourContextsEnabled) {
-      assert(0);  // todo(df): fixme -- old contexts needed
-      // arithmeticEncoder->encode(occupancy, ctxOccupancy[0]);
-      return;
-    }
-
     // code occupancy using the neighbour configuration context
     // with reduction from 64 states to 10.
     int neighPattern = node0.neighPattern;
@@ -649,8 +644,8 @@ private:
       // encode child occupancy map
       assert(occupancy > 0);
       encodeGeometryOccupancy(
-        params.neighbourContextsEnabled, &arithmeticEncoder, ctxSingleChild,
-        ctxEquiProb, ctxOccupancy, node0, occupancy);
+        &arithmeticEncoder, ctxSingleChild, ctxEquiProb, ctxOccupancy, node0,
+        occupancy);
 
       // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
       // and are immediately coded.  No further splitting occurs.
@@ -727,11 +722,10 @@ private:
         }
 
         numNodesNextLvl++;
-        if (params.neighbourContextsEnabled) {
-          updateGeometryNeighState(
-            fifo.end(), numNodesNextLvl, childSizeLog2, child, i,
-            node0.neighPattern, occupancy);
-        }
+
+        updateGeometryNeighState(
+          params.neighbourContextRestriction, fifo.end(), numNodesNextLvl,
+          childSizeLog2, child, i, node0.neighPattern, occupancy);
       }
     }
 
@@ -782,7 +776,7 @@ private:
       uint8_t(params.mergeDuplicatedPoints), bitstream.buffer, bitstream.size);
 
     PCCWriteToBuffer<uint8_t>(
-      uint8_t(params.neighbourContextsEnabled), bitstream.buffer,
+      uint8_t(params.neighbourContextRestriction), bitstream.buffer,
       bitstream.size);
 
     PCCWriteToBuffer<uint8_t>(

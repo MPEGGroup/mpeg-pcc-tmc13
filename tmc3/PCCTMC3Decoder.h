@@ -183,7 +183,7 @@ private:
     geometryPointsAreUnique = bool(u8value);
 
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
-    neighbourContextsEnabled = bool(u8value);
+    neighbourContextRestriction = bool(u8value);
 
     PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
     inferredDirectCodingModeEnabled = bool(u8value);
@@ -478,18 +478,12 @@ private:
   // decode node occupancy bits
   //
   uint32_t decodeGeometryOccupancy(
-    bool neighbourContextsEnabled,
     o3dgc::Arithmetic_Codec* arithmeticDecoder,
     o3dgc::Adaptive_Bit_Model& ctxSingleChild,
     o3dgc::Static_Bit_Model& ctxEquiProb,
     CtxModelOctreeOccupancy& ctxOccupancy,
     const PCCOctree3Node& node0)
   {
-    if (!neighbourContextsEnabled) {
-      assert(0);  // todo(df): fixme -- we need an old context for this.
-      //return arithmeticDecoder->decode(ctxOccupancy[0]);
-    }
-
     // neighbouring configuration with reduction from 64 to 10
     int neighPattern = node0.neighPattern;
     int neighPattern10 = kNeighPattern64to10[neighPattern];
@@ -632,8 +626,8 @@ private:
 
       // decode occupancy pattern
       uint8_t occupancy = decodeGeometryOccupancy(
-        neighbourContextsEnabled, &arithmeticDecoder, ctxSingleChild,
-        ctxEquiProb, ctxOccupancy, node0);
+        &arithmeticDecoder, ctxSingleChild, ctxEquiProb, ctxOccupancy, node0);
+
       assert(occupancy > 0);
 
       // population count of occupancy for IDCM
@@ -704,11 +698,10 @@ private:
         }
 
         numNodesNextLvl++;
-        if (neighbourContextsEnabled) {
-          updateGeometryNeighState(
-            fifo.end(), numNodesNextLvl, childSizeLog2, child, i,
-            node0.neighPattern, occupancy);
-        }
+
+        updateGeometryNeighState(
+          neighbourContextRestriction, fifo.end(), numNodesNextLvl,
+          childSizeLog2, child, i, node0.neighPattern, occupancy);
       }
     }
 
@@ -750,7 +743,7 @@ private:
 
   // Controls the use of neighbour based contextualisation of octree
   // occupancy during geometry coding.
-  bool neighbourContextsEnabled;
+  bool neighbourContextRestriction;
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.

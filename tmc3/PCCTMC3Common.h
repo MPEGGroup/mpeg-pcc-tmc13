@@ -262,9 +262,12 @@ PCCBuildPredictors(
 //---------------------------------------------------------------------------
 // Update the neighbour pattern flags for a node and the 'left' neighbour on
 // each axis.  This update should be applied to each newly inserted node.
+//
+// @param siblingRestriction limits neighbours to direct siblings of child
 
 inline void
 updateGeometryNeighState(
+  bool siblingRestriction,
   const ringbuf<PCCOctree3Node>::iterator& bufEnd,
   int64_t numNodesNextLvl,
   int childSizeLog2,
@@ -273,7 +276,10 @@ updateGeometryNeighState(
   uint8_t neighPattern,
   uint8_t parantOccupancy)
 {
-  uint64_t midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
+  uint64_t midx;
+  if (!siblingRestriction) {
+    midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
+  }
 
   static const struct {
     int childIdxBitPos;
@@ -304,6 +310,10 @@ updateGeometryNeighState(
       continue;
     }
 
+    if (siblingRestriction)
+      continue;
+
+    uint64_t midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
     // calculate the morton address of the 'left' neighbour,
     // the delta is then used as the starting position for a search
     int64_t mortonIdxNeigh =
