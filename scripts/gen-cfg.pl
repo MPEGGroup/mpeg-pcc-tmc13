@@ -230,6 +230,7 @@ sub genSeqVariants {
 			params_from_node($cat->{encflags}, $var),
 			params_from_node($cat_seq->{encflags}, $var),
 			params_from_node($cat_seq->{$var}{encflags}),
+			params_from_node($cfg->{encflags}),
 		);
 
 		# evaluate any value expressions
@@ -244,6 +245,7 @@ sub genSeqVariants {
 			params_from_node($cat->{decflags}, $var),
 			params_from_node($cat_seq->{decflags}, $var),
 			params_from_node($cat_seq->{$var}{decflags}),
+			params_from_node($cfg->{decflags}),
 		);
 
 		# evaluate any value expressions
@@ -258,6 +260,7 @@ sub genSeqVariants {
 			params_from_node($cat->{pcerrorflags}),
 			params_from_node($cat_seq->{pcerrorflags}, $var),
 			params_from_node($cat_seq->{$var}{pcerrorflags}),
+			params_from_node($cfg->{pcerrorflags}),
 		);
 
 		# evaluate any value expressions

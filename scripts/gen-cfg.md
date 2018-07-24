@@ -37,6 +37,7 @@ gathered in the following order:
     from the current category
  - `encflags`/`decflags`/`pcerrorflags` for the current variant
     from the current category-sequence
+ - `encflags`/`decflags`/`pcerrorflags` set globally
 
 Semantics of a yaml-cfg-file
 ----------------------------
@@ -74,6 +75,15 @@ configuration option in the form `$key: $value`
 - `/.sequence-base-dir=$value`  
   A global base directory that may be overriden by a sequences' 
   `.base-dir` and `.base-norm-dir` values.
+
+- `/.pcerrorflags=[].$cfgOption`  
+  (optional) an ordered list of global options for pcerror.cfg
+
+- `/.encflags=[].$cfgOption`  
+  (optional) an ordered list of global options for encoder.cfg
+
+- `/.decflags=[].$cfgOption`  
+  (optional) an ordered list of global options for decoder.cfg
 
 ### Inside `/.sequences=.$sequenceName=`...
 
