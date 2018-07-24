@@ -274,7 +274,7 @@ updateGeometryNeighState(
   PCCOctree3Node& child,
   int childIdx,
   uint8_t neighPattern,
-  uint8_t parantOccupancy)
+  uint8_t parentOccupancy)
 {
   uint64_t midx;
   if (!siblingRestriction) {
@@ -297,13 +297,13 @@ updateGeometryNeighState(
     // is not present.
     if ((childIdx & param.childIdxBitPos) == 0) {
       // $axis co-ordinate = 0
-      if (parantOccupancy & (1 << (childIdx + param.childIdxBitPos)))
+      if (parentOccupancy & (1 << (childIdx + param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagThem;
 
       if (!(neighPattern & param.patternFlagUs))
         continue;
     } else {
-      if (parantOccupancy & (1 << (childIdx - param.childIdxBitPos)))
+      if (parentOccupancy & (1 << (childIdx - param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagUs;
 
       // no external search is required for $axis co-ordinate = 1
