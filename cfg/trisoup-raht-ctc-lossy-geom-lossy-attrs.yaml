@@ -10,6 +10,8 @@ categories:
      ##
      # geometry parameters (trisoup)
      - geometryCodec: 2
+     - neighbourAvailBoundaryLog2: 9
+     - inferredDirectCodingMode: 0
      - triSoupDepth: ${test-depth}
      - triSoupIntToOrigScale: '$eval{ 1 << ( ${src-geometry-precision} - ${test-depth} ) }'
      - triSoupLevel:

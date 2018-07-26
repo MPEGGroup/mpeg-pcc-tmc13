@@ -417,6 +417,31 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       1.0f / params.encoder.sps.donotuse_trisoup_int_to_orig_scale;
   }
 
+  // TriSoup geometry is only enabled when trisoup depth > triangle_level.
+  // NB: this happens after the scale factor fudge above, since the user
+  //     believes they are configuring trisoup
+  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+    const auto& gps = params.encoder.gps;
+    int trisoupNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
+    if (trisoupNodeSizeLog2 <= 0) {
+      err.warn() << "TriSoup disabled when depth <= triangle level\n";
+      params.encoder.gps.geom_codec_type = GeometryCodecType::kOctree;
+    }
+  }
+
+  // Certain coding modes are not available when trisoup is enabled.
+  // Disable them, and warn if set (they may be set as defaults).
+  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+    if (!params.encoder.gps.geom_unique_points_flag)
+      err.warn() << "TriSoup geometry does not preserve duplicated points\n";
+
+    if (params.encoder.gps.inferred_direct_coding_mode_enabled_flag)
+      err.warn() << "TriSoup geometry is incompatable with IDCM\n";
+
+    params.encoder.gps.geom_unique_points_flag = true;
+    params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;
+  }
+
   // support disabling attribute coding (simplifies configuration)
   if (params.disableAttributeCoding) {
     params.encoder.attributeIdxMap.clear();
