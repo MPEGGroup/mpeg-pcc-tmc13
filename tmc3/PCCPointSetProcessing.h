@@ -42,16 +42,10 @@
 #include "PCCKdTree.h"
 #include "PCCPointSet.h"
 
-// The recolouring method of m42141 option2.
-// NB: CE1.3 (M42538) suggests that searchRange = 0 in this case rather than
-//     the previous default of 2.
-static const bool kUseM42141RecolourMethod2 = true;
-
 namespace pcc {
 
 inline bool
-PCCTransfertColors(
-  const PCCPointSet3& source, const int32_t searchRange, PCCPointSet3& target)
+PCCTransfertColors(const PCCPointSet3& source, PCCPointSet3& target)
 {
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
@@ -91,105 +85,25 @@ PCCTransfertColors(
     if (colors2.empty()) {
       target.setColor(index, color1);
     } else {
-      const double H = double(colors2.size());
-      const PCCVector3D centroid1(color1[0], color1[1], color1[2]);
       PCCVector3D centroid2(0.0);
       for (const auto& color2 : colors2) {
         for (size_t k = 0; k < 3; ++k) {
           centroid2[k] += color2[k];
         }
       }
-      centroid2 /= H;
-
-      double D2 = 0.0;
-      for (const auto& color2 : colors2) {
-        for (size_t k = 0; k < 3; ++k) {
-          const double d2 = centroid2[k] - color2[k];
-          D2 += d2 * d2;
-        }
+      centroid2 /= colors2.size();
+      PCCColor3B color0;
+      for (size_t k = 0; k < 3; ++k) {
+        color0[k] = uint8_t(PCCClip(round(centroid2[k]), 0.0, 255.0));
       }
-      const double r = double(pointCountTarget) / double(pointCountSource);
-      const double delta2 = (centroid2 - centroid1).getNorm2();
-      const double eps = 0.000001;
-
-      if (kUseM42141RecolourMethod2 || delta2 > eps) {
-        // when delta2 > eps: centroid2 != centroid1
-        double w = 0.0;
-        const double alpha = D2 / delta2;
-        const double a = H * r - 1.0;
-        const double c = alpha * r - 1.0;
-        if (fabs(a) < eps) {
-          w = -0.5 * c;
-        } else {
-          const double delta = 1.0 - a * c;
-          if (delta >= 0.0) {
-            w = (-1.0 + sqrt(delta)) / a;
-          }
-        }
-
-        if (kUseM42141RecolourMethod2) {
-          w = 0.0f;
-        }
-
-        const double oneMinusW = 1.0 - w;
-        PCCVector3D color0;
-        for (size_t k = 0; k < 3; ++k) {
-          color0[k] = PCCClip(
-            round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, 255.0);
-        }
-        const double rSource = 1.0 / double(pointCountSource);
-        const double rTarget = 1.0 / double(pointCountTarget);
-        const double maxValue = std::numeric_limits<uint8_t>::max();
-        double minError = std::numeric_limits<double>::max();
-        PCCVector3D bestColor(color0);
-        PCCVector3D color;
-        for (int32_t s1 = -searchRange; s1 <= searchRange; ++s1) {
-          color[0] = PCCClip(color0[0] + s1, 0.0, maxValue);
-          for (int32_t s2 = -searchRange; s2 <= searchRange; ++s2) {
-            color[1] = PCCClip(color0[1] + s2, 0.0, maxValue);
-            for (int32_t s3 = -searchRange; s3 <= searchRange; ++s3) {
-              color[2] = PCCClip(color0[2] + s3, 0.0, maxValue);
-
-              double e1 = 0.0;
-              for (size_t k = 0; k < 3; ++k) {
-                const double d = color[k] - color1[k];
-                e1 += d * d;
-              }
-              e1 *= rTarget;
-
-              double e2 = 0.0;
-              for (const auto& color2 : colors2) {
-                for (size_t k = 0; k < 3; ++k) {
-                  const double d = color[k] - color2[k];
-                  e2 += d * d;
-                }
-              }
-              e2 *= rSource;
-
-              const double error = std::max(e1, e2);
-              if (error < minError) {
-                minError = error;
-                bestColor = color;
-              }
-            }
-          }
-        }
-        target.setColor(
-          index,
-          PCCColor3B(
-            uint8_t(bestColor[0]), uint8_t(bestColor[1]),
-            uint8_t(bestColor[2])));
-      } else {  // centroid2 == centroid1
-        target.setColor(index, color1);
-      }
+      target.setColor(index, color0);
     }
   }
   return true;
 }
 
 inline bool
-PCCTransfertReflectances(
-  const PCCPointSet3& source, const int32_t searchRange, PCCPointSet3& target)
+PCCTransfertReflectances(const PCCPointSet3& source, PCCPointSet3& target)
 {
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
@@ -229,75 +143,14 @@ PCCTransfertReflectances(
     if (reflectances2.empty()) {
       target.setReflectance(index, reflectance1);
     } else {
-      const double H = double(reflectances2.size());
-      const double centroid1 = reflectance1;
       double centroid2 = 0.0;
       for (const auto reflectance2 : reflectances2) {
         centroid2 += reflectance2;
       }
-      centroid2 /= H;
-
-      double D2 = 0.0;
-      for (const auto reflectance2 : reflectances2) {
-        const double d2 = centroid2 - reflectance2;
-        D2 += d2 * d2;
-      }
-
-      const double delta2 = pow(centroid2 - centroid1, 2.0);
-      const double eps = 0.000001;
-
-      if (kUseM42141RecolourMethod2 || delta2 > eps) {
-        // when delta2 > eps: centroid2 != centroid1
-        double w = 0.0;
-        const double alpha = D2 / delta2;
-        const double r = double(pointCountTarget) / double(pointCountSource);
-        const double a = H * r - 1.0;
-        const double c = alpha * r - 1.0;
-        if (fabs(a) < eps) {
-          w = -0.5 * c;
-        } else {
-          const double delta = 1.0 - a * c;
-          if (delta >= 0.0) {
-            w = (-1.0 + sqrt(delta)) / a;
-          }
-        }
-
-        if (kUseM42141RecolourMethod2) {
-          w = 0.0f;
-        }
-
-        const double oneMinusW = 1.0 - w;
-        // todo(df): clipping range should be based on the input data type
-        const double maxValue = std::numeric_limits<uint16_t>::max();
-        const double reflectance0 =
-          PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, maxValue);
-        const double rSource = 1.0 / double(pointCountSource);
-        const double rTarget = 1.0 / double(pointCountTarget);
-        double minError = std::numeric_limits<double>::max();
-        double bestReflectance = reflectance0;
-        double reflectance;
-        for (int32_t s = -searchRange; s <= searchRange; ++s) {
-          reflectance = PCCClip(reflectance0 + s, 0.0, maxValue);
-          const double d = reflectance - reflectance1;
-          const double e1 = (d * d) * rTarget;
-
-          double e2 = 0.0;
-          for (const auto reflectance2 : reflectances2) {
-            const double d = reflectance - reflectance2;
-            e2 += d * d;
-          }
-          e2 *= rSource;
-
-          const double error = std::max(e1, e2);
-          if (error < minError) {
-            minError = error;
-            bestReflectance = reflectance;
-          }
-        }
-        target.setReflectance(index, uint16_t(bestReflectance));
-      } else {  // centroid2 == centroid1
-        target.setReflectance(index, reflectance1);
-      }
+      centroid2 = PCCClip(
+        std::round(centroid2 / reflectances2.size()), 0.0,
+        double(std::numeric_limits<uint16_t>::max()));
+      target.setReflectance(index, uint16_t(centroid2));
     }
   }
   return true;

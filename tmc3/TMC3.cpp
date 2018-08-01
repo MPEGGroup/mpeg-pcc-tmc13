@@ -283,10 +283,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Encode the given attribute (NB, must appear after the"
     "following attribute parameters)")
 
-  ("searchRange",
-    params_attr.searchRange, size_t(0),
-    "Attribute's todo(kmammou)")
-
   ("transformType",
     params_attr.transformType, TransformType::kIntegerLift,
     "Coding method to use for attribute:\n"

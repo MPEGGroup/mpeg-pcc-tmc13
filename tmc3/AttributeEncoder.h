@@ -55,7 +55,6 @@ struct PCCResidualsEncoder;
 struct PCCAttributeEncodeParamaters {
   size_t numberOfNearestNeighborsInPrediction;
   size_t levelOfDetailCount;
-  size_t searchRange;
   int quantizationStepRaht;
   int depthRaht;
   int binaryLevelThresholdRaht;

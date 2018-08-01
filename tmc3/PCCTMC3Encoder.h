@@ -989,17 +989,14 @@ private:
       }
 
       if (paramsColor) {  // transfer colors
-        int32_t searchRange = paramsColor->searchRange;
-        if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
+        if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
           std::cout << "Error: can't transfer colors!" << std::endl;
           return -1;
         }
       }
 
       if (paramsReflectance) {  // transfer reflectances
-        int32_t searchRange = paramsReflectance->searchRange;
-        if (!PCCTransfertReflectances(
-              inputPointCloud, searchRange, pointCloud)) {
+        if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
           std::cout << "Error: can't transfer reflectances!" << std::endl;
           return -1;
         }
@@ -1064,16 +1061,13 @@ private:
 
     // Recolour attributes.
     if (paramsColor) {
-      int32_t searchRange = int32_t(paramsColor->searchRange);
-      if (!PCCTransfertColors(inputPointCloud, searchRange, pointCloud)) {
+      if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
         std::cout << "Error: can't transfer colors!" << std::endl;
         return -1;
       }
     }
     if (paramsReflectance) {
-      int32_t searchRange = int32_t(paramsReflectance->searchRange);
-      if (!PCCTransfertReflectances(
-            inputPointCloud, searchRange, pointCloud)) {
+      if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
         std::cout << "Error: can't transfer reflectance!" << std::endl;
         return -1;
       }

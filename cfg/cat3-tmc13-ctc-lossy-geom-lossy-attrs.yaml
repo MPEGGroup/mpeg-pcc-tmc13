@@ -47,7 +47,6 @@ categories:
              r04: 0 1 2 4 4 4
              r05: 0 1 2 4 4 4
              r06: 0 1 2 4 4 4
-         - searchRange: 0
          - attribute: reflectance
 
       ford_02_q1mm:
