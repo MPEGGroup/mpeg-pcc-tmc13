@@ -96,12 +96,8 @@ encodeGeometryTrisoup(
   }
 
   // Decode refinedVertices from segind and vertices.
-  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth);
-
-  // Voxelize.
   int32_t maxval = (1 << gps.trisoup_depth) - 1;
-  PCCBox3<int32_t> clampBox{{0, 0, 0}, {maxval, maxval, maxval}};
-  quantizePositionsUniq(1.0, {0.0}, clampBox, pointCloud, &pointCloud);
+  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
 }
 
 //---------------------------------------------------------------------------

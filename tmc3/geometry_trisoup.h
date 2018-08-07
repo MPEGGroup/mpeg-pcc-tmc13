@@ -58,7 +58,8 @@ void decodeTrisoupCommon(
   const std::vector<bool>& segind,
   const std::vector<uint8_t>& vertices,
   PCCPointSet3& pointCloud,
-  const int defaultBlockWidth);
+  int defaultBlockWidth,
+  int poistionClipValue);
 
 //============================================================================
 

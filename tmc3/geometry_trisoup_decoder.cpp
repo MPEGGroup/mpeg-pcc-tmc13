@@ -118,12 +118,89 @@ decodeGeometryTrisoup(
   }
 
   // Compute refinedVertices.
-  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth);
-
-  // Voxelize.
   int32_t maxval = (1 << gps.trisoup_depth) - 1;
-  PCCBox3<int32_t> clampBox{{0, 0, 0}, {maxval, maxval, maxval}};
-  quantizePositionsUniq(1.0, {0.0}, clampBox, pointCloud, &pointCloud);
+  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
+}
+
+//============================================================================
+
+PCCVector3D
+crossProduct(const PCCVector3D a, const PCCVector3D b)
+{
+  PCCVector3D ret;
+  ret[0] = a[1] * b[2] - a[2] * b[1];
+  ret[1] = a[2] * b[0] - a[0] * b[2];
+  ret[2] = a[0] * b[1] - a[1] * b[0];
+  return ret;
+}
+
+//---------------------------------------------------------------------------
+
+PCCVector3D
+truncate(const PCCVector3D floatvector, float offset)
+{
+  PCCVector3D intvector;
+  intvector[0] = int(floatvector[0] + offset);
+  intvector[1] = int(floatvector[1] + offset);
+  intvector[2] = int(floatvector[2] + offset);
+  return intvector;
+}
+
+//---------------------------------------------------------------------------
+
+bool
+boundaryinsidecheck(const PCCVector3D a, const int bbsize)
+{
+  if (a[0] < 0 || a[0] > bbsize)
+    return false;
+  if (a[1] < 0 || a[1] > bbsize)
+    return false;
+  if (a[2] < 0 || a[2] > bbsize)
+    return false;
+  return true;
+}
+
+//---------------------------------------------------------------------------
+
+bool
+rayIntersectsTriangle(
+  const PCCVector3D rayOrigin,
+  const PCCVector3D rayVector,
+  const PCCVector3D TriangleVertex0,
+  const PCCVector3D TriangleVertex1,
+  const PCCVector3D TriangleVertex2,
+  PCCVector3D& outIntersectionPoint)
+{
+  PCCVector3D edge1 = TriangleVertex1 - TriangleVertex0;
+  PCCVector3D edge2 = TriangleVertex2 - TriangleVertex0;
+  PCCVector3D s = rayOrigin - TriangleVertex0;
+
+  PCCVector3D h = crossProduct(rayVector, edge2);
+  float a = (edge1 * h);
+  if (
+    a > -std::numeric_limits<double>::epsilon()
+    && a < std::numeric_limits<double>::epsilon())
+    return false;
+
+  float f = 1 / a;
+  float u = f * (s * h);
+  if (u < 0.0 || u > 1.0)
+    return false;
+
+  PCCVector3D q = crossProduct(s, edge1);
+  float v = f * (rayVector * q);
+  if (v < 0.0 || (u + v) > 1.0)
+    return false;
+
+  float t = f * (edge2 * q);
+  if (t > std::numeric_limits<double>::epsilon()) {
+    outIntersectionPoint = rayOrigin + rayVector * t;
+    // ray intersection
+    return true;
+  } else {
+    // There is a line intersection but not a ray intersection
+    return false;
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -141,7 +218,8 @@ decodeTrisoupCommon(
   const std::vector<bool>& segind,
   const std::vector<uint8_t>& vertices,
   PCCPointSet3& pointCloud,
-  const int defaultBlockWidth)
+  int defaultBlockWidth,
+  int poistionClipValue)
 {
   // Put all leaves' sgements into a list.
   std::vector<TrisoupSegment> segments;
@@ -365,22 +443,65 @@ decodeTrisoupCommon(
       PCCVector3D v0 = leafVertices[j0].pos;
       PCCVector3D v1 = leafVertices[j1].pos;
       PCCVector3D v2 = leafVertices[j2].pos;
-      PCCVector3D dv1 = v1 - v0;
-      PCCVector3D dv2 = v2 - v0;
-      int upsamplingFactor = blockWidth * 2;
-      for (int k1 = 0; k1 <= upsamplingFactor; k1++) {
-        for (int k2 = 0; k2 <= upsamplingFactor - k1; k2++) {
-          PCCPoint3D v = v0 + dv1 * (double(k1) / upsamplingFactor)
-            + dv2 * (double(k2) / upsamplingFactor);
-          //// Clip to leaf boundaries.
-          //for (int m = 0; m < 3; m++)
-          //  v[m] = PCCClip<double>(v[m], leaves[i].pos[m], leaves[i].pos[m] + blockWidth - 0.5);
-          // todo(pac?): why does subtracting 0.5 improve performance slightly?
-          refinedVertices.push_back(v - 0.5);
+
+      for (int i = 0; i < 3; i++) {
+        PCCVector3D foundvoxel =
+          truncate((i == 0 ? v0 : (i == 1 ? v1 : v2)), -0.5);
+        if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
+          refinedVertices.push_back(foundvoxel);
+        }
+      }
+
+      int g1, g2;
+      const int g1pos[3] = {1, 0, 0};
+      const int g2pos[3] = {2, 2, 1};
+      for (int direction = 0; direction < 3; direction++) {
+        PCCVector3D rayVector, rayOrigin, intersection;
+        const int startposG1 = std::floor(std::min(
+          std::min(v0[g1pos[direction]], v1[g1pos[direction]]),
+          v2[g1pos[direction]]));
+        const int startposG2 = std::floor(std::min(
+          std::min(v0[g2pos[direction]], v1[g2pos[direction]]),
+          v2[g2pos[direction]]));
+        const int endposG1 = std::ceil(std::max(
+          std::max(v0[g1pos[direction]], v1[g1pos[direction]]),
+          v2[g1pos[direction]]));
+        const int endposG2 = std::ceil(std::max(
+          std::max(v0[g2pos[direction]], v1[g2pos[direction]]),
+          v2[g2pos[direction]]));
+        for (g1 = startposG1; g1 <= endposG1; g1++) {
+          for (g2 = startposG2; g2 <= endposG2; g2++) {
+            std::vector<PCCPoint3D> intersectionVertices;
+            for (int sign = -1; sign <= 1; sign += 2) {
+              const int rayStart = sign > 0 ? -1 : poistionClipValue + 1;
+              if (direction == 0) {
+                rayOrigin = PCCVector3D(rayStart, g1, g2);
+                rayVector = PCCVector3D(sign, 0, 0);
+              } else if (direction == 1) {
+                rayOrigin = PCCVector3D(g1, rayStart, g2);
+                rayVector = PCCVector3D(0, sign, 0);
+              } else if (direction == 2) {
+                rayOrigin = PCCVector3D(g1, g2, rayStart);
+                rayVector = PCCVector3D(0, 0, sign);
+              }
+              if (rayIntersectsTriangle(
+                    rayOrigin, rayVector, v0, v1, v2, intersection)) {
+                PCCVector3D foundvoxel = truncate(intersection, -0.5);
+                if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
+                  refinedVertices.push_back(foundvoxel);
+                }
+              }
+            }
+          }
         }
       }
     }
   }
+
+  std::sort(refinedVertices.begin(), refinedVertices.end());
+  refinedVertices.erase(
+    std::unique(refinedVertices.begin(), refinedVertices.end()),
+    refinedVertices.end());
 
   // Move list of points to pointCloud.
   pointCloud.resize(refinedVertices.size());
