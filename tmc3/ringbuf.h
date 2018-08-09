@@ -359,7 +359,11 @@ public:
 
   //--------------------------------------------------------------------------
 private:
-  std::unique_ptr<T[]> buf_;
+  struct operator_delete_arr {
+    void operator()(T* ptr) { ::operator delete[](ptr); }
+  };
+
+  std::unique_ptr<T[], operator_delete_arr> buf_;
   size_t capacity_;
   iterator rd_it_;
   iterator wr_it_;
