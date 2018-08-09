@@ -596,14 +596,14 @@ private:
     int nodeSizeLog2 = gbh.geom_max_node_size_log2;
 
     // push the first node
-    PCCOctree3Node node00;
+    fifo.emplace_back();
+    PCCOctree3Node& node00 = fifo.back();
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
     node00.numSiblingsPlus1 = 8;
     node00.siblingOccupancy = 0;
-    fifo.push_back(node00);
 
     size_t processedPointCount = 0;
     std::vector<uint32_t> values;

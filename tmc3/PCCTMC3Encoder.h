@@ -583,14 +583,14 @@ private:
     pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount() + 1);
 
     // push the first node
-    PCCOctree3Node node00;
+    fifo.emplace_back();
+    PCCOctree3Node& node00 = fifo.back();
     node00.start = uint32_t(0);
     node00.end = uint32_t(pointCloud.getPointCount());
     node00.pos = uint32_t(0);
     node00.neighPattern = 0;
     node00.numSiblingsPlus1 = 8;
     node00.siblingOccupancy = 0;
-    fifo.push_back(node00);
 
     // map of pointCloud idx to DM idx, used to reorder the points
     // after coding.
