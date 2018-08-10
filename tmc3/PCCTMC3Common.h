@@ -49,30 +49,10 @@
 #include <vector>
 
 namespace pcc {
-const uint32_t PCCTMC3MagicNumber = 20110904;
-const uint32_t PCCTMC3FormatVersion = 1;
 const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
 const uint32_t PCCTMC3SymbolCount = 64;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
-
-// Describes the geometry coding method.
-enum class GeometryCodecType
-{
-  // No geometry coding is performed (geometry is known a priori)
-  kBypass = 0,
-  // TMC3 lossless geometry codec using ocrees
-  kOctree = 1,
-  // TMC1 octree + triangulation
-  kTriSoup = 2,
-};
-
-enum class TransformType
-{
-  kIntegerLift = 0,
-  kRAHT = 1,
-  kLift = 2
-};
 
 struct PCCOctree3Node {
   // 3D position of the current node's origin (local x,y,z = 0).
@@ -320,8 +300,8 @@ PCCComputeQuantizationWeights(
 inline void
 PCCBuildLevelOfDetail2(
   const PCCPointSet3& pointCloud,
-  const size_t levelOfDetailCount,
-  const std::vector<size_t>& dist2,
+  const int levelOfDetailCount,
+  const std::vector<int>& dist2,
   std::vector<uint32_t>& numberOfPointsPerLOD,
   std::vector<uint32_t>& indexes)
 {
@@ -431,8 +411,8 @@ CheckPoint(
 inline void
 PCCBuildLevelOfDetail(
   const PCCPointSet3& pointCloud,
-  const size_t levelOfDetailCount,
-  const std::vector<size_t>& dist2,
+  const int levelOfDetailCount,
+  const std::vector<int>& dist2,
   std::vector<uint32_t>& numberOfPointsPerLOD,
   std::vector<uint32_t>& indexes)
 {

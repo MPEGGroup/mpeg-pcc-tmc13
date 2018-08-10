@@ -33,42 +33,46 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TMC3_h
-#define TMC3_h
+#include "io_tlv.h"
 
-#define _CRT_SECURE_NO_WARNINGS
+namespace pcc {
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <map>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <string>
+//============================================================================
 
-#include "PCCPointSet.h"
-#include "PCCTMC3Decoder.h"
-#include "PCCTMC3Encoder.h"
-
-#include "TMC3Config.h"
-
-#include "pcc_chrono.h"
-
-enum ColorTransform
+std::ostream&
+writeTlv(const PayloadBuffer& buf, std::ostream& os)
 {
-  COLOR_TRANSFORM_NONE = 0,
-  COLOR_TRANSFORM_RGB_TO_YCBCR = 1
-};
+  uint32_t length = uint32_t(buf.size());
 
-struct Parameters;
+  os.put(char(buf.type));
+  os.put(char(length >> 24));
+  os.put(char(length >> 16));
+  os.put(char(length >> 8));
+  os.put(char(length >> 0));
 
-typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock>
-  Stopwatch;
+  os.write(buf.data(), length);
+  return os;
+}
 
-bool ParseParameters(int argc, char* argv[], Parameters& params);
-int Compress(Parameters& params, Stopwatch&);
-int Decompress(Parameters& params, Stopwatch&);
+//============================================================================
 
-#endif /* TMC3_h */
+std::istream&
+readTlv(std::istream& is, PayloadBuffer* buf)
+{
+  buf->type = PayloadType(static_cast<unsigned>(is.get()));
+
+  uint32_t length = 0;
+  length = (length << 8) | static_cast<unsigned>(is.get());
+  length = (length << 8) | static_cast<unsigned>(is.get());
+  length = (length << 8) | static_cast<unsigned>(is.get());
+  length = (length << 8) | static_cast<unsigned>(is.get());
+
+  buf->resize(0);
+  buf->resize(length);
+  is.read(buf->data(), length);
+  return is;
+}
+
+//============================================================================
+
+}  // namespace pcc

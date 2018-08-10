@@ -35,13 +35,14 @@
 
 #pragma once
 
-#include "ArithmeticCodec.h"
-#include "PCCMisc.h"
-#include "PCCTMC3Common.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
 #include <vector>
+
+#include "PayloadBuffer.h"
+#include "PCCMisc.h"
+#include "PCCTMC3Common.h"
 
 namespace pcc {
 
@@ -54,50 +55,51 @@ struct PCCResidualsDecoder;
 
 class AttributeDecoder {
 public:
-  void decodeHeader(const std::string& attributeName, PCCBitstream& bitstream);
-
-  void decodeReflectances(PCCBitstream& bitstream, PCCPointSet3& pointCloud);
-
-  void decodeColors(PCCBitstream& bitstream, PCCPointSet3& pointCloud);
+  void decode(
+    const AttributeDescription& desc,
+    const AttributeParameterSet& aps,
+    const PayloadBuffer&,
+    PCCPointSet3& pointCloud);
 
 protected:
   // todo(df): consider alternative encapsulation
 
   void decodeReflectancesLift(
-    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
-  void
-  decodeColorsLift(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+  void decodeColorsLift(
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
   void decodeReflectancesPred(
-    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
-  void
-  decodeColorsPred(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+  void decodeColorsPred(
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
   void decodeReflectancesRaht(
-    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
-  void
-  decodeColorsRaht(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+  void decodeColorsRaht(
+    const AttributeParameterSet& aps,
+    PCCResidualsDecoder& decoder,
+    PCCPointSet3& pointCloud);
 
   static void computeColorPredictionWeights(
     const PCCPointSet3& pointCloud,
-    const size_t numberOfNearestNeighborsInPrediction,
+    const int numberOfNearestNeighborsInPrediction,
     const int64_t threshold,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
-
-private:
-  std::vector<int64_t> quantizationStepsLuma;
-  std::vector<int64_t> quantizationStepsChroma;
-  std::vector<size_t> dist2;
-  size_t numberOfNearestNeighborsInPrediction;
-  size_t levelOfDetailCount;
-  uint32_t quantizationStepRaht = 0;
-  uint8_t depthRaht = 0;
-  uint8_t binaryLevelThresholdRaht = 0;
-  TransformType transformType = TransformType::kIntegerLift;
 };
 
 //============================================================================

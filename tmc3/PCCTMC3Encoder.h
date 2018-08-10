@@ -37,8 +37,8 @@
 #define PCCTMC3Encoder_h
 
 #include <assert.h>
+#include <functional>
 #include <map>
-#include <deque>
 #include <queue>
 #include <set>
 #include <string>
@@ -47,74 +47,36 @@
 
 #include "AttributeEncoder.h"
 #include "OctreeNeighMap.h"
+#include "PayloadBuffer.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCPointSetProcessing.h"
 #include "PCCTMC3Common.h"
+#include "hls.h"
+#include "io_hls.h"
 #include "pcc_chrono.h"
 
 #include "ArithmeticCodec.h"
 #include "tables.h"
 
 namespace pcc {
-struct PCCTMC3Encoder3Parameters {
-  // The method used for geometry coding.
-  GeometryCodecType geometryCodec;
 
-  double positionQuantizationScale;
-  bool mergeDuplicatedPoints;
+struct EncoderParams {
+  SequenceParameterSet sps;
+  GeometryParameterSet gps;
 
-  // Controls the use of neighbour based contextualisation of octree
-  // occupancy during geometry coding.  When true, only neighbours that
-  // are direct siblings are available.
-  bool neighbourContextRestriction;
+  // NB: information about attributes is split between the SPS and the APS.
+  //  => The SPS enumerates the attributes, the APS controls coding params.
+  std::vector<AttributeParameterSet> aps;
 
-  // Defines the size of the neighbour availiability volume (aka
-  // look-ahead cube size) for occupancy searches.  A value of 0
-  // indicates that the feature is disabled.
-  int neighbourAvailBoundaryLog2;
-
-  // Controls the use of early termination of the geometry tree
-  // by directly coding the position of isolated points.
-  bool inferredDirectCodingModeEnabled;
-
-  bool skipNeighborSearch;
-  struct TriSoup {
-    // depth of voxels (reconstructed points) in trisoup geometry
-    int depth;
-
-    // level of triangles (reconstructed surface) in trisoup geometry
-    int level;
-
-    // orig_coords = integer_coords * intToOrigScale + intToOrigTranslation
-    double intToOrigScale;
-
-    // orig_coords = integer_coords * intToOrigScale + intToOrigTranslation
-    // todo(df): convert to PCCVector3
-    std::vector<double> intToOrigTranslation;
-  } triSoup;
+  // todo(df): this should go away
+  std::map<std::string, int> attributeIdxMap;
 
   // Filename for saving recoloured point cloud.
   std::string postRecolorPath;
-
-  std::map<std::string, PCCAttributeEncodeParamaters>
-    attributeEncodeParameters;
-
-  //--------------------------------------------------------------------------
-  // Retrieve the a set of parameters, or nullptr if they either do not exist
-  // or guard is false.
-
-  const PCCAttributeEncodeParamaters*
-  getAttrParams(bool guard, const std::string& what) const
-  {
-    if (!guard)
-      return nullptr;
-    auto it = attributeEncodeParameters.find(what);
-    if (it == attributeEncodeParameters.end())
-      return nullptr;
-    return &it->second;
-  }
 };
+
+//============================================================================
 
 class PCCTMC3Encoder3 {
 public:
@@ -130,53 +92,78 @@ public:
     pointCloud.clear();
   }
 
-  size_t estimateBitstreamSize(
-    const PCCPointSet3& pointCloud, const PCCTMC3Encoder3Parameters& params)
-  {
-    size_t bitstreamSize =
-      pointCloud.getPointCount() * 3 * 4 + 1024;  // positions
-    if (pointCloud.hasColors()) {                 // colors
-      bitstreamSize += pointCloud.getPointCount() * 3 * 2 + 1024;
-    }
-    if (pointCloud.hasReflectances()) {  // reflectance
-      bitstreamSize += pointCloud.getPointCount() * 2 + 1024;
-    }
-    return bitstreamSize;
-  }
-
   int compress(
     const PCCPointSet3& inputPointCloud,
-    const PCCTMC3Encoder3Parameters& params,
-    PCCBitstream& bitstream,
+    EncoderParams* params,
+    std::function<void(const PayloadBuffer&)> outputFn,
     PCCPointSet3* reconstructedCloud = nullptr)
   {
     init();
-    PCCWriteToBuffer<uint32_t>(
-      PCCTMC3MagicNumber, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint32_t>(
-      PCCTMC3FormatVersion, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(
-      int(params.geometryCodec), bitstream.buffer, bitstream.size);
 
-    auto paramsColor =
-      params.getAttrParams(inputPointCloud.hasColors(), "color");
+    // fixup parameter set IDs
+    params->sps.sps_seq_parameter_set_id = 0;
+    params->gps.gps_seq_parameter_set_id = 0;
+    params->gps.gps_geom_parameter_set_id = 0;
+    for (int i = 0; i < params->aps.size(); i++) {
+      params->aps[i].aps_seq_parameter_set_id = 0;
+      params->aps[i].aps_attr_parameter_set_id = i;
+    }
 
-    auto paramsReflectance =
-      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
+    // development level / header
+    params->sps.profileCompatibility.profile_compatibility_flags = 0;
+    params->sps.level = 0;
+
+    // the encoder writes out the minPositions in the GBH:
+    params->gps.geom_box_present_flag = true;
+
+    // fixup attribute parameters
+    for (auto it : params->attributeIdxMap) {
+      auto& attr_sps = params->sps.attributeSets[it.second];
+      attr_sps.attr_instance_id = it.second;
+
+      attr_sps.cicp_colour_primaries_idx = 2;
+      attr_sps.cicp_transfer_characteristics_idx = 2;
+      attr_sps.cicp_matrix_coefficients_idx = 2;
+      attr_sps.cicp_video_full_range_flag = true;
+
+      if (it.first == "color") {
+        attr_sps.attr_count = 3;
+        attr_sps.attributeLabel = KnownAttributeLabel::kColour;
+      }
+
+      if (it.first == "reflectance") {
+        attr_sps.attr_count = 1;
+        attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
+      }
+    }
+
+    // placeholder to "activate" the parameter sets
+    _sps = &params->sps;
+    _gps = &params->gps;
+    _aps.clear();
+    for (const auto& aps : params->aps) {
+      _aps.push_back(&aps);
+    }
+
+    // write out all parameter sets prior to encoding
+    outputFn(write(*_sps));
+    outputFn(write(*_gps));
+    for (const auto aps : _aps) {
+      outputFn(write(*aps));
+    }
 
     // geometry compression consists of the following stages:
     //  - prefilter/quantize geometry (non-normative)
     //  - recolour
     //  - encode geometry
-    if (params.geometryCodec == GeometryCodecType::kBypass) {
+    if (_gps->geom_codec_type == GeometryCodecType::kBypass) {
       // todo(df): this should go away now that reporting counts attribute bits
       pointCloud = inputPointCloud;
-      pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
     }
-    if (params.geometryCodec == GeometryCodecType::kOctree) {
-      quantization(inputPointCloud, params);
+    if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+      quantization(inputPointCloud);
     }
-    if (params.geometryCodec == GeometryCodecType::kTriSoup) {
+    if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
       // todo(?): this ought to be replaced with quantization(...)
       if (!inputPointCloud.write("verticesInWorldCoords.ply", true)) {
         std::cerr << "Failed to write verticesInWorldCoords.ply\n";
@@ -187,8 +174,8 @@ public:
         " -inworld verticesInWorldCoords.ply"
         " -outframe verticesInFrameCoords.ply"
         " -depth "
-        + std::to_string(params.triSoup.depth) + " -scale "
-        + std::to_string(params.triSoup.intToOrigScale)
+        + std::to_string(_gps->trisoup_depth) + " -scale "
+        + std::to_string(_sps->donotuse_trisoup_int_to_orig_scale)
         + " -format binary_little_endian";
       if (int err = system(cmd.c_str())) {
         std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
@@ -198,110 +185,90 @@ public:
 
     // geometry encoding
 
-    if (params.geometryCodec == GeometryCodecType::kBypass) {
-      // only a header is sent in this case
-      PCCWriteToBuffer<uint8_t>(
-        uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
-      PCCWriteToBuffer<uint8_t>(
-        uint8_t(pointCloud.hasReflectances()), bitstream.buffer,
-        bitstream.size);
-    } else {
-      uint64_t positionsSize = bitstream.size;
+    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
+      PayloadBuffer payload(PayloadType::kGeometryBrick);
+
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
       clock_user.start();
 
-      if (params.geometryCodec == GeometryCodecType::kOctree) {
-        encodePositionsHeader(params, bitstream);
-        encodePositions(params, bitstream);
+      if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+        encodePositions(&payload);
       }
-      if (params.geometryCodec == GeometryCodecType::kTriSoup) {
-        bool hasColor = !!paramsColor;
-        bool hasReflectance = !!paramsReflectance;
-        encodeTrisoupHeader(params, hasColor, hasReflectance, bitstream);
-        if (encodeTrisoup(params, hasColor, hasReflectance, bitstream))
+      if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+        bool hasColor = inputPointCloud.hasColors();
+        bool hasReflectance = inputPointCloud.hasReflectances();
+        if (encodeTrisoup(hasColor, hasReflectance, &payload))
           return -1;
-        if (recolorTrisoup(
-              params, paramsColor, paramsReflectance, inputPointCloud))
+        if (recolorTrisoup(inputPointCloud))
           return -1;
       }
 
       clock_user.stop();
 
-      positionsSize = bitstream.size - positionsSize;
-      std::cout << "positions bitstream size " << positionsSize << " B ("
-                << (8.0 * positionsSize) / inputPointCloud.getPointCount()
-                << " bpp)" << std::endl;
+      double bpp =
+        double(8 * payload.size()) / inputPointCloud.getPointCount();
+      std::cout << "positions bitstream size " << payload.size() << " B ("
+                << bpp << " bpp)\n";
 
       auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
         clock_user.count());
       std::cout << "positions processing time (user): "
                 << total_user.count() / 1000.0 << " s" << std::endl;
+
+      outputFn(payload);
     }
 
     // attributeCoding
 
     // dump recoloured point cloud
-    if (!params.postRecolorPath.empty()) {
+    if (!params->postRecolorPath.empty()) {
       PCCPointSet3 tempPointCloud(pointCloud);
       tempPointCloud.convertYUVToRGB();
-      tempPointCloud.write(params.postRecolorPath);
+      tempPointCloud.write(params->postRecolorPath);
     }
 
-    if (paramsColor) {
-      AttributeEncoder attrEncoder;
-      uint64_t colorsSize = bitstream.size;
-      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
-      clock_user.start();
-      attrEncoder.encodeHeader(*paramsColor, "color", bitstream);
-      attrEncoder.encodeColors(*paramsColor, pointCloud, bitstream);
-      clock_user.stop();
+    // for each attribute
+    for (const auto& it : params->attributeIdxMap) {
+      int attrIdx = it.second;
+      const auto& attr_sps = _sps->attributeSets[attrIdx];
+      const auto& attr_aps = *_aps[attrIdx];
+      const auto& label = attr_sps.attributeLabel;
 
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B ("
-                << (8.0 * colorsSize) / inputPointCloud.getPointCount()
-                << " bpp)" << std::endl;
+      PayloadBuffer payload(PayloadType::kAttributeBrick);
 
-      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
-        clock_user.count());
-      std::cout << "colors processing time (user): "
-                << total_user.count() / 1000.0 << " s" << std::endl;
-    }
-
-    if (paramsReflectance) {
-      AttributeEncoder attrEncoder;
-      uint64_t reflectancesSize = bitstream.size;
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
       clock_user.start();
-      attrEncoder.encodeHeader(*paramsReflectance, "reflectance", bitstream);
-      attrEncoder.encodeReflectances(
-        *paramsReflectance, pointCloud, bitstream);
+      AttributeEncoder attrEncoder;
+      attrEncoder.encode(attr_sps, attr_aps, pointCloud, &payload);
       clock_user.stop();
 
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B ("
-                << (8.0 * reflectancesSize) / inputPointCloud.getPointCount()
-                << " bpp)" << std::endl;
+      int coded_size = int(payload.size());
+      double bpp = double(8 * coded_size) / inputPointCloud.getPointCount();
+      std::cout << label << "s bitstream size " << coded_size << " B (" << bpp
+                << " bpp)\n";
 
-      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
+      auto time_user = std::chrono::duration_cast<std::chrono::milliseconds>(
         clock_user.count());
-      std::cout << "reflectances processing time (user): "
-                << total_user.count() / 1000.0 << " s" << std::endl;
+      std::cout << label
+                << "s processing time (user): " << time_user.count() / 1000.0
+                << " s" << std::endl;
+
+      outputFn(payload);
     }
 
-    if (params.geometryCodec == GeometryCodecType::kBypass) {
+    if (_gps->geom_codec_type == GeometryCodecType::kBypass) {
       if (reconstructedCloud)
         *reconstructedCloud = pointCloud;
     } else {
-      reconstructedPointCloud(params, reconstructedCloud);
+      reconstructedPointCloud(reconstructedCloud);
     }
 
     return 0;
   }
 
 private:
-  void reconstructedPointCloud(
-    const PCCTMC3Encoder3Parameters& params, PCCPointSet3* reconstructedCloud)
+  void reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
   {
     if (reconstructedCloud == nullptr) {
       return;
@@ -314,8 +281,8 @@ private:
 
     const double minPositionQuantizationScale = 0.0000000001;
     const double invScale =
-      fabs(params.positionQuantizationScale) > minPositionQuantizationScale
-      ? 1.0 / params.positionQuantizationScale
+      fabs(_sps->seq_source_geom_scale_factor) > minPositionQuantizationScale
+      ? 1.0 / _sps->seq_source_geom_scale_factor
       : 1.0;
     for (size_t i = 0; i < pointCount; ++i) {
       const auto quantizedPoint = pointCloud[i];
@@ -580,15 +547,28 @@ private:
 
   //-------------------------------------------------------------------------
 
-  void encodePositions(
-    const PCCTMC3Encoder3Parameters& params, PCCBitstream& bitstream)
+  void encodePositions(PayloadBuffer* buf)
   {
-    uint64_t startSize = bitstream.size;
-    bitstream.size += 4;  // placehoder for bitstream size
-    o3dgc::Arithmetic_Codec arithmeticEncoder;
-    arithmeticEncoder.set_buffer(
-      uint32_t(bitstream.capacity - bitstream.size),
-      bitstream.buffer + bitstream.size);
+    uint32_t maxBB = std::max(
+      {// todo(df): confirm minimum of 1 isn't needed
+       1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
+
+    // the current node dimension (log2) encompasing maxBB
+    int nodeSizeLog2 = ceillog2(maxBB + 1);
+
+    GeometryBrickHeader gbh;
+    gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
+    gbh.geomBoxOrigin.x() = int(minPositions.x());
+    gbh.geomBoxOrigin.y() = int(minPositions.y());
+    gbh.geomBoxOrigin.z() = int(minPositions.z());
+    gbh.geom_box_log2_scale = 0;
+    gbh.geom_max_node_size_log2 = nodeSizeLog2;
+    gbh.geom_num_points = int(pointCloud.getPointCount());
+    write(*_gps, gbh, buf);
+
+    // todo(df): remove estimate when arithmetic codec is replaced
+    int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
+    o3dgc::Arithmetic_Codec arithmeticEncoder(maxAcBufLen, nullptr);
     arithmeticEncoder.start_encoder();
 
     o3dgc::Static_Bit_Model ctxEquiProb;
@@ -603,13 +583,6 @@ private:
     //  -- worst case size is the last level containing every input poit
     //     and each point being isolated in the previous level.
     pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount() + 1);
-
-    uint32_t maxBB = std::max(
-      {// todo(df): confirm minimum of 1 isn't needed
-       1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
-
-    // the current node dimension (log2) encompasing maxBB
-    int nodeSizeLog2 = ceillog2(maxBB + 1);
 
     // push the first node
     PCCOctree3Node node00;
@@ -636,8 +609,8 @@ private:
     int numNodesNextLvl = 0;
 
     MortonMap3D occupancyAtlas;
-    if (params.neighbourAvailBoundaryLog2) {
-      occupancyAtlas.resize(params.neighbourAvailBoundaryLog2);
+    if (_gps->neighbour_avail_boundary_log2) {
+      occupancyAtlas.resize(_gps->neighbour_avail_boundary_log2);
       occupancyAtlas.clear();
     }
     PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
@@ -679,7 +652,7 @@ private:
         }
       }
 
-      if (params.neighbourAvailBoundaryLog2) {
+      if (_gps->neighbour_avail_boundary_log2) {
         updateGeometryOccupancyAtlas(
           node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
@@ -705,7 +678,7 @@ private:
 
           // if the bitstream is configured to represent unique points,
           // no point count is sent.
-          if (params.mergeDuplicatedPoints) {
+          if (_gps->geom_unique_points_flag) {
             assert(childCounts[i] == 1);
             continue;
           }
@@ -748,7 +721,7 @@ private:
         child.numSiblingsPlus1 = numSiblings;
         child.siblingOccupancy = occupancy;
 
-        bool idcmEnabled = params.inferredDirectCodingModeEnabled;
+        bool idcmEnabled = _gps->inferred_direct_coding_mode_enabled_flag;
         if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
           bool directModeUsed = encodeDirectPosition(
             childSizeLog2, child, &arithmeticEncoder, ctxBlockSkipTh,
@@ -773,10 +746,11 @@ private:
 
         // NB: when neighbourAvailBoundaryLog2 is set, an alternative
         //     implementation is used to calculate neighPattern.
-        if (!params.neighbourAvailBoundaryLog2) {
+        if (!_gps->neighbour_avail_boundary_log2) {
           updateGeometryNeighState(
-            params.neighbourContextRestriction, fifo.end(), numNodesNextLvl,
-            childSizeLog2, child, i, node0.neighPattern, occupancy);
+            _gps->neighbour_context_restriction_flag, fifo.end(),
+            numNodesNextLvl, childSizeLog2, child, i, node0.neighPattern,
+            occupancy);
         }
       }
     }
@@ -807,57 +781,14 @@ private:
 
     swap(pointCloud, pointCloud2);
 
-    const uint32_t compressedBitstreamSize = arithmeticEncoder.stop_encoder();
-    bitstream.size += compressedBitstreamSize;
-    PCCWriteToBuffer<uint32_t>(
-      compressedBitstreamSize, bitstream.buffer, startSize);
-  }
-
-  void encodePositionsHeader(
-    const PCCTMC3Encoder3Parameters& params, PCCBitstream& bitstream) const
-  {
-    PCCWriteToBuffer<uint32_t>(
-      uint32_t(pointCloud.getPointCount()), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(pointCloud.hasColors()), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(pointCloud.hasReflectances()), bitstream.buffer, bitstream.size);
-
-    // todo(df): syntax element name: geometryPointsAreUnique?
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(params.mergeDuplicatedPoints), bitstream.buffer, bitstream.size);
-
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(params.neighbourContextRestriction), bitstream.buffer,
-      bitstream.size);
-
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(params.neighbourAvailBoundaryLog2), bitstream.buffer,
-      bitstream.size);
-
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(params.inferredDirectCodingModeEnabled), bitstream.buffer,
-      bitstream.size);
-
-    for (int k = 0; k < 3; ++k) {
-      PCCWriteToBuffer<double>(
-        minPositions[k], bitstream.buffer, bitstream.size);
-    }
-    for (int k = 0; k < 3; ++k) {
-      PCCWriteToBuffer<uint32_t>(
-        boundingBox.max[k], bitstream.buffer, bitstream.size);
-    }
-    PCCWriteToBuffer<double>(
-      params.positionQuantizationScale, bitstream.buffer, bitstream.size);
+    uint32_t acDataLen = arithmeticEncoder.stop_encoder();
+    std::copy_n(
+      arithmeticEncoder.buffer(), acDataLen, std::back_inserter(*buf));
   }
 
   //--------------------------------------------------------------------------
 
-  int encodeTrisoup(
-    const PCCTMC3Encoder3Parameters& params,
-    bool hasColor,
-    bool hasReflectance,
-    PCCBitstream& bitstream)
+  int encodeTrisoup(bool hasColor, bool hasReflectance, PayloadBuffer* buf)
   {
     // todo(?): port TMC1 geometry encoder
     // todo(?): fix TMC1 to output where it is told not requiring an extra
@@ -869,8 +800,9 @@ private:
       " -outbin outbin"
       " -outref refinedVertices.ply"
       " -depth "
-      + std::to_string(params.triSoup.depth) + " -level "
-      + std::to_string(params.triSoup.level) + " -format binary_little_endian";
+      + std::to_string(_gps->trisoup_depth) + " -level "
+      + std::to_string(_gps->trisoup_triangle_level)
+      + " -format binary_little_endian";
     if (int err = system(cmd.c_str())) {
       std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
       return -1;
@@ -882,7 +814,7 @@ private:
       " -inref refinedVertices.ply"
       " -outvox voxelizedVertices.ply"
       " -depth "
-      + std::to_string(params.triSoup.depth) + " -format binary_little_endian";
+      + std::to_string(_gps->trisoup_depth) + " -format binary_little_endian";
     if (int err = system(cmd.c_str())) {
       std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
       return -1;
@@ -902,59 +834,13 @@ private:
       return -1;
     }
 
-    fin.seekg(0, std::ios::end);
-    uint64_t binSize = fin.tellg();
-    fin.seekg(0, std::ios::beg);
-    PCCWriteToBuffer<uint32_t>(
-      uint32_t(binSize), bitstream.buffer, bitstream.size);
-    fin.read(
-      reinterpret_cast<char*>(&bitstream.buffer[bitstream.size]), binSize);
-    if (!fin) {
-      std::cerr << "error reading tmc1 bitstream\n";
-      return -1;
-    }
-    bitstream.size += binSize;
-    fin.close();
+    std::copy(
+      std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>(),
+      std::back_inserter(*buf));
     return 0;
   }
 
   //--------------------------------------------------------------------------
-
-  void encodeTrisoupHeader(
-    const PCCTMC3Encoder3Parameters& params,
-    bool hasColor,
-    bool hasReflectance,
-    PCCBitstream& bitstream) const
-  {
-    PCCWriteToBuffer<uint32_t>(
-      uint32_t(pointCloud.getPointCount()), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(hasColor), bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<uint8_t>(
-      uint8_t(hasReflectance), bitstream.buffer, bitstream.size);
-    for (int k = 0; k < 3; ++k) {
-      PCCWriteToBuffer<double>(
-        minPositions[k], bitstream.buffer, bitstream.size);
-    }
-    for (int k = 0; k < 3; ++k) {
-      PCCWriteToBuffer<uint32_t>(
-        boundingBox.max[k], bitstream.buffer, bitstream.size);
-    }
-    PCCWriteToBuffer<double>(
-      params.positionQuantizationScale, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<size_t>(
-      params.triSoup.depth, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<size_t>(
-      params.triSoup.level, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<double>(
-      params.triSoup.intToOrigScale, bitstream.buffer, bitstream.size);
-    PCCWriteToBuffer<PCCPoint3D>(
-      PCCPoint3D(
-        params.triSoup.intToOrigTranslation[0],
-        params.triSoup.intToOrigTranslation[1],
-        params.triSoup.intToOrigTranslation[2]),
-      bitstream.buffer, bitstream.size);
-  }
 
   void computeMinPositions(const PCCPointSet3& inputPointCloud)
   {
@@ -969,28 +855,24 @@ private:
       }
     }
   }
-  int quantization(
-    const PCCPointSet3& inputPointCloud,
-    const PCCTMC3Encoder3Parameters& params)
+
+  int quantization(const PCCPointSet3& inputPointCloud)
   {
     computeMinPositions(inputPointCloud);
 
-    auto paramsColor =
-      params.getAttrParams(inputPointCloud.hasColors(), "color");
-
-    auto paramsReflectance =
-      params.getAttrParams(inputPointCloud.hasReflectances(), "reflectance");
+    bool hasColour = inputPointCloud.hasColors();
+    bool hasReflectance = inputPointCloud.hasReflectances();
 
     pointCloud.resize(0);
-    pointCloud.addRemoveAttributes(!!paramsColor, !!paramsReflectance);
+    pointCloud.addRemoveAttributes(hasColour, hasReflectance);
 
     const size_t inputPointCount = inputPointCloud.getPointCount();
-    if (params.mergeDuplicatedPoints) {  // retain unique quantized points
+    if (_gps->geom_unique_points_flag) {  // retain unique quantized points
       // filter points based on quantized positions
       std::set<PCCVector3<int64_t>> retainedPoints;
       for (size_t i = 0; i < inputPointCount; ++i) {
         const PCCVector3D point = (inputPointCloud[i] - minPositions)
-          * params.positionQuantizationScale;
+          * _sps->seq_source_geom_scale_factor;
         PCCVector3<int64_t> quantizedPoint;
         quantizedPoint[0] = int64_t(std::round(point[0]));
         quantizedPoint[1] = int64_t(std::round(point[1]));
@@ -1002,7 +884,7 @@ private:
       }
       // compute reconstructed point cloud
       pointCloud.resize(retainedPoints.size());
-      const double invScale = 1.0 / params.positionQuantizationScale;
+      const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
       size_t pointCounter = 0;
       for (const auto& quantizedPoint : retainedPoints) {
         auto& point = pointCloud[pointCounter++];
@@ -1011,14 +893,14 @@ private:
         }
       }
 
-      if (paramsColor) {  // transfer colors
+      if (hasColour) {  // transfer colors
         if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
           std::cout << "Error: can't transfer colors!" << std::endl;
           return -1;
         }
       }
 
-      if (paramsReflectance) {  // transfer reflectances
+      if (hasReflectance) {  // transfer reflectances
         if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
           std::cout << "Error: can't transfer reflectances!" << std::endl;
           return -1;
@@ -1038,15 +920,15 @@ private:
       pointCloud.resize(inputPointCount);
       for (size_t i = 0; i < inputPointCount; ++i) {
         const PCCVector3D point = (inputPointCloud[i] - minPositions)
-          * params.positionQuantizationScale;
+          * _sps->seq_source_geom_scale_factor;
         auto& quantizedPoint = pointCloud[i];
         quantizedPoint[0] = std::round(point[0]);
         quantizedPoint[1] = std::round(point[1]);
         quantizedPoint[2] = std::round(point[2]);
-        if (paramsColor) {
+        if (hasColour) {
           pointCloud.setColor(i, inputPointCloud.getColor(i));
         }
-        if (paramsReflectance) {
+        if (hasReflectance) {
           pointCloud.setReflectance(i, inputPointCloud.getReflectance(i));
         }
       }
@@ -1069,27 +951,23 @@ private:
 
   //--------------------------------------------------------------------------
 
-  int recolorTrisoup(
-    const PCCTMC3Encoder3Parameters& params,
-    const PCCAttributeEncodeParamaters* paramsColor,
-    const PCCAttributeEncodeParamaters* paramsReflectance,
-    const PCCPointSet3& inputPointCloud)
+  int recolorTrisoup(const PCCPointSet3& inputPointCloud)
   {
     // Transform from integer to original coordinates.
     const size_t pointCount = pointCloud.getPointCount();
     for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-      pointCloud[pointIndex] *= params.triSoup.intToOrigScale;
+      pointCloud[pointIndex] *= _sps->donotuse_trisoup_int_to_orig_scale;
       // todo(pchou): should add intToOrigTranslation here.
     }
 
     // Recolour attributes.
-    if (paramsColor) {
+    if (inputPointCloud.hasColors()) {
       if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
         std::cout << "Error: can't transfer colors!" << std::endl;
         return -1;
       }
     }
-    if (paramsReflectance) {
+    if (inputPointCloud.hasReflectances()) {
       if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
         std::cout << "Error: can't transfer reflectance!" << std::endl;
         return -1;
@@ -1100,7 +978,7 @@ private:
     for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
       // todo(pchou): should subtract intToOrigTranslation here.
       // todo(?): don't use division here
-      pointCloud[pointIndex] /= params.triSoup.intToOrigScale;
+      pointCloud[pointIndex] /= _sps->donotuse_trisoup_int_to_orig_scale;
     }
 
     return 0;
@@ -1110,6 +988,11 @@ private:
   PCCVector3D minPositions;
   PCCBox3<uint32_t> boundingBox;
   PCCPointSet3 pointCloud;
+
+  // The active parameter sets
+  const SequenceParameterSet* _sps;
+  const GeometryParameterSet* _gps;
+  std::vector<const AttributeParameterSet*> _aps;
 };
 }  // namespace pcc
 

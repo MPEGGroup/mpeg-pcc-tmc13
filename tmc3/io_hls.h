@@ -33,42 +33,39 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TMC3_h
-#define TMC3_h
+#pragma once
 
-#define _CRT_SECURE_NO_WARNINGS
+#include "PayloadBuffer.h"
+#include "hls.h"
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <map>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <string>
+namespace pcc {
 
-#include "PCCPointSet.h"
-#include "PCCTMC3Decoder.h"
-#include "PCCTMC3Encoder.h"
+//============================================================================
 
-#include "TMC3Config.h"
+PayloadBuffer write(const SequenceParameterSet& sps);
+PayloadBuffer write(const GeometryParameterSet& gps);
+PayloadBuffer write(const AttributeParameterSet& aps);
 
-#include "pcc_chrono.h"
+SequenceParameterSet parseSps(const PayloadBuffer& buf);
+GeometryParameterSet parseGps(const PayloadBuffer& buf);
+AttributeParameterSet parseAps(const PayloadBuffer& buf);
 
-enum ColorTransform
-{
-  COLOR_TRANSFORM_NONE = 0,
-  COLOR_TRANSFORM_RGB_TO_YCBCR = 1
-};
+//----------------------------------------------------------------------------
 
-struct Parameters;
+void write(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PayloadBuffer* buf);
 
-typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock>
-  Stopwatch;
+void write(const AttributeBrickHeader& abh, PayloadBuffer* buf);
 
-bool ParseParameters(int argc, char* argv[], Parameters& params);
-int Compress(Parameters& params, Stopwatch&);
-int Decompress(Parameters& params, Stopwatch&);
+GeometryBrickHeader parseGbh(
+  const GeometryParameterSet& gps, const PayloadBuffer& buf, int* bytesRead);
 
-#endif /* TMC3_h */
+AttributeBrickHeader parseAbh(const PayloadBuffer& buf, int* bytesRead);
+
+//----------------------------------------------------------------------------
+
+//============================================================================
+
+}  // namespace pcc

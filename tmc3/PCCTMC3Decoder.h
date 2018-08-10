@@ -43,9 +43,13 @@
 
 #include "AttributeDecoder.h"
 #include "OctreeNeighMap.h"
+#include "PayloadBuffer.h"
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
 #include "PCCTMC3Common.h"
+#include "hls.h"
+#include "io_hls.h"
+#include "io_tlv.h"
 #include "pcc_chrono.h"
 #include "osspecific.h"
 
@@ -54,7 +58,7 @@
 
 namespace pcc {
 
-struct DecoderParameters {
+struct DecoderParams {
   bool roundOutputPositions;
 
   // Filename for saving pre inverse scaled point cloud.
@@ -70,66 +74,72 @@ public:
 
   void init()
   {
-    positionQuantizationScale = 1.0;
-    minPositions = 0.0;
-    boundingBox.min = uint32_t(0);
-    boundingBox.max = uint32_t(0);
+    _sps = nullptr;
+    _gps = nullptr;
+    _aps.clear();
   }
 
   int decompress(
-    const DecoderParameters& params,
-    PCCBitstream& bitstream,
+    const DecoderParams& params,
+    // todo(df): refactor api to take payload buffers
+    std::istream& input,
     PCCPointSet3& pointCloud)
   {
     init();
-    uint32_t magicNumber = 0;
-    uint32_t formatVersion = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, magicNumber, bitstream.size);
-    if (magicNumber != PCCTMC3MagicNumber) {
-      std::cout << "Error: corrupted bistream!" << std::endl;
-      return -1;
-    }
-    PCCReadFromBuffer<uint32_t>(
-      bitstream.buffer, formatVersion, bitstream.size);
-    if (formatVersion != PCCTMC3FormatVersion) {
-      std::cout << "Error: bistream version not supported!" << std::endl;
-      return -1;
-    }
 
-    // determine the geometry codec type
-    uint8_t geometryCodecRaw;
-    PCCReadFromBuffer<uint8_t>(
-      bitstream.buffer, geometryCodecRaw, bitstream.size);
-    GeometryCodecType geometryCodec{GeometryCodecType(geometryCodecRaw)};
+    // todo(df): replace fixed payload ordering
+    PayloadBuffer buf;
+    readTlv(input, &buf);
+    SequenceParameterSet sps = parseSps(buf);
+    _sps = &sps;
 
-    if (geometryCodec == GeometryCodecType::kBypass) {
-      uint8_t hasColors = 0;
-      PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
-      uint8_t hasReflectances = 0;
-      PCCReadFromBuffer<uint8_t>(
-        bitstream.buffer, hasReflectances, bitstream.size);
-      pointCloud.addRemoveAttributes(hasColors, hasReflectances);
+    buf = PayloadBuffer();
+    readTlv(input, &buf);
+    GeometryParameterSet gps = parseGps(buf);
+    _gps = &gps;
+
+    std::vector<AttributeParameterSet> apss;
+    apss.reserve(sps.attributeSets.size());
+    for (int i = 0; i < sps.attributeSets.size(); i++) {
+      buf = PayloadBuffer();
+      readTlv(input, &buf);
+      apss.emplace_back(parseAps(buf));
+      _aps.emplace_back(&apss[i]);
     }
 
-    if (geometryCodec != GeometryCodecType::kBypass) {
-      uint64_t positionsSize = bitstream.size;
+    // todo(df): replace with attribute mapping
+    bool hasColour = std::any_of(
+      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      [](const AttributeDescription& desc) {
+        return desc.attributeLabel == KnownAttributeLabel::kColour;
+      });
+
+    bool hasReflectance = std::any_of(
+      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      [](const AttributeDescription& desc) {
+        return desc.attributeLabel == KnownAttributeLabel::kReflectance;
+      });
+
+    pointCloud.addRemoveAttributes(hasColour, hasReflectance);
+
+    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
+      buf = PayloadBuffer();
+      readTlv(input, &buf);
+      assert(buf.type == PayloadType::kGeometryBrick);
+
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
       clock_user.start();
 
-      if (geometryCodec == GeometryCodecType::kOctree) {
-        decodePositionsHeader(bitstream, pointCloud);
-        decodePositions(bitstream, pointCloud);
+      if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+        decodePositions(buf, pointCloud);
       }
-      if (geometryCodec == GeometryCodecType::kTriSoup) {
-        decodeTrisoupHeader(bitstream, pointCloud);
-        if (decodeTrisoup(bitstream, pointCloud))
+      if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+        if (decodeTrisoup(buf, pointCloud))
           return -1;
       }
       clock_user.stop();
 
-      positionsSize = bitstream.size - positionsSize;
-      std::cout << "positions bitstream size " << positionsSize << " B"
-                << std::endl;
+      std::cout << "positions bitstream size " << buf.size() << " B\n";
 
       auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
         clock_user.count());
@@ -138,44 +148,31 @@ public:
       std::cout << std::endl;
     }
 
-    if (pointCloud.hasColors()) {
+    // todo(df): remove this loop with api change
+    // todo(df): attribute brick order should not depend upon sps attr order
+    for (int i = 0; i < sps.attributeSets.size(); i++) {
+      const auto& attr_sps = _sps->attributeSets[i];
+      const auto& attr_aps = *_aps[i];
+      const auto& label = attr_sps.attributeLabel;
+
+      buf = PayloadBuffer();
+      readTlv(input, &buf);
+      assert(buf.type == PayloadType::kAttributeBrick);
+
       AttributeDecoder attrDecoder;
-      uint64_t colorsSize = bitstream.size;
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
       clock_user.start();
-      attrDecoder.decodeHeader("color", bitstream);
-      attrDecoder.decodeColors(bitstream, pointCloud);
+      attrDecoder.decode(attr_sps, attr_aps, buf, pointCloud);
       clock_user.stop();
 
-      colorsSize = bitstream.size - colorsSize;
-      std::cout << "colors bitstream size " << colorsSize << " B" << std::endl;
+      std::cout << label << "s bitstream size " << buf.size() << " B\n";
 
       auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
         clock_user.count());
-      std::cout << "colors processing time (user): "
-                << total_user.count() / 1000.0 << " s\n";
-      std::cout << std::endl;
-    }
-
-    if (pointCloud.hasReflectances()) {
-      AttributeDecoder attrDecoder;
-      uint64_t reflectancesSize = bitstream.size;
-      pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
-
-      clock_user.start();
-      attrDecoder.decodeHeader("reflectance", bitstream);
-      attrDecoder.decodeReflectances(bitstream, pointCloud);
-      clock_user.stop();
-
-      reflectancesSize = bitstream.size - reflectancesSize;
-      std::cout << "reflectances bitstream size " << reflectancesSize << " B"
-                << std::endl;
-
-      auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
-        clock_user.count());
-      std::cout << "reflectances processing time (user): "
-                << total_user.count() / 1000.0 << " s\n";
+      std::cout << label
+                << "s processing time (user): " << total_user.count() / 1000.0
+                << " s\n";
       std::cout << std::endl;
     }
 
@@ -186,7 +183,7 @@ public:
       tempPointCloud.write(params.preInvScalePath);
     }
 
-    if (geometryCodec != GeometryCodecType::kBypass) {
+    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
       inverseQuantization(pointCloud, params.roundOutputPositions);
     }
 
@@ -194,90 +191,11 @@ public:
   }
 
 private:
-  void decodePositionsHeader(PCCBitstream& bitstream, PCCPointSet3& pointCloud)
+  int decodeTrisoup(const PayloadBuffer& buf, PCCPointSet3& pointCloud)
   {
-    uint32_t pointCount = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
-    uint8_t hasColors = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
-    uint8_t hasReflectances = 0;
-    PCCReadFromBuffer<uint8_t>(
-      bitstream.buffer, hasReflectances, bitstream.size);
+    assert(buf.type == PayloadType::kGeometryBrick);
 
-    uint8_t u8value;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
-    geometryPointsAreUnique = bool(u8value);
-
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
-    neighbourContextRestriction = bool(u8value);
-
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
-    neighbourAvailBoundaryLog2 = u8value;
-
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, u8value, bitstream.size);
-    inferredDirectCodingModeEnabled = bool(u8value);
-
-    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
-    pointCloud.resize(pointCount);
-
-    for (int k = 0; k < 3; ++k) {
-      PCCReadFromBuffer<double>(
-        bitstream.buffer, minPositions[k], bitstream.size);
-    }
-    for (int k = 0; k < 3; ++k) {
-      PCCReadFromBuffer<uint32_t>(
-        bitstream.buffer, boundingBox.max[k], bitstream.size);
-    }
-    PCCReadFromBuffer<double>(
-      bitstream.buffer, positionQuantizationScale, bitstream.size);
-    const double minPositionQuantizationScale = 0.0000000001;
-    if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
-      positionQuantizationScale = 1.0;
-    }
-  }
-
-  void decodeTrisoupHeader(PCCBitstream& bitstream, PCCPointSet3& pointCloud)
-  {
-    uint32_t pointCount = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, pointCount, bitstream.size);
-    uint8_t hasColors = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, hasColors, bitstream.size);
-    uint8_t hasReflectances = 0;
-    PCCReadFromBuffer<uint8_t>(
-      bitstream.buffer, hasReflectances, bitstream.size);
-
-    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
-    pointCloud.resize(pointCount);
-
-    for (int k = 0; k < 3; ++k) {
-      PCCReadFromBuffer<double>(
-        bitstream.buffer, minPositions[k], bitstream.size);
-    }
-    for (int k = 0; k < 3; ++k) {
-      PCCReadFromBuffer<uint32_t>(
-        bitstream.buffer, boundingBox.max[k], bitstream.size);
-    }
-    PCCReadFromBuffer<double>(
-      bitstream.buffer, positionQuantizationScale, bitstream.size);
-    const double minPositionQuantizationScale = 0.0000000001;
-    if (fabs(positionQuantizationScale) < minPositionQuantizationScale) {
-      positionQuantizationScale = 1.0;
-    }
-    PCCReadFromBuffer<size_t>(bitstream.buffer, triSoup.depth, bitstream.size);
-    PCCReadFromBuffer<size_t>(bitstream.buffer, triSoup.level, bitstream.size);
-    PCCReadFromBuffer<double>(
-      bitstream.buffer, triSoup.intToOrigScale, bitstream.size);
-    PCCReadFromBuffer<PCCPoint3D>(
-      bitstream.buffer, triSoup.intToOrigTranslation, bitstream.size);
-  }
-
-  //--------------------------------------------------------------------------
-
-  int decodeTrisoup(PCCBitstream& bitstream, PCCPointSet3& pointCloud)
-  {
     // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
-    uint32_t binSize = 0;
-    PCCReadFromBuffer<uint32_t>(bitstream.buffer, binSize, bitstream.size);
     std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
     if (!fout.is_open()) {
       // maybe because directory does not exist; try again...
@@ -286,12 +204,10 @@ private:
       if (!fout.is_open())
         return -1;
     }
-    fout.write(
-      reinterpret_cast<char*>(&bitstream.buffer[bitstream.size]), binSize);
+    fout.write(buf.data(), buf.size());
     if (!fout) {
       return -1;
     }
-    bitstream.size += binSize;
     fout.close();
 
     // Decompress geometry with TMC1.
@@ -307,8 +223,9 @@ private:
       " -inbin outbin/outbin"
       " -outref refinedVerticesDecoded.ply"
       " -depth "
-      + std::to_string(triSoup.depth) + " -level "
-      + std::to_string(triSoup.level) + " -format binary_little_endian";
+      + std::to_string(_gps->trisoup_depth) + " -level "
+      + std::to_string(_gps->trisoup_triangle_level)
+      + " -format binary_little_endian";
     if (int err = system(cmd.c_str())) {
       std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
       return -1;
@@ -319,7 +236,7 @@ private:
       " -inref refinedVerticesDecoded.ply"
       " -outvox quantizedPointCloudDecoded.ply"
       " -depth "
-      + std::to_string(triSoup.depth) + " -format binary_little_endian";
+      + std::to_string(_gps->trisoup_depth) + " -format binary_little_endian";
     if (int err = system(cmd.c_str())) {
       std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
       return -1;
@@ -595,15 +512,21 @@ private:
 
   //-------------------------------------------------------------------------
 
-  void decodePositions(PCCBitstream& bitstream, PCCPointSet3& pointCloud)
+  void decodePositions(const PayloadBuffer& buf, PCCPointSet3& pointCloud)
   {
-    uint32_t compressedBitstreamSize;
-    PCCReadFromBuffer<uint32_t>(
-      bitstream.buffer, compressedBitstreamSize, bitstream.size);
-    o3dgc::Arithmetic_Codec arithmeticDecoder;
-    arithmeticDecoder.set_buffer(
-      uint32_t(bitstream.capacity - bitstream.size),
-      bitstream.buffer + bitstream.size);
+    assert(buf.type == PayloadType::kGeometryBrick);
+
+    int gbhSize;
+    GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
+    minPositions.x() = gbh.geomBoxOrigin.x();
+    minPositions.y() = gbh.geomBoxOrigin.y();
+    minPositions.z() = gbh.geomBoxOrigin.z();
+
+    pointCloud.resize(gbh.geom_num_points);
+
+    o3dgc::Arithmetic_Codec arithmeticDecoder(
+      int(buf.size()) - gbhSize,
+      reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data() + gbhSize)));
     arithmeticDecoder.start_decoder();
 
     o3dgc::Static_Bit_Model ctxEquiProb;
@@ -619,12 +542,8 @@ private:
     //     and each point being isolated in the previous level.
     pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount() + 1);
 
-    uint32_t maxBB = std::max(
-      {// todo(df): confirm minimum of 1 isn't needed
-       1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
-
-    // the current node dimension (log2) encompasing maxBB
-    int nodeSizeLog2 = ceillog2(maxBB + 1);
+    // the current node dimension (log2)
+    int nodeSizeLog2 = gbh.geom_max_node_size_log2;
 
     // push the first node
     PCCOctree3Node node00;
@@ -647,8 +566,8 @@ private:
 
     PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
     MortonMap3D occupancyAtlas;
-    if (neighbourAvailBoundaryLog2) {
-      occupancyAtlas.resize(neighbourAvailBoundaryLog2);
+    if (_gps->neighbour_avail_boundary_log2) {
+      occupancyAtlas.resize(_gps->neighbour_avail_boundary_log2);
       occupancyAtlas.clear();
     }
 
@@ -662,7 +581,7 @@ private:
       }
       PCCOctree3Node& node0 = fifo.front();
 
-      if (neighbourAvailBoundaryLog2) {
+      if (_gps->neighbour_avail_boundary_log2) {
         updateGeometryOccupancyAtlas(
           node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
@@ -699,7 +618,7 @@ private:
         if (childSizeLog2 == 0) {
           int numPoints = 1;
 
-          if (!geometryPointsAreUnique) {
+          if (!_gps->geom_unique_points_flag) {
             numPoints = decodePositionLeafNumPoints(
               &arithmeticDecoder, ctxSinglePointPerBlock, ctxEquiProb,
               ctxPointCountPerBlock);
@@ -727,7 +646,7 @@ private:
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
 
-        bool idcmEnabled = inferredDirectCodingModeEnabled;
+        bool idcmEnabled = _gps->inferred_direct_coding_mode_enabled_flag;
         if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
           int numPoints = decodeDirectPosition(
             childSizeLog2, child, &arithmeticDecoder, ctxBlockSkipTh,
@@ -747,23 +666,23 @@ private:
 
         numNodesNextLvl++;
 
-        if (!neighbourAvailBoundaryLog2) {
+        if (!_gps->neighbour_avail_boundary_log2) {
           updateGeometryNeighState(
-            neighbourContextRestriction, fifo.end(), numNodesNextLvl,
-            childSizeLog2, child, i, node0.neighPattern, occupancy);
+            _gps->neighbour_context_restriction_flag, fifo.end(),
+            numNodesNextLvl, childSizeLog2, child, i, node0.neighPattern,
+            occupancy);
         }
       }
     }
 
     arithmeticDecoder.stop_decoder();
-    bitstream.size += compressedBitstreamSize;
   }
 
   void inverseQuantization(
     PCCPointSet3& pointCloud, const bool roundOutputPositions)
   {
     const size_t pointCount = pointCloud.getPointCount();
-    const double invScale = 1.0 / positionQuantizationScale;
+    const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
 
     if (roundOutputPositions) {
       for (size_t i = 0; i < pointCount; ++i) {
@@ -784,32 +703,11 @@ private:
 
 private:
   PCCVector3D minPositions;
-  PCCBox3<uint32_t> boundingBox;
-  double positionQuantizationScale;
 
-  // When not equal to zero, indicates that a count of points is present in
-  // each geometry octree leaf node.
-  bool geometryPointsAreUnique;
-
-  // Controls the use of neighbour based contextualisation of octree
-  // occupancy during geometry coding.
-  bool neighbourContextRestriction;
-
-  // Defines the size of the neighbour availiability volume (aka
-  // look-ahead cube size) for occupancy searches.  A value of 0
-  // indicates that the feature is disabled.
-  int neighbourAvailBoundaryLog2;
-
-  // Controls the use of early termination of the geometry tree
-  // by directly coding the position of isolated points.
-  bool inferredDirectCodingModeEnabled;
-
-  struct TriSoup {
-    size_t depth;
-    size_t level;
-    double intToOrigScale;
-    PCCPoint3D intToOrigTranslation;
-  } triSoup;
+  // The active SPS
+  SequenceParameterSet* _sps;
+  GeometryParameterSet* _gps;
+  std::vector<AttributeParameterSet*> _aps;
 };
 }  // namespace pcc
 

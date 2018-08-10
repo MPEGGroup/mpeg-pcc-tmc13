@@ -35,10 +35,29 @@
 
 #include "TMC3.h"
 #include "program_options_lite.h"
+#include "io_tlv.h"
 #include "version.h"
 
 using namespace std;
 using namespace pcc;
+
+//============================================================================
+
+struct Parameters {
+  bool isDecoder;
+
+  std::string uncompressedDataPath;
+  std::string compressedStreamPath;
+  std::string reconstructedDataPath;
+
+  pcc::EncoderParams encoder;
+  pcc::DecoderParams decoder;
+
+  // todo(df): this should be per-attribute
+  ColorTransform colorTransform;
+};
+
+//============================================================================
 
 int
 main(int argc, char* argv[])
@@ -57,13 +76,10 @@ main(int argc, char* argv[])
   clock_wall.start();
 
   int ret = 0;
-  if (
-    params.mode == CODEC_MODE_ENCODE
-    || params.mode == CODEC_MODE_ENCODE_LOSSLESS_GEOMETRY
-    || params.mode == CODEC_MODE_ENCODE_TRISOUP_GEOMETRY) {
-    ret = Compress(params, clock_user);
-  } else {
+  if (params.isDecoder) {
     ret = Decompress(params, clock_user);
+  } else {
+    ret = Compress(params, clock_user);
   }
 
   clock_wall.stop();
@@ -91,12 +107,6 @@ readUInt(std::istream& in, T& val)
 }
 
 static std::istream&
-operator>>(std::istream& in, CodecMode& val)
-{
-  return readUInt(in, val);
-}
-
-static std::istream&
 operator>>(std::istream& in, ColorTransform& val)
 {
   return readUInt(in, val);
@@ -104,7 +114,7 @@ operator>>(std::istream& in, ColorTransform& val)
 
 namespace pcc {
 static std::istream&
-operator>>(std::istream& in, TransformType& val)
+operator>>(std::istream& in, AttributeEncoding& val)
 {
   return readUInt(in, val);
 }
@@ -120,12 +130,12 @@ operator>>(std::istream& in, GeometryCodecType& val)
 
 namespace pcc {
 static std::ostream&
-operator<<(std::ostream& out, const TransformType& val)
+operator<<(std::ostream& out, const AttributeEncoding& val)
 {
   switch (val) {
-  case TransformType::kIntegerLift: out << "0 (IntegerLifting)"; break;
-  case TransformType::kRAHT: out << "1 (RAHT)"; break;
-  case TransformType::kLift: out << "2 (Lift)"; break;
+  case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
+  case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
+  case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
   }
   return out;
 }
@@ -152,7 +162,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 {
   namespace po = df::program_options_lite;
 
-  PCCAttributeEncodeParamaters params_attr;
+  struct {
+    AttributeDescription desc;
+    AttributeParameterSet aps;
+  } params_attr;
+
   bool print_help = false;
 
   // a helper to set the attribute
@@ -166,7 +180,20 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       // Y=2:
       //   "--attr.X=1 --attribute foo --attr.Y=2 --attribute foo"
       //
-      params.encodeParameters.attributeEncodeParameters[name] = params_attr;
+
+      // NB: insert returns any existing element
+      const auto& it = params.encoder.attributeIdxMap.insert(
+        {name, int(params.encoder.attributeIdxMap.size())});
+
+      if (it.second) {
+        params.encoder.sps.attributeSets.push_back(params_attr.desc);
+        params.encoder.aps.push_back(params_attr.aps);
+        return;
+      }
+
+      // update existing entry
+      params.encoder.sps.attributeSets[it.first->second] = params_attr.desc;
+      params.encoder.aps[it.first->second] = params_attr.aps;
     };
 
   /* clang-format off */
@@ -183,13 +210,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   (po::Section("General"))
 
-  ("mode", params.mode, CODEC_MODE_ENCODE,
+  ("mode", params.isDecoder, false,
     "The encoding/decoding mode:\n"
     "  0: encode\n"
-    "  1: decode\n"
-    // NB: the following forms are deprecated
-    "  2: encode with lossless geometry\n"
-    "  3: decode with lossless geometry")
+    "  1: decode")
 
   // i/o parameters
   ("reconstructedDataPath",
@@ -205,14 +229,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "The compressed bitstream path (encoder=output, decoder=input)")
 
   ("postRecolorPath",
-    params.encodeParameters.postRecolorPath, {},
+    params.encoder.postRecolorPath, {},
     "Recolored pointcloud file path (encoder only)")
 
   ("preInvScalePath",
-    params.decodeParameters.preInvScalePath, {},
+    params.decoder.preInvScalePath, {},
     "Pre inverse scaled pointcloud file path (decoder only)")
 
   // general
+  // todo(df): this should be per-attribute
   ("colorTransform",
     params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
     "The colour transform to be applied:\n"
@@ -222,58 +247,54 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   (po::Section("Decoder"))
 
   ("roundOutputPositions",
-    params.decodeParameters.roundOutputPositions, false,
+    params.decoder.roundOutputPositions, false,
     "todo(kmammou)")
 
   (po::Section("Encoder"))
 
   ("positionQuantizationScale",
-    params.encodeParameters.positionQuantizationScale, 1.,
+    params.encoder.sps.seq_source_geom_scale_factor, 1.f,
     "Scale factor to be applied to point positions during quantization process")
 
   ("mergeDuplicatedPoints",
-    params.encodeParameters.mergeDuplicatedPoints, true,
+    params.encoder.gps.geom_unique_points_flag, true,
     "Enables removal of duplicated points")
 
   (po::Section("Geometry"))
 
   // tools
   ("geometryCodec",
-    params.encodeParameters.geometryCodec, GeometryCodecType::kOctree,
+    params.encoder.gps.geom_codec_type, GeometryCodecType::kOctree,
     "Controls the method used to encode geometry:"
     "  0: bypass (a priori)\n"
     "  1: octree (TMC3)\n"
     "  2: trisoup (TMC1)")
 
   ("neighbourContextRestriction",
-    params.encodeParameters.neighbourContextRestriction, false,
+    params.encoder.gps.neighbour_context_restriction_flag, false,
     "Limit geometry octree occupancy contextualisation to sibling nodes")
 
   ("neighbourAvailBoundaryLog2",
-    params.encodeParameters.neighbourAvailBoundaryLog2, 0,
+    params.encoder.gps.neighbour_avail_boundary_log2, 0,
     "Defines the avaliability volume for neighbour occupancy lookups."
     " 0: unconstrained")
 
   ("inferredDirectCodingMode",
-    params.encodeParameters.inferredDirectCodingModeEnabled, true,
+    params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
     "Permits early termination of the geometry octree for isolated points")
 
   // (trisoup) geometry parameters
   ("triSoupDepth",  // log2(maxBB+1), where maxBB+1 is analogous to image width
-    params.encodeParameters.triSoup.depth, 10,
+    params.encoder.gps.trisoup_depth, 10,
     "Depth of voxels (reconstructed points) in trisoup geometry")
 
   ("triSoupLevel",
-    params.encodeParameters.triSoup.level, 7,
+    params.encoder.gps.trisoup_triangle_level, 7,
     "Level of triangles (reconstructed surface) in trisoup geometry")
 
   ("triSoupIntToOrigScale",  // reciprocal of positionQuantizationScale
-    params.encodeParameters.triSoup.intToOrigScale, 1.,
-    "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
-
-  ("triSoupIntToOrigTranslation",
-    params.encodeParameters.triSoup.intToOrigTranslation, {0., 0., 0.},
-    "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
+    params.encoder.sps.donotuse_trisoup_int_to_orig_scale, 1.f,
+    "orig_coords = integer_coords * intToOrigScale")
 
   (po::Section("Attributes"))
 
@@ -285,47 +306,48 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "following attribute parameters)")
 
   ("transformType",
-    params_attr.transformType, TransformType::kIntegerLift,
+    params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
     "Coding method to use for attribute:\n"
     "  0: Hierarchical neighbourhood prediction\n"
     "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
     "  2: Hierarichical neighbourhood prediction as lifting transform")
 
   ("rahtLeafDecimationDepth",
-    params_attr.binaryLevelThresholdRaht, 3,
+    params_attr.aps.raht_binary_level_threshold, 3,
     "Sets coefficients to zero in the bottom n levels of RAHT tree. "
     "Used for chroma-subsampling in attribute=color only.")
 
   ("rahtQuantizationStep",
-    params_attr.quantizationStepRaht, 1,
-    "Quantization step size used in RAHT")
+    params_attr.aps.quant_step_size_luma, {},
+    "deprecated -- use quantizationStepsLuma")
 
   ("rahtDepth",
-    params_attr.depthRaht, 21,
+    params_attr.aps.raht_depth, 21,
     "Number of bits for morton representation of an RAHT co-ordinate"
     "component")
 
   ("numberOfNearestNeighborsInPrediction",
-    params_attr.numberOfNearestNeighborsInPrediction, size_t(4),
+    params_attr.aps.num_pred_nearest_neighbours, 4,
     "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("levelOfDetailCount",
-    params_attr.levelOfDetailCount, size_t(6),
+    params_attr.aps.numDetailLevels, 1,
     "Attribute's number of levels of detail")
 
   ("quantizationSteps",
-    params_attr.quantizationStepsLuma, {},
-    "deprecated -- use quantizationStepsLuma/Chroma")
+    params_attr.aps.quant_step_size_luma, {},
+    "deprecated -- use quantizationStepsLuma")
 
   ("quantizationStepsLuma",
-    params_attr.quantizationStepsLuma, {},
+    params_attr.aps.quant_step_size_luma, {},
     "Attribute's luma quantization step sizes (one for each LoD)")
 
   ("quantizationStepsChroma",
-    params_attr.quantizationStepsChroma, {},
+    params_attr.aps.quant_step_size_chroma, {},
     "Attribute's chroma quantization step sizes (one for each LoD)")
 
-  ("dist2", params_attr.dist2, {},
+  ("dist2",
+    params_attr.aps.dist2, {},
     "Attribute's list of squared distances (one for each LoD)")
   ;
   /* clang-format on */
@@ -344,63 +366,60 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
-  // Set GeometryCodecType according to codec mode
-  // NB: for bypass, the decoder must load the a priori geometry
-  if (params.mode == 2 || params.mode == 3) {
-    params.encodeParameters.geometryCodec = GeometryCodecType::kBypass;
-  }
-  if (params.mode == 4) {
-    params.encodeParameters.geometryCodec = GeometryCodecType::kTriSoup;
-  }
-
-  // Restore params.mode to be encode vs decode
-  params.mode = CodecMode(params.mode & 1);
-
   // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
-    params.encodeParameters.positionQuantizationScale =
-      1.0 / params.encodeParameters.triSoup.intToOrigScale;
+  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+    params.encoder.sps.seq_source_geom_scale_factor =
+      1.0f / params.encoder.sps.donotuse_trisoup_int_to_orig_scale;
   }
 
   // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
-  for (auto& attr : params.encodeParameters.attributeEncodeParameters) {
-    if (attr.second.transformType == TransformType::kRAHT) {
-      attr.second.levelOfDetailCount = 0;
+  for (const auto& it : params.encoder.attributeIdxMap) {
+    auto& attr_aps = params.encoder.aps[it.second];
+
+    if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      attr_aps.numDetailLevels = 0;
     }
   }
 
   // sanity checks
   //  - validate that quantizationStepsLuma/Chroma, dist2
   //    of each attribute contain levelOfDetailCount elements.
-  for (const auto& attr : params.encodeParameters.attributeEncodeParameters) {
-    if (attr.second.transformType == TransformType::kIntegerLift) {
-      int lod = attr.second.levelOfDetailCount;
+  for (const auto& it : params.encoder.attributeIdxMap) {
+    const auto& attr_sps = params.encoder.sps.attributeSets[it.second];
+    const auto& attr_aps = params.encoder.aps[it.second];
+
+    bool isLifting =
+      attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
+      || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
+
+    if (isLifting) {
+      int lod = attr_aps.numDetailLevels;
 
       if (lod > 255) {
-        err.error() << attr.first
+        err.error() << it.first
                     << ".levelOfDetailCount must be less than 256\n";
       }
       // todo(df): the following two checks are removed in m42640/2
-      if (attr.second.dist2.size() != lod) {
-        err.error() << attr.first << ".dist2 does not have " << lod
+      if (attr_aps.dist2.size() != lod) {
+        err.error() << it.first << ".dist2 does not have " << lod
                     << " entries\n";
       }
-      if (attr.second.quantizationStepsLuma.size() != lod) {
-        err.error() << attr.first << ".quantizationStepsLuma does not have "
+      if (attr_aps.quant_step_size_luma.size() != lod) {
+        err.error() << it.first << ".quantizationStepsLuma does not have "
                     << lod << " entries\n";
       }
-      if (attr.first == "color") {
-        if (attr.second.quantizationStepsChroma.size() != lod) {
-          err.error() << attr.first
-                      << ".quantizationStepsChroma does not have " << lod
-                      << " entries\n";
+      if (it.first == "color") {
+        if (attr_aps.quant_step_size_chroma.size() != lod) {
+          err.error() << it.first << ".quantizationStepsChroma does not have "
+                      << lod << " entries\n";
         }
       }
+
       if (
-        attr.second.numberOfNearestNeighborsInPrediction
+        attr_aps.num_pred_nearest_neighbours
         > PCCTMC3MaxPredictionNearestNeighborCount) {
         err.error()
-          << attr.first
+          << it.first
           << ".numberOfNearestNeighborsInPrediction must be less than "
           << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
       }
@@ -409,12 +428,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   // check required arguments are specified
 
-  const bool encode = params.mode == CODEC_MODE_ENCODE;
-
-  if (encode && params.uncompressedDataPath.empty())
+  if (!params.isDecoder && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
 
-  if (!encode && params.reconstructedDataPath.empty())
+  if (params.isDecoder && params.reconstructedDataPath.empty())
     err.error() << "reconstructedDataPath not set\n";
 
   if (params.compressedStreamPath.empty())
@@ -423,7 +440,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // currently the attributes with lossless geometry require the source data
   // todo(?): remove this dependency by improving reporting
   if (
-    params.encodeParameters.geometryCodec == GeometryCodecType::kBypass
+    params.encoder.gps.geom_codec_type == GeometryCodecType::kBypass
     && params.uncompressedDataPath.empty())
     err.error() << "uncompressedDataPath not set\n";
 
@@ -436,15 +453,16 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   cout << "+ Effective configuration parameters\n";
 
   po::dumpCfg(cout, opts, "General", 4);
-  if (params.mode == CODEC_MODE_DECODE) {
+  if (params.isDecoder) {
     po::dumpCfg(cout, opts, "Decoder", 4);
   } else {
     po::dumpCfg(cout, opts, "Encoder", 4);
     po::dumpCfg(cout, opts, "Geometry", 4);
 
-    for (const auto& it : params.encodeParameters.attributeEncodeParameters) {
+    for (const auto& it : params.encoder.attributeIdxMap) {
       // NB: when dumping the config, opts references params_attr
-      params_attr = it.second;
+      params_attr.desc = params.encoder.sps.attributeSets[it.second];
+      params_attr.aps = params.encoder.aps[it.second];
       cout << "    " << it.first << "\n";
       po::dumpCfg(cout, opts, "Attributes", 8);
     }
@@ -456,7 +474,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 }
 
 int
-Compress(const Parameters& params, Stopwatch& clock)
+Compress(Parameters& params, Stopwatch& clock)
 {
   PCCPointSet3 pointCloud;
   if (
@@ -466,19 +484,29 @@ Compress(const Parameters& params, Stopwatch& clock)
     return -1;
   }
 
+  // Sanitise the input point cloud
+  // todo(df): remove the following with generic handling of properties
+  bool codeColour = params.encoder.attributeIdxMap.count("color");
+  if (!codeColour)
+    pointCloud.removeColors();
+  assert(codeColour == pointCloud.hasColors());
+
+  bool codeReflectance = params.encoder.attributeIdxMap.count("reflectance");
+  if (!codeReflectance)
+    pointCloud.removeReflectances();
+  assert(codeReflectance == pointCloud.hasReflectances());
+
+  ofstream fout(params.compressedStreamPath, ios::binary);
+  if (!fout.is_open()) {
+    return -1;
+  }
+
   clock.start();
 
   if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertRGBToYUV();
   }
   PCCTMC3Encoder3 encoder;
-  PCCBitstream bitstream = {};
-  const size_t predictedBitstreamSize =
-    encoder.estimateBitstreamSize(pointCloud, params.encodeParameters);
-  std::unique_ptr<uint8_t[]> buffer(new uint8_t[predictedBitstreamSize]);
-  bitstream.buffer = buffer.get();
-  bitstream.capacity = predictedBitstreamSize;
-  bitstream.size = 0;
 
   std::unique_ptr<PCCPointSet3> reconstructedPointCloud;
   if (!params.reconstructedDataPath.empty()) {
@@ -486,23 +514,18 @@ Compress(const Parameters& params, Stopwatch& clock)
   }
 
   int ret = encoder.compress(
-    pointCloud, params.encodeParameters, bitstream,
+    pointCloud, &params.encoder,
+    [&](const PayloadBuffer& buf) { writeTlv(buf, fout); },
     reconstructedPointCloud.get());
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
   }
 
-  clock.stop();
-
-  assert(bitstream.size <= bitstream.capacity);
-  std::cout << "Total bitstream size " << bitstream.size << " B" << std::endl;
-  ofstream fout(params.compressedStreamPath, ios::binary);
-  if (!fout.is_open()) {
-    return -1;
-  }
-  fout.write(reinterpret_cast<const char*>(bitstream.buffer), bitstream.size);
+  std::cout << "Total bitstream size " << fout.tellp() << " B" << std::endl;
   fout.close();
+
+  clock.stop();
 
   if (!params.reconstructedDataPath.empty()) {
     if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
@@ -514,33 +537,37 @@ Compress(const Parameters& params, Stopwatch& clock)
   return 0;
 }
 int
-Decompress(const Parameters& params, Stopwatch& clock)
+Decompress(Parameters& params, Stopwatch& clock)
 {
-  PCCBitstream bitstream = {};
   ifstream fin(params.compressedStreamPath, ios::binary);
   if (!fin.is_open()) {
     return -1;
   }
-  fin.seekg(0, std::ios::end);
-  uint64_t bitStreamSize = fin.tellg();
-  fin.seekg(0, std::ios::beg);
-  unique_ptr<uint8_t[]> buffer(new uint8_t[bitStreamSize]);
-  bitstream.buffer = buffer.get();
-  bitstream.capacity = bitStreamSize;
-  bitstream.size = 0;
-  fin.read(reinterpret_cast<char*>(bitstream.buffer), bitStreamSize);
-  if (!fin) {
-    return -1;
-  }
-  fin.close();
 
   clock.start();
 
   PCCTMC3Decoder3 decoder;
   PCCPointSet3 pointCloud;
 
+  // todo(df): remove the following hack
+  // peek at the gps to determine if geometry bypass mode is being used
+  bool geometryBypass = false;
+  if (1) {
+    PayloadBuffer buf;
+    // skip sps
+    readTlv(fin, &buf);
+    assert(buf.type == PayloadType::kSequenceParameterSet);
+
+    buf = PayloadBuffer();
+    readTlv(fin, &buf);
+    GeometryParameterSet gps = parseGps(buf);
+
+    geometryBypass = gps.geom_codec_type == GeometryCodecType::kBypass;
+    fin.seekg(0);
+  }
+
   // read a priori geometry from input file for bypass case
-  if (params.encodeParameters.geometryCodec == GeometryCodecType::kBypass) {
+  if (geometryBypass) {
     if (
       !pointCloud.read(params.uncompressedDataPath)
       || pointCloud.getPointCount() == 0) {
@@ -551,13 +578,12 @@ Decompress(const Parameters& params, Stopwatch& clock)
     pointCloud.removeColors();
   }
 
-  int ret = decoder.decompress(params.decodeParameters, bitstream, pointCloud);
+  int ret = decoder.decompress(params.decoder, fin, pointCloud);
   if (ret) {
     cout << "Error: can't decompress point cloud!" << endl;
     return -1;
   }
-  assert(bitstream.size <= bitstream.capacity);
-  std::cout << "Total bitstream size " << bitstream.size << " B" << std::endl;
+  std::cout << "Total bitstream size " << fin.tellg() << " B" << std::endl;
 
   if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertYUVToRGB();
@@ -569,5 +595,6 @@ Decompress(const Parameters& params, Stopwatch& clock)
     cout << "Error: can't open output file!" << endl;
     return -1;
   }
+
   return 0;
 }

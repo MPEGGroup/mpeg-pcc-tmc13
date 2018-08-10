@@ -35,13 +35,15 @@
 
 #pragma once
 
-#include "ArithmeticCodec.h"
-#include "PCCMisc.h"
-#include "PCCTMC3Common.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
 #include <vector>
+
+#include "ArithmeticCodec.h"
+#include "PayloadBuffer.h"
+#include "PCCMisc.h"
+#include "PCCTMC3Common.h"
 
 namespace pcc {
 
@@ -53,67 +55,44 @@ struct PCCResidualsEntropyEstimator;
 
 //============================================================================
 
-struct PCCAttributeEncodeParamaters {
-  size_t numberOfNearestNeighborsInPrediction;
-  size_t levelOfDetailCount;
-  int quantizationStepRaht;
-  int depthRaht;
-  int binaryLevelThresholdRaht;
-  TransformType transformType;
-  std::vector<size_t> dist2;
-  std::vector<size_t> quantizationStepsLuma;
-  std::vector<size_t> quantizationStepsChroma;
-};
-
-//============================================================================
-
 class AttributeEncoder {
 public:
-  void encodeHeader(
-    const PCCAttributeEncodeParamaters& attributeParams,
-    const std::string& attributeName,
-    PCCBitstream& bitstream) const;
-
-  void encodeReflectances(
-    const PCCAttributeEncodeParamaters& reflectanceParams,
+  void encode(
+    const AttributeDescription& attr_desc,
+    const AttributeParameterSet& attr_aps,
     PCCPointSet3& pointCloud,
-    PCCBitstream& bitstream);
-
-  void encodeColors(
-    const PCCAttributeEncodeParamaters& colorParams,
-    PCCPointSet3& pointCloud,
-    PCCBitstream& bitstream);
+    PayloadBuffer* payload);
 
 protected:
   // todo(df): consider alternative encapsulation
 
   void encodeReflectancesLift(
-    const PCCAttributeEncodeParamaters& reflectanceParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsLift(
-    const PCCAttributeEncodeParamaters& colorParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesPred(
-    const PCCAttributeEncodeParamaters& reflectanceParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsPred(
-    const PCCAttributeEncodeParamaters& colorParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
-    const PCCAttributeEncodeParamaters& reflectanceParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
-    const PCCAttributeEncodeParamaters& colorParams,
+    const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 

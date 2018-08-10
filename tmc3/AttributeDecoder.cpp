@@ -34,6 +34,8 @@
  */
 
 #include "AttributeDecoder.h"
+
+#include "ArithmeticCodec.h"
 #include "RAHT.h"
 
 namespace pcc {
@@ -53,8 +55,7 @@ struct PCCResidualsDecoder {
 
   PCCResidualsDecoder() { alphabetSize = PCCTMC3SymbolCount; }
 
-  void start(
-    PCCBitstream& bitstream, const uint32_t alphabetSize = PCCTMC3SymbolCount);
+  void start(const PayloadBuffer& payload, uint32_t alphabetSize);
   void stop();
   bool decodePred();
   uint32_t decode0();
@@ -64,15 +65,15 @@ struct PCCResidualsDecoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsDecoder::start(
-  PCCBitstream& bitstream, const uint32_t alphabetSize)
+PCCResidualsDecoder::start(const PayloadBuffer& buf, uint32_t alphabetSize)
 {
   this->alphabetSize = alphabetSize;
   multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
   multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
+
   arithmeticDecoder.set_buffer(
-    static_cast<uint32_t>(bitstream.capacity - bitstream.size),
-    bitstream.buffer + bitstream.size);
+    buf.size(), reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data())));
+
   arithmeticDecoder.start_decoder();
 }
 
@@ -122,114 +123,49 @@ PCCResidualsDecoder::decode1()
 // AttributeDecoder Members
 
 void
-AttributeDecoder::decodeHeader(
-  const std::string& attributeName, PCCBitstream& bitstream)
+AttributeDecoder::decode(
+  const AttributeDescription& attr_desc,
+  const AttributeParameterSet& attr_aps,
+  const PayloadBuffer& payload,
+  PCCPointSet3& pointCloud)
 {
-  uint8_t transType;
-  PCCReadFromBuffer<uint8_t>(bitstream.buffer, transType, bitstream.size);
-  transformType = TransformType(transType);
-
-  if (
-    transformType == TransformType::kIntegerLift
-    || transformType == TransformType::kLift) {
-    uint8_t numberOfNearestNeighborsCount = 0;
-    PCCReadFromBuffer<uint8_t>(
-      bitstream.buffer, numberOfNearestNeighborsCount, bitstream.size);
-    numberOfNearestNeighborsInPrediction = numberOfNearestNeighborsCount;
-
-    uint8_t lodCount = 0;
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, lodCount, bitstream.size);
-    levelOfDetailCount = lodCount;
-
-    assert(levelOfDetailCount);
-    dist2.resize(levelOfDetailCount, 0);
-    for (size_t lodIndex = 0; lodIndex < (levelOfDetailCount - 1);
-         ++lodIndex) {
-      uint32_t d2 = 0;
-      PCCReadFromBuffer<uint32_t>(bitstream.buffer, d2, bitstream.size);
-      dist2[lodIndex] = d2;
-    }
-
-    quantizationStepsLuma.resize(levelOfDetailCount);
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint32_t qs = 0;
-      PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
-      quantizationStepsLuma[lodIndex] = qs;
-    }
-
-    quantizationStepsChroma.resize(levelOfDetailCount);
-    for (size_t lodIndex = 0; lodIndex < levelOfDetailCount; ++lodIndex) {
-      uint32_t qs = 0;
-      PCCReadFromBuffer<uint32_t>(bitstream.buffer, qs, bitstream.size);
-      quantizationStepsChroma[lodIndex] = qs;
-    }
-  }
-
-  if (transformType == TransformType::kRAHT) {
-    PCCReadFromBuffer<uint8_t>(bitstream.buffer, depthRaht, bitstream.size);
-    PCCReadFromBuffer<uint8_t>(
-      bitstream.buffer, binaryLevelThresholdRaht, bitstream.size);
-    PCCReadFromBuffer<uint32_t>(
-      bitstream.buffer, quantizationStepRaht, bitstream.size);
-  }
-}
-
-//----------------------------------------------------------------------------
-
-void
-AttributeDecoder::decodeReflectances(
-  PCCBitstream& bitstream, PCCPointSet3& pointCloud)
-{
-  uint32_t compressedBitstreamSize = 0;
-  PCCReadFromBuffer<uint32_t>(
-    bitstream.buffer, compressedBitstreamSize, bitstream.size);
   PCCResidualsDecoder decoder;
   const uint32_t alphabetSize = 64;
-  decoder.start(bitstream, alphabetSize);
+  decoder.start(payload, alphabetSize);
 
-  switch (transformType) {
-  case TransformType::kRAHT:
-    decodeReflectancesRaht(decoder, pointCloud);
-    break;
+  if (attr_desc.attr_count == 1) {
+    switch (attr_aps.attr_encoding) {
+    case AttributeEncoding::kRAHTransform:
+      decodeReflectancesRaht(attr_aps, decoder, pointCloud);
+      break;
 
-  case TransformType::kIntegerLift:
-    decodeReflectancesPred(decoder, pointCloud);
-    break;
+    case AttributeEncoding::kPredictingTransform:
+      decodeReflectancesPred(attr_aps, decoder, pointCloud);
+      break;
 
-  case TransformType::kLift:
-    decodeReflectancesLift(decoder, pointCloud);
-    break;
+    case AttributeEncoding::kLiftingTransform:
+      decodeReflectancesLift(attr_aps, decoder, pointCloud);
+      break;
+    }
+  } else if (attr_desc.attr_count == 3) {
+    switch (attr_aps.attr_encoding) {
+    case AttributeEncoding::kRAHTransform:
+      decodeColorsRaht(attr_aps, decoder, pointCloud);
+      break;
+
+    case AttributeEncoding::kPredictingTransform:
+      decodeColorsPred(attr_aps, decoder, pointCloud);
+      break;
+
+    case AttributeEncoding::kLiftingTransform:
+      decodeColorsLift(attr_aps, decoder, pointCloud);
+      break;
+    }
+  } else {
+    assert(attr_desc.attr_count == 1 || attr_desc.attr_count == 3);
   }
 
   decoder.stop();
-  bitstream.size += compressedBitstreamSize;
-}
-
-//----------------------------------------------------------------------------
-
-void
-AttributeDecoder::decodeColors(
-  PCCBitstream& bitstream, PCCPointSet3& pointCloud)
-{
-  uint32_t compressedBitstreamSize = 0;
-  PCCReadFromBuffer<uint32_t>(
-    bitstream.buffer, compressedBitstreamSize, bitstream.size);
-  PCCResidualsDecoder decoder;
-  const uint32_t alphabetSize = 64;
-  decoder.start(bitstream, alphabetSize);
-
-  switch (transformType) {
-  case TransformType::kRAHT: decodeColorsRaht(decoder, pointCloud); break;
-
-  case TransformType::kIntegerLift:
-    decodeColorsPred(decoder, pointCloud);
-    break;
-
-  case TransformType::kLift: decodeColorsLift(decoder, pointCloud); break;
-  }
-
-  decoder.stop();
-  bitstream.size += compressedBitstreamSize;
 }
 
 //----------------------------------------------------------------------------
@@ -272,16 +208,19 @@ computeReflectancePredictionWeights(
 
 void
 AttributeDecoder::decodeReflectancesPred(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
   PCCBuildLevelOfDetail2(
-    pointCloud, levelOfDetailCount, dist2, numberOfPointsPerLOD, indexesLOD);
+    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
+    indexesLOD);
   PCCComputePredictors2(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
-    numberOfNearestNeighborsInPrediction, predictors);
+    aps.num_pred_nearest_neighbours, predictors);
   const size_t pointCount = pointCloud.getPointCount();
   const int64_t threshold = 16384;
   const int64_t maxReflectance = std::numeric_limits<uint16_t>::max();
@@ -289,10 +228,10 @@ AttributeDecoder::decodeReflectancesPred(
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
     const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = quantizationStepsLuma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma[lodIndex];
     computeReflectancePredictionWeights(
-      pointCloud, numberOfNearestNeighborsInPrediction, threshold, qs,
-      predictor, decoder);
+      pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, predictor,
+      decoder);
     uint16_t& reflectance = pointCloud.getReflectance(predictor.index);
 
     const uint32_t attValue0 = decoder.decode0();
@@ -310,7 +249,7 @@ AttributeDecoder::decodeReflectancesPred(
 void
 AttributeDecoder::computeColorPredictionWeights(
   const PCCPointSet3& pointCloud,
-  const size_t numberOfNearestNeighborsInPrediction,
+  const int numberOfNearestNeighborsInPrediction,
   const int64_t threshold,
   PCCPredictor& predictor,
   PCCResidualsDecoder& decoder)
@@ -348,16 +287,19 @@ AttributeDecoder::computeColorPredictionWeights(
 
 void
 AttributeDecoder::decodeColorsPred(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
   PCCBuildLevelOfDetail2(
-    pointCloud, levelOfDetailCount, dist2, numberOfPointsPerLOD, indexesLOD);
+    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
+    indexesLOD);
   PCCComputePredictors2(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
-    numberOfNearestNeighborsInPrediction, predictors);
+    aps.num_pred_nearest_neighbours, predictors);
   const int64_t threshold = 64;
   const size_t pointCount = pointCloud.getPointCount();
   uint32_t values[3];
@@ -365,10 +307,10 @@ AttributeDecoder::decodeColorsPred(
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
     const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = quantizationStepsLuma[lodIndex];
-    const int64_t qs2 = quantizationStepsChroma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs2 = aps.quant_step_size_chroma[lodIndex];
     computeColorPredictionWeights(
-      pointCloud, numberOfNearestNeighborsInPrediction, threshold, predictor,
+      pointCloud, aps.num_pred_nearest_neighbours, threshold, predictor,
       decoder);
     values[0] = decoder.decode0();
     values[1] = decoder.decode1();
@@ -396,7 +338,9 @@ AttributeDecoder::decodeColorsPred(
 
 void
 AttributeDecoder::decodeReflectancesRaht(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -406,7 +350,7 @@ AttributeDecoder::decodeReflectancesRaht(
     int y = int(position[1]);
     int z = int(position[2]);
     long long mortonCode = 0;
-    for (int b = 0; b < depthRaht; b++) {
+    for (int b = 0; b < aps.raht_depth; b++) {
       mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
       mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
       mortonCode |= (long long)((z >> b) & 1) << (3 * b);
@@ -426,7 +370,7 @@ AttributeDecoder::decodeReflectancesRaht(
   float* weight = new float[voxelCount];
   int* binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
+    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, aps.raht_depth);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -452,13 +396,13 @@ AttributeDecoder::decodeReflectancesRaht(
 
   // Inverse Quantize.
   float* attributes = new float[voxelCount];
-  const int qstep = int(quantizationStepRaht);
+  const int qstep = int(aps.quant_step_size_luma[0]);
   for (int n = 0; n < voxelCount; n++) {
     attributes[n] = integerizedAttributes[n] * qstep;
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-    mortonCode, attributes, 1, voxelCount, depthRaht);
+    mortonCode, attributes, 1, voxelCount, aps.raht_depth);
 
   const int maxReflectance = std::numeric_limits<uint16_t>::max();
   const int minReflectance = 0;
@@ -481,7 +425,9 @@ AttributeDecoder::decodeReflectancesRaht(
 
 void
 AttributeDecoder::decodeColorsRaht(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -491,7 +437,7 @@ AttributeDecoder::decodeColorsRaht(
     int y = int(position[1]);
     int z = int(position[2]);
     long long mortonCode = 0;
-    for (int b = 0; b < depthRaht; b++) {
+    for (int b = 0; b < aps.raht_depth; b++) {
       mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
       mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
       mortonCode |= (long long)((z >> b) & 1) << (3 * b);
@@ -511,7 +457,7 @@ AttributeDecoder::decodeColorsRaht(
   float* weight = new float[voxelCount];
   int* binaryLayer = new int[voxelCount];
   regionAdaptiveHierarchicalTransform(
-    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, depthRaht);
+    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, aps.raht_depth);
 
   // Sort integerized attributes by weight
   std::vector<WeightWithIndex> sortedWeight(voxelCount);
@@ -527,7 +473,8 @@ AttributeDecoder::decodeColorsRaht(
   for (int n = 0; n < voxelCount; ++n) {
     const uint32_t attValue0 = decoder.decode0();
     sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
-    if (binaryLayer[sortedWeight[n].index] >= binaryLevelThresholdRaht) {
+    if (
+      binaryLayer[sortedWeight[n].index] >= aps.raht_binary_level_threshold) {
       for (int d = 1; d < 3; ++d) {
         const uint32_t attValue1 = decoder.decode1();
         sortedIntegerizedAttributes[voxelCount * d + n] =
@@ -552,7 +499,7 @@ AttributeDecoder::decodeColorsRaht(
 
   // Inverse Quantize.
   float* attributes = new float[attribCount * voxelCount];
-  const int qstep = int(quantizationStepRaht);
+  const int qstep = int(aps.quant_step_size_luma[0]);
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
       attributes[attribCount * n + k] =
@@ -561,7 +508,7 @@ AttributeDecoder::decodeColorsRaht(
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-    mortonCode, attributes, attribCount, voxelCount, depthRaht);
+    mortonCode, attributes, attribCount, voxelCount, aps.raht_depth);
 
   for (int n = 0; n < voxelCount; n++) {
     const int r = (int)round(attributes[attribCount * n]);
@@ -587,18 +534,21 @@ AttributeDecoder::decodeColorsRaht(
 
 void
 AttributeDecoder::decodeColorsLift(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
   PCCBuildLevelOfDetail(
-    pointCloud, levelOfDetailCount, dist2, numberOfPointsPerLOD, indexesLOD);
+    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
+    indexesLOD);
   const size_t lodCount = numberOfPointsPerLOD.size();
   std::vector<PCCPredictor> predictors;
   PCCComputePredictors(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
-    numberOfNearestNeighborsInPrediction, predictors);
+    aps.num_pred_nearest_neighbours, predictors);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
@@ -615,8 +565,8 @@ AttributeDecoder::decodeColorsLift(
     values[1] = decoder.decode1();
     values[2] = decoder.decode1();
     const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = quantizationStepsLuma[lodIndex];
-    const int64_t qs2 = quantizationStepsChroma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs2 = aps.quant_step_size_chroma[lodIndex];
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
     const int64_t delta = o3dgc::UIntToInt(values[0]);
@@ -650,18 +600,21 @@ AttributeDecoder::decodeColorsLift(
 
 void
 AttributeDecoder::decodeReflectancesLift(
-  PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
+  const AttributeParameterSet& aps,
+  PCCResidualsDecoder& decoder,
+  PCCPointSet3& pointCloud)
 {
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
   PCCBuildLevelOfDetail(
-    pointCloud, levelOfDetailCount, dist2, numberOfPointsPerLOD, indexesLOD);
+    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
+    indexesLOD);
   const size_t pointCount = predictors.size();
   const size_t lodCount = numberOfPointsPerLOD.size();
   PCCComputePredictors(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
-    numberOfNearestNeighborsInPrediction, predictors);
+    aps.num_pred_nearest_neighbours, predictors);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
@@ -683,7 +636,7 @@ AttributeDecoder::decodeReflectancesLift(
     const int64_t detail = decoder.decode0();
     const size_t predictorIndex = w.index;
     const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = quantizationStepsLuma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma[lodIndex];
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = o3dgc::UIntToInt(detail);
@@ -706,7 +659,6 @@ AttributeDecoder::decodeReflectancesLift(
       uint16_t(PCCClip(std::round(reflectances[f]), 0.0, maxReflectance)));
   }
 }
-//----------------------------------------------------------------------------
 
 //============================================================================
 

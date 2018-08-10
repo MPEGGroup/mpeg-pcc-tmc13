@@ -33,42 +33,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TMC3_h
-#define TMC3_h
+#pragma once
 
-#define _CRT_SECURE_NO_WARNINGS
+#include "PayloadBuffer.h"
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <map>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <string>
+#include <istream>
+#include <ostream>
 
-#include "PCCPointSet.h"
-#include "PCCTMC3Decoder.h"
-#include "PCCTMC3Encoder.h"
+namespace pcc {
 
-#include "TMC3Config.h"
+//============================================================================
 
-#include "pcc_chrono.h"
+std::ostream& writeTlv(const PayloadBuffer& buf, std::ostream& os);
 
-enum ColorTransform
-{
-  COLOR_TRANSFORM_NONE = 0,
-  COLOR_TRANSFORM_RGB_TO_YCBCR = 1
-};
+std::istream& readTlv(std::istream& is, PayloadBuffer* buf);
 
-struct Parameters;
+//============================================================================
 
-typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock>
-  Stopwatch;
-
-bool ParseParameters(int argc, char* argv[], Parameters& params);
-int Compress(Parameters& params, Stopwatch&);
-int Decompress(Parameters& params, Stopwatch&);
-
-#endif /* TMC3_h */
+}  // namespace pcc

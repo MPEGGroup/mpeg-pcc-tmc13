@@ -52,85 +52,12 @@ enum PCCEndianness
   PCC_LITTLE_ENDIAN = 1
 };
 
-struct PCCBitstream {
-  uint8_t* buffer;
-  uint64_t size;
-  uint64_t capacity;
-};
-
 inline PCCEndianness
 PCCSystemEndianness()
 {
   uint32_t num = 1;
   return (*(reinterpret_cast<char*>(&num)) == 1) ? PCC_LITTLE_ENDIAN
                                                  : PCC_BIG_ENDIAN;
-}
-template<typename T>
-const T
-PCCEndianSwap(const T u)
-{
-  union {
-    T u;
-    uint8_t u8[sizeof(T)];
-  } source, dest;
-
-  source.u = u;
-
-  for (size_t k = 0; k < sizeof(T); k++)
-    dest.u8[k] = source.u8[sizeof(T) - k - 1];
-
-  return dest.u;
-}
-template<typename T>
-const T
-PCCToLittleEndian(const T u)
-{
-  return (PCCSystemEndianness() == PCC_BIG_ENDIAN) ? PCCEndianSwap(u) : u;
-}
-template<typename T>
-const T
-PCCFromLittleEndian(const T u)
-{
-  return (PCCSystemEndianness() == PCC_BIG_ENDIAN) ? PCCEndianSwap(u) : u;
-}
-template<typename T>
-void
-PCCWriteToBuffer(const T u, uint8_t* const buffer, uint64_t& size)
-{
-  union {
-    T u;
-    uint8_t u8[sizeof(T)];
-  } source;
-  source.u = u;
-  if (PCCSystemEndianness() == PCC_LITTLE_ENDIAN) {
-    for (size_t k = 0; k < sizeof(T); k++) {
-      buffer[size++] = source.u8[k];
-    }
-  } else {
-    for (size_t k = 0; k < sizeof(T); k++) {
-      buffer[size++] = source.u8[sizeof(T) - k - 1];
-    }
-  }
-}
-template<typename T>
-void
-PCCReadFromBuffer(const uint8_t* const buffer, T& u, uint64_t& size)
-{
-  union {
-    T u;
-    uint8_t u8[sizeof(T)];
-  } dest;
-
-  if (PCCSystemEndianness() == PCC_LITTLE_ENDIAN) {
-    for (size_t k = 0; k < sizeof(T); k++) {
-      dest.u8[k] = buffer[size++];
-    }
-  } else {
-    for (size_t k = 0; k < sizeof(T); k++) {
-      dest.u8[sizeof(T) - k - 1] = buffer[size++];
-    }
-  }
-  u = dest.u;
 }
 
 //---------------------------------------------------------------------------
