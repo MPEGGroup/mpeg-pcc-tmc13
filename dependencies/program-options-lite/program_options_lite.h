@@ -74,6 +74,7 @@ namespace df
 
     void doHelp(std::ostream& out, Options& opts, unsigned columns = 80);
     void dumpCfg(std::ostream& out, const Options& opts, int indent = 0);
+    void dumpCfg(std::ostream& out, const Options& opts, const char* section, int indent = 0);
 
     std::list<const char*> scanArgv(Options& opts, unsigned argc, const char* argv[], ErrorReporter& error_reporter = default_error_reporter);
     void setDefaults(Options& opts);
@@ -293,6 +294,15 @@ namespace df
       std::function<Func> func;
     };
 
+    struct Section
+    {
+      Section(const std::string& name)
+      : name(name)
+      {}
+
+      std::string name;
+    };
+
     class OptionSpecific;
     struct Options
     {
@@ -319,6 +329,10 @@ namespace df
 
       typedef std::list<Names*> NamesPtrList;
       NamesPtrList opt_list;
+
+      // beginning of each option section
+      typedef std::pair<Section, NamesPtrList::const_iterator> SectionPtr;
+      std::list<SectionPtr> sections;
 
       typedef std::map<std::string, NamesPtrList> NamesMap;
       NamesMap opt_long_map;
@@ -358,6 +372,17 @@ namespace df
         parent.addOption(new OptionFunc(name, parent, func, desc));
         return *this;
       }
+
+      /**
+       * Add a section header to the options list.
+       */
+      OptionSpecific&
+      operator()(const Section& section)
+      {
+        parent.sections.emplace_back(section, parent.opt_list.cend());
+        return *this;
+      }
+
     private:
       Options& parent;
     };

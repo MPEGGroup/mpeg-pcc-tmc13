@@ -113,7 +113,15 @@ namespace df
         }
         opt_start += opt_end + 1;
       }
+
+      auto& curr_section = sections.back();
+      bool need_section_update = curr_section.second == opt_list.cend();
+
       opt_list.push_back(names);
+
+      if (need_section_update) {
+        curr_section.second = std::prev(opt_list.cend());
+      }
     }
 
     /* Helper method to initiate adding options to Options */
@@ -187,8 +195,17 @@ namespace df
        *  - if the option text is longer than opt_width, place the help
        *    text at opt_width on the next line.
        */
+      auto section_it = opts.sections.begin();
       for(Options::NamesPtrList::iterator it = opts.opt_list.begin(); it != opts.opt_list.end(); it++)
       {
+        if (it == section_it->second) {
+          const auto& section_name = section_it->first.name;
+          out << "\n " << section_name << "\n ";
+          fill_n(std::ostreambuf_iterator<char>(out), section_name.size(), '-');
+          out << '\n';
+          section_it++;
+        }
+
         ostringstream line(ios_base::out);
         line << "  ";
         doHelpOpt(line, **it, pad_short);
@@ -266,13 +283,18 @@ namespace df
     }
 
     /* dump configuration values */
-    void dumpCfg(ostream& out, const Options& opts, int indent)
+    static void dumpCfgRange(
+      ostream& out,
+      Options::NamesPtrList::const_iterator begin,
+      Options::NamesPtrList::const_iterator end,
+      int indent)
     {
       // find the width of the longest option name
       size_t max_opt_width = 0;
-      for (const auto& entry : opts.opt_list)
+      for (auto it = begin; it != end; ++it)
       {
         size_t len = 0;
+        const auto& entry = *it;
         if (!entry->opt_long.empty())
           len = entry->opt_long.front().size();
         else if (!entry->opt_short.empty())
@@ -281,10 +303,11 @@ namespace df
         max_opt_width = max(max_opt_width, len);
       }
 
-      for (const auto& entry : opts.opt_list)
+      for (auto it = begin; it != end; ++it)
       {
         out << &(spaces[40 - indent]);
         out << left << setw(max_opt_width);
+        const auto& entry = *it;
         if (!entry->opt_long.empty())
           out << entry->opt_long.front();
         else if (!entry->opt_short.empty())
@@ -296,6 +319,32 @@ namespace df
         entry->opt->writeValue(out);
         out << '\n';
       }
+    }
+
+    /* dump configuration values */
+    void dumpCfg(ostream& out, const Options& opts, int indent)
+    {
+      dumpCfgRange(out, opts.opt_list.begin(), opts.opt_list.end(), indent);
+    }
+
+    void dumpCfg(
+      ostream& out, const Options& opts, const char* section, int indent)
+    {
+      auto it = std::find_if(opts.sections.begin(), opts.sections.end(),
+        [&](const Options::SectionPtr& sect){
+          return sect.first.name == section;
+        });
+
+      if (it == opts.sections.end())
+        return;
+
+      auto it_next = std::next(it);
+
+      auto begin = it->second;
+      auto end =
+        it_next == opts.sections.end() ? opts.opt_list.end() : it_next->second;
+
+      dumpCfgRange(out, begin, end, indent);
     }
 
     struct OptionWriter
