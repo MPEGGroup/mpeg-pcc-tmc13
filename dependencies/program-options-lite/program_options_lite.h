@@ -73,6 +73,8 @@ namespace df
     extern ErrorReporter default_error_reporter;
 
     void doHelp(std::ostream& out, Options& opts, unsigned columns = 80);
+    void dumpCfg(std::ostream& out, const Options& opts, int indent = 0);
+
     std::list<const char*> scanArgv(Options& opts, unsigned argc, const char* argv[], ErrorReporter& error_reporter = default_error_reporter);
     void setDefaults(Options& opts);
     void parseConfigFile(Options& opts, const std::string& filename, ErrorReporter& error_reporter = default_error_reporter);
@@ -107,6 +109,9 @@ namespace df
       /* write the default value to out */
       virtual void writeDefault(std::ostream& out) = 0;
 
+      /* write the current value to out */
+      virtual void writeValue(std::ostream& out) = 0;
+
       std::string opt_string;
       std::string opt_desc;
     };
@@ -136,6 +141,11 @@ namespace df
       void writeDefault(std::ostream& out)
       {
         out << opt_default_val;
+      }
+
+      void writeValue(std::ostream& out)
+      {
+        out << opt_storage;
       }
 
       T& opt_storage;
@@ -205,6 +215,17 @@ namespace df
         out << '"';
       }
 
+      void writeValue(std::ostream& out)
+      {
+        bool first = true;
+        for (const auto& val : opt_storage) {
+          if (!first)
+            out << ", ";
+          out << val;
+          first = false;
+        }
+      }
+
       T& opt_storage;
       T opt_default_val;
     };
@@ -225,6 +246,15 @@ namespace df
     Option<std::string>::writeDefault(std::ostream& out)
     {
       out << '"' << opt_default_val << '"';
+    }
+
+    /* strings are pecialized -- output whole string rather than treating as
+     * a sequence of characters */
+    template<>
+    inline void
+    Option<std::string>::writeValue(std::ostream& out)
+    {
+      out << '"' << opt_storage << '"';
     }
 
     /** Option class for argument handling using a user provided function */
@@ -249,6 +279,12 @@ namespace df
       void writeDefault(std::ostream& out)
       {
         /* there is no default */
+        out << "...";
+      }
+
+      void writeValue(std::ostream& out)
+      {
+        /* there is no vaule */
         out << "...";
       }
 

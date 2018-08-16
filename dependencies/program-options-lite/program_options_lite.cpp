@@ -30,7 +30,12 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#include "program_options_lite.h"
+
 #include <stdlib.h>
+#include <iomanip>
+#include <ios>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -38,7 +43,6 @@
 #include <list>
 #include <map>
 #include <algorithm>
-#include "program_options_lite.h"
 
 using namespace std;
 
@@ -258,6 +262,39 @@ namespace df
         }
 
         out << line.str() << endl;
+      }
+    }
+
+    /* dump configuration values */
+    void dumpCfg(ostream& out, const Options& opts, int indent)
+    {
+      // find the width of the longest option name
+      size_t max_opt_width = 0;
+      for (const auto& entry : opts.opt_list)
+      {
+        size_t len = 0;
+        if (!entry->opt_long.empty())
+          len = entry->opt_long.front().size();
+        else if (!entry->opt_short.empty())
+          len = entry->opt_short.front().size();
+
+        max_opt_width = max(max_opt_width, len);
+      }
+
+      for (const auto& entry : opts.opt_list)
+      {
+        out << &(spaces[40 - indent]);
+        out << left << setw(max_opt_width);
+        if (!entry->opt_long.empty())
+          out << entry->opt_long.front();
+        else if (!entry->opt_short.empty())
+          out << entry->opt_short.front();
+        else
+          continue;
+
+        out << " : ";
+        entry->opt->writeValue(out);
+        out << '\n';
       }
     }
 
