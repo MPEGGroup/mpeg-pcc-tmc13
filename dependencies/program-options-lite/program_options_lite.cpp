@@ -193,7 +193,7 @@ namespace df
         if (opt_desc.empty())
         {
           /* no help text: output option, skip further processing */
-          cout << line.str() << endl;
+          out << line.str() << endl;
           continue;
         }
         size_t currlength = size_t(line.tellp());
@@ -202,7 +202,7 @@ namespace df
           /* if option text is too long (and would collide with the
            * help text, split onto next line and ensure a gap after
            * the previous option to increase readability */
-          cout << endl;
+          out << endl;
           line << endl;
           currlength = 0;
         }
@@ -257,7 +257,7 @@ namespace df
           line << endl;
         }
 
-        cout << line.str() << endl;
+        out << line.str() << endl;
       }
     }
 
