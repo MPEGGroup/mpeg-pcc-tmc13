@@ -180,6 +180,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("help", print_help, false, "this help text")
   ("config,c", po::parseConfigFile, "configuration file name")
 
+  (po::Section("General"))
+
   ("mode", params.mode, CODEC_MODE_ENCODE,
     "The encoding/decoding mode:\n"
     "  0: encode\n"
@@ -216,6 +218,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  0: none\n"
     "  1: RGB to YCbCr (Rec.709)")
 
+  (po::Section("Decoder"))
+
+  ("roundOutputPositions",
+    params.decodeParameters.roundOutputPositions, false,
+    "todo(kmammou)")
+
+  (po::Section("Encoder"))
+
   ("positionQuantizationScale",
     params.encodeParameters.positionQuantizationScale, 1.,
     "Scale factor to be applied to point positions during quantization process")
@@ -224,9 +234,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encodeParameters.mergeDuplicatedPoints, true,
     "Enables removal of duplicated points")
 
-  ("roundOutputPositions",
-    params.decodeParameters.roundOutputPositions, false,
-    "todo(kmammou)")
+  (po::Section("Geometry"))
 
   // tools
   ("geometryCodec",
@@ -260,6 +268,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("triSoupIntToOrigTranslation",
     params.encodeParameters.triSoup.intToOrigTranslation, {0., 0., 0.},
     "orig_coords = integer_coords * intToOrigScale + intToOrigTranslation")
+
+  (po::Section("Attributes"))
 
   // attribute processing
   //   NB: Attribute options are special in the way they are applied (see above)
@@ -403,93 +413,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   if (err.is_errored)
     return false;
 
-  cout << "+ Parameters" << endl;
-  if (params.mode == CODEC_MODE_ENCODE) {
-    cout << "\t mode                        encode\n";
-  } else if (params.mode == CODEC_MODE_DECODE) {
-    cout << "\t mode                        decode\n";
-  }
-  cout << "\t uncompressedDataPath        " << params.uncompressedDataPath
-       << endl;
-  cout << "\t compressedStreamPath        " << params.compressedStreamPath
-       << endl;
-  cout << "\t reconstructedDataPath       " << params.reconstructedDataPath
-       << endl;
-  cout << "\t colorTransform              " << params.colorTransform << endl;
-  if (encode) {
-    cout << "\t geometryCodec               "
-         << params.encodeParameters.geometryCodec << endl;
+  // Dump the complete derived configuration
+  cout << "+ Effective configuration parameters\n";
 
-    cout << "\t positionQuantizationScale   "
-         << params.encodeParameters.positionQuantizationScale << endl;
-
-    if (params.encodeParameters.geometryCodec == GeometryCodecType::kOctree) {
-      cout << "\t mergeDuplicatedPoints       "
-           << params.encodeParameters.mergeDuplicatedPoints << '\n';
-      cout << "\t neighbourContextualisation  "
-           << params.encodeParameters.neighbourContextsEnabled << '\n';
-      cout << "\t inferredDirectCodingMode    "
-           << params.encodeParameters.inferredDirectCodingModeEnabled << '\n';
-    }
-
-    if (params.encodeParameters.geometryCodec == GeometryCodecType::kTriSoup) {
-      cout << "\t triSoupDepth                "
-           << params.encodeParameters.triSoup.depth << endl;
-      cout << "\t triSoupLevel                "
-           << params.encodeParameters.triSoup.level << endl;
-      cout << "\t triSoupIntToOrigScale       "
-           << params.encodeParameters.triSoup.intToOrigScale << endl;
-      cout << "\t triSoupIntToOrigTranslation ";
-      for (const auto tr :
-           params.encodeParameters.triSoup.intToOrigTranslation) {
-        cout << tr << " ";
-      }
-      cout << endl;
-    }
-    for (const auto& attributeEncodeParameters :
-         params.encodeParameters.attributeEncodeParameters) {
-      cout << "\t " << attributeEncodeParameters.first << endl;
-      cout << "\t\t transformType                          "
-           << attributeEncodeParameters.second.transformType << endl;
-
-      if (
-        attributeEncodeParameters.second.transformType
-        == TransformType::kRAHT) {
-        cout << "\t\t rahtQuantizationStep                   "
-             << attributeEncodeParameters.second.quantizationStepRaht << endl;
-        cout << "\t\t rahtDepth                              "
-             << attributeEncodeParameters.second.depthRaht << endl;
-      }
-
-      if (
-        attributeEncodeParameters.second.transformType
-        == TransformType::kIntegerLift) {
-        cout << "\t\t numberOfNearestNeighborsInPrediction   "
-             << attributeEncodeParameters.second
-                  .numberOfNearestNeighborsInPrediction
-             << endl;
-        cout << "\t\t searchRange                            "
-             << attributeEncodeParameters.second.searchRange << endl;
-        cout << "\t\t levelOfDetailCount                     "
-             << attributeEncodeParameters.second.levelOfDetailCount << endl;
-        cout << "\t\t dist2                                  ";
-        for (const auto qs : attributeEncodeParameters.second.dist2) {
-          cout << qs << " ";
-        }
-        cout << endl;
-        cout << "\t\t quantizationSteps                      ";
-        for (const auto qs :
-             attributeEncodeParameters.second.quantizationSteps) {
-          cout << qs << " ";
-        }
-        cout << endl;
-      }
-    }
-    cout << endl;
+  po::dumpCfg(cout, opts, "General", 4);
+  if (params.mode == CODEC_MODE_DECODE) {
+    po::dumpCfg(cout, opts, "Decoder", 4);
   } else {
-    cout << "\t roundOutputPositions        "
-         << params.decodeParameters.roundOutputPositions << '\n';
+    po::dumpCfg(cout, opts, "Encoder", 4);
+    po::dumpCfg(cout, opts, "Geometry", 4);
+
+    for (const auto& it : params.encodeParameters.attributeEncodeParameters) {
+      // NB: when dumping the config, opts references params_attr
+      params_attr = it.second;
+      cout << "    " << it.first << "\n";
+      po::dumpCfg(cout, opts, "Attributes", 8);
+    }
   }
+
+  cout << endl;
 
   return true;
 }
