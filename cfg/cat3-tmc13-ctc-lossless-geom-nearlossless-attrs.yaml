@@ -15,6 +15,7 @@ categories:
      - geometryCodec: 0
      - colorTransform: 1
      - positionQuantizationScale: 1
+     - neighbourAvailBoundaryLog2: 8
 
     decflags:
      - mode: 1
@@ -60,6 +61,7 @@ categories:
      # NB: geometry coding is bypassed in this condition
      - geometryCodec: 0
      - positionQuantizationScale: 1
+     - neighbourAvailBoundaryLog2: 8
 
     decflags:
      - mode: 1

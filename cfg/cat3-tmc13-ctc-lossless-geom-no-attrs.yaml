@@ -8,6 +8,7 @@ categories:
      - geometryCodec: 1
      - mergeDuplicatedPoints: 0
      - positionQuantizationScale: 1.0
+     - neighbourAvailBoundaryLog2: 8
     decflags:
      - mode: 1
     pcerrorflags:
