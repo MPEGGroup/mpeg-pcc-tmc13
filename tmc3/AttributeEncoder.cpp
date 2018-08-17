@@ -339,7 +339,7 @@ AttributeEncoder::encodeReflectances(
     break;
 
   case TransformType::kIntegerLift:
-    encodeReflectancesIntegerLift(reflectanceParams, pointCloud, encoder);
+    encodeReflectancesPred(reflectanceParams, pointCloud, encoder);
     break;
 
   case TransformType::kLift:
@@ -373,7 +373,7 @@ AttributeEncoder::encodeColors(
     break;
 
   case TransformType::kIntegerLift:
-    encodeColorsIntegerLift(colorParams, pointCloud, encoder);
+    encodeColorsPred(colorParams, pointCloud, encoder);
     break;
 
   case TransformType::kLift:
@@ -456,7 +456,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
 //----------------------------------------------------------------------------
 
 void
-AttributeEncoder::encodeReflectancesIntegerLift(
+AttributeEncoder::encodeReflectancesPred(
   const PCCAttributeEncodeParamaters& reflectanceParams,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
@@ -585,7 +585,7 @@ AttributeEncoder::computeColorPredictionWeights(
 //----------------------------------------------------------------------------
 
 void
-AttributeEncoder::encodeColorsIntegerLift(
+AttributeEncoder::encodeColorsPred(
   const PCCAttributeEncodeParamaters& colorParams,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)

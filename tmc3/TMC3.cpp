@@ -287,9 +287,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("transformType",
     params_attr.transformType, TransformType::kIntegerLift,
     "Coding method to use for attribute:\n"
-    "  0: Nearest neighbour prediction with integer lifting transform\n"
+    "  0: Hierarchical neighbourhood prediction\n"
     "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
-    "  2: Nearest neighbour prediction with lifting transform")
+    "  2: Hierarichical neighbourhood prediction as lifting transform")
 
   ("rahtLeafDecimationDepth",
     params_attr.binaryLevelThresholdRaht, 3,

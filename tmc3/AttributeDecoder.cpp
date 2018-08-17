@@ -193,7 +193,7 @@ AttributeDecoder::decodeReflectances(
     break;
 
   case TransformType::kIntegerLift:
-    decodeReflectancesIntegerLift(decoder, pointCloud);
+    decodeReflectancesPred(decoder, pointCloud);
     break;
 
   case TransformType::kLift:
@@ -222,7 +222,7 @@ AttributeDecoder::decodeColors(
   case TransformType::kRAHT: decodeColorsRaht(decoder, pointCloud); break;
 
   case TransformType::kIntegerLift:
-    decodeColorsIntegerLift(decoder, pointCloud);
+    decodeColorsPred(decoder, pointCloud);
     break;
 
   case TransformType::kLift: decodeColorsLift(decoder, pointCloud); break;
@@ -271,7 +271,7 @@ computeReflectancePredictionWeights(
 //----------------------------------------------------------------------------
 
 void
-AttributeDecoder::decodeReflectancesIntegerLift(
+AttributeDecoder::decodeReflectancesPred(
   PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
 {
   std::vector<PCCPredictor> predictors;
@@ -347,7 +347,7 @@ AttributeDecoder::computeColorPredictionWeights(
 //----------------------------------------------------------------------------
 
 void
-AttributeDecoder::decodeColorsIntegerLift(
+AttributeDecoder::decodeColorsPred(
   PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud)
 {
   std::vector<PCCPredictor> predictors;

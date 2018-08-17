@@ -69,11 +69,11 @@ protected:
   void
   decodeColorsLift(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
-  void decodeReflectancesIntegerLift(
+  void decodeReflectancesPred(
     PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
-  void decodeColorsIntegerLift(
-    PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
+  void
+  decodeColorsPred(PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);
 
   void decodeReflectancesRaht(
     PCCResidualsDecoder& decoder, PCCPointSet3& pointCloud);

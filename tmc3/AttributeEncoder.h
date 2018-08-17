@@ -97,12 +97,12 @@ protected:
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
-  void encodeReflectancesIntegerLift(
+  void encodeReflectancesPred(
     const PCCAttributeEncodeParamaters& reflectanceParams,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
-  void encodeColorsIntegerLift(
+  void encodeColorsPred(
     const PCCAttributeEncodeParamaters& colorParams,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
