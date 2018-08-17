@@ -233,8 +233,15 @@ public:
       PayloadBuffer payload(PayloadType::kAttributeBrick);
 
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
-
       clock_user.start();
+
+      // todo(df): move elsewhere?
+      AttributeBrickHeader abh;
+      abh.attr_attr_parameter_set_id = attr_aps.aps_attr_parameter_set_id;
+      abh.attr_sps_attr_idx = attrIdx;
+      abh.attr_geom_brick_id = 0;
+      write(abh, &payload);
+
       AttributeEncoder attrEncoder;
       attrEncoder.encode(attr_sps, attr_aps, pointCloud, &payload);
       clock_user.stop();

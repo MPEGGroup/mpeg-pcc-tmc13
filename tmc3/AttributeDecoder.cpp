@@ -36,6 +36,7 @@
 #include "AttributeDecoder.h"
 
 #include "ArithmeticCodec.h"
+#include "io_hls.h"
 #include "RAHT.h"
 
 namespace pcc {
@@ -55,7 +56,7 @@ struct PCCResidualsDecoder {
 
   PCCResidualsDecoder() { alphabetSize = PCCTMC3SymbolCount; }
 
-  void start(const PayloadBuffer& payload, uint32_t alphabetSize);
+  void start(const char* buf, int buf_len, uint32_t alphabetSize);
   void stop();
   bool decodePred();
   uint32_t decode0();
@@ -65,14 +66,14 @@ struct PCCResidualsDecoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsDecoder::start(const PayloadBuffer& buf, uint32_t alphabetSize)
+PCCResidualsDecoder::start(const char* buf, int buf_len, uint32_t alphabetSize)
 {
   this->alphabetSize = alphabetSize;
   multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
   multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
 
   arithmeticDecoder.set_buffer(
-    buf.size(), reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data())));
+    buf_len, reinterpret_cast<uint8_t*>(const_cast<char*>(buf)));
 
   arithmeticDecoder.start_decoder();
 }
@@ -129,9 +130,13 @@ AttributeDecoder::decode(
   const PayloadBuffer& payload,
   PCCPointSet3& pointCloud)
 {
+  int abhSize;
+  /* AttributeBrickHeader abh = */ parseAbh(payload, &abhSize);
+
   PCCResidualsDecoder decoder;
   const uint32_t alphabetSize = 64;
-  decoder.start(payload, alphabetSize);
+  decoder.start(
+    payload.data() + abhSize, payload.size() - abhSize, alphabetSize);
 
   if (attr_desc.attr_count == 1) {
     switch (attr_aps.attr_encoding) {

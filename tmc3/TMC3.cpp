@@ -50,6 +50,9 @@ struct Parameters {
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
 
+  // Filename for saving pre inverse scaled point cloud.
+  std::string preInvScalePath;
+
   pcc::EncoderParams encoder;
   pcc::DecoderParams decoder;
 
@@ -232,7 +235,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Recolored pointcloud file path (encoder only)")
 
   ("preInvScalePath",
-    params.decoder.preInvScalePath, {},
+    params.preInvScalePath, {},
     "Pre inverse scaled pointcloud file path (decoder only)")
 
   // general
@@ -541,26 +544,56 @@ Decompress(Parameters& params, Stopwatch& clock)
 
   clock.start();
 
+  PayloadBuffer buf;
   PCCTMC3Decoder3 decoder;
-  PCCPointSet3 pointCloud;
 
-  int ret = decoder.decompress(params.decoder, fin, pointCloud);
-  if (ret) {
-    cout << "Error: can't decompress point cloud!" << endl;
-    return -1;
+  while (true) {
+    PayloadBuffer* buf_ptr = &buf;
+    readTlv(fin, &buf);
+
+    // at end of file (or other error), flush decoder
+    if (!fin)
+      buf_ptr = nullptr;
+
+    int ret = decoder.decompress(
+      params.decoder, buf_ptr, [&](const PCCPointSet3& decodedPointCloud) {
+        PCCPointSet3 pointCloud(decodedPointCloud);
+
+        if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
+          pointCloud.convertYUVToRGB();
+        }
+
+        // Dump the decoded colour using the pre inverse scaled geometry
+        if (!params.preInvScalePath.empty()) {
+          pointCloud.write(params.preInvScalePath);
+        }
+
+        decoder.inverseQuantization(
+          pointCloud, params.decoder.roundOutputPositions);
+
+        clock.stop();
+
+        if (!pointCloud.write(params.reconstructedDataPath, true)) {
+          cout << "Error: can't open output file!" << endl;
+        }
+
+        clock.start();
+      });
+
+    if (ret) {
+      cout << "Error: can't decompress point cloud!" << endl;
+      return -1;
+    }
+
+    if (!buf_ptr)
+      break;
   }
+
+  fin.clear();
+  fin.seekg(0, ios_base::end);
   std::cout << "Total bitstream size " << fin.tellg() << " B" << std::endl;
 
-  if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    pointCloud.convertYUVToRGB();
-  }
-
   clock.stop();
-
-  if (!pointCloud.write(params.reconstructedDataPath, true)) {
-    cout << "Error: can't open output file!" << endl;
-    return -1;
-  }
 
   return 0;
 }

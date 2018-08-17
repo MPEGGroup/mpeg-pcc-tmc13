@@ -35,6 +35,8 @@
 
 #include "io_tlv.h"
 
+#include <cstdint>
+
 namespace pcc {
 
 //============================================================================
@@ -59,6 +61,7 @@ writeTlv(const PayloadBuffer& buf, std::ostream& os)
 std::istream&
 readTlv(std::istream& is, PayloadBuffer* buf)
 {
+  buf->resize(0);
   buf->type = PayloadType(static_cast<unsigned>(is.get()));
 
   uint32_t length = 0;
@@ -67,7 +70,9 @@ readTlv(std::istream& is, PayloadBuffer* buf)
   length = (length << 8) | static_cast<unsigned>(is.get());
   length = (length << 8) | static_cast<unsigned>(is.get());
 
-  buf->resize(0);
+  if (!is)
+    return is;
+
   buf->resize(length);
   is.read(buf->data(), length);
   return is;

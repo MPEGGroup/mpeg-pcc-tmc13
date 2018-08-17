@@ -406,6 +406,7 @@ write(const AttributeBrickHeader& abh, PayloadBuffer* buf)
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
   bs.writeUe(abh.attr_attr_parameter_set_id);
+  bs.writeUe(abh.attr_sps_attr_idx);
   //bs.writeUe(abh.attr_geom_brick_id);
 
   bs.byteAlign();
@@ -421,6 +422,7 @@ parseAbh(const PayloadBuffer& buf, int* bytesRead)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUe(&abh.attr_attr_parameter_set_id);
+  bs.readUe(&abh.attr_sps_attr_idx);
   //bs.readUe(&abh.attr_geom_brick_id);
 
   bs.byteAlign();
