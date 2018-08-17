@@ -59,8 +59,6 @@ enum class PayloadType
 // Describes the geometry coding method.
 enum class GeometryCodecType
 {
-  // No geometry coding is performed (geometry is known a priori)
-  kBypass = 0,
   // TMC3 lossless geometry codec using ocrees
   kOctree = 1,
   // TMC1 octree + triangulation

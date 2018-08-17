@@ -11,15 +11,13 @@ categories:
   lossless-geom-nearlossless-texture:
     encflags:
      - mode: 0
-     # NB: geometry coding is bypassed in this condition
-     - geometryCodec: 0
+     - geometryCodec: 1
      - colorTransform: 1
      - positionQuantizationScale: 1
      - neighbourAvailBoundaryLog2: 8
 
     decflags:
      - mode: 1
-     - geometryCodec: 0
 
     pcerrorflags:
      - dropdups: 2
@@ -63,14 +61,12 @@ categories:
   lossless-geom-nearlossless-reflectance:
     encflags:
      - mode: 0
-     # NB: geometry coding is bypassed in this condition
-     - geometryCodec: 0
+     - geometryCodec: 1
      - positionQuantizationScale: 1
      - neighbourAvailBoundaryLog2: 8
 
     decflags:
      - mode: 1
-     - geometryCodec: 0
 
     pcerrorflags:
      - dropdups: 2

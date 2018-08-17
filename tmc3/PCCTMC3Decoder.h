@@ -122,7 +122,7 @@ public:
 
     pointCloud.addRemoveAttributes(hasColour, hasReflectance);
 
-    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
+    if (1) {
       buf = PayloadBuffer();
       readTlv(input, &buf);
       assert(buf.type == PayloadType::kGeometryBrick);
@@ -183,9 +183,7 @@ public:
       tempPointCloud.write(params.preInvScalePath);
     }
 
-    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
-      inverseQuantization(pointCloud, params.roundOutputPositions);
-    }
+    inverseQuantization(pointCloud, params.roundOutputPositions);
 
     return 0;
   }

@@ -156,10 +156,6 @@ public:
     //  - prefilter/quantize geometry (non-normative)
     //  - recolour
     //  - encode geometry
-    if (_gps->geom_codec_type == GeometryCodecType::kBypass) {
-      // todo(df): this should go away now that reporting counts attribute bits
-      pointCloud = inputPointCloud;
-    }
     if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
       quantization(inputPointCloud);
     }
@@ -185,7 +181,7 @@ public:
 
     // geometry encoding
 
-    if (_gps->geom_codec_type != GeometryCodecType::kBypass) {
+    if (1) {
       PayloadBuffer payload(PayloadType::kGeometryBrick);
 
       pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
@@ -257,12 +253,7 @@ public:
       outputFn(payload);
     }
 
-    if (_gps->geom_codec_type == GeometryCodecType::kBypass) {
-      if (reconstructedCloud)
-        *reconstructedCloud = pointCloud;
-    } else {
-      reconstructedPointCloud(reconstructedCloud);
-    }
+    reconstructedPointCloud(reconstructedCloud);
 
     return 0;
   }

@@ -146,7 +146,6 @@ static std::ostream&
 operator<<(std::ostream& out, const GeometryCodecType& val)
 {
   switch (val) {
-  case GeometryCodecType::kBypass: out << "0 (Bypass)"; break;
   case GeometryCodecType::kOctree: out << "1 (TMC1 Octree)"; break;
   case GeometryCodecType::kTriSoup: out << "2 (TMC3 TriSoup)"; break;
   }
@@ -265,8 +264,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // tools
   ("geometryCodec",
     params.encoder.gps.geom_codec_type, GeometryCodecType::kOctree,
-    "Controls the method used to encode geometry:"
-    "  0: bypass (a priori)\n"
+    "Controls the method used to encode geometry:\n"
     "  1: octree (TMC3)\n"
     "  2: trisoup (TMC1)")
 
@@ -366,6 +364,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
+  if (int(params.encoder.gps.geom_codec_type) == 0) {
+    err.error() << "Bypassed geometry coding is no longer supported\n";
+  }
+
   // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
   if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
     params.encoder.sps.seq_source_geom_scale_factor =
@@ -436,13 +438,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   if (params.compressedStreamPath.empty())
     err.error() << "compressedStreamPath not set\n";
-
-  // currently the attributes with lossless geometry require the source data
-  // todo(?): remove this dependency by improving reporting
-  if (
-    params.encoder.gps.geom_codec_type == GeometryCodecType::kBypass
-    && params.uncompressedDataPath.empty())
-    err.error() << "uncompressedDataPath not set\n";
 
   // report the current configuration (only in the absence of errors so
   // that errors/warnings are more obvious and in the same place).
@@ -548,35 +543,6 @@ Decompress(Parameters& params, Stopwatch& clock)
 
   PCCTMC3Decoder3 decoder;
   PCCPointSet3 pointCloud;
-
-  // todo(df): remove the following hack
-  // peek at the gps to determine if geometry bypass mode is being used
-  bool geometryBypass = false;
-  if (1) {
-    PayloadBuffer buf;
-    // skip sps
-    readTlv(fin, &buf);
-    assert(buf.type == PayloadType::kSequenceParameterSet);
-
-    buf = PayloadBuffer();
-    readTlv(fin, &buf);
-    GeometryParameterSet gps = parseGps(buf);
-
-    geometryBypass = gps.geom_codec_type == GeometryCodecType::kBypass;
-    fin.seekg(0);
-  }
-
-  // read a priori geometry from input file for bypass case
-  if (geometryBypass) {
-    if (
-      !pointCloud.read(params.uncompressedDataPath)
-      || pointCloud.getPointCount() == 0) {
-      cout << "Error: can't open input file!" << endl;
-      return -1;
-    }
-    pointCloud.removeReflectances();
-    pointCloud.removeColors();
-  }
 
   int ret = decoder.decompress(params.decoder, fin, pointCloud);
   if (ret) {
