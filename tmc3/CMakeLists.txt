@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
 
-if (MSVC)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:tbb_debug.lib")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:tbb.lib")
-endif()
-
 if (UNIX)
   add_definitions(-D_POSIX_C_SOURCE=200809L)
 endif()
@@ -103,7 +98,6 @@ include_directories(
   "${PROJECT_BINARY_DIR}/tmc3"
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/nanoflann"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/tbb/include"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/arithmetic-coding/inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/program-options-lite"
 )
@@ -115,6 +109,5 @@ add_executable (tmc3
   ${VERSION_FILE}
 )
 add_dependencies(tmc3 genversion)
-target_link_libraries (tmc3 tbb_static)
 
 install (TARGETS tmc3 DESTINATION bin)
