@@ -814,7 +814,7 @@ private:
 // Swap the position of two points (including attributes) in the PointSet
 // as referenced by the proxies a and b.
 
-static void
+inline void
 swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b)
 {
   a.swap(b);
@@ -823,7 +823,7 @@ swap(const PCCPointSet3::Proxy& a, const PCCPointSet3::Proxy& b)
 //---------------------------------------------------------------------------
 // Swap two point clouds
 
-static void
+inline void
 swap(PCCPointSet3& a, PCCPointSet3& b)
 {
   a.swap(b);

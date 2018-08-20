@@ -138,7 +138,7 @@ PCCReadFromBuffer(const uint8_t* const buffer, T& u, uint64_t& size)
 //---------------------------------------------------------------------------
 // Population count -- return the number of bits set in @x.
 //
-static int
+inline int
 popcnt(uint32_t x)
 {
   x = x - ((x >> 1) & 0x55555555u);
@@ -149,7 +149,7 @@ popcnt(uint32_t x)
 //---------------------------------------------------------------------------
 // Population count -- return the number of bits set in @x.
 //
-static int
+inline int
 popcnt(uint8_t x)
 {
   uint32_t val = x * 0x08040201u;
@@ -163,7 +163,7 @@ popcnt(uint8_t x)
 // Test if population count is greater than 1.
 // Returns non-zero if true.
 //
-static uint32_t
+inline uint32_t
 popcntGt1(uint32_t x)
 {
   return x & (x - 1);
@@ -172,7 +172,7 @@ popcntGt1(uint32_t x)
 //---------------------------------------------------------------------------
 // Round @x up to next power of two.
 //
-static uint32_t
+inline uint32_t
 ceilpow2(uint32_t x)
 {
   x--;
@@ -188,7 +188,7 @@ ceilpow2(uint32_t x)
 // Compute \left\floor \text{log}_2(x) \right\floor.
 // NB: ilog2(0) = -1.
 
-static int
+inline int
 ilog2(uint32_t x)
 {
   x = ceilpow2(x + 1) - 1;
@@ -199,7 +199,7 @@ ilog2(uint32_t x)
 // Compute \left\ceil \text{log}_2(x) \right\ceil.
 // NB: ceillog2(0) = 32.
 
-static int
+inline int
 ceillog2(uint32_t x)
 {
   return ilog2(x - 1) + 1;
@@ -209,7 +209,7 @@ ceillog2(uint32_t x)
 // Shuffle bits of x so as to interleave 0b00 between each pair.
 // NB: x must be in the range [0, 2**21 - 1].
 //
-static int64_t
+inline int64_t
 interleave3b0(uint64_t x)
 {
   x = ((x << 32) | x) & 0x00ff00000000ffffllu;
@@ -223,7 +223,7 @@ interleave3b0(uint64_t x)
 //---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
-static uint64_t
+inline uint64_t
 morton3dAxisDec(uint64_t val, int axis)
 {
   const uint64_t mask0 = 0x9249249249249249llu << axis;
