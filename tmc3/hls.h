@@ -134,6 +134,7 @@ enum class AttributeEncoding
 struct AttributeDescription {
   int attr_count;
   int attr_instance_id;
+  int attr_bitdepth;
   int cicp_colour_primaries_idx;
   int cicp_transfer_characteristics_idx;
   int cicp_matrix_coefficients_idx;

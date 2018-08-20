@@ -306,6 +306,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Encode the given attribute (NB, must appear after the"
     "following attribute parameters)")
 
+  ("bitdepth",
+    params_attr.desc.attr_bitdepth, 8,
+    "Attribute bitdepth")
+
   ("transformType",
     params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
     "Coding method to use for attribute:\n"
@@ -396,6 +400,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     bool isLifting =
       attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
       || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
+
+    if (it.first == "color") {
+      // todo(??): permit relaxing of the following constraint
+      if (attr_sps.attr_bitdepth > 8)
+        err.error() << it.first << ".bitdepth must be less than 9\n";
+    }
+
+    if (it.first == "reflectance") {
+      if (attr_sps.attr_bitdepth > 16)
+        err.error() << it.first << ".bitdepth must be less than 17\n";
+    }
 
     if (isLifting) {
       int lod = attr_aps.numDetailLevels;

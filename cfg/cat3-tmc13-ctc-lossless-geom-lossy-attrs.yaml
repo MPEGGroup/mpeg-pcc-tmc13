@@ -45,6 +45,7 @@ categories:
              r04: 1 2 4 8 8 8 16 16 16
              r05: 1 2 4 4 4 4 4 8 8
              r06: 0 1 1 1 2 2 2 2 2
+         - bitdepth: 8
          - attribute: color
 
       tollbooth_q1mm:
@@ -64,6 +65,7 @@ categories:
              r04: 1 2 4 8 8 8 8 10 16
              r05: 1 2 4 4 4 4 4 4 6
              r06: 0 0 0 0 0 0 1 1 2
+         - bitdepth: 8
          - attribute: color
 
   ##
@@ -95,6 +97,7 @@ categories:
              r04:  10  20   40   80  160  320   640  1280  2560
              r05:   2   5   10   20   40   80   160   320   640
              r06:   0   1    2    4    8   16    16    32    32
+         - bitdepth: 16
          - attribute: reflectance
 
       tollbooth_q1mm:
@@ -107,4 +110,5 @@ categories:
              r04:  17  33   67  133  267  533  1067  2133  4267
              r05:   4   8   16   32   64  128   256   512  1024
              r06:   1   2    4    8   16   32    32    32    32
+         - bitdepth: 16
          - attribute: reflectance

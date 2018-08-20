@@ -22,6 +22,7 @@ categories:
         r04: 8
         r05: 4
         r06: 1
+     - bitdepth: 8
      - attribute: color
      # geomstepsize -> default
      # translation -> default

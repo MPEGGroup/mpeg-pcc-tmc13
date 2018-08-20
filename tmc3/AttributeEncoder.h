@@ -58,7 +58,7 @@ struct PCCResidualsEntropyEstimator;
 class AttributeEncoder {
 public:
   void encode(
-    const AttributeDescription& attr_desc,
+    const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload);
@@ -67,31 +67,37 @@ protected:
   // todo(df): consider alternative encapsulation
 
   void encodeReflectancesLift(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsLift(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesPred(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsPred(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);

@@ -43,16 +43,19 @@ categories:
                 r03: 8 8 8 8 8 8 8 8 8
                 r04: 16 16 16 16 16 16 16 16 16
                 r05: 32 32 32 32 32 32 32 32 32
+         - bitdepth: 8
          - attribute: color
 
       overpass_q1mm:
         encflags:
          - *mitsubishiNearlosslessAttrs
+         - bitdepth: 8
          - attribute: color
 
       tollbooth_q1mm:
         encflags:
          - *mitsubishiNearlosslessAttrs
+         - bitdepth: 8
          - attribute: color
 
   ##
@@ -77,16 +80,19 @@ categories:
       citytunnel_q1mm:
         encflags:
          - *mitsubishiNearlosslessAttrs
+         - bitdepth: 16
          - attribute: reflectance
 
       overpass_q1mm:
         encflags:
          - *mitsubishiNearlosslessAttrs
+         - bitdepth: 16
          - attribute: reflectance
 
       tollbooth_q1mm:
         encflags:
          - *mitsubishiNearlosslessAttrs
+         - bitdepth: 16
          - attribute: reflectance
 
       ford_03_q1mm:
@@ -101,14 +107,17 @@ categories:
                 r03: 8 8 8 8 8 8
                 r04: 16 16 16 16 16 16
                 r05: 32 32 32 32 32 32
+         - bitdepth: 8
          - attribute: reflectance
 
       ford_02_q1mm:
         encflags:
          - *fordNearlosslessAttrs
+         - bitdepth: 8
          - attribute: reflectance
 
       ford_01_q1mm:
         encflags:
          - *fordNearlosslessAttrs
+         - bitdepth: 8
          - attribute: reflectance

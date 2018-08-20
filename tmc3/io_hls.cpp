@@ -92,6 +92,7 @@ write(const SequenceParameterSet& sps)
   for (const auto& attr : sps.attributeSets) {
     bs.writeUe(attr.attr_count);
     bs.writeUe(attr.attr_instance_id);
+    bs.writeUe(attr.attr_bitdepth);
     bs.writeUe(attr.cicp_colour_primaries_idx);
     bs.writeUe(attr.cicp_transfer_characteristics_idx);
     bs.writeUe(attr.cicp_matrix_coefficients_idx);
@@ -147,6 +148,7 @@ parseSps(const PayloadBuffer& buf)
     auto& attr = sps.attributeSets.back();
     bs.readUe(&attr.attr_count);
     bs.readUe(&attr.attr_instance_id);
+    bs.readUe(&attr.attr_bitdepth);
     bs.readUe(&attr.cicp_colour_primaries_idx);
     bs.readUe(&attr.cicp_transfer_characteristics_idx);
     bs.readUe(&attr.cicp_matrix_coefficients_idx);
