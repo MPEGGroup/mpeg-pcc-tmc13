@@ -13,6 +13,7 @@ categories:
      - mode: 0
      - geometryCodec: 1
      - colorTransform: 1
+     - mergeDuplicatedPoints: 0
      - positionQuantizationScale: 1
      - neighbourAvailBoundaryLog2: 9
 
@@ -63,6 +64,7 @@ categories:
     encflags:
      - mode: 0
      - geometryCodec: 1
+     - mergeDuplicatedPoints: 0
      - positionQuantizationScale: 1
      - neighbourAvailBoundaryLog2: 9
 
