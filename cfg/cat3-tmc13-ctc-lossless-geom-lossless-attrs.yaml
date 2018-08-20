@@ -12,7 +12,7 @@ categories:
     encflags:
      - mode: 0
      - geometryCodec: 1
-     - colorTransform: 1
+     - colorTransform: 0
      - mergeDuplicatedPoints: 0
      - positionQuantizationScale: 1
      - neighbourAvailBoundaryLog2: 9
