@@ -11,6 +11,7 @@ categories:
 
     decflags:
      - mode: 1
+     - colorTransform: 1
 
     pcerrorflags:
      - dropdups: 2
