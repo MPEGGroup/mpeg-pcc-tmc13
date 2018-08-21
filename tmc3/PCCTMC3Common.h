@@ -671,7 +671,6 @@ updateGeometryNeighState(
     if (siblingRestriction)
       continue;
 
-    uint64_t midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
     // calculate the morton address of the 'left' neighbour,
     // the delta is then used as the starting position for a search
     int64_t mortonIdxNeigh =
