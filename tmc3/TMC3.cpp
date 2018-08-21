@@ -149,8 +149,8 @@ static std::ostream&
 operator<<(std::ostream& out, const GeometryCodecType& val)
 {
   switch (val) {
-  case GeometryCodecType::kOctree: out << "1 (TMC1 Octree)"; break;
-  case GeometryCodecType::kTriSoup: out << "2 (TMC3 TriSoup)"; break;
+  case GeometryCodecType::kOctree: out << "1 (Octree)"; break;
+  case GeometryCodecType::kTriSoup: out << "2 (TriSoup)"; break;
   }
   return out;
 }
