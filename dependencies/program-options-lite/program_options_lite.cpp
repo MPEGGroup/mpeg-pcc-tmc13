@@ -114,12 +114,16 @@ namespace df
         opt_start += opt_end + 1;
       }
 
-      auto& curr_section = sections.back();
-      bool need_section_update = curr_section.second == opt_list.cend();
+      bool need_section_update = false;
+      if (!sections.empty()) {
+        auto& curr_section = sections.back();
+        need_section_update = curr_section.second == opt_list.cend();
+      }
 
       opt_list.push_back(names);
 
       if (need_section_update) {
+        auto& curr_section = sections.back();
         curr_section.second = std::prev(opt_list.cend());
       }
     }
