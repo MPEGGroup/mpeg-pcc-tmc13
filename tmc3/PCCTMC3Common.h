@@ -111,7 +111,6 @@ struct PCCNeighborInfo {
 struct PCCPredictor {
   size_t neighborCount;
   uint32_t index;
-  uint32_t levelOfDetailIndex;
   PCCNeighborInfo neighbors[PCCTMC3MaxPredictionNearestNeighborCount];
 
   PCCColor3B predictColor(const PCCPointSet3& pointCloud) const
@@ -157,15 +156,13 @@ struct PCCPredictor {
   void init(
     const uint32_t current,
     const uint32_t reference,
-    const uint32_t predictorIndex,
-    const uint32_t lodIndex)
+    const uint32_t predictorIndex)
   {
     index = current;
     neighborCount = (reference != PCC_UNDEFINED_INDEX) ? 1 : 0;
     neighbors[0].index = reference;
     neighbors[0].predictorIndex = predictorIndex;
     neighbors[0].weight = 1.0;
-    levelOfDetailIndex = lodIndex;
   }
 };
 inline int64_t
@@ -455,25 +452,19 @@ PCCComputePredictors2(
       nNQuery.point = point;
       kdtree.findNearestNeighbors2(nNQuery, nNResult);
       if (!nNResult.resultCount) {
-        predictor.init(
-          pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX,
-          uint32_t(lodIndex));
+        predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX);
       } else if (
         nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
         const uint32_t reference =
           static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
         assert(nNResult.neighbors[0].index < i);
-        predictor.init(
-          pointIndex, reference, nNResult.neighbors[0].index,
-          uint32_t(lodIndex));
+        predictor.init(pointIndex, reference, nNResult.neighbors[0].index);
       } else {
-        predictor.levelOfDetailIndex = uint32_t(lodIndex);
         predictor.index = pointIndex;
         predictor.neighborCount = nNResult.resultCount;
         for (size_t n = 0; n < nNResult.resultCount; ++n) {
           const uint32_t neighborIndex = nNResult.neighbors[n].index;
           assert(neighborIndex < i);
-          assert(predictors[neighborIndex].levelOfDetailIndex <= lodIndex);
           predictor.neighbors[n].predictorIndex = neighborIndex;
           predictor.neighbors[n].index = indexes[neighborIndex];
           predictor.neighbors[n].weight = 1.0 / nNResult.neighbors[n].dist2;
@@ -510,9 +501,9 @@ PCCComputePredictors(
     const uint32_t pointIndex = indexes[i];
     auto& predictor = predictors[i];
     if (i == 0) {
-      predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX, 0);
+      predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX);
     } else {
-      predictor.init(pointIndex, predictors[i - 1].index, i - 1, 0);
+      predictor.init(pointIndex, predictors[i - 1].index, i - 1);
     }
   }
   PointCloudWrapper pointCloudWrapper(pointCloud, indexes);
@@ -540,16 +531,13 @@ PCCComputePredictors(
       const uint32_t resultCount = resultSet.size();
       if (sqrDist[0] == 0.0 || resultCount == 1) {
         const uint32_t predIndex = indices[0];
-        predictor.init(
-          pointIndex, predictors[predIndex].index, predIndex, lodIndex);
+        predictor.init(pointIndex, predictors[predIndex].index, predIndex);
       } else {
-        predictor.levelOfDetailIndex = uint32_t(lodIndex);
         predictor.index = pointIndex;
         predictor.neighborCount = resultCount;
         for (size_t n = 0; n < resultCount; ++n) {
           const uint32_t predIndex = indices[n];
           assert(predIndex < i);
-          assert(predictors[predIndex].levelOfDetailIndex <= lodIndex);
           predictor.neighbors[n].predictorIndex = predIndex;
           const uint32_t pointIndex1 = indexes[predIndex];
           predictor.neighbors[n].index = pointIndex1;
