@@ -298,61 +298,6 @@ PCCComputeQuantizationWeights(
 //---------------------------------------------------------------------------
 
 inline void
-PCCBuildLevelOfDetail2(
-  const PCCPointSet3& pointCloud,
-  const int levelOfDetailCount,
-  const std::vector<int64_t>& dist2,
-  std::vector<uint32_t>& numberOfPointsPerLOD,
-  std::vector<uint32_t>& indexes)
-{
-  const size_t pointCount = pointCloud.getPointCount();
-  const size_t initialBalanceTargetPointCount = 16;
-  std::vector<bool> visited;
-  visited.resize(pointCount, false);
-  indexes.resize(0);
-  indexes.reserve(pointCount);
-  numberOfPointsPerLOD.resize(0);
-  numberOfPointsPerLOD.reserve(levelOfDetailCount);
-  size_t prevIndexesSize = 0;
-  PCCPointDistInfo nearestNeighbors[PCCTMC3MaxPredictionNearestNeighborCount];
-  PCCNNQuery3 nNQuery = {PCCVector3D(0.0), 0.0, 1};
-  PCCNNResult nNResult = {nearestNeighbors, 0};
-  PCCIncrementalKdTree3 kdtree;
-
-  for (size_t lodIndex = 0;
-       lodIndex < levelOfDetailCount && indexes.size() < pointCount;
-       ++lodIndex) {
-    const bool filterByDistance = (lodIndex + 1) != levelOfDetailCount;
-    const double minDist2 = dist2[lodIndex];
-    nNQuery.radius = minDist2;
-    size_t balanceTargetPointCount = initialBalanceTargetPointCount;
-    for (uint32_t current = 0; current < pointCount; ++current) {
-      if (!visited[current]) {
-        if (filterByDistance) {
-          nNQuery.point = pointCloud[current];
-          kdtree.findNearestNeighbors2(nNQuery, nNResult);
-        }
-        if (
-          !filterByDistance || !nNResult.resultCount
-          || nNResult.neighbors[0].dist2 >= minDist2) {
-          indexes.push_back(current);
-          visited[current] = true;
-          kdtree.insert(pointCloud[current]);
-          if (balanceTargetPointCount <= kdtree.size()) {
-            kdtree.balance();
-            balanceTargetPointCount = 2 * kdtree.size();
-          }
-        }
-      }
-    }
-    numberOfPointsPerLOD.push_back(uint32_t(indexes.size()));
-    prevIndexesSize = indexes.size();
-  }
-}
-
-//---------------------------------------------------------------------------
-
-inline void
 CheckPoint(
   const PCCPointSet3& pointCloud,
   const int32_t index,

@@ -387,7 +387,7 @@ AttributeEncoder::encodeReflectancesPred(
   const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail2(
+  PCCBuildLevelOfDetail(
     pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
     indexesLOD);
   std::vector<PCCPredictor> predictors;
@@ -519,7 +519,7 @@ AttributeEncoder::encodeColorsPred(
   const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail2(
+  PCCBuildLevelOfDetail(
     pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
     indexesLOD);
   std::vector<PCCPredictor> predictors;

@@ -223,7 +223,7 @@ AttributeDecoder::decodeReflectancesPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail2(
+  PCCBuildLevelOfDetail(
     pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
     indexesLOD);
   PCCComputePredictors2(
@@ -303,7 +303,7 @@ AttributeDecoder::decodeColorsPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail2(
+  PCCBuildLevelOfDetail(
     pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
     indexesLOD);
   PCCComputePredictors2(
