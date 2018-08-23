@@ -243,8 +243,8 @@ struct AttributeParameterSet {
   std::vector<int64_t> dist2;
 
   // NB: these parameters are shared by raht and lift
-  std::vector<int> quant_step_size_luma;
-  std::vector<int> quant_step_size_chroma;
+  int quant_step_size_luma;
+  int quant_step_size_chroma;
 
   //--- raht parameters
 

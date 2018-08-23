@@ -401,8 +401,7 @@ AttributeEncoder::encodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
     computeReflectancePredictionWeights(
       pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, predictor,
       encoder, context);
@@ -534,9 +533,8 @@ AttributeEncoder::encodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
-    const int64_t qs2 = aps.quant_step_size_chroma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
+    const int64_t qs2 = aps.quant_step_size_chroma;
     computeColorPredictionWeights(
       pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, qs2,
       predictor, encoder, context);
@@ -622,7 +620,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   // Quantize.
   for (int n = 0; n < voxelCount; n++) {
     integerizedAttributes[n] =
-      int(round(attributes[n] / aps.quant_step_size_luma[0]));
+      int(round(attributes[n] / aps.quant_step_size_luma));
   }
 
   // Sort integerized attributes by weight.
@@ -662,7 +660,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   }
   // Inverse Quantize.
   for (int n = 0; n < voxelCount; n++) {
-    attributes[n] = integerizedAttributes[n] * aps.quant_step_size_luma[0];
+    attributes[n] = integerizedAttributes[n] * aps.quant_step_size_luma;
   }
   regionAdaptiveHierarchicalInverseTransform(
     mortonCode, attributes, 1, voxelCount, aps.raht_depth);
@@ -737,8 +735,8 @@ AttributeEncoder::encodeColorsTransformRaht(
   // Quantize.
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
-      integerizedAttributes[attribCount * n + k] = int(
-        round(attributes[attribCount * n + k] / aps.quant_step_size_luma[0]));
+      integerizedAttributes[attribCount * n + k] =
+        int(round(attributes[attribCount * n + k] / aps.quant_step_size_luma));
     }
   }
 
@@ -801,8 +799,7 @@ AttributeEncoder::encodeColorsTransformRaht(
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
       attributes[attribCount * n + k] =
-        integerizedAttributes[attribCount * n + k]
-        * aps.quant_step_size_luma[0];
+        integerizedAttributes[attribCount * n + k] * aps.quant_step_size_luma;
     }
   }
 
@@ -878,8 +875,7 @@ AttributeEncoder::encodeColorsLift(
   // compress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
     const int64_t delta = PCCQuantization(color[0] * quantWeight, qs);
@@ -889,7 +885,7 @@ AttributeEncoder::encodeColorsLift(
     color[0] = reconstructedDelta / quantWeight;
     uint32_t values[3];
     values[0] = uint32_t(detail);
-    const size_t qs2 = aps.quant_step_size_chroma[lodIndex];
+    const size_t qs2 = aps.quant_step_size_chroma;
     for (size_t d = 1; d < 3; ++d) {
       const int64_t delta = PCCQuantization(color[d] * quantWeight, qs2);
       const int64_t detail = o3dgc::IntToUInt(delta);
@@ -967,8 +963,7 @@ AttributeEncoder::encodeReflectancesLift(
   // compress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = PCCQuantization(reflectance * quantWeight, qs);

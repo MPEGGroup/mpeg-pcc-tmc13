@@ -320,7 +320,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Used for chroma-subsampling in attribute=color only.")
 
   ("rahtQuantizationStep",
-    params_attr.aps.quant_step_size_luma, {},
+    params_attr.aps.quant_step_size_luma, 0,
     "deprecated -- use quantizationStepsLuma")
 
   ("rahtDepth",
@@ -342,17 +342,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.numDetailLevels, 1,
     "Attribute's number of levels of detail")
 
-  ("quantizationSteps",
-    params_attr.aps.quant_step_size_luma, {},
-    "deprecated -- use quantizationStepsLuma")
+  ("quantizationStepLuma",
+    params_attr.aps.quant_step_size_luma, 0,
+    "Attribute's luma quantization step size")
 
-  ("quantizationStepsLuma",
-    params_attr.aps.quant_step_size_luma, {},
-    "Attribute's luma quantization step sizes (one for each LoD)")
-
-  ("quantizationStepsChroma",
-    params_attr.aps.quant_step_size_chroma, {},
-    "Attribute's chroma quantization step sizes (one for each LoD)")
+  ("quantizationStepChroma",
+    params_attr.aps.quant_step_size_chroma, 0,
+    "Attribute's chroma quantization step size")
 
   ("dist2",
     params_attr.aps.dist2, {},
@@ -389,6 +385,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     auto& attr_aps = params.encoder.aps[it.second];
 
+    // Avoid wasting bits signalling chroma quant step size for reflectance
+    if (it.first == "reflectance") {
+      attr_aps.quant_step_size_chroma = 0;
+    }
+
     // Set default threshold based on bitdepth
     if (attr_aps.adaptive_prediction_threshold == -1) {
       attr_aps.adaptive_prediction_threshold = 1
@@ -403,12 +404,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
       attr_aps.numDetailLevels = 0;
       attr_aps.adaptive_prediction_threshold = 0;
+
+      // todo(df): suggest chroma quant_step_size for raht
+      attr_aps.quant_step_size_chroma = 0;
     }
   }
 
   // sanity checks
-  //  - validate that quantizationStepsLuma/Chroma, dist2
-  //    of each attribute contain levelOfDetailCount elements.
   for (const auto& it : params.encoder.attributeIdxMap) {
     const auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     const auto& attr_aps = params.encoder.aps[it.second];
@@ -435,20 +437,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         err.error() << it.first
                     << ".levelOfDetailCount must be less than 256\n";
       }
-      // todo(df): the following two checks are removed in m42640/2
       if (attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod
                     << " entries\n";
-      }
-      if (attr_aps.quant_step_size_luma.size() != lod) {
-        err.error() << it.first << ".quantizationStepsLuma does not have "
-                    << lod << " entries\n";
-      }
-      if (it.first == "color") {
-        if (attr_aps.quant_step_size_chroma.size() != lod) {
-          err.error() << it.first << ".quantizationStepsChroma does not have "
-                      << lod << " entries\n";
-        }
       }
 
       if (attr_aps.adaptive_prediction_threshold < 0) {

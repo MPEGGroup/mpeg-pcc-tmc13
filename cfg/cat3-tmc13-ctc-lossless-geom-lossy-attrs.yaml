@@ -31,40 +31,40 @@ categories:
            - numberOfNearestNeighborsInPrediction: 3
            - levelOfDetailCount: 9
            - dist2: 134217728 33554432 8388608 2097152 524288 131072 32768 8192 0
-         - quantizationStepsLuma:
-             r01: 1 2 4 8 16 32 64 128 128
-             r02: 1 2 4 8 16 32 64 64 66
-             r03: 1 2 4 8 16 32 32 32 34
-             r04: 1 2 4 8 8 8 16 16 16
-             r05: 1 2 4 4 4 4 4 8 8
-             r06: 0 1 1 1 2 2 2 2 2
-         - quantizationStepsChroma:
-             r01: 1 2 4 8 16 32 64 128 128
-             r02: 1 2 4 8 16 32 64 64 66
-             r03: 1 2 4 8 16 32 32 32 34
-             r04: 1 2 4 8 8 8 16 16 16
-             r05: 1 2 4 4 4 4 4 8 8
-             r06: 0 1 1 1 2 2 2 2 2
+         - quantizationStepLuma:
+             r01: 256
+             r02: 128
+             r03: 64
+             r04: 32
+             r05: 16
+             r06: 8
+         - quantizationStepChroma:
+             r01: 256
+             r02: 128
+             r03: 64
+             r04: 32
+             r05: 16
+             r06: 8
          - bitdepth: 8
          - attribute: color
 
       tollbooth_q1mm:
         encflags:
          - *commonAttr
-         - quantizationStepsLuma:
-             r01: 1 2 4 8 16 32 64 128 128
-             r02: 1 2 4 8 16 32 32 64 64
-             r03: 1 2 4 8 16 16 16 32 32
-             r04: 1 2 4 8 8 8 8 10 16
-             r05: 1 2 4 4 4 4 4 4 6
-             r06: 0 0 0 0 0 0 1 1 2
-         - quantizationStepsChroma:
-             r01: 1 2 4 8 16 32 64 128 128
-             r02: 1 2 4 8 16 32 32 64 64
-             r03: 1 2 4 8 16 16 16 32 32
-             r04: 1 2 4 8 8 8 8 10 16
-             r05: 1 2 4 4 4 4 4 4 6
-             r06: 0 0 0 0 0 0 1 1 2
+         - quantizationStepLuma:
+             r01: 256
+             r02: 128
+             r03: 64
+             r04: 32
+             r05: 16
+             r06: 8
+         - quantizationStepChroma:
+             r01: 256
+             r02: 128
+             r03: 64
+             r04: 32
+             r05: 16
+             r06: 8
          - bitdepth: 8
          - attribute: color
 
@@ -90,25 +90,25 @@ categories:
       citytunnel_q1mm:
         encflags:
          - *commonAttr
-         - quantizationStepsLuma:
-             r01: 286 571 1143 2286 4571 9143 18286 36571 65536
-             r02:  77 154  308  615 1231 2462  4923  9846 19692
-             r03:  29  57  114  229  457  914  1829  3657  7314
-             r04:  10  20   40   80  160  320   640  1280  2560
-             r05:   2   5   10   20   40   80   160   320   640
-             r06:   0   1    2    4    8   16    16    32    32
+         - quantizationStepLuma:
+             r01: $eval{ 255 * 256 }
+             r02: $eval{ 255 * 128 }
+             r03: $eval{ 255 * 64 }
+             r04: $eval{ 255 * 32 }
+             r05: $eval{ 255 * 16 }
+             r06: $eval{ 255 * 8 }
          - bitdepth: 16
          - attribute: reflectance
 
       tollbooth_q1mm:
         encflags:
          - *commonAttr
-         - quantizationStepsLuma:
-             r01: 286 571 1143 2286 4571 9143 18286 36571 65536
-             r02: 100 200  400  800 1600 3200  6400 12800 25600
-             r03:  50 100  200  400  800 1600  3200  6400 12800
-             r04:  17  33   67  133  267  533  1067  2133  4267
-             r05:   4   8   16   32   64  128   256   512  1024
-             r06:   1   2    4    8   16   32    32    32    32
+         - quantizationStepLuma:
+             r01: $eval{ 255 * 256 }
+             r02: $eval{ 255 * 128 }
+             r03: $eval{ 255 * 64 }
+             r04: $eval{ 255 * 32 }
+             r05: $eval{ 255 * 16 }
+             r06: $eval{ 255 * 8 }
          - bitdepth: 16
          - attribute: reflectance

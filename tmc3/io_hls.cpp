@@ -251,24 +251,18 @@ write(const AttributeParameterSet& aps)
   bs.writeUe(aps.aps_seq_parameter_set_id);
   bs.writeUe(aps.attr_encoding);
 
-  // todo(df): reconsider the derivation of the following
-  bool chroma_quant_steps_present_flag =
-    aps.quant_step_size_luma.size() == aps.quant_step_size_chroma.size();
-  bs.write(chroma_quant_steps_present_flag);
-
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
+    bs.writeUe(aps.quant_step_size_luma);
+    bs.writeUe(aps.quant_step_size_chroma);
 
     int num_detail_levels_minus1 = aps.numDetailLevels - 1;
     bs.writeUe(num_detail_levels_minus1);
     for (int idx = 0; idx <= num_detail_levels_minus1; idx++) {
       // todo(??): is this an appropriate encoding?
       bs.writeUe64(aps.dist2[idx]);
-      bs.writeUe(aps.quant_step_size_luma[idx]);
-      if (chroma_quant_steps_present_flag)
-        bs.writeUe(aps.quant_step_size_chroma[idx]);
     }
   }
 
@@ -279,7 +273,7 @@ write(const AttributeParameterSet& aps)
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.writeUe(aps.raht_depth);
     bs.writeUe(aps.raht_binary_level_threshold);
-    bs.write(aps.quant_step_size_luma[0]);
+    bs.writeUe(aps.quant_step_size_luma);
     // todo(?): raht chroma quant_step_size?
   }
 
@@ -303,29 +297,19 @@ parseAps(const PayloadBuffer& buf)
   bs.readUe(&aps.aps_seq_parameter_set_id);
   bs.readUe(&aps.attr_encoding);
 
-  bool chroma_quant_steps_present_flag;
-  bs.read(&chroma_quant_steps_present_flag);
-
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
+    bs.readUe(&aps.quant_step_size_luma);
+    bs.readUe(&aps.quant_step_size_chroma);
 
     int num_detail_levels_minus1 = int(bs.readUe());
     aps.numDetailLevels = num_detail_levels_minus1 + 1;
     aps.dist2.resize(aps.numDetailLevels);
-    aps.quant_step_size_luma.resize(aps.numDetailLevels);
-
-    if (chroma_quant_steps_present_flag) {
-      aps.quant_step_size_chroma.resize(aps.numDetailLevels);
-    }
 
     for (int idx = 0; idx <= num_detail_levels_minus1; idx++) {
       bs.readUe(&aps.dist2[idx]);
-      bs.readUe(&aps.quant_step_size_luma[idx]);
-      if (chroma_quant_steps_present_flag) {
-        bs.readUe(&aps.quant_step_size_chroma[idx]);
-      }
     }
   }
 
@@ -336,14 +320,8 @@ parseAps(const PayloadBuffer& buf)
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.readUe(&aps.raht_depth);
     bs.readUe(&aps.raht_binary_level_threshold);
-
-    aps.quant_step_size_luma.resize(1);
-    bs.read(&aps.quant_step_size_luma[0]);
-  }
-
-  if (!chroma_quant_steps_present_flag) {
-    // infer when not present
-    aps.quant_step_size_chroma = aps.quant_step_size_luma;
+    bs.readUe(&aps.quant_step_size_luma);
+    // todo(?): raht chroma quant_step_size
   }
 
   bool aps_extension_flag = bs.read();

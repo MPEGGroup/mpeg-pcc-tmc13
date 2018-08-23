@@ -235,8 +235,7 @@ AttributeDecoder::decodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
     computeReflectancePredictionWeights(
       pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, predictor,
       decoder);
@@ -315,9 +314,8 @@ AttributeDecoder::decodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const size_t lodIndex = predictor.levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
-    const int64_t qs2 = aps.quant_step_size_chroma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
+    const int64_t qs2 = aps.quant_step_size_chroma;
     computeColorPredictionWeights(
       pointCloud, aps.num_pred_nearest_neighbours, threshold, predictor,
       decoder);
@@ -408,9 +406,8 @@ AttributeDecoder::decodeReflectancesRaht(
 
   // Inverse Quantize.
   float* attributes = new float[voxelCount];
-  const int qstep = int(aps.quant_step_size_luma[0]);
   for (int n = 0; n < voxelCount; n++) {
-    attributes[n] = integerizedAttributes[n] * qstep;
+    attributes[n] = integerizedAttributes[n] * aps.quant_step_size_luma;
   }
 
   regionAdaptiveHierarchicalInverseTransform(
@@ -512,11 +509,10 @@ AttributeDecoder::decodeColorsRaht(
 
   // Inverse Quantize.
   float* attributes = new float[attribCount * voxelCount];
-  const int qstep = int(aps.quant_step_size_luma[0]);
   for (int n = 0; n < voxelCount; n++) {
     for (int k = 0; k < attribCount; k++) {
       attributes[attribCount * n + k] =
-        integerizedAttributes[attribCount * n + k] * qstep;
+        integerizedAttributes[attribCount * n + k] * aps.quant_step_size_luma;
     }
   }
 
@@ -579,9 +575,8 @@ AttributeDecoder::decodeColorsLift(
     values[0] = decoder.decode0();
     values[1] = decoder.decode1();
     values[2] = decoder.decode1();
-    const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
-    const int64_t qs2 = aps.quant_step_size_chroma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
+    const int64_t qs2 = aps.quant_step_size_chroma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
     const int64_t delta = o3dgc::UIntToInt(values[0]);
@@ -646,8 +641,7 @@ AttributeDecoder::decodeReflectancesLift(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     const int64_t detail = decoder.decode0();
-    const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
-    const int64_t qs = aps.quant_step_size_luma[lodIndex];
+    const int64_t qs = aps.quant_step_size_luma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = o3dgc::UIntToInt(detail);

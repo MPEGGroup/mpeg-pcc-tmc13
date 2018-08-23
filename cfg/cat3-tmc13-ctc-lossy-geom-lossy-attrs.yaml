@@ -40,13 +40,7 @@ categories:
              r04:    508   127    32    8    2 0
              r05:  10486  2621   655  164   41 0
              r06: 317194 79299 19825 4956 1239 0
-         - quantizationStepsLuma:
-             r01: 2 4
-             r02: 1 2 4 4
-             r03: 0 1 2 4 4
-             r04: 0 1 2 4 4 4
-             r05: 0 1 2 4 4 4
-             r06: 0 1 2 4 4 4
+         - quantizationStepLuma: 8
          - bitdepth: 8
          - attribute: reflectance
 
