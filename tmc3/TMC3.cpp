@@ -352,7 +352,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("dist2",
     params_attr.aps.dist2, {},
-    "Attribute's list of squared distances (one for each LoD)")
+    "Attribute's list of squared distances, or initial value for automatic"
+    "derivation")
   ;
   /* clang-format on */
 
@@ -388,6 +389,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     // Avoid wasting bits signalling chroma quant step size for reflectance
     if (it.first == "reflectance") {
       attr_aps.quant_step_size_chroma = 0;
+    }
+
+    bool isLifting =
+      attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
+      || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
+
+    // derive the dist2 values based on an initial value
+    if (isLifting && !attr_aps.dist2.empty()) {
+      if (attr_aps.dist2.size() < attr_aps.numDetailLevels) {
+        attr_aps.dist2.resize(attr_aps.numDetailLevels);
+        const double distRatio = 4.0;
+        uint64_t d2 = attr_aps.dist2[0];
+
+        for (int i = 1; i < attr_aps.numDetailLevels; ++i) {
+          attr_aps.dist2[attr_aps.numDetailLevels - 1 - i] = d2;
+          d2 = uint64_t(std::round(distRatio * d2));
+        }
+        attr_aps.dist2[attr_aps.numDetailLevels - 1] = 0;
+      }
     }
 
     // Set default threshold based on bitdepth
@@ -433,9 +453,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (isLifting) {
       int lod = attr_aps.numDetailLevels;
 
-      if (lod > 255) {
+      if (lod > 255 || lod < 1) {
         err.error() << it.first
-                    << ".levelOfDetailCount must be less than 256\n";
+                    << ".levelOfDetailCount must be in the range [1,255]\n";
       }
       if (attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod

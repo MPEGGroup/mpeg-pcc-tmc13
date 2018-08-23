@@ -34,12 +34,12 @@ categories:
              r05: 6
              r06: 6
          - dist2:
-             r01:      6     0
-             r02:     21     5     1    0
-             r03:     85    21     5    1    0
-             r04:    508   127    32    8    2 0
-             r05:  10486  2621   655  164   41 0
-             r06: 317194 79299 19825 4956 1239 0
+             r01: 6
+             r02: 1
+             r03: 1
+             r04: 2
+             r05: 41
+             r06: 1239
          - quantizationStepLuma: 8
          - bitdepth: 8
          - attribute: reflectance

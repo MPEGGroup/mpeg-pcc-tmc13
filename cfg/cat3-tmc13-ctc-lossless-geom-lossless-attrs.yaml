@@ -29,7 +29,7 @@ categories:
          - &mitsubishiLosslessAttrs
             - numberOfNearestNeighborsInPrediction: 3
             - levelOfDetailCount: 9
-            - dist2: 134217728 33554432 8388608 2097152 524288 131072 32768 8192 0
+            - dist2: 8192
             - quantizationStepLuma: 0
             - quantizationStepChroma: 0
          - bitdepth: 8
@@ -88,7 +88,7 @@ categories:
          - &fordLosslessAttrs
             - numberOfNearestNeighborsInPrediction: 3
             - levelOfDetailCount: 6
-            - dist2: 4194301 1048582 262149 65534 16383 0
+            - dist2: 16384
             - quantizationStepLuma: 0
          - bitdepth: 8
          - attribute: reflectance
