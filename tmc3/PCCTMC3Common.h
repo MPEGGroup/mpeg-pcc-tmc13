@@ -49,7 +49,7 @@
 #include <vector>
 
 namespace pcc {
-const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 4;
+const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 3;
 const uint32_t PCCTMC3SymbolCount = 64;
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;

@@ -329,7 +329,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "component")
 
   ("numberOfNearestNeighborsInPrediction",
-    params_attr.aps.num_pred_nearest_neighbours, 4,
+    params_attr.aps.num_pred_nearest_neighbours, 3,
     "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("adaptivePredictionThreshold",
@@ -459,10 +459,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       if (
         attr_aps.num_pred_nearest_neighbours
         > PCCTMC3MaxPredictionNearestNeighborCount) {
-        err.error()
-          << it.first
-          << ".numberOfNearestNeighborsInPrediction must be less than "
-          << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
+        err.error() << it.first
+                    << ".numberOfNearestNeighborsInPrediction must be <= "
+                    << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
       }
     }
   }
