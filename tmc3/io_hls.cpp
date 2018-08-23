@@ -270,7 +270,13 @@ write(const AttributeParameterSet& aps)
       if (chroma_quant_steps_present_flag)
         bs.writeUe(aps.quant_step_size_chroma[idx]);
     }
-  } else if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+  }
+
+  if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+    bs.writeUe(aps.adaptive_prediction_threshold);
+  }
+
+  if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.writeUe(aps.raht_depth);
     bs.writeUe(aps.raht_binary_level_threshold);
     bs.write(aps.quant_step_size_luma[0]);
@@ -321,7 +327,13 @@ parseAps(const PayloadBuffer& buf)
         bs.readUe(&aps.quant_step_size_chroma[idx]);
       }
     }
-  } else if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+  }
+
+  if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+    bs.readUe(&aps.adaptive_prediction_threshold);
+  }
+
+  if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.readUe(&aps.raht_depth);
     bs.readUe(&aps.raht_binary_level_threshold);
 

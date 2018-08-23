@@ -231,7 +231,7 @@ AttributeDecoder::decodeReflectancesPred(
     aps.num_pred_nearest_neighbours, predictors);
   const size_t pointCount = pointCloud.getPointCount();
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
-  const int64_t threshold = 1ll << (desc.attr_bitdepth - 2);
+  const int64_t threshold = aps.adaptive_prediction_threshold;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
@@ -309,7 +309,7 @@ AttributeDecoder::decodeColorsPred(
   PCCComputePredictors2(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
-  const int64_t threshold = 1ll << (desc.attr_bitdepth - 2);
+  const int64_t threshold = aps.adaptive_prediction_threshold;
   const size_t pointCount = pointCloud.getPointCount();
   uint32_t values[3];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;

@@ -233,9 +233,10 @@ struct AttributeParameterSet {
   int aps_seq_parameter_set_id;
   AttributeEncoding attr_encoding;
 
-  //--- lifting transform parameters
+  //--- lifting/predicting transform parameters
 
   int num_pred_nearest_neighbours;
+  int adaptive_prediction_threshold;
 
   // NB: derived from num_detail_levels_minus1
   int numDetailLevels;

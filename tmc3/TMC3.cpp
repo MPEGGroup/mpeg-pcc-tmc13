@@ -332,6 +332,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.num_pred_nearest_neighbours, 4,
     "Attribute's maximum number of nearest neighbors to be used for prediction")
 
+  ("adaptivePredictionThreshold",
+    params_attr.aps.adaptive_prediction_threshold, -1,
+    "Neighbouring attribute value difference that enables choice of "
+    "single|multi predictors. Applies to transformType=2 only.\n"
+    "  -1: auto = 2**(bitdepth-2)")
+
   ("levelOfDetailCount",
     params_attr.aps.numDetailLevels, 1,
     "Attribute's number of levels of detail")
@@ -378,12 +384,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       1.0f / params.encoder.sps.donotuse_trisoup_int_to_orig_scale;
   }
 
-  // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
+  // fixup any per-attribute settings
   for (const auto& it : params.encoder.attributeIdxMap) {
+    auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     auto& attr_aps = params.encoder.aps[it.second];
 
+    // Set default threshold based on bitdepth
+    if (attr_aps.adaptive_prediction_threshold == -1) {
+      attr_aps.adaptive_prediction_threshold = 1
+        << (attr_sps.attr_bitdepth - 2);
+    }
+
+    if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
+      attr_aps.adaptive_prediction_threshold = 0;
+    }
+
+    // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
       attr_aps.numDetailLevels = 0;
+      attr_aps.adaptive_prediction_threshold = 0;
     }
   }
 
@@ -430,6 +449,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
           err.error() << it.first << ".quantizationStepsChroma does not have "
                       << lod << " entries\n";
         }
+      }
+
+      if (attr_aps.adaptive_prediction_threshold < 0) {
+        err.error() << it.first
+                    << ".adaptivePredictionThreshold must be positive\n";
       }
 
       if (

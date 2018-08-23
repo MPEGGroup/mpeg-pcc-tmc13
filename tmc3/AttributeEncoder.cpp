@@ -395,8 +395,7 @@ AttributeEncoder::encodeReflectancesPred(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
 
-  // todo(??): what about attr_bitdepth < 2?
-  const int64_t threshold = 1ll << (desc.attr_bitdepth - 2);
+  const int64_t threshold = aps.adaptive_prediction_threshold;
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -528,8 +527,7 @@ AttributeEncoder::encodeColorsPred(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
 
-  // todo(??): what about attr_bitdepth < 2?
-  const int64_t threshold = 1ll << (desc.attr_bitdepth - 2);
+  const int64_t threshold = aps.adaptive_prediction_threshold;
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   uint32_t values[3];
   PCCResidualsEntropyEstimator context;
