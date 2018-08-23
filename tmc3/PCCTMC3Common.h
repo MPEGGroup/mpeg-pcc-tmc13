@@ -431,7 +431,7 @@ PCCBuildLevelOfDetail(
        lodIndex < levelOfDetailCount && indexes.size() < pointCount;
        ++lodIndex) {
     if ((lodIndex + 1) != levelOfDetailCount) {
-      const double radius2 = 3.0 * pow(2.0, 2 * dist2[lodIndex]);
+      const double radius2 = dist2[lodIndex];
       uint32_t lastNNIndex = PCC_UNDEFINED_INDEX;
       kdtree.balance();
       for (uint32_t current = 0; current < pointCount; ++current) {
