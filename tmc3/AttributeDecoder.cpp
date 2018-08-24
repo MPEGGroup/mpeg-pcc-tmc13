@@ -641,16 +641,9 @@ AttributeDecoder::decodeReflectancesLift(
   PCCComputeQuantizationWeights(predictors, weights);
 
   // decompress
-  std::vector<WeightWithIndex> order;
-  order.reserve(pointCount);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    order.push_back(WeightWithIndex(predictorIndex, weights[predictorIndex]));
-  }
-  std::sort(order.begin(), order.end());
-  for (const auto& w : order) {
     const int64_t detail = decoder.decode0();
-    const size_t predictorIndex = w.index;
     const size_t lodIndex = predictors[predictorIndex].levelOfDetailIndex;
     const int64_t qs = aps.quant_step_size_luma[lodIndex];
     const double quantWeight = sqrt(weights[predictorIndex]);
