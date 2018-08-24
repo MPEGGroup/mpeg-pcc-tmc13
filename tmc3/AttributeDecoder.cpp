@@ -620,14 +620,14 @@ AttributeDecoder::decodeReflectancesLift(
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
-  std::vector<PCCPredictor> predictors;
+  const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
   PCCBuildLevelOfDetail(
     pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
     indexesLOD);
-  const size_t pointCount = predictors.size();
   const size_t lodCount = numberOfPointsPerLOD.size();
+  std::vector<PCCPredictor> predictors;
   PCCComputePredictors(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
