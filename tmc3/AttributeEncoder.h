@@ -109,11 +109,8 @@ protected:
     const int64_t qs2);
 
   static void computeColorPredictionWeights(
+    const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
-    const size_t numberOfNearestNeighborsInPrediction,
-    const int64_t threshold,
-    const int64_t qs,
-    const int64_t qs2,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context);
@@ -124,10 +121,8 @@ protected:
     const int64_t qs);
 
   static void computeReflectancePredictionWeights(
+    const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
-    const size_t numberOfNearestNeighborsInPrediction,
-    const int64_t threshold,
-    const int64_t qs,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context);

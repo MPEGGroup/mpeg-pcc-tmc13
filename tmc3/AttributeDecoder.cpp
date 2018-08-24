@@ -179,10 +179,8 @@ AttributeDecoder::decode(
 
 void
 AttributeDecoder::computeReflectancePredictionWeights(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
-  const size_t numberOfNearestNeighborsInPrediction,
-  const int64_t threshold,
-  const int64_t qs,
   PCCPredictor& predictor,
   PCCResidualsDecoder& decoder)
 {
@@ -190,7 +188,7 @@ AttributeDecoder::computeReflectancePredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
-    for (size_t i = 0; i < numberOfNearestNeighborsInPrediction; ++i) {
+    for (int i = 0; i < aps.num_pred_nearest_neighbours; ++i) {
       const uint16_t reflectanceNeighbor =
         pointCloud.getReflectance(predictor.neighbors[i].index);
       if (i == 0 || reflectanceNeighbor < minValue) {
@@ -201,7 +199,7 @@ AttributeDecoder::computeReflectancePredictionWeights(
       }
     }
     const int64_t maxDiff = maxValue - minValue;
-    if (maxDiff > threshold) {
+    if (maxDiff > aps.adaptive_prediction_threshold) {
       const bool predIndex = decoder.decodePred();
       if (predIndex == 0) {
         predictor.neighborCount = 1;
@@ -231,14 +229,11 @@ AttributeDecoder::decodeReflectancesPred(
     aps.num_pred_nearest_neighbours, predictors);
   const size_t pointCount = pointCloud.getPointCount();
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
-  const int64_t threshold = aps.adaptive_prediction_threshold;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
     const int64_t qs = aps.quant_step_size_luma;
-    computeReflectancePredictionWeights(
-      pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, predictor,
-      decoder);
+    computeReflectancePredictionWeights(aps, pointCloud, predictor, decoder);
     uint16_t& reflectance = pointCloud.getReflectance(predictor.index);
 
     const uint32_t attValue0 = decoder.decode0();
@@ -255,9 +250,8 @@ AttributeDecoder::decodeReflectancesPred(
 
 void
 AttributeDecoder::computeColorPredictionWeights(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
-  const int numberOfNearestNeighborsInPrediction,
-  const int64_t threshold,
   PCCPredictor& predictor,
   PCCResidualsDecoder& decoder)
 {
@@ -265,7 +259,7 @@ AttributeDecoder::computeColorPredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
-    for (size_t i = 0; i < numberOfNearestNeighborsInPrediction; ++i) {
+    for (int i = 0; i < aps.num_pred_nearest_neighbours; ++i) {
       const PCCColor3B colorNeighbor =
         pointCloud.getColor(predictor.neighbors[i].index);
       for (size_t k = 0; k < 3; ++k) {
@@ -280,7 +274,7 @@ AttributeDecoder::computeColorPredictionWeights(
     const int64_t maxDiff = (std::max)(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
-    if (maxDiff > threshold) {
+    if (maxDiff > aps.adaptive_prediction_threshold) {
       const bool predIndex = decoder.decodePred();
       if (predIndex == 0) {
         predictor.neighborCount = 1;
@@ -308,7 +302,6 @@ AttributeDecoder::decodeColorsPred(
   PCCComputePredictors2(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
-  const int64_t threshold = aps.adaptive_prediction_threshold;
   const size_t pointCount = pointCloud.getPointCount();
   uint32_t values[3];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -316,9 +309,7 @@ AttributeDecoder::decodeColorsPred(
     auto& predictor = predictors[predictorIndex];
     const int64_t qs = aps.quant_step_size_luma;
     const int64_t qs2 = aps.quant_step_size_chroma;
-    computeColorPredictionWeights(
-      pointCloud, aps.num_pred_nearest_neighbours, threshold, predictor,
-      decoder);
+    computeColorPredictionWeights(aps, pointCloud, predictor, decoder);
     values[0] = decoder.decode0();
     values[1] = decoder.decode1();
     values[2] = decoder.decode1();

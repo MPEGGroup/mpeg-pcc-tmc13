@@ -327,10 +327,8 @@ AttributeEncoder::computeReflectanceResidual(
 
 void
 AttributeEncoder::computeReflectancePredictionWeights(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
-  const size_t numberOfNearestNeighborsInPrediction,
-  const int64_t threshold,
-  const int64_t qs,
   PCCPredictor& predictor,
   PCCResidualsEncoder& encoder,
   PCCResidualsEntropyEstimator& context)
@@ -339,7 +337,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
-    for (size_t i = 0; i < numberOfNearestNeighborsInPrediction; ++i) {
+    for (size_t i = 0; i < predictor.neighborCount; ++i) {
       const uint16_t reflectanceNeighbor =
         pointCloud.getReflectance(predictor.neighbors[i].index);
       if (i == 0 || reflectanceNeighbor < minValue) {
@@ -350,7 +348,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
       }
     }
     const int64_t maxDiff = maxValue - minValue;
-    if (maxDiff > threshold) {
+    if (maxDiff > aps.adaptive_prediction_threshold) {
+      const int qs = aps.quant_step_size_luma;
       const uint16_t reflectance = pointCloud.getReflectance(predictor.index);
       const uint16_t reflectance0 =
         pointCloud.getReflectance(predictor.neighbors[0].index);
@@ -395,7 +394,6 @@ AttributeEncoder::encodeReflectancesPred(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
 
-  const int64_t threshold = aps.adaptive_prediction_threshold;
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -403,8 +401,7 @@ AttributeEncoder::encodeReflectancesPred(
     auto& predictor = predictors[predictorIndex];
     const int64_t qs = aps.quant_step_size_luma;
     computeReflectancePredictionWeights(
-      pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, predictor,
-      encoder, context);
+      aps, pointCloud, predictor, encoder, context);
     const uint16_t reflectance = pointCloud.getReflectance(predictor.index);
     const uint16_t predictedReflectance =
       predictor.predictReflectance(pointCloud);
@@ -452,11 +449,8 @@ AttributeEncoder::computeColorResiduals(
 
 void
 AttributeEncoder::computeColorPredictionWeights(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
-  const size_t numberOfNearestNeighborsInPrediction,
-  const int64_t threshold,
-  const int64_t qs,
-  const int64_t qs2,
   PCCPredictor& predictor,
   PCCResidualsEncoder& encoder,
   PCCResidualsEntropyEstimator& context)
@@ -465,7 +459,7 @@ AttributeEncoder::computeColorPredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
-    for (size_t i = 0; i < numberOfNearestNeighborsInPrediction; ++i) {
+    for (int i = 0; i < aps.num_pred_nearest_neighbours; ++i) {
       const PCCColor3B colorNeighbor =
         pointCloud.getColor(predictor.neighbors[i].index);
       for (size_t k = 0; k < 3; ++k) {
@@ -480,7 +474,9 @@ AttributeEncoder::computeColorPredictionWeights(
     const int64_t maxDiff = (std::max)(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
-    if (maxDiff > threshold) {
+    if (maxDiff > aps.adaptive_prediction_threshold) {
+      const int qs = aps.quant_step_size_luma;
+      const int qs2 = aps.quant_step_size_chroma;
       const PCCColor3B color = pointCloud.getColor(predictor.index);
       const PCCColor3B color0 =
         pointCloud.getColor(predictor.neighbors[0].index);
@@ -526,7 +522,6 @@ AttributeEncoder::encodeColorsPred(
     pointCloud, numberOfPointsPerLOD, indexesLOD,
     aps.num_pred_nearest_neighbours, predictors);
 
-  const int64_t threshold = aps.adaptive_prediction_threshold;
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   uint32_t values[3];
   PCCResidualsEntropyEstimator context;
@@ -536,8 +531,7 @@ AttributeEncoder::encodeColorsPred(
     const int64_t qs = aps.quant_step_size_luma;
     const int64_t qs2 = aps.quant_step_size_chroma;
     computeColorPredictionWeights(
-      pointCloud, aps.num_pred_nearest_neighbours, threshold, qs, qs2,
-      predictor, encoder, context);
+      aps, pointCloud, predictor, encoder, context);
     const PCCColor3B color = pointCloud.getColor(predictor.index);
     const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
     const int64_t quantAttValue = color[0];

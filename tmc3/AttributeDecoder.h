@@ -101,17 +101,14 @@ protected:
     PCCPointSet3& pointCloud);
 
   static void computeColorPredictionWeights(
+    const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
-    const int numberOfNearestNeighborsInPrediction,
-    const int64_t threshold,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
 
   static void computeReflectancePredictionWeights(
+    const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
-    const size_t numberOfNearestNeighborsInPrediction,
-    const int64_t threshold,
-    const int64_t qs,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
 };
