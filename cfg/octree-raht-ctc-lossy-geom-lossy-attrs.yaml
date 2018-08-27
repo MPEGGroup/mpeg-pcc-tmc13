@@ -22,7 +22,11 @@ categories:
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - use raht
+     #  - scale 16bit reflectance data to 8bit
      - colorTransform: 1
+     -
+       - !conditional '${reflectance8b16b_scale_factor}'
+       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
      - transformType: 1
 
      ##
@@ -31,14 +35,14 @@ categories:
        - !conditional '${has_refl}'
        - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
-           r01: '$eval{ 256 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r02: '$eval{ 128 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r03: '$eval{  64 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r04: '$eval{  32 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r05: '$eval{  16 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r06: '$eval{   8 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
+           r01: 256
+           r02: 128
+           r03:  64
+           r04:  32
+           r05:  16
+           r06:   8
        - quantizationStepChroma: 0
-       - bitdepth: ${bitdepth_refl}
+       - bitdepth: 8
        - attribute: reflectance
 
      ##
@@ -47,26 +51,29 @@ categories:
        - !conditional '${has_colour}'
        - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
-           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
-           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
+           r01: 256
+           r02: 128
+           r03:  64
+           r04:  32
+           r05:  16
+           r06:   8
        - quantizationStepChroma:
            # NB: raht doesn't yet support quantizationStepChroma
-           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
-           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
-       - bitdepth: ${bitdepth_colour}
+           r01: 256
+           r02: 128
+           r03:  64
+           r04:  32
+           r05:  16
+           r06:   8
+       - bitdepth: 8
        - attribute: color
 
     decflags:
      - mode: 1
      - colorTransform: 1
+     -
+       - !conditional '${reflectance8b16b_scale_factor}'
+       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
 
     pcerrorflags:
      - dropdups: 2

@@ -32,21 +32,21 @@ categories:
        - !conditional '${has_colour}'
        - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
-           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
-           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
+           r01: 256
+           r02: 128
+           r03:  64
+           r04:  32
+           r05:  16
+           r06:   8
        - quantizationStepChroma:
            # NB: raht doesn't yet support quantizationStepChroma
-           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
-           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
-       - bitdepth: ${bitdepth_colour}
+           r01: 256
+           r02: 128
+           r03:  64
+           r04:  32
+           r05:  16
+           r06:   8
+       - bitdepth: 8
        - attribute: color
 
     decflags:

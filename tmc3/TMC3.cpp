@@ -61,6 +61,9 @@ struct Parameters {
 
   // todo(df): this should be per-attribute
   ColorTransform colorTransform;
+
+  // todo(df): this should be per-attribute
+  int reflectanceScale;
 };
 
 //============================================================================
@@ -248,6 +251,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "The colour transform to be applied:\n"
     "  0: none\n"
     "  1: RGB to YCbCr (Rec.709)")
+
+  // todo(df): this should be per-attribute
+  ("hack.reflectanceScale",
+    params.reflectanceScale, 1,
+    "scale factor to be applied to reflectance "
+    "pre encoding / post reconstruction")
 
   // NB: if adding decoder options, uncomment the Decoder section marker
   // (po::Section("Decoder"))
@@ -568,17 +577,27 @@ Compress(Parameters& params, Stopwatch& clock)
   if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
     pointCloud.convertRGBToYUV();
   }
+
+  if (params.reflectanceScale > 1 && pointCloud.hasReflectances()) {
+    const auto pointCount = pointCloud.getPointCount();
+    for (size_t i = 0; i < pointCount; ++i) {
+      int val = pointCloud.getReflectance(i) / params.reflectanceScale;
+      pointCloud.setReflectance(i, val);
+    }
+  }
+
   PCCTMC3Encoder3 encoder;
 
-  std::unique_ptr<PCCPointSet3> reconstructedPointCloud;
+  // The reconstructed point cloud
+  std::unique_ptr<PCCPointSet3> reconPointCloud;
   if (!params.reconstructedDataPath.empty()) {
-    reconstructedPointCloud.reset(new PCCPointSet3);
+    reconPointCloud.reset(new PCCPointSet3);
   }
 
   int ret = encoder.compress(
     pointCloud, &params.encoder,
     [&](const PayloadBuffer& buf) { writeTlv(buf, fout); },
-    reconstructedPointCloud.get());
+    reconPointCloud.get());
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
@@ -591,9 +610,18 @@ Compress(Parameters& params, Stopwatch& clock)
 
   if (!params.reconstructedDataPath.empty()) {
     if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-      reconstructedPointCloud->convertYUVToRGB();
+      reconPointCloud->convertYUVToRGB();
     }
-    reconstructedPointCloud->write(params.reconstructedDataPath, true);
+
+    if (params.reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
+      const auto pointCount = reconPointCloud->getPointCount();
+      for (size_t i = 0; i < pointCount; ++i) {
+        int val = reconPointCloud->getReflectance(i) * params.reflectanceScale;
+        reconPointCloud->setReflectance(i, val);
+      }
+    }
+
+    reconPointCloud->write(params.reconstructedDataPath, true);
   }
 
   return 0;
@@ -625,6 +653,14 @@ Decompress(Parameters& params, Stopwatch& clock)
 
         if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
           pointCloud.convertYUVToRGB();
+        }
+
+        if (params.reflectanceScale > 1 && pointCloud.hasReflectances()) {
+          const auto pointCount = pointCloud.getPointCount();
+          for (size_t i = 0; i < pointCount; ++i) {
+            int val = pointCloud.getReflectance(i) * params.reflectanceScale;
+            pointCloud.setReflectance(i, val);
+          }
         }
 
         // Dump the decoded colour using the pre inverse scaled geometry

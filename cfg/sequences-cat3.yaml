@@ -13,6 +13,7 @@ sequences:
     has_colour: 1
     bitdepth_refl: 16
     bitdepth_colour: 8
+    reflectance8b16b_scale_factor: 255
     pcerrorflags:
      - resolution: 30000
 
@@ -27,6 +28,7 @@ sequences:
     has_colour: 1
     bitdepth_refl: 16
     bitdepth_colour: 8
+    reflectance8b16b_scale_factor: 255
     pcerrorflags:
      - resolution: 30000
 
@@ -41,6 +43,7 @@ sequences:
     has_colour: 1
     bitdepth_refl: 16
     bitdepth_colour: 8
+    reflectance8b16b_scale_factor: 255
     pcerrorflags:
      - resolution: 30000
 

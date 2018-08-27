@@ -18,11 +18,15 @@ categories:
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - avoid measuring loss of colourspace conversion
+     #  - scale 16bit reflectance data to 8bit
      #  - use predicting transform for lossless conditions
      #  - automatically derive dist2 based on single initial value by the encoder:
      #    - the initial dist2 is scaled by positionQuantisationScale
      #    - generates dist2 per lod
      - colorTransform: 0
+     -
+       - !conditional '${reflectance8b16b_scale_factor}'
+       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
      - transformType: 0
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: ${seq_lod}
@@ -33,40 +37,43 @@ categories:
      # attribute coding -- reflectance
      -
        - !conditional '${has_refl}'
-       - adaptivePredictionThreshold: '$eval{ 1 << (${bitdepth_refl} - 2) }'
+       - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
        - quantizationStepLuma:
-           r01: '$eval{  2 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r02: '$eval{  4 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r03: '$eval{  8 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r04: '$eval{ 16 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
-           r05: '$eval{ 32 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
+           r01:  2
+           r02:  4
+           r03:  8
+           r04: 16
+           r05: 32
        - quantizationStepChroma: 0
-       - bitdepth: ${bitdepth_refl}
+       - bitdepth: 8
        - attribute: reflectance
 
      ##
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - adaptivePredictionThreshold: '$eval{ 1 << (${bitdepth_colour} - 2) }'
+       - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
        - quantizationStepLuma:
-           r01: '$eval{  2 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{  4 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  8 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{ 16 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{ 32 * (1 << (${bitdepth_colour} - 8)) }'
+           r01:  2
+           r02:  4
+           r03:  8
+           r04: 16
+           r05: 32
        - quantizationStepChroma:
-           r01: '$eval{  2 * (1 << (${bitdepth_colour} - 8)) }'
-           r02: '$eval{  4 * (1 << (${bitdepth_colour} - 8)) }'
-           r03: '$eval{  8 * (1 << (${bitdepth_colour} - 8)) }'
-           r04: '$eval{ 16 * (1 << (${bitdepth_colour} - 8)) }'
-           r05: '$eval{ 32 * (1 << (${bitdepth_colour} - 8)) }'
-       - bitdepth: ${bitdepth_colour}
+           r01:  2
+           r02:  4
+           r03:  8
+           r04: 16
+           r05: 32
+       - bitdepth: 8
        - attribute: color
 
     decflags:
      - mode: 1
      - colorTransform: 0
+     -
+       - !conditional '${reflectance8b16b_scale_factor}'
+       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
 
     pcerrorflags:
      - dropdups: 2
