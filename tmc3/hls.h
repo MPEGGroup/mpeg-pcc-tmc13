@@ -239,7 +239,7 @@ struct AttributeParameterSet {
 
   // NB: derived from num_detail_levels_minus1
   int numDetailLevels;
-  std::vector<int> dist2;
+  std::vector<int64_t> dist2;
 
   // NB: these parameters are shared by raht and lift
   std::vector<int> quant_step_size_luma;

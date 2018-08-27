@@ -110,6 +110,22 @@ ceilpow2(uint32_t x)
 }
 
 //---------------------------------------------------------------------------
+// Round @x up to next power of two.
+//
+inline uint64_t
+ceilpow2(uint64_t x)
+{
+  x--;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  x = x | (x >> 32);
+  return x + 1;
+}
+
+//---------------------------------------------------------------------------
 // Compute \left\floor \text{log}_2(x) \right\floor.
 // NB: ilog2(0) = -1.
 
@@ -118,6 +134,17 @@ ilog2(uint32_t x)
 {
   x = ceilpow2(x + 1) - 1;
   return popcnt(x) - 1;
+}
+
+//---------------------------------------------------------------------------
+// Compute \left\floor \text{log}_2(x) \right\floor.
+// NB: ilog2(0) = -1.
+
+inline int
+ilog2(uint64_t x)
+{
+  x = ceilpow2(x + 1) - 1;
+  return popcnt(uint32_t(x >> 32)) + popcnt(uint32_t(x)) - 1;
 }
 
 //---------------------------------------------------------------------------

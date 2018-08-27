@@ -253,7 +253,8 @@ write(const AttributeParameterSet& aps)
     int num_detail_levels_minus1 = aps.numDetailLevels - 1;
     bs.writeUe(num_detail_levels_minus1);
     for (int idx = 0; idx <= num_detail_levels_minus1; idx++) {
-      bs.writeUe(aps.dist2[idx]);
+      // todo(??): is this an appropriate encoding?
+      bs.writeUe64(aps.dist2[idx]);
       bs.writeUe(aps.quant_step_size_luma[idx]);
       if (chroma_quant_steps_present_flag)
         bs.writeUe(aps.quant_step_size_chroma[idx]);

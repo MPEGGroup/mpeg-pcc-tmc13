@@ -66,9 +66,17 @@ public:
 
   void writeUe(uint32_t value);
 
+  // NB: probably best to think twice before using this method
+  void writeUe64(uint64_t value);
+
   template<typename T>
   void writeUe(const T& value)
   {
+    // Avoid accidental truncation
+    constexpr bool use_writeUe64 =
+      std::is_same<uint64_t, T>::value || std::is_same<int64_t, T>::value;
+    static_assert(!use_writeUe64, "use explicit writeUe64()");
+
     writeUe(uint32_t(value));
   }
 
@@ -152,6 +160,18 @@ BitWriter<OutputIt>::writeSn(int num_bits, int64_t value)
 template<class OutputIt>
 void
 BitWriter<OutputIt>::writeUe(uint32_t value)
+{
+  value++;
+  int len = ilog2(value);
+  writeUn(len, 0);
+  writeUn(len + 1, value);
+}
+
+//----------------------------------------------------------------------------
+
+template<class OutputIt>
+void
+BitWriter<OutputIt>::writeUe64(uint64_t value)
 {
   value++;
   int len = ilog2(value);

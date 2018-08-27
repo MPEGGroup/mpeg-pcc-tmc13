@@ -301,7 +301,7 @@ inline void
 PCCBuildLevelOfDetail2(
   const PCCPointSet3& pointCloud,
   const int levelOfDetailCount,
-  const std::vector<int>& dist2,
+  const std::vector<int64_t>& dist2,
   std::vector<uint32_t>& numberOfPointsPerLOD,
   std::vector<uint32_t>& indexes)
 {
@@ -412,7 +412,7 @@ inline void
 PCCBuildLevelOfDetail(
   const PCCPointSet3& pointCloud,
   const int levelOfDetailCount,
-  const std::vector<int>& dist2,
+  const std::vector<int64_t>& dist2,
   std::vector<uint32_t>& numberOfPointsPerLOD,
   std::vector<uint32_t>& indexes)
 {
