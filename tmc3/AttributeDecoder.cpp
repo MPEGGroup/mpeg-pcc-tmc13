@@ -178,7 +178,7 @@ AttributeDecoder::decode(
 //----------------------------------------------------------------------------
 
 void
-computeReflectancePredictionWeights(
+AttributeDecoder::computeReflectancePredictionWeights(
   const PCCPointSet3& pointCloud,
   const size_t numberOfNearestNeighborsInPrediction,
   const int64_t threshold,
