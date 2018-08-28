@@ -127,12 +127,12 @@ public:
       attr_sps.cicp_video_full_range_flag = true;
 
       if (it.first == "color") {
-        attr_sps.attr_count = 3;
+        attr_sps.attr_num_dimensions = 3;
         attr_sps.attributeLabel = KnownAttributeLabel::kColour;
       }
 
       if (it.first == "reflectance") {
-        attr_sps.attr_count = 1;
+        attr_sps.attr_num_dimensions = 1;
         attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
       }
     }

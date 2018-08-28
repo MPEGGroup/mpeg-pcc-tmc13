@@ -138,7 +138,7 @@ AttributeDecoder::decode(
   decoder.start(
     payload.data() + abhSize, payload.size() - abhSize, alphabetSize);
 
-  if (attr_desc.attr_count == 1) {
+  if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       decodeReflectancesRaht(attr_desc, attr_aps, decoder, pointCloud);
@@ -152,7 +152,7 @@ AttributeDecoder::decode(
       decodeReflectancesLift(attr_desc, attr_aps, decoder, pointCloud);
       break;
     }
-  } else if (attr_desc.attr_count == 3) {
+  } else if (attr_desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       decodeColorsRaht(attr_desc, attr_aps, decoder, pointCloud);
@@ -167,7 +167,9 @@ AttributeDecoder::decode(
       break;
     }
   } else {
-    assert(attr_desc.attr_count == 1 || attr_desc.attr_count == 3);
+    assert(
+      attr_desc.attr_num_dimensions == 1
+      || attr_desc.attr_num_dimensions == 3);
   }
 
   decoder.stop();

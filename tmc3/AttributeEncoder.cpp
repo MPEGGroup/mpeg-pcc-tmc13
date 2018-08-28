@@ -271,7 +271,7 @@ AttributeEncoder::encode(
   const uint32_t alphabetSize = 64;
   encoder.start(int(pointCloud.getPointCount()), alphabetSize);
 
-  if (desc.attr_count == 1) {
+  if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeReflectancesTransformRaht(desc, attr_aps, pointCloud, encoder);
@@ -285,7 +285,7 @@ AttributeEncoder::encode(
       encodeReflectancesLift(desc, attr_aps, pointCloud, encoder);
       break;
     }
-  } else if (desc.attr_count == 3) {
+  } else if (desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeColorsTransformRaht(desc, attr_aps, pointCloud, encoder);
@@ -300,7 +300,7 @@ AttributeEncoder::encode(
       break;
     }
   } else {
-    assert(desc.attr_count == 1 || desc.attr_count == 3);
+    assert(desc.attr_num_dimensions == 1 || desc.attr_num_dimensions == 3);
   }
 
   uint32_t acDataLen = encoder.stop();

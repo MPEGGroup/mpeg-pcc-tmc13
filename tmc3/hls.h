@@ -132,7 +132,7 @@ enum class AttributeEncoding
 
 // invariant properties
 struct AttributeDescription {
-  int attr_count;
+  int attr_num_dimensions;
   int attr_instance_id;
   int attr_bitdepth;
   int cicp_colour_primaries_idx;
