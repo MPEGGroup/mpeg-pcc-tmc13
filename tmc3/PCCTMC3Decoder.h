@@ -60,7 +60,7 @@
 namespace pcc {
 
 struct DecoderParams {
-  bool roundOutputPositions;
+  // Do not delete this structure -- it is for passing options to the decoder.
 };
 
 class PCCTMC3Decoder3 {
@@ -731,25 +731,15 @@ private:
   //==========================================================================
 
 public:
-  void inverseQuantization(
-    PCCPointSet3& pointCloud, const bool roundOutputPositions)
+  void inverseQuantization(PCCPointSet3& pointCloud)
   {
     const size_t pointCount = pointCloud.getPointCount();
     const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
 
-    if (roundOutputPositions) {
-      for (size_t i = 0; i < pointCount; ++i) {
-        auto& point = pointCloud[i];
-        for (size_t k = 0; k < 3; ++k) {
-          point[k] = std::round(point[k] * invScale + minPositions[k]);
-        }
-      }
-    } else {
-      for (size_t i = 0; i < pointCount; ++i) {
-        auto& point = pointCloud[i];
-        for (size_t k = 0; k < 3; ++k) {
-          point[k] = point[k] * invScale + minPositions[k];
-        }
+    for (size_t i = 0; i < pointCount; ++i) {
+      auto& point = pointCloud[i];
+      for (size_t k = 0; k < 3; ++k) {
+        point[k] = point[k] * invScale + minPositions[k];
       }
     }
   }

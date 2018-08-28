@@ -246,11 +246,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  0: none\n"
     "  1: RGB to YCbCr (Rec.709)")
 
-  (po::Section("Decoder"))
-
-  ("roundOutputPositions",
-    params.decoder.roundOutputPositions, false,
-    "todo(kmammou)")
+  // NB: if adding decoder options, uncomment the Decoder section marker
+  // (po::Section("Decoder"))
 
   (po::Section("Encoder"))
 
@@ -583,8 +580,7 @@ Decompress(Parameters& params, Stopwatch& clock)
           pointCloud.write(params.preInvScalePath);
         }
 
-        decoder.inverseQuantization(
-          pointCloud, params.decoder.roundOutputPositions);
+        decoder.inverseQuantization(pointCloud);
 
         clock.stop();
 
