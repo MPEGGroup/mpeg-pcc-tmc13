@@ -10,6 +10,7 @@ categories:
      ##
      # geometry parameters (trisoup)
      - geometryCodec: 2
+     - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 9
      - inferredDirectCodingMode: 0
      - triSoupDepth: ${test-depth}

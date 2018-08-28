@@ -42,6 +42,7 @@
 #include "PCCPointSet.h"
 #include "hls.h"
 #include "ringbuf.h"
+#include "tables.h"
 
 namespace pcc {
 
@@ -130,31 +131,62 @@ isDirectModeEligible(
 //---------------------------------------------------------------------------
 
 struct CtxModelOctreeOccupancy {
-  o3dgc::Adaptive_Bit_Model_Fast b0[10];
-  o3dgc::Adaptive_Bit_Model_Fast b1[2 * 10];
-  o3dgc::Adaptive_Bit_Model_Fast b2[4 * 10];
-  o3dgc::Adaptive_Bit_Model_Fast b3[8 * 10];
-  o3dgc::Adaptive_Bit_Model_Fast b4[75];
-  o3dgc::Adaptive_Bit_Model_Fast b5[112];
-  o3dgc::Adaptive_Bit_Model_Fast b6[117];
-  o3dgc::Adaptive_Bit_Model_Fast b7[127];
+  o3dgc::Adaptive_Bit_Model_Fast contexts[256];
+  int ctxFactorShift;
 
-  o3dgc::Adaptive_Bit_Model* operator[](int bit_pos)
+  CtxModelOctreeOccupancy(int ctxFactorShift) : ctxFactorShift(ctxFactorShift)
+  {}
+
+  o3dgc::Adaptive_Bit_Model& operator[](int idx)
   {
-    assert(unsigned(bit_pos) < 8);
-    switch (bit_pos) {
-    case 0: return b0;
-    case 1: return b1;
-    case 2: return b2;
-    case 3: return b3;
-    case 4: return b4;
-    case 5: return b5;
-    case 6: return b6;
-    case 7: return b7;
-    default: return nullptr;
-    }
+    return contexts[idx >> ctxFactorShift];
   }
 };
+
+//---------------------------------------------------------------------------
+// Encapsulates the derivation of ctxIdx for occupancy coding.
+
+class CtxMapOctreeOccupancy {
+public:
+  struct CtxIdxMap {
+    uint8_t b0[10];
+    uint8_t b1[20];
+    uint8_t b2[39];
+    uint8_t b3[76];
+    uint8_t b4[149];
+    uint8_t b5[294];
+    uint8_t b6[391];
+    uint8_t b7[520];
+  };
+
+  CtxMapOctreeOccupancy();
+
+  const uint8_t* operator[](int bit) const { return b[bit]; }
+
+  uint8_t* operator[](int bit) { return b[bit]; }
+
+  // return *ctxIdx and update *ctxIdx according to bit
+  static uint8_t evolve(bool bit, uint8_t* ctxIdx);
+
+private:
+  std::unique_ptr<CtxIdxMap> map;
+  uint8_t* b[8];
+};
+
+//----------------------------------------------------------------------------
+
+inline uint8_t
+CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
+{
+  uint8_t retval = *ctxIdx;
+
+  if (bit)
+    *ctxIdx = kCtxMapOctreeOccupancyEvolutionOn1[*ctxIdx];
+  else
+    *ctxIdx = kCtxMapOctreeOccupancyEvolutionOn0[*ctxIdx];
+
+  return retval;
+}
 
 //---------------------------------------------------------------------------
 

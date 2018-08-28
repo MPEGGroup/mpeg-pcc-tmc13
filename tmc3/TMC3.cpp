@@ -323,6 +323,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
     "Permits early termination of the geometry octree for isolated points")
 
+  ("ctxOccupancyReductionFactor",
+     params.encoder.gps.geom_occupancy_ctx_reduction_factor, 3,
+     "Adjusts the number of contexts used in occupancy coding")
+
   // (trisoup) geometry parameters
   ("triSoupDepth",  // log2(maxBB+1), where maxBB+1 is analogous to image width
     params.encoder.gps.trisoup_depth, 10,

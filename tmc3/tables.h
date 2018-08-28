@@ -81,10 +81,9 @@ extern const uint8_t kOccMapRotateZ270[256];
 extern const uint8_t kOccMapRotateZ180[256];
 extern const uint8_t kOccMapRotateZ090[256];
 
-extern const uint8_t kOccMapBit4CtxIdx[16 * 9];
-extern const uint8_t kOccMapBit5CtxIdx[32 * 9];
-extern const uint8_t kOccMapBit6CtxIdx[64 * 6];
-extern const uint8_t kOccMapBit7CtxIdx[128 * 4];
+// todo(df): ...
+extern const uint8_t kCtxMapOctreeOccupancyEvolutionOn0[256];
+extern const uint8_t kCtxMapOctreeOccupancyEvolutionOn1[256];
 
 // LUT initialisation table
 extern const uint8_t kDualLutOccupancyCoderInit[10][32];

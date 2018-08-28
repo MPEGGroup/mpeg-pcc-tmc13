@@ -14,6 +14,7 @@ categories:
      # geometry parameters (octree)
      - geometryCodec: 1
      - neighbourAvailBoundaryLog2: 9
+     - ctxOccupancyReductionFactor: 3
 
      ####
      # attribute coding (common options -- relies on option ordering)

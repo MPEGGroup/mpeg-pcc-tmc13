@@ -85,6 +85,7 @@ private:
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
+  CtxMapOctreeOccupancy _ctxIdxMap;
 
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
@@ -96,6 +97,7 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   const GeometryParameterSet& gps, o3dgc::Arithmetic_Codec* arithmeticDecoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _arithmeticDecoder(arithmeticDecoder)
+  , _ctxOccupancy(gps.geom_occupancy_ctx_reduction_factor)
 {
   if (!_useBitwiseOccupancyCoder) {
     for (int i = 0; i < 10; i++)
@@ -146,9 +148,10 @@ GeometryOctreeDecoder::decodeOccupancyNeighZ()
     // NB: There must be at least two occupied child nodes
     //  -- avoid coding the occupancy bit if it is implied.
     if (numOccupiedAcc >= minOccupied + i - 7) {
-      int idx = numOccupiedAcc;
-      bit = _arithmeticDecoder->decode(_ctxOccupancy[i][idx]);
+      int ctxIdx = _ctxIdxMap[i][numOccupiedAcc];
+      bit = _arithmeticDecoder->decode(_ctxOccupancy[ctxIdx]);
     }
+    _ctxIdxMap.evolve(bit, &_ctxIdxMap[i][numOccupiedAcc]);
     numOccupiedAcc += bit;
     occupancy |= bit << occupancyCodingOrder[i];
   }
@@ -173,30 +176,26 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
   // NB: it is impossible for pattern to be 0 (handled in Z case).
   // NB: offsets are added since ctxIdxMap is shared between Z and NZ cases.
   for (int i = 0; i < 8; i++) {
-    int idx, bit;
-    if (i < 4) {
-      idx = (neighPattern10 << i) + partialOccupancy;
-    } else if (i == 4) {
-      idx = ((neighPattern10 - 1) << i) + partialOccupancy;
-      idx = kOccMapBit4CtxIdx[idx] + i;
-    } else if (i == 5) {
-      idx = ((neighPattern10 - 1) << i) + partialOccupancy;
-      idx = kOccMapBit5CtxIdx[idx] + i;
+    int idx;
+    if (i < 6) {
+      idx = ((neighPattern10 - 1) << i) + partialOccupancy + i + 1;
     } else if (i == 6) {
-      idx = ((neighPattern7 - 1) << i) + partialOccupancy;
-      idx = kOccMapBit6CtxIdx[idx] + i;
+      idx = ((neighPattern7 - 1) << i) + partialOccupancy + i + 1;
     } else if (i == 7) {
-      idx = ((neighPattern5 - 1) << i) + partialOccupancy;
-      idx = kOccMapBit7CtxIdx[idx] + i;
-      bit = 1;
+      idx = ((neighPattern5 - 1) << i) + partialOccupancy + i + 1;
     } else {
       // work around clang -Wsometimes-uninitialized fault
       break;
     }
 
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
-    if (i < 7 || partialOccupancy)
-      bit = _arithmeticDecoder->decode(_ctxOccupancy[i][idx]);
+    int bit = 1;
+    if (i < 7 || partialOccupancy) {
+      int ctxIdx = _ctxIdxMap[i][idx];
+      bit = _arithmeticDecoder->decode(_ctxOccupancy[ctxIdx]);
+    }
+
+    _ctxIdxMap.evolve(bit, &_ctxIdxMap[i][idx]);
     partialOccupancy |= bit << i;
     occupancy |= bit << occupancyCodingOrder[i];
   }

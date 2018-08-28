@@ -11,6 +11,7 @@ categories:
      #  - preserve lossless geometry property
      - geometryCodec: 1
      - mergeDuplicatedPoints: 0
+     - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 9
      - positionQuantizationScale: 1
 

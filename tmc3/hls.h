@@ -207,6 +207,10 @@ struct GeometryParameterSet {
   // Selects between bitwise and bytewise occupancy coding
   bool bitwise_occupancy_coding_flag;
 
+  // Experimental knob to control the number of contexts used
+  // for occupancy coding.
+  int geom_occupancy_ctx_reduction_factor;
+
   // depth of voxels (reconstructed points) in trisoup geometry
   int trisoup_depth;
 
