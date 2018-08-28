@@ -57,6 +57,8 @@ file(GLOB PROJECT_IN_FILES
 file(GLOB PROJECT_INC_FILES
   "AttributeDecoder.h"
   "AttributeEncoder.h"
+  "BitReader.h"
+  "BitWriter.h"
   "OctreeNeighMap.h"
   "PCCKdTree.h"
   "PCCMath.h"
