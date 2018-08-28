@@ -193,6 +193,11 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
 
+  if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+    bs.writeUe(gps.trisoup_depth);
+    bs.writeUe(gps.trisoup_triangle_level);
+  }
+
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
   bs.byteAlign();
@@ -217,6 +222,11 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
+
+  if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+    bs.readUe(&gps.trisoup_depth);
+    bs.readUe(&gps.trisoup_triangle_level);
+  }
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
