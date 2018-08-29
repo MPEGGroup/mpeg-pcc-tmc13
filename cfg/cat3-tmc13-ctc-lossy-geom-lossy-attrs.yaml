@@ -7,7 +7,7 @@ categories:
      - mode: 0
      - geometryCodec: 1
      - mergeDuplicatedPoints: 1
-     - neighbourAvailBoundaryLog2: 8
+     - neighbourAvailBoundaryLog2: 9
 
     decflags:
      - mode: 1

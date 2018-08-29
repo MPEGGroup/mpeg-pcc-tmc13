@@ -14,7 +14,7 @@ categories:
      - geometryCodec: 1
      - colorTransform: 1
      - positionQuantizationScale: 1
-     - neighbourAvailBoundaryLog2: 8
+     - neighbourAvailBoundaryLog2: 9
 
     decflags:
      - mode: 1
@@ -55,7 +55,7 @@ categories:
      - mode: 0
      - geometryCodec: 1
      - positionQuantizationScale: 1
-     - neighbourAvailBoundaryLog2: 8
+     - neighbourAvailBoundaryLog2: 9
 
     decflags:
      - mode: 1
