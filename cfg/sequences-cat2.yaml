@@ -12,6 +12,8 @@ sequences:
     num-frames: 300
     group: cat2-B
     src-geometry-precision: 10
+    has_colour: true
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -26,6 +28,8 @@ sequences:
     num-frames: 300
     group: cat2-A
     src-geometry-precision: 10
+    has_colour: true
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -40,6 +44,8 @@ sequences:
     num-frames: 300
     group: cat2-A
     src-geometry-precision: 10
+    has_colour: true
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -54,6 +60,8 @@ sequences:
     num-frames: 300
     group: cat2-A
     src-geometry-precision: 10
+    has_colour: true
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -69,6 +77,8 @@ sequences:
     num-frames: 250
     group: cat2-A
     src-geometry-precision: 10
+    has_colour: true
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 

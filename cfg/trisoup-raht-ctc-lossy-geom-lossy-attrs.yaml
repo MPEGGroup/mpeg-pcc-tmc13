@@ -1,37 +1,64 @@
-# Test conditions for N17523 CTC C1.3 (formerly CfP C02) using TMC13
+# Test conditions for N17766 CTC C1 using TMC13 octree (formerly C3.2/3)
+# trisoup lossy-geom  --  lossy-attrs raht
+#  -- cat 1 only, since trisoup doesn't apply to very sparce clouds
 ---
 categories:
   lossy-geom-lossy-attrs:
     encflags:
      - mode: 0
+
+     ##
+     # geometry parameters (trisoup)
      - geometryCodec: 2
      - triSoupDepth: ${test-depth}
-     - triSoupIntToOrigScale: $eval{ 1 << ( ${src-geometry-precision} - ${test-depth} ) }
+     - triSoupIntToOrigScale: '$eval{ 1 << ( ${src-geometry-precision} - ${test-depth} ) }'
      - triSoupLevel:
-        r01: $eval{ ${test-depth} - 4 }
-        r02: $eval{ ${test-depth} - 3 }
-        r03: $eval{ ${test-depth} - 3 }
-        r04: $eval{ ${test-depth} - 3 }
-        r05: $eval{ ${test-depth} - 2 }
-        r06: ${test-depth}
+         r01: '$eval{ ${test-depth} - 4 }'
+         r02: '$eval{ ${test-depth} - 3 }'
+         r03: '$eval{ ${test-depth} - 3 }'
+         r04: '$eval{ ${test-depth} - 3 }'
+         r05: '$eval{ ${test-depth} - 2 }'
+         r06: ${test-depth}
+
+     ####
+     # attribute coding (common options -- relies on option ordering)
+     #  - use raht
+     - colorTransform: 1
      - transformType: 1
-     - rahtQuantizationStep:
-        r01: 64
-        r02: 32
-        r03: 16
-        r04: 8
-        r05: 4
-        r06: 1
-     - bitdepth: 8
-     - attribute: color
-     # geomstepsize -> default
-     # translation -> default
+
+     ##
+     # attribute coding -- colour
+     -
+       - !conditional '${has_colour}'
+       - rahtLeafDecimationDepth: 3
+       - quantizationStepLuma:
+           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
+           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
+           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
+           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
+           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
+           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
+       - quantizationStepChroma:
+           # NB: raht doesn't yet support quantizationStepChroma
+           r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
+           r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
+           r03: '$eval{  64 * (1 << (${bitdepth_colour} - 8)) }'
+           r04: '$eval{  32 * (1 << (${bitdepth_colour} - 8)) }'
+           r05: '$eval{  16 * (1 << (${bitdepth_colour} - 8)) }'
+           r06: '$eval{   8 * (1 << (${bitdepth_colour} - 8)) }'
+       - bitdepth: ${bitdepth_colour}
+       - attribute: color
+
     decflags:
      - mode: 1
+     - colorTransform: 1
+
     pcerrorflags:
      - dropdups: 2
      - neighborsProc: 1
+
     sequences:
+      # cat1
       arco_valentino_dense_vox12:        { test-depth:  9 }
       arco_valentino_dense_vox20:        { test-depth:  9 }
       egyptian_mask_vox12:               { test-depth:  9 }

@@ -7,6 +7,12 @@ sequences:
     group: cat3-fused
     # precision is actually (21, 20, 16)
     src-geometry-precision: 21
+    seq_lod: 10
+    seq_dist2: 8192
+    has_refl: 1
+    has_colour: 1
+    bitdepth_refl: 16
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 30000
 
@@ -15,6 +21,12 @@ sequences:
     group: cat3-fused
     # precision is actually (20, 20, 16)
     src-geometry-precision: 20
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    has_colour: 1
+    bitdepth_refl: 16
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 30000
 
@@ -23,6 +35,12 @@ sequences:
     group: cat3-fused
     # precision is actually (21, 20, 17)
     src-geometry-precision: 21
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    has_colour: 1
+    bitdepth_refl: 16
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 30000
 
@@ -35,6 +53,10 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
     pcerrorflags:
      - resolution: 30000
 
@@ -46,6 +68,10 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
     pcerrorflags:
      - resolution: 30000
 
@@ -57,5 +83,9 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
     pcerrorflags:
      - resolution: 30000

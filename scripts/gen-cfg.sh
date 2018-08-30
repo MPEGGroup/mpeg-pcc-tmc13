@@ -6,22 +6,80 @@
 set -e
 shopt -s nullglob
 
-script_dir=$(dirname $0)
-src_cfg_dir="${1}${1:+/}"
-shift || true;
+script_dir="$(dirname $0)"
+geom="octree"
+attr="predlift"
+src_cfg_dir=""
 
-for f in ${src_cfg_dir}cat3-tmc13-ctc-*.yaml
-do
-	echo $f ...
-	$script_dir/gen-cfg.pl --no-skip-sequences-without-src "$@" $f
-	rm config-merged.yaml
+while (( $# )); do
+	case $1 in
+	--octree) geom="octree" ;;
+	--trisoup) geom="trisoup" ;;
+	--raht) attr="raht" ;;
+	--pred-lift) attr="predlift" ;;
+	--all) all=1 ;;
+	--cfgdir=*) src_cfg_dir="${1#--cfgdir=}/" ;;
+	--) break ;;
+	--help|*)
+		echo -e "usage:\n $0\n" \
+			"    [[--octree|--trisoup] [--raht|--pred-lift] | --all]\n" \
+			"    [--cfgdir=<dir>]"
+		exit 1
+	esac
+	shift;
 done
 
+extra_args=("$@")
 
-# NB, cat1 configs need the sequence parameters
-for f in ${src_cfg_dir}cat1-tmc13-ctc-*.yaml
-do
-	echo $f ...
-	$script_dir/gen-cfg.pl --no-skip-sequences-without-src "$@" $f ${src_cfg_dir}sequences-cat1.yaml
-	rm config-merged.yaml
-done
+cfg_octree_predlift=(
+	octree-liftt-ctc-lossless-geom-lossy-attrs.yaml
+	octree-liftt-ctc-lossy-geom-lossy-attrs.yaml
+	octree-predt-ctc-lossless-geom-lossless-attrs.yaml
+	octree-predt-ctc-lossless-geom-nearlossless-attrs.yaml
+)
+
+cfg_octree_raht=(
+	octree-raht-ctc-lossless-geom-lossy-attrs.yaml
+	octree-raht-ctc-lossy-geom-lossy-attrs.yaml
+)
+
+cfg_trisoup_predlift=(
+	trisoup-liftt-ctc-lossy-geom-lossy-attrs.yaml
+)
+
+cfg_trisoup_raht=(
+	trisoup-liftt-ctc-lossy-geom-lossy-attrs.yaml
+)
+
+do_one_cfgset() {
+	local geom=$1
+	local attr=$2
+
+	outdir="$geom-$attr/"
+	mkdir -p "$outdir"
+
+	cfgset="cfg_${geom}_${attr}[@]"
+
+	for f in ${!cfgset}
+	do
+		echo "${src_cfg_dir}$f -> $outdir" ...
+
+		$script_dir/gen-cfg.pl \
+			--prefix="$outdir" --no-skip-sequences-without-src \
+			"${extra_args[@]}" $f \
+			${src_cfg_dir}sequences-cat1.yaml \
+			${src_cfg_dir}sequences-cat3.yaml
+
+		rm -f "$outdir/config-merged.yaml"
+	done
+}
+
+if [[ "$all" != "1" ]]
+then
+	do_one_cfgset "$geom" "$attr"
+else
+	do_one_cfgset "octree" "predlift"
+	do_one_cfgset "octree" "raht"
+	do_one_cfgset "trisoup" "predlift"
+	do_one_cfgset "trisoup" "raht"
+fi

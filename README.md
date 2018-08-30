@@ -31,10 +31,16 @@ the `--mode` option.  Documentation of options is provided via the
 ### Runtime configuration and configuration files
 
 All command line parameters may be specified in a configuration file.
-A set of configuration files compliant with the current Common Test
-Conditions is provided in the cfg/ directory.
+A set of configuration file templates compliant with the current Common
+Test Conditions is provided in the cfg/ directory.
 
 ### Example
+
+To generate the configuration files, run the gen-cfg.sh script:
+
+```console
+mpeg-pcc-tmc13/cfg$ ../scripts/gen-cfg.sh --all
+```
 
 An example script (`scripts/Makefile.tmc13-step`) demonstrates how
 to launch the encoder, decoder and metric software for a single
@@ -51,7 +57,7 @@ the intermediate results in the output directory
 ```console
 mpeg-pcc-tmc13$ make -f $PWD/scripts/Makefile.tmc13-step \
     -C experiment/lossy-geom-no-attrs/ford_01_q1mm/r01/ \
-    VPATH=$PWD/cfg/lossy-geom-no-attrs/ford_01_q1mm/r01/ \
+    VPATH=$PWD/cfg/octree-predlift/lossy-geom-no-attrs/ford_01_q1mm/r01/ \
     ENCODER=$PWD/build/tmc3/tmc3 \
     DECODER=$PWD/build/tmc3/tmc3 \
     PCERROR=/path/to/pc_error \

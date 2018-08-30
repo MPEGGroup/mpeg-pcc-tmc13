@@ -5,6 +5,8 @@ sequences:
     src: Arco_Valentino_Dense_vox12.ply
     group: cat1-A
     src-geometry-precision: 12
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -12,6 +14,8 @@ sequences:
     src: Arco_Valentino_Dense_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -19,6 +23,10 @@ sequences:
     src: Egyptian_mask_vox12.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 12
+    seq_lod:  11
+    seq_dist2: 192
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -26,6 +34,8 @@ sequences:
     src: Egyptian_mask_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -33,6 +43,10 @@ sequences:
     src: Facade_00009_vox12.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 12
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -40,6 +54,8 @@ sequences:
     src: Facade_00009_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -47,6 +63,10 @@ sequences:
     src: Facade_00015_vox14.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 14
+    seq_lod:  14
+    seq_dist2: 48
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 16383
 
@@ -54,6 +74,8 @@ sequences:
     src: Facade_00015_vox20.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -61,6 +83,10 @@ sequences:
     src: Facade_00064_vox11.ply
     group: cat1-A2
     src-geometry-precision: 11
+    seq_lod:  13
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 2047
 
@@ -68,6 +94,8 @@ sequences:
     src: Facade_00064_vox14.ply
     group: cat1-A
     src-geometry-precision: 14
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 16383
 
@@ -75,6 +103,8 @@ sequences:
     src: Facade_00064_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -82,6 +112,10 @@ sequences:
     src: Frog_00067_vox12.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 12
+    seq_lod:  13
+    seq_dist2: 12
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -89,6 +123,8 @@ sequences:
     src: Frog_00067_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -96,6 +132,10 @@ sequences:
     src: Head_00039_vox12.ply
     group: [ cat1-B, cat1-B2 ]
     src-geometry-precision: 12
+    seq_lod:  13
+    seq_dist2: 8
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -103,6 +143,8 @@ sequences:
     src: Head_00039_vox20.ply
     group: cat1-B
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -110,6 +152,10 @@ sequences:
     src: House_without_roof_00057_vox12.ply
     group: [ cat1-B, cat1-B2 ]
     src-geometry-precision: 12
+    seq_lod:  13
+    seq_dist2: 12
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -117,6 +163,8 @@ sequences:
     src: House_without_roof_00057_vox20.ply
     group: cat1-B
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -124,6 +172,8 @@ sequences:
     src: Landscape_00014_vox14.ply
     group: cat1-C
     src-geometry-precision: 14
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 16383
 
@@ -131,6 +181,8 @@ sequences:
     src: Landscape_00014_vox20.ply
     group: cat1-C
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -139,6 +191,10 @@ sequences:
     norm: longdress_vox10_1300_n.ply
     group: [ cat1-B, cat1-B2 ]
     src-geometry-precision: 10
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -147,6 +203,10 @@ sequences:
     norm: loot_vox10_1200_n.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 10
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -154,6 +214,8 @@ sequences:
     src: Palazzo_Carignano_Dense_vox14.ply
     group: cat1-B
     src-geometry-precision: 14
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 16383
 
@@ -161,6 +223,8 @@ sequences:
     src: Palazzo_Carignano_Dense_vox20.ply
     group: cat1-B
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -168,6 +232,10 @@ sequences:
     src: queen_0200.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 10
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -176,6 +244,10 @@ sequences:
     norm: redandblack_vox10_1550_n.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 10
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -183,6 +255,10 @@ sequences:
     src: Shiva_00035_vox12.ply
     group: [ cat1-B, cat1-B2 ]
     src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 48
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -190,6 +266,8 @@ sequences:
     src: Shiva_00035_vox20.ply
     group: [ cat1-B, cat1-B2 ]
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -198,6 +276,10 @@ sequences:
     norm: soldier_vox10_0690_n.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 10
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
 
@@ -205,6 +287,8 @@ sequences:
     src: Stanford_Area_2_vox16.ply
     group: cat1-C
     src-geometry-precision: 16
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 65535
 
@@ -212,6 +296,8 @@ sequences:
     src: Stanford_Area_2_vox20.ply
     group: cat1-C
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -219,6 +305,8 @@ sequences:
     src: Stanford_Area_4_vox16.ply
     group: cat1-C
     src-geometry-precision: 16
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 65535
 
@@ -226,6 +314,8 @@ sequences:
     src: Stanford_Area_4_vox20.ply
     group: cat1-C
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -233,6 +323,8 @@ sequences:
     src: Staue_Klimt_vox12.ply
     group: cat1-A
     src-geometry-precision: 12
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
 
@@ -240,6 +332,8 @@ sequences:
     src: Staue_Klimt_vox20.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -247,6 +341,8 @@ sequences:
     src: ULB_Unicorn_HiRes_vox15_n.ply
     group: cat1-C
     src-geometry-precision: 15
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 32767
 
@@ -254,6 +350,8 @@ sequences:
     src: ULB_Unicorn_HiRes_vox20_n.ply
     group: cat1-C
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
 
@@ -261,6 +359,10 @@ sequences:
     src: ULB_Unicorn_vox13_n.ply
     group: [ cat1-A, cat1-A2 ]
     src-geometry-precision: 13
+    seq_lod:  12
+    seq_dist2: 192
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 8191
 
@@ -268,5 +370,7 @@ sequences:
     src: ULB_Unicorn_vox20_n.ply
     group: cat1-A
     src-geometry-precision: 20
+    has_colour: 1
+    bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
