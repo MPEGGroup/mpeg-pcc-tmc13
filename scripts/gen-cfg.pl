@@ -4,7 +4,8 @@ use Digest::MD5;
 use File::Path qw(make_path);
 use File::Basename qw(basename);
 use Getopt::Long;
-use List::MoreUtils;
+use List::Util qw{pairmap};
+use List::MoreUtils qw{firstres};
 use Module::Load::Conditional qw(can_load);
 use Pod::Usage;
 use YAML;
@@ -86,6 +87,7 @@ pod2usage(1) unless @ARGV;
 ##
 # load all yaml snippets and merge into a single description
 #
+$YAML::TagClass->{conditional} = 'conditional';
 my @origins = @ARGV;
 my %cfg;
 while (@ARGV) {
@@ -224,47 +226,42 @@ sub genSeqVariants {
 		}
 
 		##
+		# make dictionary for any variable substitutions
+		my $dict = dict_from_context($var, $cat_seq, $seq);
+
+		##
 		# encoder configuration
 		my @encflags = (
-			params_from_node($seq->{encflags}),
-			params_from_node($cat->{encflags}, $var),
-			params_from_node($cat_seq->{encflags}, $var),
-			params_from_node($cat_seq->{$var}{encflags}),
-			params_from_node($cfg->{encflags}),
+			params_from_node($dict, $seq->{encflags}),
+			params_from_node($dict, $cat->{encflags}, $var),
+			params_from_node($dict, $cat_seq->{encflags}, $var),
+			params_from_node($dict, $cat_seq->{$var}{encflags}),
+			params_from_node($dict, $cfg->{encflags}),
 		);
-
-		# evaluate any value expressions
-		eval_exprs(\@encflags, $cat_seq, $seq);
 
 		write_cfg("$cfgdir/encoder.cfg", \@encflags);
 
 		##
 		# decoder configuration
 		my @decflags = (
-			params_from_node($seq->{decflags}),
-			params_from_node($cat->{decflags}, $var),
-			params_from_node($cat_seq->{decflags}, $var),
-			params_from_node($cat_seq->{$var}{decflags}),
-			params_from_node($cfg->{decflags}),
+			params_from_node($dict, $seq->{decflags}),
+			params_from_node($dict, $cat->{decflags}, $var),
+			params_from_node($dict, $cat_seq->{decflags}, $var),
+			params_from_node($dict, $cat_seq->{$var}{decflags}),
+			params_from_node($dict, $cfg->{decflags}),
 		);
-
-		# evaluate any value expressions
-		eval_exprs(\@decflags, $cat_seq, $seq);
 
 		write_cfg("$cfgdir/decoder.cfg", \@decflags);
 
 		##
 		# pcerror configuration
 		my @pcerrorflags = (
-			params_from_node($seq->{pcerrorflags}),
-			params_from_node($cat->{pcerrorflags}),
-			params_from_node($cat_seq->{pcerrorflags}, $var),
-			params_from_node($cat_seq->{$var}{pcerrorflags}),
-			params_from_node($cfg->{pcerrorflags}),
+			params_from_node($dict, $seq->{pcerrorflags}),
+			params_from_node($dict, $cat->{pcerrorflags}),
+			params_from_node($dict, $cat_seq->{pcerrorflags}, $var),
+			params_from_node($dict, $cat_seq->{$var}{pcerrorflags}),
+			params_from_node($dict, $cfg->{pcerrorflags}),
 		);
-
-		# evaluate any value expressions
-		eval_exprs(\@pcerrorflags, $cat_seq, $seq);
 
 		write_cfg("$cfgdir/pcerror.cfg", \@pcerrorflags) if (@pcerrorflags);
 	}
@@ -345,8 +342,26 @@ sub variants_from_node {
 }
 
 sub params_from_node {
-	my ($node, $variant) = @_;
+	my ($dict, $node, $variant) = @_;
 	return () unless $node;
+
+	# add a key-value pair to the array of parameters, first evaluating
+	# the value to expand any variable substitutions
+	sub push_eval(+$$$) {
+		my ($aref, $dict, $key, $value) = @_;
+		die "Not an array or arrayref" unless ref $aref eq 'ARRAY';
+		my ($evald, @substs) = eval_expr($value, $dict);
+
+		if (0 && @substs) {
+			# substitution happened => add comment annotations
+			push @$aref,
+				[""],
+				["# $key = $value, with " . join ", ", pairmap {"$a = $b"} @substs];
+		}
+
+		push @$aref, [$key, $evald];
+		();
+	}
 
 	my @params;
 	my @todo = @$node;
@@ -360,12 +375,12 @@ sub params_from_node {
 			while (my ($key, $value) = each %$item) {
 				unless (ref $value) {
 					# key:value without variants
-					push @params, [$key, $value];
+					push_eval @params, $dict, $key, $value;
 					next;
 				}
 				if (ref $value eq 'HASH') {
 					# key:value with variants
-					push @params, [$key, $value->{$variant}]
+					push_eval @params, $dict, $key, $value->{$variant}
 						if exists $value->{$variant};
 					next;
 				}
@@ -373,6 +388,14 @@ sub params_from_node {
 			}
 		}
 		if (ref $item eq 'ARRAY') {
+			# if the first item of the array is a conditional, evaluate
+			# it and conditionally add the array
+			if (exists $item->[0] && ref $item->[0] eq 'conditional') {
+				my ($evald, undef) = eval_expr(${$item->[0]}, $dict);
+				next unless eval $evald;
+				push @params, [""];
+			}
+
 			unshift @todo, @$item;
 			next;
 		}
@@ -380,35 +403,53 @@ sub params_from_node {
 	return @params;
 }
 
-##
-# Expand in-place all variables and eval statements in the list @$params,
-# searching for substitutions as members of @context
-sub eval_exprs {
-	my ($params, @context) = @_;
 
-	map {
-		$_->[1] = eval_expr($_->[1], \@context) if exists $_->[1];
-	} @$params;
+##
+# Build a dictionary of all variables that apply to the current variant
+# from the given context.
+sub dict_from_context {
+	my ($variant, @context) = @_;
+	my %dict;
+
+	# discover all variables with earlier contexts having priority
+	foreach my $context (reverse @context) {
+		while (my ($var, $val) = each %$context) {
+			my $type = ref $val;
+			if (!$type) {
+				# scalar, applies to all variants
+				$dict{$var} = $val;
+			}
+			if ($type eq 'HASH') {
+				# see if variant is specified
+				$dict{$var} = $val->{$variant} if exists $val->{$variant};
+			}
+		}
+	}
+
+	return \%dict;
 }
 
+
 ##
-# Return the exansion of $str given the context of the maps in @$contexts.
-# Any variable subsitutions found in $str are searched in order
-# of @$contexts.
+# Return the exansion of $str given a dictionary of variables.
 sub eval_expr {
-	my ($str, $contexts) = @_;
+	my ($str, $dict) = @_;
+	my @substs;
 
 	# first find all variables and substitute their values
+	#  - substitute an empty string if not found
 	while ($str =~ m/\$\{([^}]+)\}/gc) {
 		my $var = $1;
 		my $var_start = $-[0];
 		my $var_len  = $+[0] - $-[0];
-		foreach my $ctx (@$contexts) {
-			next unless exists $ctx->{$var};
-			substr $str, $var_start, $var_len, $ctx->{$var};
-			pos $str = $var_start + length($ctx->{$var});
-			last;
-		}
+
+		my $subst = "(undef)";
+		$subst = $dict->{$var} if exists $dict->{$var};
+
+		substr $str, $var_start, $var_len, $subst;
+		pos $str = $var_start + length($subst);
+
+		push @substs, ($var, $subst);
 	}
 
 	# finally evaluate any eval expressions
@@ -417,12 +458,13 @@ sub eval_expr {
 		my $expr = $1;
 		my $expr_start = $-[0];
 		my $expr_len  = $+[0] - $-[0];
-		my $val = eval "$expr";
+		my $val = eval "use POSIX qw{round signbit}; use List::Util qw{min max}; no strict; $expr";
+		if ($@) { print STDERR "err: $@\n$expr\n"; }
 		substr $str, $expr_start, $expr_len, $val;
 		pos $str = $expr_start + length($val);
 	}
 
-	return $str;
+	return ($str, @substs);
 }
 
 
