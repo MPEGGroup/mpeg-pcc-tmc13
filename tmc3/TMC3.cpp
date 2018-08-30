@@ -46,6 +46,9 @@ using namespace pcc;
 struct Parameters {
   bool isDecoder;
 
+  // command line parsing should adjust dist2 values according to PQS
+  bool positionQuantizationScaleAdjustsDist2;
+
   std::string uncompressedDataPath;
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
@@ -255,6 +258,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.sps.seq_source_geom_scale_factor, 1.f,
     "Scale factor to be applied to point positions during quantization process")
 
+  ("positionQuantizationScaleAdjustsDist2",
+    params.positionQuantizationScaleAdjustsDist2, false,
+    "Scale dist2 values by squared positionQuantizationScale")
+
   ("mergeDuplicatedPoints",
     params.encoder.gps.geom_unique_points_flag, true,
     "Enables removal of duplicated points")
@@ -408,6 +415,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         }
         attr_aps.dist2[attr_aps.numDetailLevels - 1] = 0;
       }
+    }
+
+    // In order to simplify specification of dist2 values, which are
+    // depending on the scale of the coded point cloud, the following
+    // adjust the dist2 values according to PQS.  The user need only
+    // specify the unquantised PQS value.
+    if (params.positionQuantizationScaleAdjustsDist2) {
+      double pqs = params.encoder.sps.seq_source_geom_scale_factor;
+      double pqs2 = pqs * pqs;
+      for (auto& dist2 : attr_aps.dist2)
+        dist2 = int64_t(std::round(pqs2 * dist2));
     }
 
     // Set default threshold based on bitdepth
