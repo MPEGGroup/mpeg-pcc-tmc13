@@ -24,7 +24,7 @@ categories:
      # attribute coding -- reflectance
      -
        - !conditional '${has_refl}'
-       - adaptivePredictionThreshold: '$eval{ 1 << (${bitdepth_refl} - 2) }'
+       - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
            r01: '$eval{ 256 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
            r02: '$eval{ 128 * (${scale_refl} ? ${scale_refl} : (1 << (${bitdepth_refl} - 8))) }'
@@ -40,7 +40,7 @@ categories:
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - adaptivePredictionThreshold: '$eval{ 1 << (${bitdepth_colour} - 2) }'
+       - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
            r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
            r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'

@@ -30,7 +30,7 @@ categories:
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - rahtLeafDecimationDepth: 3
+       - rahtLeafDecimationDepth: 0
        - quantizationStepLuma:
            r01: '$eval{ 256 * (1 << (${bitdepth_colour} - 8)) }'
            r02: '$eval{ 128 * (1 << (${bitdepth_colour} - 8)) }'
