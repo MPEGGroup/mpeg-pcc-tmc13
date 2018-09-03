@@ -49,8 +49,7 @@ namespace pcc {
 class GeometryOctreeDecoder {
 public:
   GeometryOctreeDecoder(
-    const GeometryParameterSet& gps,
-    o3dgc::Arithmetic_Codec* arithmeticDecoder);
+    const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder);
 
   void beginOctreeLevel();
 
@@ -81,13 +80,13 @@ private:
 
   const uint8_t (&_neighPattern64toR1)[64];
 
-  o3dgc::Arithmetic_Codec* _arithmeticDecoder;
-  o3dgc::Static_Bit_Model _ctxEquiProb;
-  o3dgc::Adaptive_Bit_Model _ctxSingleChild;
-  o3dgc::Adaptive_Bit_Model _ctxSinglePointPerBlock;
-  o3dgc::Adaptive_Bit_Model _ctxPointCountPerBlock;
-  o3dgc::Adaptive_Bit_Model _ctxBlockSkipTh;
-  o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
+  EntropyDecoder* _arithmeticDecoder;
+  StaticBitModel _ctxEquiProb;
+  AdaptiveBitModel _ctxSingleChild;
+  AdaptiveBitModel _ctxSinglePointPerBlock;
+  AdaptiveBitModel _ctxPointCountPerBlock;
+  AdaptiveBitModel _ctxBlockSkipTh;
+  AdaptiveBitModel _ctxNumIdcmPointsEq1;
 
   // For bitwise occupancy coding
   //   map 0 = not predicted
@@ -103,7 +102,7 @@ private:
 //============================================================================
 
 GeometryOctreeDecoder::GeometryOctreeDecoder(
-  const GeometryParameterSet& gps, o3dgc::Arithmetic_Codec* arithmeticDecoder)
+  const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
@@ -135,7 +134,7 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 
   int count = 1;
   if (!isSinglePoint) {
-    count += _arithmeticDecoder->ExpGolombDecode(
+    count += _arithmeticDecoder->decodeExpGolomb(
       0, _ctxEquiProb, _ctxPointCountPerBlock);
   }
 
@@ -341,7 +340,7 @@ decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
+  EntropyDecoder* arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   GeometryOctreeDecoder decoder(gps, arithmeticDecoder);
@@ -514,7 +513,7 @@ decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder)
+  EntropyDecoder* arithmeticDecoder)
 {
   decodeGeometryOctree(gps, gbh, pointCloud, arithmeticDecoder, nullptr);
 }

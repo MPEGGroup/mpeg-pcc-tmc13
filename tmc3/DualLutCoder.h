@@ -38,7 +38,7 @@
 #include <cassert>
 #include <cstdint>
 
-#include "ArithmeticCodec.h"
+#include "entropy.h"
 
 namespace pcc {
 
@@ -183,25 +183,24 @@ public:
   void init(const uint8_t initTable[32]);
   void resetLut();
 
-  void encode(int symbol, o3dgc::Arithmetic_Codec* arithmeticEncoder);
-  int decode(o3dgc::Arithmetic_Codec* arithmeticDecoder);
+  void encode(int symbol, EntropyEncoder* arithmeticEncoder);
+  int decode(EntropyDecoder* arithmeticDecoder);
 
 private:
-  void
-  encodeFrequencySortedLutIndex(int index, o3dgc::Arithmetic_Codec* entropy);
+  void encodeFrequencySortedLutIndex(int index, EntropyEncoder* entropy);
 
-  int decodeFrequencySortedLutIndex(o3dgc::Arithmetic_Codec* entropy);
+  int decodeFrequencySortedLutIndex(EntropyDecoder* entropy);
 
   //  bool _limitedContextMode;
 
   FrequentSymbolCache<kCacheSize, 256> _cache;
   FrequencySortingLut<kLutSize, 256> _adaptiveLut;
 
-  o3dgc::Static_Bit_Model _ctxBypass;
-  o3dgc::Adaptive_Bit_Model_Fast _ctxLutHit;
-  o3dgc::Adaptive_Bit_Model_Fast _ctxCacheHit;
-  o3dgc::Adaptive_Bit_Model_Fast _ctxSymbolBit;
-  o3dgc::Adaptive_Bit_Model_Fast _ctxLutIndex[kNumLutContexts];
+  StaticBitModel _ctxBypass;
+  AdaptiveBitModelFast _ctxLutHit;
+  AdaptiveBitModelFast _ctxCacheHit;
+  AdaptiveBitModelFast _ctxSymbolBit;
+  AdaptiveBitModelFast _ctxLutIndex[kNumLutContexts];
 };
 
 //============================================================================

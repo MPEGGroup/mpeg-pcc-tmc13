@@ -35,40 +35,17 @@
 
 #pragma once
 
-#include "PCCPointSet.h"
-#include "entropy.h"
-#include "hls.h"
+#define ENTROPY_O3DGC 1
 
+#if ENTROPY_O3DGC
+#  include "entropyo3dgc.h"
+#endif
+
+#include "entropyutils.h"
+
+#if ENTROPY_O3DGC
 namespace pcc {
-
-//============================================================================
-
-void encodeGeometryOctree(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder);
-
-void decodeGeometryOctree(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder);
-
-//----------------------------------------------------------------------------
-
-void encodeGeometryTrisoup(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder);
-
-void decodeGeometryTrisoup(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder);
-
-//============================================================================
-
+using EntropyEncoder = EntropyEncoderWrapper<o3dgc::ArithmeticEncoder>;
+using EntropyDecoder = EntropyDecoderWrapper<o3dgc::ArithmeticDecoder>;
 }  // namespace pcc
+#endif

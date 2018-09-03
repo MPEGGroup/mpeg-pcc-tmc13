@@ -49,8 +49,7 @@ namespace pcc {
 class GeometryOctreeEncoder {
 public:
   GeometryOctreeEncoder(
-    const GeometryParameterSet& gps,
-    o3dgc::Arithmetic_Codec* arithmeticEncoder);
+    const GeometryParameterSet& gps, EntropyEncoder* arithmeticEncoder);
 
   void beginOctreeLevel();
 
@@ -92,13 +91,13 @@ private:
 
   const uint8_t (&_neighPattern64toR1)[64];
 
-  o3dgc::Arithmetic_Codec* _arithmeticEncoder;
-  o3dgc::Static_Bit_Model _ctxEquiProb;
-  o3dgc::Adaptive_Bit_Model _ctxSingleChild;
-  o3dgc::Adaptive_Bit_Model _ctxSinglePointPerBlock;
-  o3dgc::Adaptive_Bit_Model _ctxPointCountPerBlock;
-  o3dgc::Adaptive_Bit_Model _ctxBlockSkipTh;
-  o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
+  EntropyEncoder* _arithmeticEncoder;
+  StaticBitModel _ctxEquiProb;
+  AdaptiveBitModel _ctxSingleChild;
+  AdaptiveBitModel _ctxSinglePointPerBlock;
+  AdaptiveBitModel _ctxPointCountPerBlock;
+  AdaptiveBitModel _ctxBlockSkipTh;
+  AdaptiveBitModel _ctxNumIdcmPointsEq1;
 
   // For bitwise occupancy coding
   //   map 0 = not predicted
@@ -114,7 +113,7 @@ private:
 //============================================================================
 
 GeometryOctreeEncoder::GeometryOctreeEncoder(
-  const GeometryParameterSet& gps, o3dgc::Arithmetic_Codec* arithmeticEncoder)
+  const GeometryParameterSet& gps, EntropyEncoder* arithmeticEncoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticEncoder(arithmeticEncoder)
@@ -146,7 +145,7 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
     _arithmeticEncoder->encode(1, _ctxSinglePointPerBlock);
   } else {
     _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
-    _arithmeticEncoder->ExpGolombEncode(
+    _arithmeticEncoder->encodeExpGolomb(
       uint32_t(count - 1), 0, _ctxEquiProb, _ctxPointCountPerBlock);
   }
 
@@ -349,7 +348,7 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticEncoder,
+  EntropyEncoder* arithmeticEncoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   GeometryOctreeEncoder encoder(gps, arithmeticEncoder);
@@ -591,7 +590,7 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticEncoder)
+  EntropyEncoder* arithmeticEncoder)
 {
   encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoder, nullptr);
 }

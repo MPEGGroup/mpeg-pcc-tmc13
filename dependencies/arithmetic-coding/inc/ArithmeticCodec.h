@@ -76,14 +76,6 @@ OF SUCH DAMAGE.
 
 namespace o3dgc {
 
-inline unsigned long IntToUInt(long value)
-{
-    return (value < 0) ? static_cast<unsigned long>(-1 - (2 * value)) : static_cast<unsigned long>(2 * value);
-}
-inline long UIntToInt(unsigned long uiValue)
-{
-    return (uiValue & 1) ? -(static_cast<long>((uiValue + 1) >> 1)) : (static_cast<long>(uiValue >> 1));
-}
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // - - Class definitions - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class Static_Bit_Model // static model for binary data
@@ -229,49 +221,7 @@ public:
         Adaptive_Data_Model&);
     unsigned decode(Adaptive_Data_Model&);
 
-    //   This section was added by K. Mammou
-    void ExpGolombEncode(unsigned int symbol,
-        int k,
-        Static_Bit_Model& bModel0,
-        Adaptive_Bit_Model& bModel1)
-    {
-        while (1) {
-            if (symbol >= static_cast<unsigned int>(1 << k)) {
-                encode(1, bModel1);
-                symbol = symbol - (1 << k);
-                k++;
-            }
-            else {
-                encode(0, bModel1); // now terminated zero of unary part
-                while (k--) // next binary part
-                {
-                    encode(static_cast<signed short>((symbol >> k) & 1), bModel0);
-                }
-                break;
-            }
-        }
-    }
 
-    unsigned ExpGolombDecode(int k,
-        Static_Bit_Model& bModel0,
-        Adaptive_Bit_Model& bModel1)
-    {
-        unsigned int l;
-        int symbol = 0;
-        int binary_symbol = 0;
-        do {
-            l = decode(bModel1);
-            if (l == 1) {
-                symbol += (1 << k);
-                k++;
-            }
-        } while (l != 0);
-        while (k--) //next binary part
-            if (decode(bModel0) == 1) {
-                binary_symbol |= (1 << k);
-            }
-        return static_cast<unsigned int>(symbol + binary_symbol);
-    }
     //----------------------------------------------------------
 
 private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
@@ -282,65 +232,7 @@ private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
     unsigned base, value, length; // arithmetic coding state
     unsigned buffer_size, mode; // mode: 0 = undef, 1 = encoder, 2 = decoder
 };
-inline long DecodeIntACEGC(Arithmetic_Codec& acd,
-    Adaptive_Data_Model& mModelValues,
-    Static_Bit_Model& bModel0,
-    Adaptive_Bit_Model& bModel1,
-    const unsigned long exp_k,
-    const unsigned long M)
-{
-    unsigned long uiValue = acd.decode(mModelValues);
-    if (uiValue == M) {
-        uiValue += acd.ExpGolombDecode(exp_k, bModel0, bModel1);
-    }
-    return UIntToInt(uiValue);
-}
-inline unsigned long DecodeUIntACEGC(Arithmetic_Codec& acd,
-    Adaptive_Data_Model& mModelValues,
-    Static_Bit_Model& bModel0,
-    Adaptive_Bit_Model& bModel1,
-    const unsigned long exp_k,
-    const unsigned long M)
-{
-    unsigned long uiValue = acd.decode(mModelValues);
-    if (uiValue == M) {
-        uiValue += acd.ExpGolombDecode(exp_k, bModel0, bModel1);
-    }
-    return uiValue;
-}
 
-inline void EncodeIntACEGC(long predResidual,
-    Arithmetic_Codec& ace,
-    Adaptive_Data_Model& mModelValues,
-    Static_Bit_Model& bModel0,
-    Adaptive_Bit_Model& bModel1,
-    const unsigned long M)
-{
-    unsigned long uiValue = IntToUInt(predResidual);
-    if (uiValue < M) {
-        ace.encode(uiValue, mModelValues);
-    }
-    else {
-        ace.encode(M, mModelValues);
-        ace.ExpGolombEncode(uiValue - M, 0, bModel0, bModel1);
-    }
-}
-inline void EncodeUIntACEGC(long predResidual,
-    Arithmetic_Codec& ace,
-    Adaptive_Data_Model& mModelValues,
-    Static_Bit_Model& bModel0,
-    Adaptive_Bit_Model& bModel1,
-    const unsigned long M)
-{
-    unsigned long uiValue = static_cast<unsigned long>(predResidual);
-    if (uiValue < M) {
-        ace.encode(uiValue, mModelValues);
-    }
-    else {
-        ace.encode(M, mModelValues);
-        ace.ExpGolombEncode(uiValue - M, 0, bModel0, bModel1);
-    }
-}
 }
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #endif

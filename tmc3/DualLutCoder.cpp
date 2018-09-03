@@ -211,7 +211,7 @@ DualLutCoder<_limitedContextMode>::resetLut()
 template<>
 void
 DualLutCoder<true>::encodeFrequencySortedLutIndex(
-  int index, o3dgc::Arithmetic_Codec* entropy)
+  int index, EntropyEncoder* entropy)
 {
   bool b4 = index & 1;
   bool b3 = (index >> 1) & 1;
@@ -252,7 +252,7 @@ DualLutCoder<true>::encodeFrequencySortedLutIndex(
 template<>
 void
 DualLutCoder<false>::encodeFrequencySortedLutIndex(
-  int index, o3dgc::Arithmetic_Codec* entropy)
+  int index, EntropyEncoder* entropy)
 {
   entropy->encode((index >> 4) & 1, _ctxLutIndex[0]);
   entropy->encode((index >> 3) & 1, _ctxLutIndex[1 + (index >> 4)]);
@@ -265,8 +265,7 @@ DualLutCoder<false>::encodeFrequencySortedLutIndex(
 
 template<bool _limitedContextMode>
 void
-DualLutCoder<_limitedContextMode>::encode(
-  int value, o3dgc::Arithmetic_Codec* entropy)
+DualLutCoder<_limitedContextMode>::encode(int value, EntropyEncoder* entropy)
 {
   // One of three coding methods are used:
   //  - Encode position in LUT (if present)
@@ -309,8 +308,7 @@ DualLutCoder<_limitedContextMode>::encode(
 
 template<>
 int
-DualLutCoder<true>::decodeFrequencySortedLutIndex(
-  o3dgc::Arithmetic_Codec* entropy)
+DualLutCoder<true>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
 {
   bool b0, b1, b2, b3, b4;
 
@@ -345,8 +343,7 @@ DualLutCoder<true>::decodeFrequencySortedLutIndex(
 
 template<>
 int
-DualLutCoder<false>::decodeFrequencySortedLutIndex(
-  o3dgc::Arithmetic_Codec* entropy)
+DualLutCoder<false>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
 {
   int index = 0;
   index = (index << 1) | entropy->decode(_ctxLutIndex[0]);
@@ -362,7 +359,7 @@ DualLutCoder<false>::decodeFrequencySortedLutIndex(
 
 template<bool _limitedContextMode>
 int
-DualLutCoder<_limitedContextMode>::decode(o3dgc::Arithmetic_Codec* entropy)
+DualLutCoder<_limitedContextMode>::decode(EntropyDecoder* entropy)
 {
   int symbol;
 

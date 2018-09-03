@@ -37,6 +37,7 @@
 
 #include "DualLutCoder.h"
 #include "constants.h"
+#include "entropy.h"
 #include "io_hls.h"
 #include "RAHT.h"
 
@@ -46,11 +47,11 @@ namespace pcc {
 // An encapsulation of the entropy decoding methods used in attribute coding
 
 struct PCCResidualsDecoder {
-  o3dgc::Arithmetic_Codec arithmeticDecoder;
-  o3dgc::Static_Bit_Model binaryModel0;
-  o3dgc::Adaptive_Bit_Model binaryModelPred;
-  o3dgc::Adaptive_Bit_Model binaryModelDiff[7];
-  o3dgc::Adaptive_Bit_Model binaryModelIsZero[7];
+  EntropyDecoder arithmeticDecoder;
+  StaticBitModel binaryModel0;
+  AdaptiveBitModel binaryModelPred;
+  AdaptiveBitModel binaryModelDiff[7];
+  AdaptiveBitModel binaryModelIsZero[7];
   DualLutCoder<false> symbolCoder[2];
 
   void start(const char* buf, int buf_len);
@@ -66,10 +67,8 @@ struct PCCResidualsDecoder {
 void
 PCCResidualsDecoder::start(const char* buf, int buf_len)
 {
-  arithmeticDecoder.set_buffer(
-    buf_len, reinterpret_cast<uint8_t*>(const_cast<char*>(buf)));
-
-  arithmeticDecoder.start_decoder();
+  arithmeticDecoder.setBuffer(buf_len, buf);
+  arithmeticDecoder.start();
 }
 
 //----------------------------------------------------------------------------
@@ -77,7 +76,7 @@ PCCResidualsDecoder::start(const char* buf, int buf_len)
 void
 PCCResidualsDecoder::stop()
 {
-  arithmeticDecoder.stop_decoder();
+  arithmeticDecoder.stop();
 }
 
 //----------------------------------------------------------------------------
@@ -100,7 +99,7 @@ PCCResidualsDecoder::decodeSymbol(int k1, int k2)
   uint32_t value = symbolCoder[k2].decode(&arithmeticDecoder);
   if (value == kAttributeResidualAlphabetSize) {
     value +=
-      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff[k1]);
+      arithmeticDecoder.decodeExpGolomb(0, binaryModel0, binaryModelDiff[k1]);
   }
   ++value;
 
@@ -243,8 +242,7 @@ AttributeDecoder::decodeReflectancesPred(
 
     const uint32_t attValue0 = decoder.decode();
     const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
-    const int64_t delta =
-      PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
+    const int64_t delta = PCCInverseQuantization(UIntToInt(attValue0), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     reflectance = uint16_t(
       PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
@@ -319,8 +317,7 @@ AttributeDecoder::decodeColorsPred(
     PCCColor3B& color = pointCloud.getColor(predictor.index);
     const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
     const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta =
-      PCCInverseQuantization(o3dgc::UIntToInt(values[0]), qs);
+    const int64_t delta = PCCInverseQuantization(UIntToInt(values[0]), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
 
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
@@ -328,8 +325,7 @@ AttributeDecoder::decodeColorsPred(
       uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     for (size_t k = 1; k < 3; ++k) {
       const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta =
-        PCCInverseQuantization(o3dgc::UIntToInt(values[k]), qs2);
+      const int64_t delta = PCCInverseQuantization(UIntToInt(values[k]), qs2);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
       color[k] =
         uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
@@ -388,7 +384,7 @@ AttributeDecoder::decodeReflectancesRaht(
   int* sortedIntegerizedAttributes = new int[voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
     const uint32_t attValue0 = decoder.decode();
-    sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
+    sortedIntegerizedAttributes[n] = UIntToInt(attValue0);
   }
 
   // Unsort integerized attributes by weight.
@@ -479,14 +475,13 @@ AttributeDecoder::decodeColorsRaht(
     if (
       binaryLayer[sortedWeight[n].index] >= aps.raht_binary_level_threshold) {
       decoder.decode(values);
-      sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(values[0]);
+      sortedIntegerizedAttributes[n] = UIntToInt(values[0]);
       for (int d = 1; d < 3; ++d) {
-        sortedIntegerizedAttributes[voxelCount * d + n] =
-          o3dgc::UIntToInt(values[d]);
+        sortedIntegerizedAttributes[voxelCount * d + n] = UIntToInt(values[d]);
       }
     } else {
       values[0] = decoder.decode();
-      sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(values[0]);
+      sortedIntegerizedAttributes[n] = UIntToInt(values[0]);
       for (int d = 1; d < 3; d++) {
         sortedIntegerizedAttributes[voxelCount * d + n] = 0;
       }
@@ -573,11 +568,11 @@ AttributeDecoder::decodeColorsLift(
     const int64_t qs2 = aps.quant_step_size_chroma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
-    const int64_t delta = o3dgc::UIntToInt(values[0]);
+    const int64_t delta = UIntToInt(values[0]);
     const double reconstructedDelta = PCCInverseQuantization(delta, qs);
     color[0] = reconstructedDelta / quantWeight;
     for (size_t d = 1; d < 3; ++d) {
-      const int64_t delta = o3dgc::UIntToInt(values[d]);
+      const int64_t delta = UIntToInt(values[d]);
       const double reconstructedDelta = PCCInverseQuantization(delta, qs2);
       color[d] = reconstructedDelta / quantWeight;
     }
@@ -638,7 +633,7 @@ AttributeDecoder::decodeReflectancesLift(
     const int64_t qs = aps.quant_step_size_luma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
-    const int64_t delta = o3dgc::UIntToInt(detail);
+    const int64_t delta = UIntToInt(detail);
     const double reconstructedDelta = PCCInverseQuantization(delta, qs);
     reflectance = reconstructedDelta / quantWeight;
   }

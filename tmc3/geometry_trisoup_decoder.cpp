@@ -84,7 +84,7 @@ decodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder)
+  EntropyDecoder* arithmeticDecoder)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
@@ -93,13 +93,13 @@ decodeGeometryTrisoup(
   int blockWidth = 1 << (gps.trisoup_depth - gps.trisoup_triangle_level);
 
   uint32_t symbolCount;
-  o3dgc::Adaptive_Bit_Model ctxTemp;
-  o3dgc::Static_Bit_Model ctxBypass;
+  AdaptiveBitModel ctxTemp;
+  StaticBitModel ctxBypass;
 
   // Decode segind from bitstream.
-  symbolCount = arithmeticDecoder->ExpGolombDecode(0, ctxBypass, ctxTemp);
+  symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
 
-  o3dgc::Adaptive_Data_Model multiSymbolSegindModel0(256);
+  AdaptiveMAryModel multiSymbolSegindModel0(256);
   std::vector<bool> segind;
   for (uint32_t i = 0; i < symbolCount; i++) {
     const uint8_t c = arithmeticDecoder->decode(multiSymbolSegindModel0);
@@ -109,8 +109,8 @@ decodeGeometryTrisoup(
   }
 
   // Decode vertices from bitstream.
-  symbolCount = arithmeticDecoder->ExpGolombDecode(0, ctxBypass, ctxTemp);
-  o3dgc::Adaptive_Data_Model multiSymbolVerticesModel0(blockWidth);
+  symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
+  AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
   std::vector<uint8_t> vertices;
   for (uint32_t i = 0; i < symbolCount; i++) {
     const uint8_t c = arithmeticDecoder->decode(multiSymbolVerticesModel0);

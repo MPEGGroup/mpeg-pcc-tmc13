@@ -37,9 +37,9 @@
 
 #include <cstdint>
 
-#include "ArithmeticCodec.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "entropy.h"
 #include "hls.h"
 #include "ringbuf.h"
 #include "tables.h"
@@ -101,14 +101,14 @@ void encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticEncoder,
+  EntropyEncoder* arithmeticEncoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
+  EntropyDecoder* arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 //---------------------------------------------------------------------------
@@ -144,13 +144,13 @@ neighPattern64toR1(const GeometryParameterSet& gps)
 //---------------------------------------------------------------------------
 
 struct CtxModelOctreeOccupancy {
-  o3dgc::Adaptive_Bit_Model_Fast contexts[256];
+  AdaptiveBitModelFast contexts[256];
   int ctxFactorShift;
 
   CtxModelOctreeOccupancy(int ctxFactorShift) : ctxFactorShift(ctxFactorShift)
   {}
 
-  o3dgc::Adaptive_Bit_Model& operator[](int idx)
+  AdaptiveBitModelFast& operator[](int idx)
   {
     return contexts[idx >> ctxFactorShift];
   }

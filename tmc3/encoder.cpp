@@ -243,8 +243,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
 
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
-  o3dgc::Arithmetic_Codec arithmeticEncoder(maxAcBufLen, nullptr);
-  arithmeticEncoder.start_encoder();
+  EntropyEncoder arithmeticEncoder(maxAcBufLen, nullptr);
+  arithmeticEncoder.start();
 
   if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
     encodeGeometryOctree(*_gps, gbh, pointCloud, &arithmeticEncoder);
@@ -253,7 +253,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
     encodeGeometryTrisoup(*_gps, gbh, pointCloud, &arithmeticEncoder);
   }
 
-  uint32_t dataLen = arithmeticEncoder.stop_encoder();
+  uint32_t dataLen = arithmeticEncoder.stop();
   std::copy_n(arithmeticEncoder.buffer(), dataLen, std::back_inserter(*buf));
 }
 

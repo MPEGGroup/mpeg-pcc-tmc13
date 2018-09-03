@@ -48,7 +48,7 @@ encodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  o3dgc::Arithmetic_Codec* arithmeticEncoder)
+  EntropyEncoder* arithmeticEncoder)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
@@ -64,14 +64,14 @@ encodeGeometryTrisoup(
   determineTrisoupVertices(nodes, segind, vertices, pointCloud, blockWidth);
 
   // Encode segind to bitstream.
-  o3dgc::Adaptive_Data_Model multiSymbolSegindModel0(256);
+  AdaptiveMAryModel multiSymbolSegindModel0(256);
   symbolCount = (segind.size() + 7) / 8;
   segind.resize(8 * symbolCount, false);
 
   // todo(df): consider a more appropriate signalling method
-  o3dgc::Adaptive_Bit_Model ctxTemp;
-  o3dgc::Static_Bit_Model ctxBypass;
-  arithmeticEncoder->ExpGolombEncode(symbolCount, 0, ctxBypass, ctxTemp);
+  AdaptiveBitModel ctxTemp;
+  StaticBitModel ctxBypass;
+  arithmeticEncoder->encodeExpGolomb(symbolCount, 0, ctxBypass, ctxTemp);
 
   int uniqueIndex = 0;
   for (uint32_t i = 0; i < symbolCount; i++) {
@@ -84,11 +84,11 @@ encodeGeometryTrisoup(
   }
 
   // Encode vertices to bitstream.
-  o3dgc::Adaptive_Data_Model multiSymbolVerticesModel0(blockWidth);
+  AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
   symbolCount = vertices.size();
 
   // todo(df): consider a more appropriate signalling method
-  arithmeticEncoder->ExpGolombEncode(symbolCount, 0, ctxBypass, ctxTemp);
+  arithmeticEncoder->encodeExpGolomb(symbolCount, 0, ctxBypass, ctxTemp);
 
   for (uint32_t i = 0; i < symbolCount; i++) {
     uint8_t c = vertices[i];

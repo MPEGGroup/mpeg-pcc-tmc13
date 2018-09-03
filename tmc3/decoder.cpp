@@ -166,10 +166,9 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   minPositions.y() = gbh.geomBoxOrigin.y();
   minPositions.z() = gbh.geomBoxOrigin.z();
 
-  o3dgc::Arithmetic_Codec arithmeticDecoder(
-    int(buf.size()) - gbhSize,
-    reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data() + gbhSize)));
-  arithmeticDecoder.start_decoder();
+  EntropyDecoder arithmeticDecoder;
+  arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);
+  arithmeticDecoder.start();
 
   if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
     _currentPointCloud.resize(gbh.geom_num_points);
@@ -179,7 +178,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     decodeGeometryTrisoup(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
   }
 
-  arithmeticDecoder.stop_decoder();
+  arithmeticDecoder.stop();
   clock_user.stop();
 
   auto total_user =
