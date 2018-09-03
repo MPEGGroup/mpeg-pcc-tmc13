@@ -66,7 +66,7 @@ do_one_cfgset() {
 
 		$script_dir/gen-cfg.pl \
 			--prefix="$outdir" --no-skip-sequences-without-src \
-			"${extra_args[@]}" $f \
+			"${extra_args[@]}" ${src_cfg_dir}$f \
 			${src_cfg_dir}sequences-cat1.yaml \
 			${src_cfg_dir}sequences-cat3.yaml
 
