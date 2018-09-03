@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
+enable_language(C)
 
 if (UNIX)
   add_definitions(-D_POSIX_C_SOURCE=200809L)
@@ -73,6 +74,7 @@ file(GLOB PROJECT_INC_FILES
   "TMC3.h"
   "constants.h"
   "entropy.h"
+  "entropydirac.h"
   "entropyo3dgc.h"
   "entropyutils.h"
   "geometry.h"
@@ -91,6 +93,7 @@ file(GLOB PROJECT_INC_FILES
   "../dependencies/nanoflann/*.h"
   "../dependencies/arithmetic-coding/inc/*.h"
   "../dependencies/program-options-lite/*.h"
+  "../dependencies/schroedinger/schroarith.h"
 )
 
 file(GLOB PROJECT_CPP_FILES
@@ -102,6 +105,7 @@ file(GLOB PROJECT_CPP_FILES
   "TMC3.cpp"
   "decoder.cpp"
   "encoder.cpp"
+  "entropydirac.cpp"
   "geometry_intra_pred.cpp"
   "geometry_octree.cpp"
   "geometry_octree_decoder.cpp"
@@ -115,6 +119,7 @@ file(GLOB PROJECT_CPP_FILES
   "tables.cpp"
   "../dependencies/arithmetic-coding/src/*.cpp"
   "../dependencies/program-options-lite/*.cpp"
+  "../dependencies/schroedinger/schroarith.c"
 )
 
 source_group (inc FILES ${PROJECT_INC_FILES})
@@ -123,6 +128,7 @@ source_group (cpp FILES ${PROJECT_CPP_FILES})
 
 include_directories(
   "${PROJECT_BINARY_DIR}/tmc3"
+  "${PROJECT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/nanoflann"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/arithmetic-coding/inc"

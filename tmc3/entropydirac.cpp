@@ -33,28 +33,52 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "entropydirac.h"
 
-#define ENTROPY_O3DGC 0
-#define ENTROPY_DIRAC 1
+#include "PCCMisc.h"
 
-#if ENTROPY_O3DGC
-#  include "entropyo3dgc.h"
-#endif
-
-#if ENTROPY_DIRAC
-#  include "entropydirac.h"
-#endif
-
-#include "entropyutils.h"
+#include <algorithm>
 
 namespace pcc {
-#if ENTROPY_O3DGC
-using EntropyEncoder = EntropyEncoderWrapper<o3dgc::ArithmeticEncoder>;
-using EntropyDecoder = EntropyDecoderWrapper<o3dgc::ArithmeticDecoder>;
-#endif
-#if ENTROPY_DIRAC
-using EntropyEncoder = EntropyEncoderWrapper<dirac::ArithmeticEncoder>;
-using EntropyDecoder = EntropyDecoderWrapper<dirac::ArithmeticDecoder>;
-#endif
+namespace dirac {
+
+  //=========================================================================
+
+  void SchroMAryContext::set_alphabet(int numsyms)
+  {
+    // initialise all contexts with p = 0.5
+    this->numsyms = numsyms;
+    this->probabilities = std::vector<uint16_t>(numsyms, 0x8000);
+  }
+
+  //=========================================================================
+
+  void ArithmeticEncoder::encode(int sym, SchroMAryContext& model)
+  {
+    int ctxidx = 0;
+
+    while (sym-- > 0) {
+      schro_arith_encode_bit(&impl, &model.probabilities[ctxidx++], 1);
+    }
+    // todo(df): this should be truncated unary coded
+    schro_arith_encode_bit(&impl, &model.probabilities[ctxidx], 0);
+  }
+
+  //=========================================================================
+
+  int ArithmeticDecoder::decode(SchroMAryContext& model)
+  {
+    int ctxidx = 0;
+    int sym = 0;
+
+    while (schro_arith_decode_bit(&impl, &model.probabilities[ctxidx++])) {
+      sym++;
+    }
+
+    return sym;
+  }
+
+  //==========================================================================
+
+}  // namespace dirac
 }  // namespace pcc
