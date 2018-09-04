@@ -230,6 +230,7 @@ sequences:
 
   queen_0200:
     src: queen_0200.ply
+    norm: queen_frame_0200_n.ply
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
