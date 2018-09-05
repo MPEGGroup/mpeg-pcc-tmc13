@@ -195,6 +195,7 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.bitwise_occupancy_coding_flag);
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
+  bs.writeUe(gps.intra_pred_max_node_size_log2);
 
   if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
     bs.writeUe(gps.trisoup_depth);
@@ -227,6 +228,7 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.bitwise_occupancy_coding_flag);
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
+  bs.readUe(&gps.intra_pred_max_node_size_log2);
 
   if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
     bs.readUe(&gps.trisoup_depth);

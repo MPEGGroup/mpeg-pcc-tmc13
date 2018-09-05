@@ -11,7 +11,8 @@ categories:
      # geometry parameters (trisoup)
      - geometryCodec: 2
      - ctxOccupancyReductionFactor: 3
-     - neighbourAvailBoundaryLog2: 9
+     - neighbourAvailBoundaryLog2: 8
+     - intra_pred_max_node_size_log2: 6
      - inferredDirectCodingMode: 0
      - triSoupDepth: ${test-depth}
      - triSoupIntToOrigScale: '$eval{ 1 << ( ${src-geometry-precision} - ${test-depth} ) }'

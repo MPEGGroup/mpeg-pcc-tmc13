@@ -211,6 +211,9 @@ struct GeometryParameterSet {
   // for occupancy coding.
   int geom_occupancy_ctx_reduction_factor;
 
+  // Maximum node size where intra prediction is enabled
+  int intra_pred_max_node_size_log2;
+
   // depth of voxels (reconstructed points) in trisoup geometry
   int trisoup_depth;
 

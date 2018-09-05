@@ -12,7 +12,8 @@ categories:
      - geometryCodec: 1
      - mergeDuplicatedPoints: 0
      - ctxOccupancyReductionFactor: 3
-     - neighbourAvailBoundaryLog2: 9
+     - neighbourAvailBoundaryLog2: 8
+     - intra_pred_max_node_size_log2: 6
      - positionQuantizationScale: 1
 
      ####

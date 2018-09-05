@@ -323,6 +323,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
     "Permits early termination of the geometry octree for isolated points")
 
+  ("intra_pred_max_node_size_log2",
+    params.encoder.gps.intra_pred_max_node_size_log2, 0,
+    "octree nodesizes eligible for occupancy intra prediction")
+
   ("ctxOccupancyReductionFactor",
      params.encoder.gps.geom_occupancy_ctx_reduction_factor, 3,
      "Adjusts the number of contexts used in occupancy coding")
@@ -520,6 +524,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   }
 
   // sanity checks
+
+  if (params.encoder.gps.intra_pred_max_node_size_log2)
+    if (!params.encoder.gps.neighbour_avail_boundary_log2)
+      err.error() << "Geometry intra prediction requires finite"
+                     "neighbour_avail_boundary_log2\n";
+
   for (const auto& it : params.encoder.attributeIdxMap) {
     const auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     const auto& attr_aps = params.encoder.aps[it.second];

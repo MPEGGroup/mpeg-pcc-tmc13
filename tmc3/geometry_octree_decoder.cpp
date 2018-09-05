@@ -38,6 +38,7 @@
 #include "DualLutCoder.h"
 #include "OctreeNeighMap.h"
 #include "geometry_octree.h"
+#include "geometry_intra_pred.h"
 #include "io_hls.h"
 #include "tables.h"
 
@@ -412,6 +413,13 @@ decodeGeometryOctree(
 
     int occupancyIsPredicted = 0;
     int occupancyPrediction = 0;
+
+    // generate intra prediction
+    if (nodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
+      predictGeometryOccupancyIntra(
+        occupancyAtlas, node0.pos, nodeSizeLog2, &occupancyIsPredicted,
+        &occupancyPrediction);
+    }
 
     // decode occupancy pattern
     uint8_t occupancy = decoder.decodeOccupancy(

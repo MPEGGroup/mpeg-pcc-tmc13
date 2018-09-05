@@ -13,8 +13,9 @@ categories:
      ##
      # geometry parameters (octree)
      - geometryCodec: 1
-     - neighbourAvailBoundaryLog2: 9
      - ctxOccupancyReductionFactor: 3
+     - neighbourAvailBoundaryLog2: 8
+     - intra_pred_max_node_size_log2: 6
 
      ####
      # attribute coding (common options -- relies on option ordering)
