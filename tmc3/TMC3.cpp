@@ -49,6 +49,9 @@ struct Parameters {
   // command line parsing should adjust dist2 values according to PQS
   bool positionQuantizationScaleAdjustsDist2;
 
+  // output mode for ply writing (binary or ascii)
+  bool outputBinaryPly;
+
   std::string uncompressedDataPath;
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
@@ -243,6 +246,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("preInvScalePath",
     params.preInvScalePath, {},
     "Pre inverse scaled pointcloud file path (decoder only)")
+
+  ("outputBinaryPly",
+    params.outputBinaryPly, false,
+    "Output ply files using binary (or otherwise ascii) format")
 
   // general
   // todo(df): this should be per-attribute
@@ -621,7 +628,8 @@ Compress(Parameters& params, Stopwatch& clock)
       }
     }
 
-    reconPointCloud->write(params.reconstructedDataPath, true);
+    reconPointCloud->write(
+      params.reconstructedDataPath, !params.outputBinaryPly);
   }
 
   return 0;
@@ -665,14 +673,15 @@ Decompress(Parameters& params, Stopwatch& clock)
 
         // Dump the decoded colour using the pre inverse scaled geometry
         if (!params.preInvScalePath.empty()) {
-          pointCloud.write(params.preInvScalePath);
+          pointCloud.write(params.preInvScalePath, !params.outputBinaryPly);
         }
 
         decoder.inverseQuantization(pointCloud);
 
         clock.stop();
 
-        if (!pointCloud.write(params.reconstructedDataPath, true)) {
+        if (!pointCloud.write(
+              params.reconstructedDataPath, !params.outputBinaryPly)) {
           cout << "Error: can't open output file!" << endl;
         }
 
