@@ -55,15 +55,18 @@ public:
 
   int decodePositionLeafNumPoints();
 
-  int decodeOccupancyNeighZ();
+  int decodeOccupancyNeighZ(int mappedOccIsPredicted, int mappedOccPrediction);
 
-  int decodeOccupancyNeighNZ(int neighPattern10);
+  int decodeOccupancyNeighNZ(
+    int neighPattern10, int mappedOccIsPredicted, int mappedOccPrediction);
 
-  int decodeOccupancyBitwise(int neighPattern);
+  int decodeOccupancyBitwise(
+    int neighPattern, int mappedOccIsPredicted, int mappedOccPrediction);
 
   int decodeOccupancyBytewise(int neighPattern);
 
-  uint32_t decodeOccupancy(int neighPattern);
+  uint32_t decodeOccupancy(
+    int neighPattern, int occupancyIsPredicted, int occupancyPrediction);
 
   PCCVector3<uint32_t> decodePointPosition(int nodeSizeLog2);
 
@@ -86,8 +89,11 @@ private:
   o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
 
   // For bitwise occupancy coding
+  //   map 0 = not predicted
+  //   map 1 = predicted unnoccupied
+  //   map 2 = predicted occupied
   CtxModelOctreeOccupancy _ctxOccupancy;
-  CtxMapOctreeOccupancy _ctxIdxMap;
+  CtxMapOctreeOccupancy _ctxIdxMaps[3];
 
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
@@ -139,24 +145,31 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 // decode occupancy bits (neighPattern10 == 0 case)
 
 int
-GeometryOctreeDecoder::decodeOccupancyNeighZ()
+GeometryOctreeDecoder::decodeOccupancyNeighZ(
+  int mappedOccIsPredicted, int mappedOccPrediction)
 {
-  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
+  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
   int minOccupied = 2;
   int numOccupiedAcc = 0;
   int occupancy = 0;
 
   for (int i = 0; i < 8; i++) {
     int bit = 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
+
+    int ctxIdxMapIdx = bitIsPredicted + bitPrediction;
+    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
+
     // NB: There must be at least two occupied child nodes
     //  -- avoid coding the occupancy bit if it is implied.
     if (numOccupiedAcc >= minOccupied + i - 7) {
-      int ctxIdx = _ctxIdxMap[i][numOccupiedAcc];
+      int ctxIdx = ctxIdxMap[i][numOccupiedAcc];
       bit = _arithmeticDecoder->decode(_ctxOccupancy[ctxIdx]);
     }
-    _ctxIdxMap.evolve(bit, &_ctxIdxMap[i][numOccupiedAcc]);
+    ctxIdxMap.evolve(bit, &ctxIdxMap[i][numOccupiedAcc]);
     numOccupiedAcc += bit;
-    occupancy |= bit << occupancyCodingOrder[i];
+    occupancy |= bit << bitCodingOrder[i];
   }
 
   return occupancy;
@@ -166,9 +179,10 @@ GeometryOctreeDecoder::decodeOccupancyNeighZ()
 // decode occupancy bits (neighPattern10 != 0 case)
 
 int
-GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
+GeometryOctreeDecoder::decodeOccupancyNeighNZ(
+  int neighPattern10, int mappedOccIsPredicted, int mappedOccPrediction)
 {
-  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
+  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
 
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
   int neighPattern5 = kNeighPattern7to5[neighPattern7];
@@ -193,14 +207,20 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
 
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
     int bit = 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
+
+    int ctxIdxMapIdx = bitIsPredicted + bitPrediction;
+    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
+
     if (i < 7 || partialOccupancy) {
-      int ctxIdx = _ctxIdxMap[i][idx];
+      int ctxIdx = ctxIdxMap[i][idx];
       bit = _arithmeticDecoder->decode(_ctxOccupancy[ctxIdx]);
     }
 
-    _ctxIdxMap.evolve(bit, &_ctxIdxMap[i][idx]);
+    ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
     partialOccupancy |= bit << i;
-    occupancy |= bit << occupancyCodingOrder[i];
+    occupancy |= bit << bitCodingOrder[i];
   }
 
   return occupancy;
@@ -209,16 +229,18 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
 //-------------------------------------------------------------------------
 
 int
-GeometryOctreeDecoder::decodeOccupancyBitwise(int neighPattern)
+GeometryOctreeDecoder::decodeOccupancyBitwise(
+  int neighPattern, int mappedOccIsPredicted, int mappedOccPrediction)
 {
   if (neighPattern == 0) {
-    return decodeOccupancyNeighZ();
+    return decodeOccupancyNeighZ(mappedOccIsPredicted, mappedOccPrediction);
   }
 
   // code occupancy using the neighbour configuration context
   // with reduction from 64 states to 10 (or 6).
   int neighPatternR1 = _neighPattern64toR1[neighPattern];
-  return decodeOccupancyNeighNZ(neighPatternR1);
+  return decodeOccupancyNeighNZ(
+    neighPatternR1, mappedOccIsPredicted, mappedOccPrediction);
 }
 
 //-------------------------------------------------------------------------
@@ -238,7 +260,8 @@ GeometryOctreeDecoder::decodeOccupancyBytewise(int neighPattern)
 //
 
 uint32_t
-GeometryOctreeDecoder::decodeOccupancy(int neighPattern)
+GeometryOctreeDecoder::decodeOccupancy(
+  int neighPattern, int occupancyIsPred, int occupancyPred)
 {
   // decode occupancy pattern
   uint32_t occupancy;
@@ -253,10 +276,12 @@ GeometryOctreeDecoder::decodeOccupancy(int neighPattern)
     }
   }
 
+  uint32_t mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
+  uint32_t mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
   uint32_t mappedOccupancy;
 
   if (_useBitwiseOccupancyCoder)
-    mappedOccupancy = decodeOccupancyBitwise(neighPattern);
+    mappedOccupancy = decodeOccupancyBitwise(neighPattern, mapOccIsP, mapOccP);
   else
     mappedOccupancy = decodeOccupancyBytewise(neighPattern);
 
@@ -385,8 +410,12 @@ decodeGeometryOctree(
         makeGeometryNeighPattern(node0.pos, nodeSizeLog2, occupancyAtlas);
     }
 
+    int occupancyIsPredicted = 0;
+    int occupancyPrediction = 0;
+
     // decode occupancy pattern
-    uint8_t occupancy = decoder.decodeOccupancy(node0.neighPattern);
+    uint8_t occupancy = decoder.decodeOccupancy(
+      node0.neighPattern, occupancyIsPredicted, occupancyPrediction);
 
     assert(occupancy > 0);
 

@@ -55,15 +55,28 @@ public:
 
   int encodePositionLeafNumPoints(int count);
 
-  void encodeOccupancyNeighZ(int mappedOccupancy);
+  void encodeOccupancyNeighZ(
+    int mappedOccupancy, int mappedOccIsPredicted, int mappedOccPrediction);
 
-  void encodeOccupancyNeighNZ(int mappedOccupancy, int neighPattern10);
+  void encodeOccupancyNeighNZ(
+    int neighPattern10,
+    int mappedOccupancy,
+    int mappedOccIsPredicted,
+    int mappedOccPrediction);
 
-  void encodeOccupancyBitwise(int mappedOccupancy, int neighPattern);
+  void encodeOccupancyBitwise(
+    int neighPattern,
+    int mappedOccupancy,
+    int mappedOccIsPredicted,
+    int mappedOccPrediction);
 
-  void encodeOccupancyBytewise(int mappedOccupancy, int neighPattern);
+  void encodeOccupancyBytewise(int neighPattern, int mappedOccupancy);
 
-  void encodeOccupancy(int occupancy, int neighPattern);
+  void encodeOccupancy(
+    int neighPattern,
+    int occupancy,
+    int occupancyIsPredicted,
+    int occupancyPrediction);
 
   void encodePointPosition(int nodeSizeLog2, const PCCVector3<uint32_t>& pos);
 
@@ -87,8 +100,11 @@ private:
   o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
 
   // For bitwise occupancy coding
+  //   map 0 = not predicted
+  //   map 1 = predicted unnoccupied
+  //   map 2 = predicted occupied
   CtxModelOctreeOccupancy _ctxOccupancy;
-  CtxMapOctreeOccupancy _ctxIdxMap;
+  CtxMapOctreeOccupancy _ctxIdxMaps[3];
 
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
@@ -140,25 +156,31 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
 // encode occupancy bits (neighPattern10 == 0 case)
 
 void
-GeometryOctreeEncoder::encodeOccupancyNeighZ(int mappedOccupancy)
+GeometryOctreeEncoder::encodeOccupancyNeighZ(
+  int mappedOccupancy, int mappedOccIsPredicted, int mappedOccPrediction)
 {
-  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
+  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
   int minOccupied = 2;
   int numOccupiedAcc = 0;
 
   for (int i = 0; i < 8; i++) {
-    int occupancyBit = (mappedOccupancy >> occupancyCodingOrder[i]) & 1;
+    int bit = (mappedOccupancy >> bitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
+
+    int ctxIdxMapIdx = bitIsPredicted + bitPrediction;
+    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
 
     int idx = numOccupiedAcc;
-    int ctxIdx = _ctxIdxMap.evolve(occupancyBit, &_ctxIdxMap[i][idx]);
+    int ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
 
     // NB: There must be at least minOccupied child nodes
     //  -- avoid coding the occupancyBit if it is implied.
     if (numOccupiedAcc >= minOccupied + i - 7) {
-      _arithmeticEncoder->encode(occupancyBit, _ctxOccupancy[ctxIdx]);
+      _arithmeticEncoder->encode(bit, _ctxOccupancy[ctxIdx]);
     }
 
-    numOccupiedAcc += occupancyBit;
+    numOccupiedAcc += bit;
   }
 }
 
@@ -167,9 +189,12 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(int mappedOccupancy)
 
 void
 GeometryOctreeEncoder::encodeOccupancyNeighNZ(
-  int mappedOccupancy, int neighPattern10)
+  int neighPattern10,
+  int mappedOccupancy,
+  int mappedOccIsPredicted,
+  int mappedOccPrediction)
 {
-  static const int8_t occupancyCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
+  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
 
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
   int neighPattern5 = kNeighPattern7to5[neighPattern7];
@@ -178,8 +203,6 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
 
   // NB: it is impossible for pattern to be 0 (handled in Z case).
   for (int i = 0; i < 8; i++) {
-    int occupancyBit = (mappedOccupancy >> occupancyCodingOrder[i]) & 1;
-
     int idx;
     if (i < 6) {
       idx = ((neighPattern10 - 1) << i) + partialOccupancy + i + 1;
@@ -192,13 +215,20 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
       break;
     }
 
-    int ctxIdx = _ctxIdxMap.evolve(occupancyBit, &_ctxIdxMap[i][idx]);
+    int bit = (mappedOccupancy >> bitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
+
+    int ctxIdxMapIdx = bitIsPredicted + bitPrediction;
+    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
+
+    int ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
 
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
     if (i < 7 || partialOccupancy)
-      _arithmeticEncoder->encode(occupancyBit, _ctxOccupancy[ctxIdx]);
+      _arithmeticEncoder->encode(bit, _ctxOccupancy[ctxIdx]);
 
-    partialOccupancy |= occupancyBit << i;
+    partialOccupancy |= bit << i;
   }
 }
 
@@ -206,17 +236,23 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
 
 void
 GeometryOctreeEncoder::encodeOccupancyBitwise(
-  int mappedOccupancy, int neighPattern)
+  int neighPattern,
+  int mappedOccupancy,
+  int mappedOccIsPredicted,
+  int mappedOccPrediction)
 {
   if (neighPattern == 0) {
-    encodeOccupancyNeighZ(mappedOccupancy);
+    encodeOccupancyNeighZ(
+      mappedOccupancy, mappedOccIsPredicted, mappedOccPrediction);
     return;
   }
 
   // code occupancy using the neighbour configuration context
   // with reduction from 64 states to 10 (or 6).
   int neighPatternR1 = _neighPattern64toR1[neighPattern];
-  encodeOccupancyNeighNZ(mappedOccupancy, neighPatternR1);
+  encodeOccupancyNeighNZ(
+    neighPatternR1, mappedOccupancy, mappedOccIsPredicted,
+    mappedOccPrediction);
 }
 
 //-------------------------------------------------------------------------
@@ -237,7 +273,8 @@ GeometryOctreeEncoder::encodeOccupancyBytewise(
 //
 
 void
-GeometryOctreeEncoder::encodeOccupancy(int occupancy, int neighPattern)
+GeometryOctreeEncoder::encodeOccupancy(
+  int neighPattern, int occupancy, int occupancyIsPred, int occupancyPred)
 {
   if (neighPattern == 0) {
     bool singleChild = !popcntGt1(occupancy);
@@ -252,12 +289,14 @@ GeometryOctreeEncoder::encodeOccupancy(int occupancy, int neighPattern)
     }
   }
 
-  uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
+  uint32_t mapOcc = mapGeometryOccupancy(occupancy, neighPattern);
+  uint32_t mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
+  uint32_t mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
 
   if (_useBitwiseOccupancyCoder)
-    encodeOccupancyBitwise(mappedOccupancy, neighPattern);
+    encodeOccupancyBitwise(neighPattern, mapOcc, mapOccIsP, mapOccP);
   else
-    encodeOccupancyBytewise(mappedOccupancy, neighPattern);
+    encodeOccupancyBytewise(neighPattern, mapOcc);
 }
 
 //-------------------------------------------------------------------------
@@ -410,9 +449,14 @@ encodeGeometryOctree(
         makeGeometryNeighPattern(node0.pos, nodeSizeLog2, occupancyAtlas);
     }
 
+    int occupancyIsPredicted = 0;
+    int occupancyPrediction = 0;
+
     // encode child occupancy map
     assert(occupancy > 0);
-    encoder.encodeOccupancy(occupancy, node0.neighPattern);
+    encoder.encodeOccupancy(
+      node0.neighPattern, occupancy, occupancyIsPredicted,
+      occupancyPrediction);
 
     // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
     // and are immediately coded.  No further splitting occurs.
