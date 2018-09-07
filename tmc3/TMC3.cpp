@@ -52,6 +52,9 @@ struct Parameters {
   // output mode for ply writing (binary or ascii)
   bool outputBinaryPly;
 
+  // when true, configure the encoder as if no attributes are specified
+  bool disableAttributeCoding;
+
   std::string uncompressedDataPath;
   std::string compressedStreamPath;
   std::string reconstructedDataPath;
@@ -282,6 +285,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_unique_points_flag, true,
     "Enables removal of duplicated points")
 
+  ("disableAttributeCoding",
+    params.disableAttributeCoding, false,
+    "Ignore attribute coding configuration")
+
   (po::Section("Geometry"))
 
   // tools
@@ -402,6 +409,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
     params.encoder.sps.seq_source_geom_scale_factor =
       1.0f / params.encoder.sps.donotuse_trisoup_int_to_orig_scale;
+  }
+
+  // support disabling attribute coding (simplifies configuration)
+  if (params.disableAttributeCoding) {
+    params.encoder.attributeIdxMap.clear();
+    params.encoder.sps.attributeSets.clear();
+    params.encoder.aps.clear();
   }
 
   // fixup any per-attribute settings
