@@ -42,7 +42,7 @@ namespace pcc {
 //============================================================================
 
 const uint32_t kAttributePredictionMaxNeighbourCount = 3;
-const uint32_t kAttributeResidualAlphabetSize = 64;
+const uint32_t kAttributeResidualAlphabetSize = 255;
 
 //============================================================================
 

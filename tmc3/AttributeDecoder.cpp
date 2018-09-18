@@ -35,7 +35,7 @@
 
 #include "AttributeDecoder.h"
 
-#include "ArithmeticCodec.h"
+#include "DualLutCoder.h"
 #include "constants.h"
 #include "io_hls.h"
 #include "RAHT.h"
@@ -49,16 +49,16 @@ struct PCCResidualsDecoder {
   o3dgc::Arithmetic_Codec arithmeticDecoder;
   o3dgc::Static_Bit_Model binaryModel0;
   o3dgc::Adaptive_Bit_Model binaryModelPred;
-  o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-  o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-  o3dgc::Adaptive_Bit_Model binaryModelDiff1;
-  o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
+  o3dgc::Adaptive_Bit_Model binaryModelDiff[7];
+  o3dgc::Adaptive_Bit_Model binaryModelIsZero[7];
+  DualLutCoder<false> symbolCoder[2];
 
   void start(const char* buf, int buf_len);
   void stop();
   bool decodePred();
-  uint32_t decode0();
-  uint32_t decode1();
+  uint32_t decodeSymbol(int k1, int k2);
+  void decode(uint32_t values[3]);
+  uint32_t decode();
 };
 
 //----------------------------------------------------------------------------
@@ -66,9 +66,6 @@ struct PCCResidualsDecoder {
 void
 PCCResidualsDecoder::start(const char* buf, int buf_len)
 {
-  multiSymbolModelDiff0.set_alphabet(kAttributeResidualAlphabetSize + 1);
-  multiSymbolModelDiff1.set_alphabet(kAttributeResidualAlphabetSize + 1);
-
   arithmeticDecoder.set_buffer(
     buf_len, reinterpret_cast<uint8_t*>(const_cast<char*>(buf)));
 
@@ -94,27 +91,40 @@ PCCResidualsDecoder::decodePred()
 //----------------------------------------------------------------------------
 
 uint32_t
-PCCResidualsDecoder::decode0()
+PCCResidualsDecoder::decodeSymbol(int k1, int k2)
 {
-  uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff0);
+  if (arithmeticDecoder.decode(binaryModelIsZero[k1])) {
+    return 0u;
+  }
+
+  uint32_t value = symbolCoder[k2].decode(&arithmeticDecoder);
   if (value == kAttributeResidualAlphabetSize) {
     value +=
-      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff0);
+      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff[k1]);
   }
+  ++value;
+
   return value;
 }
 
 //----------------------------------------------------------------------------
 
-uint32_t
-PCCResidualsDecoder::decode1()
+void
+PCCResidualsDecoder::decode(uint32_t value[3])
 {
-  uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff1);
-  if (value == kAttributeResidualAlphabetSize) {
-    value +=
-      arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff1);
-  }
-  return value;
+  value[0] = decodeSymbol(0, 0);
+  int b0 = value[0] == 0;
+  value[1] = decodeSymbol(1 + b0, 1);
+  int b1 = value[1] == 0;
+  value[2] = decodeSymbol(3 + (b0 << 1) + b1, 1);
+}
+
+//----------------------------------------------------------------------------
+
+uint32_t
+PCCResidualsDecoder::decode()
+{
+  return decodeSymbol(0, 0);
 }
 
 //============================================================================
@@ -231,7 +241,7 @@ AttributeDecoder::decodeReflectancesPred(
     computeReflectancePredictionWeights(aps, pointCloud, predictor, decoder);
     uint16_t& reflectance = pointCloud.getReflectance(predictor.index);
 
-    const uint32_t attValue0 = decoder.decode0();
+    const uint32_t attValue0 = decoder.decode();
     const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
     const int64_t delta =
       PCCInverseQuantization(o3dgc::UIntToInt(attValue0), qs);
@@ -305,9 +315,7 @@ AttributeDecoder::decodeColorsPred(
     const int64_t qs = aps.quant_step_size_luma;
     const int64_t qs2 = aps.quant_step_size_chroma;
     computeColorPredictionWeights(aps, pointCloud, predictor, decoder);
-    values[0] = decoder.decode0();
-    values[1] = decoder.decode1();
-    values[2] = decoder.decode1();
+    decoder.decode(values);
     PCCColor3B& color = pointCloud.getColor(predictor.index);
     const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
     const int64_t quantPredAttValue = predictedColor[0];
@@ -379,7 +387,7 @@ AttributeDecoder::decodeReflectancesRaht(
   // Entropy decode
   int* sortedIntegerizedAttributes = new int[voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
-    const uint32_t attValue0 = decoder.decode0();
+    const uint32_t attValue0 = decoder.decode();
     sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
   }
 
@@ -465,18 +473,20 @@ AttributeDecoder::decodeColorsRaht(
 
   // Entropy decode
   const int attribCount = 3;
+  uint32_t values[3];
   int* sortedIntegerizedAttributes = new int[attribCount * voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
-    const uint32_t attValue0 = decoder.decode0();
-    sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(attValue0);
     if (
       binaryLayer[sortedWeight[n].index] >= aps.raht_binary_level_threshold) {
+      decoder.decode(values);
+      sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(values[0]);
       for (int d = 1; d < 3; ++d) {
-        const uint32_t attValue1 = decoder.decode1();
         sortedIntegerizedAttributes[voxelCount * d + n] =
-          o3dgc::UIntToInt(attValue1);
+          o3dgc::UIntToInt(values[d]);
       }
     } else {
+      values[0] = decoder.decode();
+      sortedIntegerizedAttributes[n] = o3dgc::UIntToInt(values[0]);
       for (int d = 1; d < 3; d++) {
         sortedIntegerizedAttributes[voxelCount * d + n] = 0;
       }
@@ -558,9 +568,7 @@ AttributeDecoder::decodeColorsLift(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     uint32_t values[3];
-    values[0] = decoder.decode0();
-    values[1] = decoder.decode1();
-    values[2] = decoder.decode1();
+    decoder.decode(values);
     const int64_t qs = aps.quant_step_size_luma;
     const int64_t qs2 = aps.quant_step_size_chroma;
     const double quantWeight = sqrt(weights[predictorIndex]);
@@ -626,7 +634,7 @@ AttributeDecoder::decodeReflectancesLift(
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const int64_t detail = decoder.decode0();
+    const int64_t detail = decoder.decode();
     const int64_t qs = aps.quant_step_size_luma;
     const double quantWeight = sqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];

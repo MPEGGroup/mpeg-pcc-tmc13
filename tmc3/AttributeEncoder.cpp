@@ -36,6 +36,7 @@
 #include "AttributeEncoder.h"
 
 #include "ArithmeticCodec.h"
+#include "DualLutCoder.h"
 #include "constants.h"
 #include "RAHT.h"
 
@@ -47,16 +48,16 @@ struct PCCResidualsEncoder {
   o3dgc::Arithmetic_Codec arithmeticEncoder;
   o3dgc::Static_Bit_Model binaryModel0;
   o3dgc::Adaptive_Bit_Model binaryModelPred;
-  o3dgc::Adaptive_Bit_Model binaryModelDiff0;
-  o3dgc::Adaptive_Data_Model multiSymbolModelDiff0;
-  o3dgc::Adaptive_Bit_Model binaryModelDiff1;
-  o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
+  o3dgc::Adaptive_Bit_Model binaryModelDiff[7];
+  o3dgc::Adaptive_Bit_Model binaryModelIsZero[7];
+  DualLutCoder<false> symbolCoder[2];
 
   void start(int numPoints);
   int stop();
-  void encode0(const uint32_t value);
-  void encode1(const uint32_t value);
   void encodePred(const bool value);
+  void encodeSymbol(uint32_t value, int k1, int k2);
+  void encode(uint32_t value0, uint32_t value1, uint32_t value2);
+  void encode(uint32_t value);
 };
 
 //----------------------------------------------------------------------------
@@ -64,9 +65,6 @@ struct PCCResidualsEncoder {
 void
 PCCResidualsEncoder::start(int pointCount)
 {
-  multiSymbolModelDiff0.set_alphabet(kAttributeResidualAlphabetSize + 1);
-  multiSymbolModelDiff1.set_alphabet(kAttributeResidualAlphabetSize + 1);
-
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = pointCount * 3 * 2 + 1024;
   arithmeticEncoder.set_buffer(maxAcBufLen, nullptr);
@@ -83,40 +81,51 @@ PCCResidualsEncoder::stop()
 
 //----------------------------------------------------------------------------
 
-inline void
-PCCResidualsEncoder::encode0(const uint32_t value)
+void
+PCCResidualsEncoder::encodePred(const bool value)
 {
-  if (value < kAttributeResidualAlphabetSize) {
-    arithmeticEncoder.encode(value, multiSymbolModelDiff0);
-  } else {
-    int alphabetSize = kAttributeResidualAlphabetSize;
-    arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff0);
-    arithmeticEncoder.ExpGolombEncode(
-      value - alphabetSize, 0, binaryModel0, binaryModelDiff0);
-  }
+  arithmeticEncoder.encode(value, binaryModelPred);
 }
 
 //----------------------------------------------------------------------------
 
-inline void
-PCCResidualsEncoder::encode1(const uint32_t value)
+void
+PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
 {
+  bool isZero = value == 0;
+  arithmeticEncoder.encode(isZero, binaryModelIsZero[k1]);
+  if (isZero) {
+    return;
+  }
+  --value;
   if (value < kAttributeResidualAlphabetSize) {
-    arithmeticEncoder.encode(value, multiSymbolModelDiff1);
+    symbolCoder[k2].encode(value, &arithmeticEncoder);
   } else {
     int alphabetSize = kAttributeResidualAlphabetSize;
-    arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff1);
+    symbolCoder[k2].encode(alphabetSize, &arithmeticEncoder);
     arithmeticEncoder.ExpGolombEncode(
-      value - alphabetSize, 0, binaryModel0, binaryModelDiff1);
+      value - alphabetSize, 0, binaryModel0, binaryModelDiff[k1]);
   }
 }
 
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encodePred(const bool value)
+PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
 {
-  arithmeticEncoder.encode(value, binaryModelPred);
+  int b0 = value0 == 0;
+  int b1 = value1 == 0;
+  encodeSymbol(value0, 0, 0);
+  encodeSymbol(value1, 1 + b0, 1);
+  encodeSymbol(value2, 3 + (b0 << 1) + b1, 1);
+}
+
+//----------------------------------------------------------------------------
+
+void
+PCCResidualsEncoder::encode(uint32_t value)
+{
+  encodeSymbol(value, 0, 0);
 }
 
 //============================================================================
@@ -416,7 +425,7 @@ AttributeEncoder::encodeReflectancesPred(
     const uint16_t reconstructedReflectance =
       uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
 
-    encoder.encode0(attValue0);
+    encoder.encode(attValue0);
     pointCloud.setReflectance(predictor.index, reconstructedReflectance);
   }
 }
@@ -558,9 +567,7 @@ AttributeEncoder::encodeColorsPred(
         uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     }
     pointCloud.setColor(predictor.index, reconstructedColor);
-    encoder.encode0(values[0]);
-    encoder.encode1(values[1]);
-    encoder.encode1(values[2]);
+    encoder.encode(values[0], values[1], values[2]);
   }
 }
 
@@ -634,7 +641,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[n]);
     assert(detail < std::numeric_limits<uint32_t>::max());
     const uint32_t attValue0 = uint32_t(detail);
-    encoder.encode0(attValue0);
+    encoder.encode(attValue0);
   }
   // Re-obtain weights at the decoder by calling Raht without any attributes.
   regionAdaptiveHierarchicalTransform(
@@ -750,24 +757,25 @@ AttributeEncoder::encodeColorsTransformRaht(
   }
 
   // Entropy encode.
+  uint32_t values[3];
   for (int n = 0; n < voxelCount; ++n) {
     const int64_t detail = o3dgc::IntToUInt(sortedIntegerizedAttributes[n]);
     assert(detail < std::numeric_limits<uint32_t>::max());
-    const uint32_t attValue0 = uint32_t(detail);
-    encoder.encode0(attValue0);
+    values[0] = uint32_t(detail);
     if (
       binaryLayer[sortedWeight[n].index] >= aps.raht_binary_level_threshold) {
       for (int d = 1; d < 3; ++d) {
         const int64_t detail =
           o3dgc::IntToUInt(sortedIntegerizedAttributes[voxelCount * d + n]);
         assert(detail < std::numeric_limits<uint32_t>::max());
-        const uint32_t attValue1 = uint32_t(detail);
-        encoder.encode1(attValue1);
+        values[d] = uint32_t(detail);
       }
+      encoder.encode(values[0], values[1], values[2]);
     } else {
       for (int d = 1; d < 3; d++) {
         sortedIntegerizedAttributes[voxelCount * d + n] = 0;
       }
+      encoder.encode(values[0]);
     }
   }
 
@@ -888,9 +896,7 @@ AttributeEncoder::encodeColorsLift(
       color[d] = reconstructedDelta / quantWeight;
       values[d] = uint32_t(detail);
     }
-    encoder.encode0(values[0]);
-    encoder.encode1(values[1]);
-    encoder.encode1(values[2]);
+    encoder.encode(values[0], values[1], values[2]);
   }
 
   // reconstruct
@@ -965,7 +971,7 @@ AttributeEncoder::encodeReflectancesLift(
     assert(detail < std::numeric_limits<uint32_t>::max());
     const double reconstructedDelta = PCCInverseQuantization(delta, qs);
     reflectance = reconstructedDelta / quantWeight;
-    encoder.encode0(detail);
+    encoder.encode(detail);
   }
 
   // reconstruct
