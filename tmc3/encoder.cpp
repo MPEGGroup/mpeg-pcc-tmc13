@@ -122,8 +122,9 @@ PCCTMC3Encoder3::compress(
 
   // geometry compression consists of the following stages:
   //  - prefilter/quantize geometry (non-normative)
-  //  - recolour
   //  - encode geometry
+  //  - recolour
+
   if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
     quantization(inputPointCloud);
   }
@@ -163,8 +164,6 @@ PCCTMC3Encoder3::compress(
       bool hasReflectance = inputPointCloud.hasReflectances();
       if (encodeTrisoup(hasColor, hasReflectance, &payload))
         return -1;
-      if (recolorTrisoup(inputPointCloud))
-        return -1;
     }
 
     clock_user.stop();
@@ -181,7 +180,17 @@ PCCTMC3Encoder3::compress(
     outputFn(payload);
   }
 
-  // attributeCoding
+  // recolouring
+
+  // NB: recolouring is required if points are added / removed
+  bool recolourNeeded = _gps->geom_unique_points_flag
+    || _gps->geom_codec_type == GeometryCodecType::kTriSoup;
+
+  if (recolourNeeded) {
+    recolour(
+      inputPointCloud, _sps->seq_source_geom_scale_factor, minPositions,
+      &pointCloud);
+  }
 
   // dump recoloured point cloud
   if (!params->postRecolorPath.empty()) {
@@ -189,6 +198,8 @@ PCCTMC3Encoder3::compress(
     tempPointCloud.convertYUVToRGB();
     tempPointCloud.write(params->postRecolorPath);
   }
+
+  // attributeCoding
 
   // for each attribute
   for (const auto& it : params->attributeIdxMap) {
@@ -341,83 +352,23 @@ PCCTMC3Encoder3::computeMinPositions(const PCCPointSet3& inputPointCloud)
 
 //----------------------------------------------------------------------------
 
-int
+void
 PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 {
-  computeMinPositions(inputPointCloud);
+  // todo(df): allow overriding of minposition from CLI
+  // todo(df): remove trisoup hack
+  minPositions = PCCVector3D{0.0};
+  if (_gps->geom_codec_type == GeometryCodecType::kOctree)
+    computeMinPositions(inputPointCloud);
 
-  bool hasColour = inputPointCloud.hasColors();
-  bool hasReflectance = inputPointCloud.hasReflectances();
-
-  pointCloud.resize(0);
-  pointCloud.addRemoveAttributes(hasColour, hasReflectance);
-
-  const size_t inputPointCount = inputPointCloud.getPointCount();
-  if (_gps->geom_unique_points_flag) {  // retain unique quantized points
-    // filter points based on quantized positions
-    std::set<PCCVector3<int64_t>> retainedPoints;
-    for (size_t i = 0; i < inputPointCount; ++i) {
-      const PCCVector3D point = (inputPointCloud[i] - minPositions)
-        * _sps->seq_source_geom_scale_factor;
-      PCCVector3<int64_t> quantizedPoint;
-      quantizedPoint[0] = int64_t(std::round(point[0]));
-      quantizedPoint[1] = int64_t(std::round(point[1]));
-      quantizedPoint[2] = int64_t(std::round(point[2]));
-      const auto it = retainedPoints.find(quantizedPoint);
-      if (it == retainedPoints.end()) {
-        retainedPoints.insert(quantizedPoint);
-      }
-    }
-    // compute reconstructed point cloud
-    pointCloud.resize(retainedPoints.size());
-    const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
-    size_t pointCounter = 0;
-    for (const auto& quantizedPoint : retainedPoints) {
-      auto& point = pointCloud[pointCounter++];
-      for (size_t k = 0; k < 3; ++k) {
-        point[k] = double(quantizedPoint[k]) * invScale + minPositions[k];
-      }
-    }
-
-    if (hasColour) {  // transfer colors
-      if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
-        std::cout << "Error: can't transfer colors!" << std::endl;
-        return -1;
-      }
-    }
-
-    if (hasReflectance) {  // transfer reflectances
-      if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
-        std::cout << "Error: can't transfer reflectances!" << std::endl;
-        return -1;
-      }
-    }
-
-    // compute quantized coordinates
-    pointCounter = 0;
-    for (const auto& quantizedPoint : retainedPoints) {
-      auto& point = pointCloud[pointCounter++];
-      for (size_t k = 0; k < 3; ++k) {
-        point[k] = double(quantizedPoint[k]);
-      }
-    }
+  if (_gps->geom_unique_points_flag) {
+    quantizePositionsUniq(
+      _sps->seq_source_geom_scale_factor, -minPositions, inputPointCloud,
+      &pointCloud);
   } else {
-    // quantized point cloud
-    pointCloud.resize(inputPointCount);
-    for (size_t i = 0; i < inputPointCount; ++i) {
-      const PCCVector3D point = (inputPointCloud[i] - minPositions)
-        * _sps->seq_source_geom_scale_factor;
-      auto& quantizedPoint = pointCloud[i];
-      quantizedPoint[0] = std::round(point[0]);
-      quantizedPoint[1] = std::round(point[1]);
-      quantizedPoint[2] = std::round(point[2]);
-      if (hasColour) {
-        pointCloud.setColor(i, inputPointCloud.getColor(i));
-      }
-      if (hasReflectance) {
-        pointCloud.setReflectance(i, inputPointCloud.getReflectance(i));
-      }
-    }
+    quantizePositions(
+      _sps->seq_source_geom_scale_factor, -minPositions, inputPointCloud,
+      &pointCloud);
   }
 
   const size_t pointCount = pointCloud.getPointCount();
@@ -432,43 +383,6 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
       }
     }
   }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-
-int
-PCCTMC3Encoder3::recolorTrisoup(const PCCPointSet3& inputPointCloud)
-{
-  // Transform from integer to original coordinates.
-  const size_t pointCount = pointCloud.getPointCount();
-  for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-    pointCloud[pointIndex] *= _sps->donotuse_trisoup_int_to_orig_scale;
-    // todo(pchou): should add intToOrigTranslation here.
-  }
-
-  // Recolour attributes.
-  if (inputPointCloud.hasColors()) {
-    if (!PCCTransfertColors(inputPointCloud, pointCloud)) {
-      std::cout << "Error: can't transfer colors!" << std::endl;
-      return -1;
-    }
-  }
-  if (inputPointCloud.hasReflectances()) {
-    if (!PCCTransfertReflectances(inputPointCloud, pointCloud)) {
-      std::cout << "Error: can't transfer reflectance!" << std::endl;
-      return -1;
-    }
-  }
-
-  // Transform from original to integer coordinates.
-  for (size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
-    // todo(pchou): should subtract intToOrigTranslation here.
-    // todo(?): don't use division here
-    pointCloud[pointIndex] /= _sps->donotuse_trisoup_int_to_orig_scale;
-  }
-
-  return 0;
 }
 
 //============================================================================

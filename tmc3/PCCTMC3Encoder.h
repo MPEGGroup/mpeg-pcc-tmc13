@@ -88,11 +88,10 @@ private:
 
   void computeMinPositions(const PCCPointSet3& inputPointCloud);
 
-  int quantization(const PCCPointSet3& inputPointCloud);
-
-  int recolorTrisoup(const PCCPointSet3& inputPointCloud);
+  void quantization(const PCCPointSet3& inputPointCloud);
 
 private:
+  // todo(df): minPositions is unscaled -- which isn't quite correct.
   PCCVector3D minPositions;
   PCCBox3<uint32_t> boundingBox;
   PCCPointSet3 pointCloud;

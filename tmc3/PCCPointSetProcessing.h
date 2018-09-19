@@ -37,6 +37,7 @@
 #define PCCPointSetProcessing_h
 
 #include <cstddef>
+#include <set>
 #include <vector>
 
 #include "KDTreeVectorOfVectorsAdaptor.h"
@@ -45,9 +46,124 @@
 
 namespace pcc {
 
-inline bool
-PCCTransfertColors(const PCCPointSet3& source, PCCPointSet3& target)
+//============================================================================
+// Quantise the geometry of a point cloud, retaining unique points only.
+// Points in the @src point cloud are translated by @offset, then quantised
+// by a multiplicitive @scaleFactor with rounding.
+//
+// The destination and source point clouds may be the same object.
+//
+// NB: attributes are not processed.
+
+inline void
+quantizePositionsUniq(
+  const float scaleFactor,
+  const PCCVector3D offset,
+  const PCCPointSet3& src,
+  PCCPointSet3* dst)
 {
+  // Determine the set of unique quantised points
+
+  std::set<PCCVector3<int32_t>> uniquePoints;
+  int numSrcPoints = src.getPointCount();
+  for (int i = 0; i < numSrcPoints; ++i) {
+    const PCCVector3D point = (src[i] + offset) * scaleFactor;
+
+    PCCVector3<int32_t> quantizedPoint;
+    quantizedPoint[0] = int64_t(std::round(point[0]));
+    quantizedPoint[1] = int64_t(std::round(point[1]));
+    quantizedPoint[2] = int64_t(std::round(point[2]));
+
+    uniquePoints.insert(quantizedPoint);
+  }
+
+  // Populate output point cloud
+
+  if (&src != dst) {
+    dst->clear();
+    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
+  }
+  dst->resize(uniquePoints.size());
+
+  int idx = 0;
+  for (const auto& point : uniquePoints) {
+    auto& dstPoint = (*dst)[idx++];
+    for (int k = 0; k < 3; ++k)
+      dstPoint[k] = double(point[k]);
+  }
+}
+
+//============================================================================
+// Quantise the geometry of a point cloud, retaining duplicate points.
+// Points in the @src point cloud are translated by @offset, then quantised
+// by a multiplicitive @scaleFactor with rounding.
+//
+// The destination and source point clouds may be the same object.
+//
+// NB: attributes are preserved
+
+inline void
+quantizePositions(
+  const float scaleFactor,
+  const PCCVector3D offset,
+  const PCCPointSet3& src,
+  PCCPointSet3* dst)
+{
+  int numSrcPoints = src.getPointCount();
+
+  // In case dst and src point clouds are the same, don't destroy src.
+  if (&src != dst) {
+    dst->clear();
+    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
+    dst->resize(numSrcPoints);
+  }
+
+  for (int i = 0; i < numSrcPoints; ++i) {
+    const PCCVector3D point = (src[i] + offset) * scaleFactor;
+    auto& dstPoint = (*dst)[i];
+    for (int k = 0; k < 3; ++k)
+      dstPoint[k] = std::round(point[k]);
+  }
+
+  // don't copy attributes if dst already has them
+  if (&src == dst)
+    return;
+
+  if (src.hasColors()) {
+    for (int i = 0; i < numSrcPoints; ++i)
+      dst->setColor(i, src.getColor(i));
+  }
+
+  if (src.hasReflectances()) {
+    for (int i = 0; i < numSrcPoints; ++i)
+      dst->setReflectance(i, src.getReflectance(i));
+  }
+}
+
+//============================================================================
+// Determine colour attribute values from a reference/source point cloud.
+// Each point in @target is coloured by:
+//
+//  - first projecting the attribute values of each point in @source to
+//    the corresponding nearest neighbour in @target.  In case multiple
+//    source points map to a single target point, the mean value is used.
+//
+//  - for any remaining uncoloured points, finding the corresponding nearest
+//    neighbour in @source.
+//
+// Differences in the scale and translation of the target and source point
+// clouds, is handled according to:
+//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+
+inline bool
+PCCTransfertColors(
+  const PCCPointSet3& source,
+  double sourceToTargetScaleFactor,
+  PCCVector3D targetToSourceOffset,
+  PCCPointSet3& target)
+{
+  double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
+
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
   if (!pointCountSource || !pointCountTarget || !source.hasColors()) {
@@ -67,19 +183,30 @@ PCCTransfertColors(const PCCPointSet3& source, PCCPointSet3& target)
   std::vector<size_t> indices(num_results);
   std::vector<double> sqrDist(num_results);
   nanoflann::KNNResultSet<double> resultSet(num_results);
+
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
+
+    PCCVector3D posInSrc =
+      target[index] * targetToSourceScaleFactor + targetToSourceOffset;
+
     kdtreeSource.index->findNeighbors(
-      resultSet, &target[index][0], nanoflann::SearchParams(10));
+      resultSet, &posInSrc[0], nanoflann::SearchParams(10));
     refinedColors1[index] = source.getColor(indices[0]);
   }
+
   for (size_t index = 0; index < pointCountSource; ++index) {
     const PCCColor3B color = source.getColor(index);
     resultSet.init(&indices[0], &sqrDist[0]);
+
+    PCCVector3D posInTgt =
+      (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
+
     kdtreeTarget.index->findNeighbors(
-      resultSet, &source[index][0], nanoflann::SearchParams(10));
+      resultSet, &posInTgt[0], nanoflann::SearchParams(10));
     refinedColors2[indices[0]].push_back(color);
   }
+
   for (size_t index = 0; index < pointCountTarget; ++index) {
     const PCCColor3B color1 = refinedColors1[index];
     const std::vector<PCCColor3B>& colors2 = refinedColors2[index];
@@ -103,9 +230,30 @@ PCCTransfertColors(const PCCPointSet3& source, PCCPointSet3& target)
   return true;
 }
 
+//============================================================================
+// Determine reflectance attribute values from a reference/source point cloud.
+// Each point in @target is coloured by:
+//
+//  - first projecting the attribute values of each point in @source to
+//    the corresponding nearest neighbour in @target.  In case multiple
+//    source points map to a single target point, the mean value is used.
+//
+//  - for any remaining uncoloured points, finding the corresponding nearest
+//    neighbour in @source.
+//
+// Differences in the scale and translation of the target and source point
+// clouds, is handled according to:
+//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+
 inline bool
-PCCTransfertReflectances(const PCCPointSet3& source, PCCPointSet3& target)
+PCCTransfertReflectances(
+  const PCCPointSet3& source,
+  double sourceToTargetScaleFactor,
+  PCCVector3D targetToSourceOffset,
+  PCCPointSet3& target)
 {
+  double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
+
   const size_t pointCountSource = source.getPointCount();
   const size_t pointCountTarget = target.getPointCount();
   if (!pointCountSource || !pointCountTarget || !source.hasReflectances()) {
@@ -125,19 +273,30 @@ PCCTransfertReflectances(const PCCPointSet3& source, PCCPointSet3& target)
   std::vector<size_t> indices(num_results);
   std::vector<double> sqrDist(num_results);
   nanoflann::KNNResultSet<double> resultSet(num_results);
+
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
+
+    PCCVector3D posInSrc =
+      target[index] * targetToSourceScaleFactor + targetToSourceOffset;
+
     kdtreeSource.index->findNeighbors(
-      resultSet, &target[index][0], nanoflann::SearchParams(10));
+      resultSet, &posInSrc[0], nanoflann::SearchParams(10));
     refined1[index] = source.getReflectance(indices[0]);
   }
+
   for (size_t index = 0; index < pointCountSource; ++index) {
     const uint16_t reflectance = source.getReflectance(index);
     resultSet.init(&indices[0], &sqrDist[0]);
+
+    PCCVector3D posInTgt =
+      (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
+
     kdtreeTarget.index->findNeighbors(
-      resultSet, &source[index][0], nanoflann::SearchParams(10));
+      resultSet, &posInTgt[0], nanoflann::SearchParams(10));
     refined2[indices[0]].push_back(reflectance);
   }
+
   for (size_t index = 0; index < pointCountTarget; ++index) {
     const uint16_t reflectance1 = refined1[index];
     const std::vector<uint16_t>& reflectances2 = refined2[index];
@@ -156,6 +315,46 @@ PCCTransfertReflectances(const PCCPointSet3& source, PCCPointSet3& target)
   }
   return true;
 }
+
+//============================================================================
+// Recolour attributes based on a source/reference point cloud.
+//
+// Differences in the scale and translation of the target and source point
+// clouds, is handled according to:
+//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+
+inline int
+recolour(
+  const PCCPointSet3& source,
+  float sourceToTargetScaleFactor,
+  PCCVector3D targetToSourceOffset,
+  PCCPointSet3* target)
+{
+  if (source.hasColors()) {
+    bool ok = PCCTransfertColors(
+      source, sourceToTargetScaleFactor, targetToSourceOffset, *target);
+
+    if (!ok) {
+      std::cout << "Error: can't transfer colors!" << std::endl;
+      return -1;
+    }
+  }
+
+  if (source.hasReflectances()) {
+    bool ok = PCCTransfertReflectances(
+      source, sourceToTargetScaleFactor, targetToSourceOffset, *target);
+
+    if (!ok) {
+      std::cout << "Error: can't transfer reflectance!" << std::endl;
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+//============================================================================
+
 };  // namespace pcc
 
 #endif /* PCCPointSetProcessing_h */
