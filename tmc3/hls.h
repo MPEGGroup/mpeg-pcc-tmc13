@@ -204,6 +204,9 @@ struct GeometryParameterSet {
   // by directly coding the position of isolated points.
   bool inferred_direct_coding_mode_enabled_flag;
 
+  // Selects between bitwise and bytewise occupancy coding
+  bool bitwise_occupancy_coding_flag;
+
   // depth of voxels (reconstructed points) in trisoup geometry
   int trisoup_depth;
 

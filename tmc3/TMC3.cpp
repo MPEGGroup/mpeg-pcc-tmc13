@@ -304,6 +304,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: octree (TMC3)\n"
     "  2: trisoup (TMC1)")
 
+  ("bitwiseOccupancyCoding",
+    params.encoder.gps.bitwise_occupancy_coding_flag, true,
+    "Selects between bitwise and bytewise occupancy coding:\n"
+    "  0: bytewise\n"
+    "  1: bitwise")
+
   ("neighbourContextRestriction",
     params.encoder.gps.neighbour_context_restriction_flag, false,
     "Limit geometry octree occupancy contextualisation to sibling nodes")

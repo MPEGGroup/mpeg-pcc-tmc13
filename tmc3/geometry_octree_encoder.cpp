@@ -35,6 +35,7 @@
 
 #include "geometry.h"
 
+#include "DualLutCoder.h"
 #include "OctreeNeighMap.h"
 #include "geometry_octree.h"
 #include "io_hls.h"
@@ -46,7 +47,11 @@ namespace pcc {
 
 class GeometryOctreeEncoder {
 public:
-  GeometryOctreeEncoder(o3dgc::Arithmetic_Codec* arithmeticEncoder);
+  GeometryOctreeEncoder(
+    const GeometryParameterSet& gps,
+    o3dgc::Arithmetic_Codec* arithmeticEncoder);
+
+  void beginOctreeLevel();
 
   int encodePositionLeafNumPoints(int count);
 
@@ -55,6 +60,8 @@ public:
   void encodeOccupancyNeighNZ(int mappedOccupancy, int neighPattern10);
 
   void encodeOccupancyBitwise(int mappedOccupancy, int neighPattern);
+
+  void encodeOccupancyBytewise(int mappedOccupancy, int neighPattern);
 
   void encodeOccupancy(int occupancy, int neighPattern);
 
@@ -76,15 +83,36 @@ private:
   o3dgc::Adaptive_Bit_Model _ctxPointCountPerBlock;
   o3dgc::Adaptive_Bit_Model _ctxBlockSkipTh;
   o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
+
+  // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
+
+  // For bytewise occupancy coding
+  DualLutCoder<true> _bytewiseOccupancyCoder[10];
 };
 
 //============================================================================
 
 GeometryOctreeEncoder::GeometryOctreeEncoder(
-  o3dgc::Arithmetic_Codec* arithmeticEncoder)
-  : _useBitwiseOccupancyCoder(true), _arithmeticEncoder(arithmeticEncoder)
-{}
+  const GeometryParameterSet& gps, o3dgc::Arithmetic_Codec* arithmeticEncoder)
+  : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
+  , _arithmeticEncoder(arithmeticEncoder)
+{
+  if (!_useBitwiseOccupancyCoder) {
+    for (int i = 0; i < 10; i++)
+      _bytewiseOccupancyCoder[i].init(kDualLutOccupancyCoderInit[i]);
+  }
+}
+
+//============================================================================
+
+void
+GeometryOctreeEncoder::beginOctreeLevel()
+{
+  for (int i = 0; i < 10; i++) {
+    _bytewiseOccupancyCoder[i].resetLut();
+  }
+}
 
 //============================================================================
 // Encode the number of points in a leaf node of the octree.
@@ -192,6 +220,19 @@ GeometryOctreeEncoder::encodeOccupancyBitwise(
 }
 
 //-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodeOccupancyBytewise(
+  int mappedOccupancy, int neighPattern)
+{
+  // code occupancy using the neighbour configuration context
+  // with reduction from 64 states to 10.
+  int neighPattern10 = kNeighPattern64to10[neighPattern];
+  auto& bytewiseCoder = _bytewiseOccupancyCoder[neighPattern10];
+  bytewiseCoder.encode(mappedOccupancy, _arithmeticEncoder);
+}
+
+//-------------------------------------------------------------------------
 // decode node occupancy bits
 //
 
@@ -215,6 +256,8 @@ GeometryOctreeEncoder::encodeOccupancy(int occupancy, int neighPattern)
 
   if (_useBitwiseOccupancyCoder)
     encodeOccupancyBitwise(mappedOccupancy, neighPattern);
+  else
+    encodeOccupancyBytewise(mappedOccupancy, neighPattern);
 }
 
 //-------------------------------------------------------------------------
@@ -269,7 +312,7 @@ encodeGeometryOctree(
   o3dgc::Arithmetic_Codec* arithmeticEncoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
-  GeometryOctreeEncoder encoder(arithmeticEncoder);
+  GeometryOctreeEncoder encoder(gps, arithmeticEncoder);
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -322,6 +365,8 @@ encodeGeometryOctree(
       numNodesNextLvl = 0;
       occupancyAtlasOrigin = 0xffffffff;
       nodeSizeLog2--;
+
+      encoder.beginOctreeLevel();
 
       // allow partial tree encoding using trisoup
       if (nodeSizeLog2 == terminalNodeSizeLog2)

@@ -192,6 +192,7 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.geom_unique_points_flag);
   bs.write(gps.neighbour_context_restriction_flag);
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
+  bs.write(gps.bitwise_occupancy_coding_flag);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
 
   if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
@@ -222,6 +223,7 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.geom_unique_points_flag);
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
+  bs.read(&gps.bitwise_occupancy_coding_flag);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
 
   if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
