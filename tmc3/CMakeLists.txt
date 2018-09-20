@@ -59,6 +59,7 @@ file(GLOB PROJECT_INC_FILES
   "AttributeEncoder.h"
   "BitReader.h"
   "BitWriter.h"
+  "DualLutCoder.h"
   "OctreeNeighMap.h"
   "PCCKdTree.h"
   "PCCMath.h"
@@ -91,6 +92,7 @@ file(GLOB PROJECT_INC_FILES
 file(GLOB PROJECT_CPP_FILES
   "AttributeDecoder.cpp"
   "AttributeEncoder.cpp"
+  "DualLutCoder.cpp"
   "OctreeNeighMap.cpp"
   "RAHT.cpp"
   "TMC3.cpp"
