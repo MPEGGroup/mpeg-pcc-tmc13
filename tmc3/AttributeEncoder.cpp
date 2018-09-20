@@ -41,6 +41,10 @@
 #include "entropy.h"
 #include "RAHT.h"
 
+// todo(df): promote to per-attribute encoder parameter
+static const float kAttrPredLambdaR = 0.01;
+static const float kAttrPredLambdaC = 0.01;
+
 namespace pcc {
 //============================================================================
 // An encapsulation of the entropy coding methods used in attribute coding
@@ -48,14 +52,14 @@ namespace pcc {
 struct PCCResidualsEncoder {
   EntropyEncoder arithmeticEncoder;
   StaticBitModel binaryModel0;
-  AdaptiveBitModel binaryModelPred;
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
+  AdaptiveBitModel ctxPredMode[2];
   DualLutCoder<false> symbolCoder[2];
 
   void start(int numPoints);
   int stop();
-  void encodePred(const bool value);
+  void encodePredMode(int value, int max);
   void encodeSymbol(uint32_t value, int k1, int k2);
   void encode(uint32_t value0, uint32_t value1, uint32_t value2);
   void encode(uint32_t value);
@@ -83,9 +87,21 @@ PCCResidualsEncoder::stop()
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encodePred(const bool value)
+PCCResidualsEncoder::encodePredMode(int mode, int maxMode)
 {
-  arithmeticEncoder.encode(value, binaryModelPred);
+  // max = 0 => no direct predictors are used
+  if (maxMode == 0)
+    return;
+
+  int ctxIdx = 0;
+  for (int i = 0; i < mode; i++) {
+    arithmeticEncoder.encode(1, ctxPredMode[ctxIdx]);
+    ctxIdx = 1;
+  }
+
+  // Truncated unary
+  if (mode != maxMode)
+    arithmeticEncoder.encode(0, ctxPredMode[ctxIdx]);
 }
 
 //----------------------------------------------------------------------------
@@ -360,26 +376,37 @@ AttributeEncoder::computeReflectancePredictionWeights(
     const int64_t maxDiff = maxValue - minValue;
     if (maxDiff > aps.adaptive_prediction_threshold) {
       const int qs = aps.quant_step_size_luma;
-      const uint16_t reflectance = pointCloud.getReflectance(predictor.index);
-      const uint16_t reflectance0 =
-        pointCloud.getReflectance(predictor.neighbors[0].index);
-      const uint16_t predictedReflectance =
-        predictor.predictReflectance(pointCloud);
-      const int64_t residuals1 =
-        computeReflectanceResidual(reflectance, predictedReflectance, qs);
-      const int64_t residuals0 =
-        computeReflectanceResidual(reflectance, reflectance0, qs);
-      const double bits1 = std::round(1000.0 * context.bits(residuals1));
-      const double bits0 = std::round(1000.0 * context.bits(residuals0));
-      if ((bits1 - bits0) <= 1.0) {
-        context.update(residuals1);
-        encoder.encodePred(1);
-      } else {
-        context.update(residuals0);
-        encoder.encodePred(0);
-        predictor.neighbors[0].weight = 1.0;
-        predictor.neighborCount = 1;
+      uint16_t attrValue = pointCloud.getReflectance(predictor.index);
+
+      // base case: weighted average of n neighbours
+      predictor.predMode = 0;
+      uint16_t attrPred = predictor.predictReflectance(pointCloud);
+      int64_t attrResidualQuant =
+        computeReflectanceResidual(attrValue, attrPred, qs);
+
+      double best_score = attrResidualQuant + kAttrPredLambdaR * (double)qs;
+
+      for (int i = 0; i < predictor.neighborCount; i++) {
+        if (i == aps.max_num_direct_predictors)
+          break;
+
+        attrPred = pointCloud.getReflectance(predictor.neighbors[i].index);
+        attrResidualQuant =
+          computeReflectanceResidual(attrValue, attrPred, qs);
+
+        double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
+        double score = attrResidualQuant + idxBits * kAttrPredLambdaR * qs;
+
+        if (score < best_score) {
+          best_score = score;
+          predictor.predMode = i + 1;
+          // NB: setting predictor.neighborCount = 1 will cause issues
+          // with reconstruction.
+        }
       }
+
+      encoder.encodePredMode(
+        predictor.predMode, aps.max_num_direct_predictors);
     }
   }
 }
@@ -487,27 +514,39 @@ AttributeEncoder::computeColorPredictionWeights(
     if (maxDiff > aps.adaptive_prediction_threshold) {
       const int qs = aps.quant_step_size_luma;
       const int qs2 = aps.quant_step_size_chroma;
-      const PCCColor3B color = pointCloud.getColor(predictor.index);
-      const PCCColor3B color0 =
-        pointCloud.getColor(predictor.neighbors[0].index);
-      const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
-      const PCCVector3<int64_t> residuals1 =
-        computeColorResiduals(color, predictedColor, qs, qs2);
-      const PCCVector3<int64_t> residuals0 =
-        computeColorResiduals(color, color0, qs, qs2);
-      const double bits1 = std::round(
-        1000.0 * context.bits(residuals1[0], residuals1[1], residuals1[2]));
-      const double bits0 = std::round(
-        1000.0 * context.bits(residuals0[0], residuals0[1], residuals0[2]));
-      if ((bits1 - bits0) <= 1.0) {
-        context.update(residuals1[0], residuals1[1], residuals1[2]);
-        encoder.encodePred(1);
-      } else {
-        context.update(residuals0[0], residuals0[1], residuals0[2]);
-        encoder.encodePred(0);
-        predictor.neighbors[0].weight = 1.0;
-        predictor.neighborCount = 1;
+      PCCColor3B attrValue = pointCloud.getColor(predictor.index);
+
+      // base case: weighted average of n neighbours
+      predictor.predMode = 0;
+      PCCColor3B attrPred = predictor.predictColor(pointCloud);
+      PCCVector3<int64_t> attrResidualQuant =
+        computeColorResiduals(attrValue, attrPred, qs, qs2);
+
+      double best_score = attrResidualQuant[0] + attrResidualQuant[1]
+        + attrResidualQuant[2] + kAttrPredLambdaC * (double)qs;
+
+      for (int i = 0; i < predictor.neighborCount; i++) {
+        if (i == aps.max_num_direct_predictors)
+          break;
+
+        attrPred = pointCloud.getColor(predictor.neighbors[i].index);
+        attrResidualQuant =
+          computeColorResiduals(attrValue, attrPred, qs, qs2);
+
+        double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
+        double score = attrResidualQuant[0] + attrResidualQuant[1]
+          + attrResidualQuant[2] + idxBits * kAttrPredLambdaC * qs;
+
+        if (score < best_score) {
+          best_score = score;
+          predictor.predMode = i + 1;
+          // NB: setting predictor.neighborCount = 1 will cause issues
+          // with reconstruction.
+        }
       }
+
+      encoder.encodePredMode(
+        predictor.predMode, aps.max_num_direct_predictors);
     }
   }
 }

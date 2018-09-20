@@ -261,6 +261,7 @@ write(const AttributeParameterSet& aps)
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
+    bs.writeUe(aps.max_num_direct_predictors);
     bs.writeUe(aps.quant_step_size_luma);
     bs.writeUe(aps.quant_step_size_chroma);
 
@@ -307,6 +308,7 @@ parseAps(const PayloadBuffer& buf)
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
+    bs.readUe(&aps.max_num_direct_predictors);
     bs.readUe(&aps.quant_step_size_luma);
     bs.readUe(&aps.quant_step_size_chroma);
 

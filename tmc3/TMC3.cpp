@@ -388,6 +388,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "single|multi predictors. Applies to transformType=2 only.\n"
     "  -1: auto = 2**(bitdepth-2)")
 
+  ("max_num_direct_predictors",
+    params_attr.aps.max_num_direct_predictors, 3,
+    "Maximum number of nearest neighbour candidates used in direct"
+    "attribute prediction")
+
   ("levelOfDetailCount",
     params_attr.aps.numDetailLevels, 1,
     "Attribute's number of levels of detail")

@@ -49,14 +49,14 @@ namespace pcc {
 struct PCCResidualsDecoder {
   EntropyDecoder arithmeticDecoder;
   StaticBitModel binaryModel0;
-  AdaptiveBitModel binaryModelPred;
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
+  AdaptiveBitModel ctxPredMode[2];
   DualLutCoder<false> symbolCoder[2];
 
   void start(const char* buf, int buf_len);
   void stop();
-  bool decodePred();
+  int decodePredMode(int max);
   uint32_t decodeSymbol(int k1, int k2);
   void decode(uint32_t values[3]);
   uint32_t decode();
@@ -81,10 +81,23 @@ PCCResidualsDecoder::stop()
 
 //----------------------------------------------------------------------------
 
-bool
-PCCResidualsDecoder::decodePred()
+int
+PCCResidualsDecoder::decodePredMode(int maxMode)
 {
-  return arithmeticDecoder.decode(binaryModelPred);
+  int mode = 0;
+
+  if (maxMode == 0)
+    return mode;
+
+  int ctxIdx = 0;
+  while (arithmeticDecoder.decode(ctxPredMode[ctxIdx])) {
+    ctxIdx = 1;
+    mode++;
+    if (mode == maxMode)
+      break;
+  }
+
+  return mode;
 }
 
 //----------------------------------------------------------------------------
@@ -204,11 +217,8 @@ AttributeDecoder::computeReflectancePredictionWeights(
     }
     const int64_t maxDiff = maxValue - minValue;
     if (maxDiff > aps.adaptive_prediction_threshold) {
-      const bool predIndex = decoder.decodePred();
-      if (predIndex == 0) {
-        predictor.neighborCount = 1;
-        predictor.neighbors[0].weight = 1.0;
-      }
+      predictor.predMode =
+        decoder.decodePredMode(aps.max_num_direct_predictors);
     }
   }
 }
@@ -278,11 +288,8 @@ AttributeDecoder::computeColorPredictionWeights(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
     if (maxDiff > aps.adaptive_prediction_threshold) {
-      const bool predIndex = decoder.decodePred();
-      if (predIndex == 0) {
-        predictor.neighborCount = 1;
-        predictor.neighbors[0].weight = 1.0;
-      }
+      predictor.predMode =
+        decoder.decodePredMode(aps.max_num_direct_predictors);
     }
   }
 }

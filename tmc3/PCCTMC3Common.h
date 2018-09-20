@@ -79,27 +79,45 @@ struct PCCPredictor {
   size_t neighborCount;
   uint32_t index;
   PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
+  int8_t predMode;
 
   PCCColor3B predictColor(const PCCPointSet3& pointCloud) const
   {
     PCCVector3D predicted(0.0);
-    for (size_t i = 0; i < neighborCount; ++i) {
-      const PCCColor3B color = pointCloud.getColor(neighbors[i].index);
-      const double w = neighbors[i].weight;
+    if (predMode > neighborCount) {
+      /* nop */
+    } else if (predMode > 0) {
+      const PCCColor3B color =
+        pointCloud.getColor(neighbors[predMode - 1].index);
       for (size_t k = 0; k < 3; ++k) {
-        predicted[k] += w * color[k];
+        predicted[k] += color[k];
+      }
+    } else {
+      for (size_t i = 0; i < neighborCount; ++i) {
+        const PCCColor3B color = pointCloud.getColor(neighbors[i].index);
+        const double w = neighbors[i].weight;
+        for (size_t k = 0; k < 3; ++k) {
+          predicted[k] += w * color[k];
+        }
       }
     }
     return PCCColor3B(
       uint8_t(std::round(predicted[0])), uint8_t(std::round(predicted[1])),
       uint8_t(std::round(predicted[2])));
   }
+
   uint16_t predictReflectance(const PCCPointSet3& pointCloud) const
   {
     double predicted(0.0);
-    for (size_t i = 0; i < neighborCount; ++i) {
-      predicted +=
-        neighbors[i].weight * pointCloud.getReflectance(neighbors[i].index);
+    if (predMode > neighborCount) {
+      /* nop */
+    } else if (predMode > 0) {
+      predicted = pointCloud.getReflectance(neighbors[predMode - 1].index);
+    } else {
+      for (size_t i = 0; i < neighborCount; ++i) {
+        predicted +=
+          neighbors[i].weight * pointCloud.getReflectance(neighbors[i].index);
+      }
     }
     return uint16_t(std::round(predicted));
   }
@@ -130,6 +148,7 @@ struct PCCPredictor {
     neighbors[0].index = reference;
     neighbors[0].predictorIndex = predictorIndex;
     neighbors[0].weight = 1.0;
+    predMode = 0;
   }
 };
 inline int64_t

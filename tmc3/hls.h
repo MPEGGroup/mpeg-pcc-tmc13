@@ -246,6 +246,7 @@ struct AttributeParameterSet {
   //--- lifting/predicting transform parameters
 
   int num_pred_nearest_neighbours;
+  int max_num_direct_predictors;
   int adaptive_prediction_threshold;
 
   // NB: derived from num_detail_levels_minus1
