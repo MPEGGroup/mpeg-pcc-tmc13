@@ -388,13 +388,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "single|multi predictors. Applies to transformType=2 only.\n"
     "  -1: auto = 2**(bitdepth-2)")
 
+  ("attributeSearchRange",
+    params_attr.aps.search_range, 128,
+    "Range for nearest neighbor search")
+
   ("max_num_direct_predictors",
     params_attr.aps.max_num_direct_predictors, 3,
     "Maximum number of nearest neighbour candidates used in direct"
     "attribute prediction")
 
   ("levelOfDetailCount",
-    params_attr.aps.numDetailLevels, 1,
+    params_attr.aps.num_detail_levels, 1,
     "Attribute's number of levels of detail")
 
   ("quantizationStepLuma",
@@ -484,16 +488,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     // derive the dist2 values based on an initial value
     if (isLifting && !attr_aps.dist2.empty()) {
-      if (attr_aps.dist2.size() < attr_aps.numDetailLevels) {
-        attr_aps.dist2.resize(attr_aps.numDetailLevels);
+      if (attr_aps.dist2.size() < attr_aps.num_detail_levels) {
+        attr_aps.dist2.resize(attr_aps.num_detail_levels);
         const double distRatio = 4.0;
         uint64_t d2 = attr_aps.dist2[0];
-
-        for (int i = 1; i < attr_aps.numDetailLevels; ++i) {
-          attr_aps.dist2[attr_aps.numDetailLevels - 1 - i] = d2;
+        for (int i = 0; i < attr_aps.num_detail_levels; ++i) {
+          attr_aps.dist2[i] = d2;
           d2 = uint64_t(std::round(distRatio * d2));
         }
-        attr_aps.dist2[attr_aps.numDetailLevels - 1] = 0;
       }
     }
 
@@ -520,7 +522,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-      attr_aps.numDetailLevels = 0;
+      attr_aps.num_detail_levels = 0;
       attr_aps.adaptive_prediction_threshold = 0;
 
       // todo(df): suggest chroma quant_step_size for raht
@@ -555,7 +557,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     }
 
     if (isLifting) {
-      int lod = attr_aps.numDetailLevels;
+      int lod = attr_aps.num_detail_levels;
 
       if (lod > 255 || lod < 1) {
         err.error() << it.first

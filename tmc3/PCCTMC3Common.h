@@ -69,32 +69,55 @@ struct WeightWithIndex {
   }
 };
 
+//---------------------------------------------------------------------------
+
+struct MortonCodeWithIndex {
+  uint64_t mortonCode;
+  int32_t index;
+  bool operator<(const MortonCodeWithIndex& rhs) const
+  {
+    // NB: index used to maintain stable sort
+    if (mortonCode == rhs.mortonCode)
+      return index < rhs.index;
+    return mortonCode < rhs.mortonCode;
+  }
+};
+
+//---------------------------------------------------------------------------
+
 struct PCCNeighborInfo {
   double weight;
-  uint32_t index;
   uint32_t predictorIndex;
+  bool operator<(const PCCNeighborInfo& rhs) const
+  {
+    return (weight == rhs.weight) ? predictorIndex < rhs.predictorIndex
+                                  : weight < rhs.weight;
+  }
 };
+
+//---------------------------------------------------------------------------
 
 struct PCCPredictor {
   size_t neighborCount;
-  uint32_t index;
   PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
   int8_t predMode;
 
-  PCCColor3B predictColor(const PCCPointSet3& pointCloud) const
+  PCCColor3B predictColor(
+    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const
   {
     PCCVector3D predicted(0.0);
     if (predMode > neighborCount) {
       /* nop */
     } else if (predMode > 0) {
       const PCCColor3B color =
-        pointCloud.getColor(neighbors[predMode - 1].index);
+        pointCloud.getColor(indexes[neighbors[predMode - 1].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         predicted[k] += color[k];
       }
     } else {
       for (size_t i = 0; i < neighborCount; ++i) {
-        const PCCColor3B color = pointCloud.getColor(neighbors[i].index);
+        const PCCColor3B color =
+          pointCloud.getColor(indexes[neighbors[i].predictorIndex]);
         const double w = neighbors[i].weight;
         for (size_t k = 0; k < 3; ++k) {
           predicted[k] += w * color[k];
@@ -106,17 +129,19 @@ struct PCCPredictor {
       uint8_t(std::round(predicted[2])));
   }
 
-  uint16_t predictReflectance(const PCCPointSet3& pointCloud) const
+  uint16_t predictReflectance(
+    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const
   {
     double predicted(0.0);
     if (predMode > neighborCount) {
       /* nop */
     } else if (predMode > 0) {
-      predicted = pointCloud.getReflectance(neighbors[predMode - 1].index);
+      predicted = pointCloud.getReflectance(
+        indexes[neighbors[predMode - 1].predictorIndex]);
     } else {
       for (size_t i = 0; i < neighborCount; ++i) {
-        predicted +=
-          neighbors[i].weight * pointCloud.getReflectance(neighbors[i].index);
+        predicted += neighbors[i].weight
+          * pointCloud.getReflectance(indexes[neighbors[i].predictorIndex]);
       }
     }
     return uint16_t(std::round(predicted));
@@ -129,28 +154,59 @@ struct PCCPredictor {
       return;
     }
     double sum = 0.0;
-    for (size_t n = 0; n < neighborCount; ++n) {
+    for (uint32_t n = 0; n < neighborCount; ++n) {
       sum += neighbors[n].weight;
     }
     assert(sum > 0.0);
-    for (size_t n = 0; n < neighborCount; ++n) {
+    for (uint32_t n = 0; n < neighborCount; ++n) {
       neighbors[n].weight /= sum;
     }
   }
 
-  void init(
-    const uint32_t current,
-    const uint32_t reference,
-    const uint32_t predictorIndex)
+  void init(const uint32_t predictorIndex)
   {
-    index = current;
-    neighborCount = (reference != PCC_UNDEFINED_INDEX) ? 1 : 0;
-    neighbors[0].index = reference;
+    neighborCount = (predictorIndex != PCC_UNDEFINED_INDEX) ? 1 : 0;
     neighbors[0].predictorIndex = predictorIndex;
     neighbors[0].weight = 1.0;
     predMode = 0;
   }
+
+  void init() { neighborCount = 0; }
+
+  void insertNeighbor(
+    const uint32_t reference,
+    const double weight,
+    const uint32_t maxNeighborCount)
+  {
+    bool sort = false;
+    assert(
+      maxNeighborCount > 0
+      && maxNeighborCount <= kAttributePredictionMaxNeighbourCount);
+    if (neighborCount < maxNeighborCount) {
+      PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
+      neighborInfo.weight = weight;
+      neighborInfo.predictorIndex = reference;
+      ++neighborCount;
+      sort = true;
+    } else {
+      PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCount - 1];
+      if (weight < neighborInfo.weight) {
+        neighborInfo.weight = weight;
+        neighborInfo.predictorIndex = reference;
+        sort = true;
+      }
+    }
+    for (int32_t k = neighborCount - 1; k > 0 && sort; --k) {
+      if (neighbors[k] < neighbors[k - 1])
+        std::swap(neighbors[k], neighbors[k - 1]);
+      else
+        return;
+    }
+  }
 };
+
+//---------------------------------------------------------------------------
+
 inline int64_t
 PCCQuantization(const int64_t value, const int64_t qs)
 {
@@ -280,260 +336,334 @@ PCCComputeQuantizationWeights(
 
 //---------------------------------------------------------------------------
 
-inline void
-CheckPoint(
+inline uint32_t
+FindNeighborWithinDistance(
   const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
   const int32_t index,
   const double radius2,
-  const int32_t searchRange1,
-  const int32_t searchRange2,
-  uint32_t& lastNNIndex,
-  std::vector<bool>& visited,
-  std::vector<uint32_t>& retained,
-  PCCIncrementalKdTree3& kdtree)
+  const int32_t searchRange,
+  std::vector<uint32_t>& retained)
 {
-  const auto& point = pointCloud[index];
-  if (retained.empty()) {
-    kdtree.insert(point);
-    visited[index] = true;
-    retained.push_back(index);
-    return;
-  }
-
-  const int32_t retainedPointCount = retained.size();
-  for (int32_t k = 0, j = retainedPointCount - 1; j >= 0 && k < searchRange1;
-       --j, ++k) {
-    if ((point - pointCloud[retained[j]]).getNorm2() < radius2) {
-      return;
+  const auto& point = pointCloud[packedVoxel[index].index];
+  const int32_t retainedSize = retained.size();
+  int32_t j = retainedSize - 2;
+  int32_t k = 0;
+  while (j >= 0 && ++k < searchRange) {
+    const int32_t index1 = retained[j];
+    const int32_t pointIndex1 = packedVoxel[index1].index;
+    const auto& point1 = pointCloud[pointIndex1];
+    const auto d2 = (point1 - point).getNorm2();
+    if (d2 <= radius2) {
+      return index1;
     }
+    --j;
   }
-
-  if (lastNNIndex != PCC_UNDEFINED_INDEX) {
-    for (int32_t k = 0; k < searchRange2; ++k) {
-      const int32_t j1 = lastNNIndex - k;
-      if (j1 > 0 && (point - pointCloud[retained[j1]]).getNorm2() < radius2) {
-        lastNNIndex = j1;
-        return;
-      }
-      const int32_t j2 = lastNNIndex + k;
-      if (
-        j2 < retainedPointCount
-        && (point - pointCloud[retained[j2]]).getNorm2() < radius2) {
-        lastNNIndex = j2;
-        return;
-      }
-    }
-  }
-  const uint32_t nnIndex = kdtree.hasNeighborWithinRange(point, radius2);
-  if (nnIndex != PCC_UNDEFINED_INDEX) {
-    lastNNIndex = nnIndex;
-    return;
-  }
-  kdtree.insert(point);
-  visited[index] = true;
-  retained.push_back(index);
+  return PCC_UNDEFINED_INDEX;
 }
 
 //---------------------------------------------------------------------------
 
 inline void
-PCCBuildLevelOfDetail(
+computeNearestNeighbors2(
   const PCCPointSet3& pointCloud,
-  const int levelOfDetailCount,
-  const std::vector<int64_t>& dist2,
-  std::vector<uint32_t>& numberOfPointsPerLOD,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& retained,
+  const int32_t startIndex,
+  const int32_t endIndex,
+  const int32_t searchRange,
+  const int32_t numberOfNearestNeighborsInPrediction,
+  std::vector<uint32_t>& indexes,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& pointIndexToPredictorIndex,
+  int32_t& predIndex)
+{
+  const int32_t retainedSize = retained.size();
+  for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
+    const int32_t index = indexes[i];
+    const uint64_t mortonCode = packedVoxel[index].mortonCode;
+    const int32_t pointIndex = packedVoxel[index].index;
+    const auto& point = pointCloud[pointIndex];
+    indexes[i] = pointIndex;
+    while (j < retainedSize
+           && mortonCode >= packedVoxel[retained[j]].mortonCode)
+      ++j;
+    j = std::min(retainedSize - 1, j);
+    auto& predictor = predictors[--predIndex];
+    pointIndexToPredictorIndex[pointIndex] = predIndex;
+    predictor.init();
+    for (int32_t k = j, r = 0; k >= 0 && r < searchRange; --k, ++r) {
+      const int32_t pointIndex1 = packedVoxel[retained[k]].index;
+      const auto& point1 = pointCloud[pointIndex1];
+      predictor.insertNeighbor(
+        pointIndex1, (point - point1).getNorm2(),
+        numberOfNearestNeighborsInPrediction);
+    }
+    for (int32_t k = j + 1, r = 0; k < retainedSize && r < searchRange;
+         ++k, ++r) {
+      const int32_t pointIndex1 = packedVoxel[retained[k]].index;
+      const auto& point1 = pointCloud[pointIndex1];
+      predictor.insertNeighbor(
+        pointIndex1, (point - point1).getNorm2(),
+        numberOfNearestNeighborsInPrediction);
+    }
+    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+computeNearestNeighbors(
+  const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& retained,
+  const int32_t startIndex,
+  const int32_t endIndex,
+  const int32_t searchRange,
+  const int32_t numberOfNearestNeighborsInPrediction,
+  std::vector<uint32_t>& indexes,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& pointIndexToPredictorIndex,
+  int32_t& predIndex,
+  std::vector<PCCBox3D>& bBoxes)
+{
+  const int32_t retainedSize = retained.size();
+  const int32_t bucketSize = 8;
+  bBoxes.resize((retainedSize + bucketSize - 1) / bucketSize);
+  for (int32_t i = 0, b = 0; i < retainedSize; ++b) {
+    auto& bBox = bBoxes[b];
+    bBox.min = bBox.max = pointCloud[packedVoxel[retained[i++]].index];
+    for (int32_t k = 1; k < bucketSize && i < retainedSize; ++k, ++i) {
+      const int32_t pointIndex = packedVoxel[retained[i]].index;
+      const auto& point = pointCloud[pointIndex];
+      for (int32_t p = 0; p < 3; ++p) {
+        bBox.min[p] = std::min(bBox.min[p], point[p]);
+        bBox.max[p] = std::max(bBox.max[p], point[p]);
+      }
+    }
+  }
+
+  const int32_t index0 = numberOfNearestNeighborsInPrediction - 1;
+
+  for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
+    const int32_t index = indexes[i];
+    const uint64_t mortonCode = packedVoxel[index].mortonCode;
+    const int32_t pointIndex = packedVoxel[index].index;
+    const auto& point = pointCloud[pointIndex];
+    indexes[i] = pointIndex;
+    while (j < retainedSize
+           && mortonCode >= packedVoxel[retained[j]].mortonCode)
+      ++j;
+    j = std::min(retainedSize - 1, j);
+    auto& predictor = predictors[--predIndex];
+    pointIndexToPredictorIndex[pointIndex] = predIndex;
+
+    predictor.init();
+
+    const int32_t j0 = std::max(0, j - searchRange);
+    const int32_t j1 = std::min(retainedSize, j + searchRange + 1);
+
+    const int32_t bucketIndex0 = j / bucketSize;
+    int32_t k0 = std::max(bucketIndex0 * bucketSize, j0);
+    int32_t k1 = std::min((bucketIndex0 + 1) * bucketSize, j1);
+
+    for (int32_t k = k0; k < k1; ++k) {
+      const int32_t pointIndex1 = packedVoxel[retained[k]].index;
+      const auto& point1 = pointCloud[pointIndex1];
+      predictor.insertNeighbor(
+        pointIndex1, (point - point1).getNorm2(),
+        numberOfNearestNeighborsInPrediction);
+    }
+
+    for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr; ++s0) {
+      for (int32_t s1 = 0; s1 < 2; ++s1) {
+        const int32_t bucketIndex1 =
+          s1 == 0 ? bucketIndex0 + s0 : bucketIndex0 - s0;
+        if (bucketIndex1 < 0 || bucketIndex1 >= bBoxes.size()) {
+          continue;
+        }
+        if (
+          predictor.neighborCount < numberOfNearestNeighborsInPrediction
+          || bBoxes[bucketIndex1].getDist2(point)
+            < predictor.neighbors[index0].weight) {
+          const int32_t k0 = std::max(bucketIndex1 * bucketSize, j0);
+          const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
+          for (int32_t k = k0; k < k1; ++k) {
+            const int32_t pointIndex1 = packedVoxel[retained[k]].index;
+            const auto& point1 = pointCloud[pointIndex1];
+            predictor.insertNeighbor(
+              pointIndex1, (point - point1).getNorm2(),
+              numberOfNearestNeighborsInPrediction);
+          }
+        }
+      }
+    }
+    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+subsample(
+  const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& input,
+  const double radius2,
+  const int32_t searchRange,
+  std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  const size_t pointCount = pointCloud.getPointCount();
-  std::vector<bool> visited(pointCount, false);
+  if (input.size() == 1) {
+    indexes.push_back(input[0]);
+  } else {
+    for (const auto index : input) {
+      if (retained.empty()) {
+        retained.push_back(index);
+        continue;
+      }
+      const auto& point = pointCloud[packedVoxel[index].index];
+      if (
+        (pointCloud[packedVoxel[retained.back()].index] - point).getNorm2()
+          <= radius2
+        || FindNeighborWithinDistance(
+             pointCloud, packedVoxel, index, radius2, searchRange, retained)
+          != PCC_UNDEFINED_INDEX) {
+        indexes.push_back(index);
+      } else {
+        retained.push_back(index);
+      }
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+computeMortonCodes(
+  const PCCPointSet3& pointCloud,
+  std::vector<MortonCodeWithIndex>& packedVoxel)
+{
+  const int32_t pointCount = int32_t(pointCloud.getPointCount());
+  packedVoxel.resize(pointCount);
+  for (int n = 0; n < pointCount; n++) {
+    const auto& position = pointCloud[n];
+    packedVoxel[n].mortonCode = mortonAddr(
+      int32_t(position[0]), int32_t(position[1]), int32_t(position[2]));
+    packedVoxel[n].index = n;
+  }
+  sort(packedVoxel.begin(), packedVoxel.end());
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+updatePredictors(
+  const std::vector<uint32_t>& pointIndexToPredictorIndex,
+  std::vector<PCCPredictor>& predictors)
+{
+  for (auto& predictor : predictors) {
+    if (predictor.neighborCount < 2) {
+      predictor.neighbors[0].weight = 1.0;
+    } else if (predictor.neighbors[0].weight == 0.0) {
+      predictor.neighborCount = 1;
+      predictor.neighbors[0].weight = 1.0;
+    } else {
+      for (int32_t k = 0; k < predictor.neighborCount; ++k) {
+        auto& weight = predictor.neighbors[k].weight;
+        weight = 1.0 / weight;
+      }
+    }
+    for (int32_t k = 0; k < predictor.neighborCount; ++k) {
+      auto& neighbor = predictor.neighbors[k];
+      neighbor.predictorIndex =
+        pointIndexToPredictorIndex[neighbor.predictorIndex];
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+buildPredictorsFast(
+  const PCCPointSet3& pointCloud,
+  const std::vector<int64_t>& dist2,
+  const int32_t levelOfDetailCount,
+  const int32_t numberOfNearestNeighborsInPrediction,
+  const int32_t searchRange1,
+  const int32_t searchRange2,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
+  std::vector<uint32_t>& indexes)
+{
+  const int32_t pointCount = int32_t(pointCloud.getPointCount());
+  assert(pointCount);
+
+  std::vector<MortonCodeWithIndex> packedVoxel;
+  computeMortonCodes(pointCloud, packedVoxel);
+
+  std::vector<uint32_t> retained, input, pointIndexToPredictorIndex;
+  pointIndexToPredictorIndex.resize(pointCount);
+  retained.reserve(pointCount);
+  input.resize(pointCount);
+  for (uint32_t i = 0; i < pointCount; ++i) {
+    input[i] = i;
+  }
+
+  // prepare output buffers
+  predictors.resize(pointCount);
+  numberOfPointsPerLevelOfDetail.resize(0);
   indexes.resize(0);
   indexes.reserve(pointCount);
-  numberOfPointsPerLOD.resize(0);
-  numberOfPointsPerLOD.reserve(levelOfDetailCount);
-  size_t prevIndexesSize = 0;
-  const int32_t searchRange1 = 16;
-  const int32_t searchRange2 = 8;
-  PCCIncrementalKdTree3 kdtree;
-  kdtree.reserve(pointCount / 2);
-  for (size_t lodIndex = 0;
-       lodIndex < levelOfDetailCount && indexes.size() < pointCount;
+  numberOfPointsPerLevelOfDetail.reserve(21);
+  numberOfPointsPerLevelOfDetail.push_back(pointCount);
+
+  std::vector<PCCBox3D> bBoxes;
+  int32_t predIndex = int32_t(pointCount);
+  for (uint32_t lodIndex = 0; !input.empty() && lodIndex <= levelOfDetailCount;
        ++lodIndex) {
-    if ((lodIndex + 1) != levelOfDetailCount) {
+    const int32_t startIndex = indexes.size();
+    if (lodIndex == levelOfDetailCount) {
+      std::reverse(input.begin(), input.end());
+      for (const auto index : input) {
+        indexes.push_back(index);
+      }
+    } else {
       const double radius2 = dist2[lodIndex];
-      uint32_t lastNNIndex = PCC_UNDEFINED_INDEX;
-      kdtree.balance();
-      for (uint32_t current = 0; current < pointCount; ++current) {
-        if (!visited[current]) {
-          CheckPoint(
-            pointCloud, current, radius2, searchRange1, searchRange2,
-            lastNNIndex, visited, indexes, kdtree);
-        }
+      subsample(
+        pointCloud, packedVoxel, input, radius2, searchRange1, retained,
+        indexes);
+    }
+    const int32_t endIndex = indexes.size();
+
+    if (retained.empty()) {
+      for (int32_t i = startIndex; i < endIndex; ++i) {
+        const int32_t index = indexes[i];
+        const int32_t pointIndex = packedVoxel[index].index;
+        indexes[i] = pointIndex;
+        auto& predictor = predictors[--predIndex];
+        assert(predIndex >= 0);
+        pointIndexToPredictorIndex[pointIndex] = predIndex;
+        predictor.init(PCC_UNDEFINED_INDEX);
       }
+      break;
     } else {
-      for (uint32_t current = 0; current < pointCount; ++current) {
-        if (!visited[current]) {
-          indexes.push_back(current);
-        }
-      }
+      computeNearestNeighbors(
+        pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
+        numberOfNearestNeighborsInPrediction, indexes, predictors,
+        pointIndexToPredictorIndex, predIndex, bBoxes);
     }
-    numberOfPointsPerLOD.push_back(uint32_t(indexes.size()));
-    prevIndexesSize = indexes.size();
+
+    numberOfPointsPerLevelOfDetail.push_back(retained.size());
+    input.resize(0);
+    std::swap(retained, input);
   }
-}
-
-struct PointCloudWrapper {
-  PointCloudWrapper(
-    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes)
-    : _pointCloud(pointCloud), _indexes(indexes)
-  {}
-  inline size_t kdtree_get_point_count() const { return _pointCount; }
-  inline void kdtree_set_point_count(const size_t pointCount)
-  {
-    assert(pointCount < _indexes.size());
-    assert(pointCount < _pointCloud.getPointCount());
-    _pointCount = pointCount;
-  }
-  inline double kdtree_get_pt(const size_t idx, int dim) const
-  {
-    assert(idx < _pointCount && dim < 3);
-    return _pointCloud[_indexes[idx]][dim];
-  }
-  template<class BBOX>
-  bool kdtree_get_bbox(BBOX& /* bb */) const
-  {
-    return false;
-  }
-
-  const PCCPointSet3& _pointCloud;
-  const std::vector<uint32_t>& _indexes;
-  size_t _pointCount = 0;
-};
-
-//---------------------------------------------------------------------------
-
-inline void
-PCCComputePredictors2(
-  const PCCPointSet3& pointCloud,
-  const std::vector<uint32_t>& numberOfPointsPerLOD,
-  const std::vector<uint32_t>& indexes,
-  const size_t numberOfNearestNeighborsInPrediction,
-  std::vector<PCCPredictor>& predictors)
-{
-  const size_t pointCount = pointCloud.getPointCount();
-  const size_t lodCount = numberOfPointsPerLOD.size();
-  predictors.resize(pointCount);
-  PCCPointDistInfo nearestNeighbors[kAttributePredictionMaxNeighbourCount];
-  PCCNNQuery3 nNQuery = {PCCVector3D(0.0), std::numeric_limits<double>::max(),
-                         numberOfNearestNeighborsInPrediction};
-  PCCNNResult nNResult = {nearestNeighbors, 0};
-  PCCIncrementalKdTree3 kdtree;
-  uint32_t i0 = 0;
-  size_t balanceTargetPointCount = 16;
-  for (uint32_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
-    const uint32_t i1 = numberOfPointsPerLOD[lodIndex];
-    for (uint32_t i = i0; i < i1; ++i) {
-      const uint32_t pointIndex = indexes[i];
-      const auto& point = pointCloud[pointIndex];
-      auto& predictor = predictors[i];
-      nNQuery.point = point;
-      kdtree.findNearestNeighbors2(nNQuery, nNResult);
-      if (!nNResult.resultCount) {
-        predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX);
-      } else if (
-        nNResult.neighbors[0].dist2 == 0.0 || nNResult.resultCount == 1) {
-        const uint32_t reference =
-          static_cast<uint32_t>(indexes[nNResult.neighbors[0].index]);
-        assert(nNResult.neighbors[0].index < i);
-        predictor.init(pointIndex, reference, nNResult.neighbors[0].index);
-      } else {
-        predictor.index = pointIndex;
-        predictor.neighborCount = nNResult.resultCount;
-        for (size_t n = 0; n < nNResult.resultCount; ++n) {
-          const uint32_t neighborIndex = nNResult.neighbors[n].index;
-          assert(neighborIndex < i);
-          predictor.neighbors[n].predictorIndex = neighborIndex;
-          predictor.neighbors[n].index = indexes[neighborIndex];
-          predictor.neighbors[n].weight = 1.0 / nNResult.neighbors[n].dist2;
-        }
-      }
-      kdtree.insert(point);
-      if (balanceTargetPointCount <= kdtree.size()) {
-        kdtree.balance();
-        balanceTargetPointCount = 2 * kdtree.size();
-      }
-    }
-    i0 = i1;
-  }
-}
-
-//---------------------------------------------------------------------------
-
-inline void
-PCCComputePredictors(
-  const PCCPointSet3& pointCloud,
-  const std::vector<uint32_t>& numberOfPointsPerLOD,
-  const std::vector<uint32_t>& indexes,
-  const size_t numberOfNearestNeighborsInPrediction,
-  std::vector<PCCPredictor>& predictors)
-{
-  const size_t pointCount = pointCloud.getPointCount();
-  const size_t lodCount = numberOfPointsPerLOD.size();
-  assert(lodCount);
-  predictors.resize(pointCount);
-
-  // delta prediction for LOD0
-  uint32_t i0 = numberOfPointsPerLOD[0];
-  for (uint32_t i = 0; i < i0; ++i) {
-    const uint32_t pointIndex = indexes[i];
-    auto& predictor = predictors[i];
-    if (i == 0) {
-      predictor.init(pointIndex, PCC_UNDEFINED_INDEX, PCC_UNDEFINED_INDEX);
-    } else {
-      predictor.init(pointIndex, predictors[i - 1].index, i - 1);
-    }
-  }
-  PointCloudWrapper pointCloudWrapper(pointCloud, indexes);
-  const nanoflann::SearchParams params(10, 0.0f, true);
-  size_t indices[kAttributePredictionMaxNeighbourCount];
-  double sqrDist[kAttributePredictionMaxNeighbourCount];
-  nanoflann::KNNResultSet<double> resultSet(
-    numberOfNearestNeighborsInPrediction);
-  for (uint32_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
-    pointCloudWrapper.kdtree_set_point_count(i0);
-    nanoflann::KDTreeSingleIndexAdaptor<
-      nanoflann::L2_Simple_Adaptor<double, PointCloudWrapper>,
-      PointCloudWrapper, 3>
-      kdtree(
-        3, pointCloudWrapper, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-    kdtree.buildIndex();
-    const uint32_t i1 = numberOfPointsPerLOD[lodIndex];
-
-    for (uint32_t i = i0; i < i1; ++i) {
-      const uint32_t pointIndex = indexes[i];
-      const auto& point = pointCloud[pointIndex];
-      auto& predictor = predictors[i];
-      resultSet.init(indices, sqrDist);
-      kdtree.findNeighbors(resultSet, &point[0], params);
-      const uint32_t resultCount = resultSet.size();
-      if (sqrDist[0] == 0.0 || resultCount == 1) {
-        const uint32_t predIndex = indices[0];
-        predictor.init(pointIndex, predictors[predIndex].index, predIndex);
-      } else {
-        predictor.index = pointIndex;
-        predictor.neighborCount = resultCount;
-        for (size_t n = 0; n < resultCount; ++n) {
-          const uint32_t predIndex = indices[n];
-          assert(predIndex < i);
-          predictor.neighbors[n].predictorIndex = predIndex;
-          const uint32_t pointIndex1 = indexes[predIndex];
-          predictor.neighbors[n].index = pointIndex1;
-          const auto& point1 = pointCloud[pointIndex1];
-          predictor.neighbors[n].weight = 1.0 / (point - point1).getNorm2();
-        }
-      }
-    }
-    i0 = i1;
-  }
+  std::reverse(indexes.begin(), indexes.end());
+  updatePredictors(pointIndexToPredictorIndex, predictors);
+  std::reverse(
+    numberOfPointsPerLevelOfDetail.begin(),
+    numberOfPointsPerLevelOfDetail.end());
 }
 
 //---------------------------------------------------------------------------

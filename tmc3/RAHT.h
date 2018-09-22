@@ -39,19 +39,6 @@
 
 namespace pcc {
 
-struct MortonCodeWithIndex {
-  uint64_t mortonCode;
-  int index;
-
-  bool operator<(const MortonCodeWithIndex& rhs) const
-  {
-    // NB: index used to maintain stable sort
-    if (mortonCode == rhs.mortonCode)
-      return index < rhs.index;
-    return mortonCode < rhs.mortonCode;
-  }
-};
-
 void regionAdaptiveHierarchicalTransform(
   long long* mortonCode,
   float* attributes,

@@ -198,6 +198,7 @@ void
 AttributeDecoder::computeReflectancePredictionWeights(
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& indexes,
   PCCPredictor& predictor,
   PCCResidualsDecoder& decoder)
 {
@@ -205,9 +206,9 @@ AttributeDecoder::computeReflectancePredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
-    for (int i = 0; i < aps.num_pred_nearest_neighbours; ++i) {
-      const uint16_t reflectanceNeighbor =
-        pointCloud.getReflectance(predictor.neighbors[i].index);
+    for (int i = 0; i < predictor.neighborCount; ++i) {
+      const uint16_t reflectanceNeighbor = pointCloud.getReflectance(
+        indexes[predictor.neighbors[i].predictorIndex]);
       if (i == 0 || reflectanceNeighbor < minValue) {
         minValue = reflectanceNeighbor;
       }
@@ -232,26 +233,26 @@ AttributeDecoder::decodeReflectancesPred(
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
+  const size_t pointCount = pointCloud.getPointCount();
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail(
-    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
-    indexesLOD);
-  PCCComputePredictors2(
-    pointCloud, numberOfPointsPerLOD, indexesLOD,
-    aps.num_pred_nearest_neighbours, predictors);
-  const size_t pointCount = pointCloud.getPointCount();
+  buildPredictorsFast(
+    pointCloud, aps.dist2, aps.num_detail_levels,
+    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+    predictors, numberOfPointsPerLOD, indexesLOD);
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
     const int64_t qs = aps.quant_step_size_luma;
-    computeReflectancePredictionWeights(aps, pointCloud, predictor, decoder);
-    uint16_t& reflectance = pointCloud.getReflectance(predictor.index);
-
+    computeReflectancePredictionWeights(
+      aps, pointCloud, indexesLOD, predictor, decoder);
+    const uint32_t pointIndex = indexesLOD[predictorIndex];
+    uint16_t& reflectance = pointCloud.getReflectance(pointIndex);
     const uint32_t attValue0 = decoder.decode();
-    const int64_t quantPredAttValue = predictor.predictReflectance(pointCloud);
+    const int64_t quantPredAttValue =
+      predictor.predictReflectance(pointCloud, indexesLOD);
     const int64_t delta = PCCInverseQuantization(UIntToInt(attValue0), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     reflectance = uint16_t(
@@ -265,6 +266,7 @@ void
 AttributeDecoder::computeColorPredictionWeights(
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& indexes,
   PCCPredictor& predictor,
   PCCResidualsDecoder& decoder)
 {
@@ -272,9 +274,9 @@ AttributeDecoder::computeColorPredictionWeights(
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
-    for (int i = 0; i < aps.num_pred_nearest_neighbours; ++i) {
+    for (int i = 0; i < predictor.neighborCount; ++i) {
       const PCCColor3B colorNeighbor =
-        pointCloud.getColor(predictor.neighbors[i].index);
+        pointCloud.getColor(indexes[predictor.neighbors[i].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         if (i == 0 || colorNeighbor[k] < minValue[k]) {
           minValue[k] = colorNeighbor[k];
@@ -303,30 +305,30 @@ AttributeDecoder::decodeColorsPred(
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
+  const size_t pointCount = pointCloud.getPointCount();
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail(
-    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
-    indexesLOD);
-  PCCComputePredictors2(
-    pointCloud, numberOfPointsPerLOD, indexesLOD,
-    aps.num_pred_nearest_neighbours, predictors);
-  const size_t pointCount = pointCloud.getPointCount();
+  buildPredictorsFast(
+    pointCloud, aps.dist2, aps.num_detail_levels,
+    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+    predictors, numberOfPointsPerLOD, indexesLOD);
   uint32_t values[3];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
     const int64_t qs = aps.quant_step_size_luma;
     const int64_t qs2 = aps.quant_step_size_chroma;
-    computeColorPredictionWeights(aps, pointCloud, predictor, decoder);
+    computeColorPredictionWeights(
+      aps, pointCloud, indexesLOD, predictor, decoder);
     decoder.decode(values);
-    PCCColor3B& color = pointCloud.getColor(predictor.index);
-    const PCCColor3B predictedColor = predictor.predictColor(pointCloud);
+    const uint32_t pointIndex = indexesLOD[predictorIndex];
+    PCCColor3B& color = pointCloud.getColor(pointIndex);
+    const PCCColor3B predictedColor =
+      predictor.predictColor(pointCloud, indexesLOD);
     const int64_t quantPredAttValue = predictedColor[0];
     const int64_t delta = PCCInverseQuantization(UIntToInt(values[0]), qs);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
     color[0] =
       uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
@@ -548,24 +550,22 @@ AttributeDecoder::decodeColorsLift(
   PCCPointSet3& pointCloud)
 {
   const size_t pointCount = pointCloud.getPointCount();
+  std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail(
-    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
-    indexesLOD);
-  const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<PCCPredictor> predictors;
-  PCCComputePredictors(
-    pointCloud, numberOfPointsPerLOD, indexesLOD,
-    aps.num_pred_nearest_neighbours, predictors);
+  buildPredictorsFast(
+    pointCloud, aps.dist2, aps.num_detail_levels,
+    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+    predictors, numberOfPointsPerLOD, indexesLOD);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<PCCVector3D> colors;
-  colors.resize(pointCount);
   std::vector<double> weights;
   PCCComputeQuantizationWeights(predictors, weights);
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  std::vector<PCCVector3D> colors;
+  colors.resize(pointCount);
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -595,12 +595,11 @@ AttributeDecoder::decodeColorsLift(
 
   const double clipMax = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
-    const auto& predictor = predictors[f];
     PCCColor3B color;
     for (size_t d = 0; d < 3; ++d) {
       color[d] = uint8_t(PCCClip(std::round(colors[f][d]), 0.0, clipMax));
     }
-    pointCloud.setColor(predictor.index, color);
+    pointCloud.setColor(indexesLOD[f], color);
   }
 }
 
@@ -614,24 +613,22 @@ AttributeDecoder::decodeReflectancesLift(
   PCCPointSet3& pointCloud)
 {
   const size_t pointCount = pointCloud.getPointCount();
+  std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  PCCBuildLevelOfDetail(
-    pointCloud, aps.numDetailLevels, aps.dist2, numberOfPointsPerLOD,
-    indexesLOD);
-  const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<PCCPredictor> predictors;
-  PCCComputePredictors(
-    pointCloud, numberOfPointsPerLOD, indexesLOD,
-    aps.num_pred_nearest_neighbours, predictors);
+  buildPredictorsFast(
+    pointCloud, aps.dist2, aps.num_detail_levels,
+    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+    predictors, numberOfPointsPerLOD, indexesLOD);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<double> reflectances;
-  reflectances.resize(pointCount);
   std::vector<double> weights;
   PCCComputeQuantizationWeights(predictors, weights);
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  std::vector<double> reflectances;
+  reflectances.resize(pointCount);
 
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -656,7 +653,7 @@ AttributeDecoder::decodeReflectancesLift(
   const double maxReflectance = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
     pointCloud.setReflectance(
-      predictors[f].index,
+      indexesLOD[f],
       uint16_t(PCCClip(std::round(reflectances[f]), 0.0, maxReflectance)));
   }
 }

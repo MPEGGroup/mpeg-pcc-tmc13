@@ -44,6 +44,7 @@
 #include <string.h>
 
 #include "PCCMisc.h"
+#include "tables.h"
 
 namespace pcc {
 /// Vector dim 3
@@ -76,6 +77,10 @@ public:
 
   T getNorm() const { return static_cast<T>(sqrt(getNorm2())); }
   T getNorm2() const { return (*this) * (*this); }
+  T getNormInf() const
+  {
+    return std::max(data[2], std::max(abs(data[0]), abs(data[1])));
+  }
   PCCVector3& operator=(const PCCVector3& rhs)
   {
     memcpy(data, rhs.data, sizeof(data));
@@ -303,11 +308,19 @@ struct PCCBox3 {
     return box;
   }
 
-  bool intersects(const PCCBox3& box)
+  bool intersects(const PCCBox3& box) const
   {
     return max.x() >= box.min.x() && min.x() <= box.max.x()
       && max.y() >= box.min.y() && min.y() <= box.max.y()
       && max.z() >= box.min.z() && min.z() <= box.max.z();
+  }
+
+  T getDist2(const PCCVector3<T>& point) const
+  {
+    const T dx = std::max(std::max(min[0] - point[0], 0.0), point[0] - max[0]);
+    const T dy = std::max(std::max(min[1] - point[1], 0.0), point[1] - max[1]);
+    const T dz = std::max(std::max(min[2] - point[2], 0.0), point[2] - max[2]);
+    return dx * dx + dy * dy + dz * dz;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const PCCBox3& box)
@@ -356,6 +369,18 @@ mortonAddr(const PCCVector3<T>& vec, int depth)
   return addr;
 }
 
+inline uint64_t
+mortonAddr(const int32_t x, const int32_t y, const int32_t z)
+{
+  assert(x >= 0 && y >= 0 && z >= 0);
+  uint64_t answer = kMortonCode256X[(z >> 16) & 0xFF]
+    | kMortonCode256Y[(y >> 16) & 0xFF] | kMortonCode256Z[(x >> 16) & 0xFF];
+  answer = answer << 48 | kMortonCode256X[(z >> 8) & 0xFF]
+    | kMortonCode256Y[(y >> 8) & 0xFF] | kMortonCode256Z[(x >> 8) & 0xFF];
+  answer = answer << 24 | kMortonCode256X[(z)&0xFF] | kMortonCode256Y[(y)&0xFF]
+    | kMortonCode256Z[(x)&0xFF];
+  return answer;
+}
 //---------------------------------------------------------------------------
 
 } /* namespace pcc */

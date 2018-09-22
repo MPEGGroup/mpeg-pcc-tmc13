@@ -107,6 +107,8 @@ protected:
   static void computeColorPredictionWeights(
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
+    const std::vector<uint32_t>& indexesLOD,
+    const uint32_t predictorIndex,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context);
@@ -119,6 +121,8 @@ protected:
   static void computeReflectancePredictionWeights(
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
+    const std::vector<uint32_t>& indexesLOD,
+    const uint32_t predictorIndex,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context);

@@ -248,9 +248,10 @@ struct AttributeParameterSet {
   int num_pred_nearest_neighbours;
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
+  int search_range;
 
   // NB: derived from num_detail_levels_minus1
-  int numDetailLevels;
+  int num_detail_levels;
   std::vector<int64_t> dist2;
 
   // NB: these parameters are shared by raht and lift

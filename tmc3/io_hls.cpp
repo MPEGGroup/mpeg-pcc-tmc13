@@ -262,12 +262,12 @@ write(const AttributeParameterSet& aps)
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.max_num_direct_predictors);
+    bs.writeUe(aps.search_range);
     bs.writeUe(aps.quant_step_size_luma);
     bs.writeUe(aps.quant_step_size_chroma);
 
-    int num_detail_levels_minus1 = aps.numDetailLevels - 1;
-    bs.writeUe(num_detail_levels_minus1);
-    for (int idx = 0; idx <= num_detail_levels_minus1; idx++) {
+    bs.writeUe(aps.num_detail_levels);
+    for (int idx = 0; idx < aps.num_detail_levels; idx++) {
       // todo(??): is this an appropriate encoding?
       bs.writeUe64(aps.dist2[idx]);
     }
@@ -309,14 +309,13 @@ parseAps(const PayloadBuffer& buf)
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.max_num_direct_predictors);
+    bs.readUe(&aps.search_range);
     bs.readUe(&aps.quant_step_size_luma);
     bs.readUe(&aps.quant_step_size_chroma);
 
-    int num_detail_levels_minus1 = int(bs.readUe());
-    aps.numDetailLevels = num_detail_levels_minus1 + 1;
-    aps.dist2.resize(aps.numDetailLevels);
-
-    for (int idx = 0; idx <= num_detail_levels_minus1; idx++) {
+    aps.num_detail_levels = int(bs.readUe());
+    aps.dist2.resize(aps.num_detail_levels);
+    for (int idx = 0; idx < aps.num_detail_levels; idx++) {
       bs.readUe(&aps.dist2[idx]);
     }
   }

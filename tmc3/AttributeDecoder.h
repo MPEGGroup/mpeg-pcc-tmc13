@@ -99,12 +99,14 @@ protected:
   static void computeColorPredictionWeights(
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
+    const std::vector<uint32_t>& indexes,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
 
   static void computeReflectancePredictionWeights(
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
+    const std::vector<uint32_t>& indexes,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
 };
