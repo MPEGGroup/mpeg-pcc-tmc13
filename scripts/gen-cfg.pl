@@ -227,7 +227,7 @@ sub genSeqVariants {
 
 		##
 		# make dictionary for any variable substitutions
-		my $dict = dict_from_context($var, $cat_seq, $seq);
+		my $dict = dict_from_context($var, $cat_seq, $gop, $seq);
 
 		##
 		# encoder configuration
