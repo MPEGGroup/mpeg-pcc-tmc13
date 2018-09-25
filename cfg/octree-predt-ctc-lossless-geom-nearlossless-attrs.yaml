@@ -1,4 +1,4 @@
-# Test conditions for N17766 CTC CY using TMC13 octree (formerly C3.Y/Z)
+# Test conditions for N17995 CTC CY using TMC13 octree
 # octree lossless-geom  --  nearlossless-attrs predt
 ---
 categories:
@@ -88,11 +88,16 @@ categories:
       ford_01_q1mm:
       ford_02_q1mm:
       ford_03_q1mm:
+      qnxadas-junction-approach:
+      qnxadas-junction-exit:
+      qnxadas-motorway-join:
+      qnxadas-navigating-bends:
 
       # cat1
       #  NB: commented out seqs are missing seq_lod/seq_dist2 definitions
      #arco_valentino_dense_vox12:
      #arco_valentino_dense_vox20:
+      boxer_viewdep_vox12:
       egyptian_mask_vox12:
      #egyptian_mask_vox20:
       facade_00009_vox12:
@@ -110,14 +115,18 @@ categories:
      #house_without_roof_00057_vox20:
      #landscape_00014_vox14:
      #landscape_00014_vox20:
+      longdress_viewdep_vox12:
       longdress_vox10_1300:
+      loot_viewdep_vox12:
       loot_vox10_1200:
      #palazzo_carignano_dense_vox14:
      #palazzo_carignano_dense_vox20:
       queen_0200:
+      redandblack_viewdep_vox12:
       redandblack_vox10_1550:
       shiva_00035_vox12:
      #shiva_00035_vox20:
+      soldier_viewdep_vox12:
       soldier_vox10_0690:
      #stanford_area_2_vox16:
      #stanford_area_2_vox20:
@@ -125,6 +134,7 @@ categories:
      #stanford_area_4_vox20:
      #staue_klimt_vox12:
      #staue_klimt_vox20:
+      thaidancer_viewdep_vox12:
      #ulb_unicorn_hires_vox15:
      #ulb_unicorn_hires_vox20:
       ulb_unicorn_vox13:

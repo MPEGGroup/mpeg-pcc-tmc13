@@ -92,3 +92,71 @@ sequences:
     bitdepth_refl: 8
     pcerrorflags:
      - resolution: 30000
+
+  qnxadas-junction-approach:
+    src-dir: qnxadas-junction-approach
+    src: '{000001..000074}.ply'
+    norm-dir: qnxadas-junction-approach
+    norm: '{000001..000074}_n.ply'
+    first-frame: 1
+    frame-rate: 5
+    num-frames: 74
+    group: cat3-frame
+    src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
+    pcerrorflags:
+     - resolution: 30000
+
+  qnxadas-junction-exit:
+    src-dir: qnxadas-junction-exit
+    src: '{000001..000074}.ply'
+    norm-dir: qnxadas-junction-exit
+    norm: '{000001..000074}_n.ply'
+    first-frame: 1
+    frame-rate: 5
+    num-frames: 74
+    group: cat3-frame
+    src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
+    pcerrorflags:
+     - resolution: 30000
+
+  qnxadas-motorway-join:
+    src-dir: qnxadas-motorway-join
+    src: '{000001..000500}.ply'
+    norm-dir: qnxadas-motorway-join
+    norm: '{000001..000500}_n.ply'
+    first-frame: 1
+    frame-rate: 5
+    num-frames: 500
+    group: cat3-frame
+    src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
+    pcerrorflags:
+     - resolution: 30000
+
+  qnxadas-navigating-bends:
+    src-dir: qnxadas-navigating-bends
+    src: '{000001..000300}.ply'
+    norm-dir: qnxadas-navigating-bends
+    norm: '{000001..000300}_n.ply'
+    first-frame: 1
+    frame-rate: 5
+    num-frames: 300
+    group: cat3-frame
+    src-geometry-precision: 18
+    seq_lod: 10
+    seq_dist2: 16384
+    has_refl: 1
+    bitdepth_refl: 8
+    pcerrorflags:
+     - resolution: 30000

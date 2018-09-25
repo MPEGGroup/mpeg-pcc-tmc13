@@ -1,4 +1,4 @@
-# Common configuration parameters according to N17523 CTC.
+# Common configuration parameters according to N17995 CTC.
 ---
 sequences:
   arco_valentino_dense_vox12:
@@ -18,6 +18,18 @@ sequences:
     bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
+
+  boxer_viewdep_vox12:
+    src: boxer_viewdep_vox12.ply
+    norm: boxer_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
 
   egyptian_mask_vox12:
     src: Egyptian_mask_vox12.ply
@@ -186,6 +198,18 @@ sequences:
     pcerrorflags:
      - resolution: 1048575
 
+  longdress_viewdep_vox12:
+    src: longdress_viewdep_vox12.ply
+    norm: longdress_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
+
   longdress_vox10_1300:
     src: longdress_vox10_1300.ply
     norm: longdress_vox10_1300_n.ply
@@ -197,6 +221,18 @@ sequences:
     bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1023
+
+  loot_viewdep_vox12:
+    src: loot_viewdep_vox12.ply
+    norm: loot_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
 
   loot_vox10_1200:
     src: loot_vox10_1200.ply
@@ -240,6 +276,18 @@ sequences:
     pcerrorflags:
      - resolution: 1023
 
+  redandblack_viewdep_vox12:
+    src: redandblack_viewdep_vox12.ply
+    norm: redandblack_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
+
   redandblack_vox10_1550:
     src: redandblack_vox10_1550.ply
     norm: redandblack_vox10_1550_n.ply
@@ -271,6 +319,18 @@ sequences:
     bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
+
+  soldier_viewdep_vox12:
+    src: soldier_viewdep_vox12.ply
+    norm: soldier_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
 
   soldier_vox10_0690:
     src: soldier_vox10_0690.ply
@@ -337,6 +397,18 @@ sequences:
     bitdepth_colour: 8
     pcerrorflags:
      - resolution: 1048575
+
+  thaidancer_viewdep_vox12:
+    src: Thaidancer_viewdep_vox12.ply
+    norm: Thaidancer_viewdep_vox12.ply
+    group: cat1-A
+    src-geometry-precision: 12
+    seq_lod:  12
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 4095
 
   ulb_unicorn_hires_vox15:
     src: ULB_Unicorn_HiRes_vox15_n.ply

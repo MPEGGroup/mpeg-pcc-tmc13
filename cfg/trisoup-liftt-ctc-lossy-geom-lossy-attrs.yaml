@@ -1,4 +1,4 @@
-# Test conditions for N17766 CTC C1 using TMC13 octree (formerly C3.2/3)
+# Test conditions for N17995 CTC C2 using TMC13 trisoup
 # trisoup lossy-geom  --  lossy-attrs liftt
 #  -- cat 1 only, since trisoup doesn't apply to very sparce clouds
 ---
@@ -68,6 +68,7 @@ categories:
       #  NB: commented out seqs are missing seq_lod/seq_dist2 definitions
      #arco_valentino_dense_vox12:        { test-depth:  9 }
      #arco_valentino_dense_vox20:        { test-depth:  9 }
+      boxer_viewdep_vox12:               { test-depth: 11 }
       egyptian_mask_vox12:               { test-depth:  9 }
      #egyptian_mask_vox20:               { test-depth:  9 }
       facade_00009_vox12:                { test-depth: 11 }
@@ -85,14 +86,18 @@ categories:
      #house_without_roof_00057_vox20:    { test-depth: 11 }
      #landscape_00014_vox14:             { test-depth: 12 }
      #landscape_00014_vox20:             { test-depth: 12 }
+      longdress_viewdep_vox12:           { test-depth: 11 }
       longdress_vox10_1300:              { test-depth: 10 }
+      loot_viewdep_vox12:                { test-depth: 11 }
       loot_vox10_1200:                   { test-depth: 10 }
      #palazzo_carignano_dense_vox14:     { test-depth:  9 }
      #palazzo_carignano_dense_vox20:     { test-depth:  9 }
       queen_0200:                        { test-depth: 10 }
+      redandblack_viewdep_vox12:         { test-depth: 11 }
       redandblack_vox10_1550:            { test-depth: 10 }
       shiva_00035_vox12:                 { test-depth: 10 }
      #shiva_00035_vox20:                 { test-depth: 10 }
+      soldier_viewdep_vox12:             { test-depth: 11 }
       soldier_vox10_0690:                { test-depth: 10 }
      #stanford_area_2_vox16:             { test-depth: 12 }
      #stanford_area_2_vox20:             { test-depth: 12 }
@@ -100,6 +105,7 @@ categories:
      #stanford_area_4_vox20:             { test-depth: 12 }
      #staue_klimt_vox12:                 { test-depth:  9 }
      #staue_klimt_vox20:                 { test-depth:  9 }
+      thaidancer_viewdep_vox12:          { test-depth: 11 }
      #ulb_unicorn_hires_vox15:           { test-depth: 12 }
      #ulb_unicorn_hires_vox20:           { test-depth: 12 }
       ulb_unicorn_vox13:                 { test-depth: 11 }
