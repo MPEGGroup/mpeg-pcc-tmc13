@@ -64,11 +64,14 @@ do_one_cfgset() {
 	do
 		echo "${src_cfg_dir}$f -> $outdir" ...
 
+		# NB: specifying extra_args at the end does not affect option
+		# processing since gen-cfg.pl is flexible in argument positions
 		$script_dir/gen-cfg.pl \
 			--prefix="$outdir" --no-skip-sequences-without-src \
-			"${extra_args[@]}" ${src_cfg_dir}$f \
+			${src_cfg_dir}$f \
 			${src_cfg_dir}sequences-cat1.yaml \
-			${src_cfg_dir}sequences-cat3.yaml
+			${src_cfg_dir}sequences-cat3.yaml \
+			"${extra_args[@]}"
 
 		rm -f "$outdir/config-merged.yaml"
 	done
