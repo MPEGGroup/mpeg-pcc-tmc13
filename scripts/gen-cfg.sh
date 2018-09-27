@@ -31,6 +31,10 @@ done
 
 extra_args=("$@")
 
+##
+# NB: it is important that the configs in each config set are
+# capable of being merged together by gen-cfg.pl.  Ie, no two
+# configs may have different definitions of one category.
 cfg_octree_predlift=(
 	octree-liftt-ctc-lossless-geom-lossy-attrs.yaml
 	octree-liftt-ctc-lossy-geom-lossy-attrs.yaml
@@ -63,18 +67,18 @@ do_one_cfgset() {
 	for f in ${!cfgset}
 	do
 		echo "${src_cfg_dir}$f -> $outdir" ...
-
-		# NB: specifying extra_args at the end does not affect option
-		# processing since gen-cfg.pl is flexible in argument positions
-		$script_dir/gen-cfg.pl \
-			--prefix="$outdir" --no-skip-sequences-without-src \
-			${src_cfg_dir}$f \
-			${src_cfg_dir}sequences-cat1.yaml \
-			${src_cfg_dir}sequences-cat3.yaml \
-			"${extra_args[@]}"
-
-		rm -f "$outdir/config-merged.yaml"
 	done
+
+	# NB: specifying extra_args at the end does not affect option
+	# processing since gen-cfg.pl is flexible in argument positions
+	$script_dir/gen-cfg.pl \
+		--prefix="$outdir" --no-skip-sequences-without-src \
+		"${!cfgset/#/${src_cfg_dir}}" \
+		"${src_cfg_dir}sequences-cat1.yaml" \
+		"${src_cfg_dir}sequences-cat3.yaml" \
+		"${extra_args[@]}"
+
+	rm -f "$outdir/config-merged.yaml"
 }
 
 if [[ "$all" != "1" ]]
