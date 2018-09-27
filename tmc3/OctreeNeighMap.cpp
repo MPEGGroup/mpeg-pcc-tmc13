@@ -76,6 +76,54 @@ updateGeometryOccupancyAtlas(
 
 //----------------------------------------------------------------------------
 
+void
+updateGeometryOccupancyAtlasOccChild(
+  const PCCVector3<uint32_t>& pos,
+  int nodeSizeLog2,
+  uint8_t childOccupancy,
+  MortonMap3D* occupancyAtlas)
+{
+  uint32_t mask = (1 << occupancyAtlas->cubeSizeLog2()) - 1;
+  uint32_t x = (pos[0] >> nodeSizeLog2) & mask;
+  uint32_t y = (pos[1] >> nodeSizeLog2) & mask;
+  uint32_t z = (pos[2] >> nodeSizeLog2) & mask;
+
+  occupancyAtlas->setChildOcc(x, y, z, childOccupancy);
+}
+
+//----------------------------------------------------------------------------
+// neighIdx: 0 => (x-1), 1 => (y-1), 2 => (z-1)
+//
+static uint32_t
+updatePatternFromNeighOccupancy(
+  const MortonMap3D& occupancyAtlas,
+  int x,
+  int y,
+  int z,
+  uint32_t neighPattern,
+  int neighIdx)
+{
+  static const uint8_t childMasks[] = {
+    0xf0 /* x-1 */, 0xcc /* y-1 */, 0xaa /* z-1 */
+  };
+
+  uint32_t patternBit = 1 << (1 << neighIdx);
+  uint8_t childMask = childMasks[neighIdx];
+
+  if (neighPattern & patternBit) {
+    uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
+    child_occ &= childMask;
+    if (!child_occ) {
+      /* neighbour is falsely occupied */
+      neighPattern ^= patternBit;
+    }
+  }
+
+  return neighPattern;
+}
+
+//----------------------------------------------------------------------------
+
 uint32_t
 makeGeometryNeighPattern(
   const PCCVector3<uint32_t>& position,
@@ -105,6 +153,24 @@ makeGeometryNeighPattern(
     neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1) << 4;
     neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1) << 5;
   }
+
+  // Above, the neighbour pattern corresponds directly to the six same
+  // sized neighbours of the given node.
+  // The patten is then refined by examining the available children
+  // of the same neighbours.
+
+  if (x > 0)
+    neighPattern = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x - 1, y, z, neighPattern, 0);
+
+  if (y > 0)
+    neighPattern = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x, y - 1, z, neighPattern, 1);
+
+  if (z > 0)
+    neighPattern = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x, y, z - 1, neighPattern, 2);
+
   return neighPattern;
 }
 

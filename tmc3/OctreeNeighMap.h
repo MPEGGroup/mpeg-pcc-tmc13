@@ -64,6 +64,7 @@ public:
     _cubeSize = 1 << cubeSizeLog2;
     _bufferSizeInBytes = 1 << (3 * halfCubeSizeLog2);
     _buffer.reset(new uint8_t[_bufferSizeInBytes]);
+    _childOccupancy.reset(new uint8_t[_bufferSizeInBytes << 3]);
     _updates.reserve(1 << 16);
   }
 
@@ -116,6 +117,18 @@ public:
     return get(x, y, z);
   }
 
+  void setChildOcc(int32_t x, int32_t y, int32_t z, uint8_t childOccupancy)
+  {
+    _childOccupancy[getByteIndex(x << 1, y << 1, z << 1)] = childOccupancy;
+  }
+
+  uint8_t getChildOcc(int32_t x, int32_t y, int32_t z) const
+  {
+    uint8_t childOccupancy =
+      _childOccupancy[getByteIndex(x << 1, y << 1, z << 1)];
+    return childOccupancy;
+  }
+
 private:
   int32_t getBitIndex(const int32_t x, const int32_t y, const int32_t z) const
   {
@@ -137,6 +150,9 @@ private:
 
   // A list of indexes in _buffer that are dirty
   std::vector<uint32_t> _updates;
+
+  // Child occupancy values
+  std::unique_ptr<uint8_t[]> _childOccupancy;
 };
 
 //============================================================================
@@ -157,5 +173,11 @@ void updateGeometryOccupancyAtlas(
   const ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,
   PCCVector3<uint32_t>* atlasOrigin);
+
+void updateGeometryOccupancyAtlasOccChild(
+  const PCCVector3<uint32_t>& pos,
+  int nodeSizeLog2,
+  uint8_t childOccupancy,
+  MortonMap3D* occupancyAtlas);
 
 }  // namespace pcc

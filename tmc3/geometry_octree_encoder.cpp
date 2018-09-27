@@ -454,6 +454,10 @@ encodeGeometryOctree(
         &occupancyPrediction);
     }
 
+    // update atlas for advanced neighbours
+    updateGeometryOccupancyAtlasOccChild(
+      node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+
     // encode child occupancy map
     assert(occupancy > 0);
     encoder.encodeOccupancy(
