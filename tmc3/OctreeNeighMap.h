@@ -157,9 +157,19 @@ private:
 
 //============================================================================
 
+struct GeometryNeighPattern {
+  // Mask indicating presence of neigbours of the corresponding tree node
+  uint8_t neighPattern;
+
+  uint8_t adjacencyGt0;
+  uint8_t adjacencyGt1;
+};
+
+//============================================================================
+
 // determine the occupancy pattern of the six neighbours of the node at
 // @position.
-uint32_t makeGeometryNeighPattern(
+GeometryNeighPattern makeGeometryNeighPattern(
   const PCCVector3<uint32_t>& currentPosition,
   const int nodeSizeLog2,
   const MortonMap3D& occupancyAtlas);

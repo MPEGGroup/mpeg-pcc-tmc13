@@ -94,13 +94,13 @@ updateGeometryOccupancyAtlasOccChild(
 //----------------------------------------------------------------------------
 // neighIdx: 0 => (x-1), 1 => (y-1), 2 => (z-1)
 //
-static uint32_t
+static GeometryNeighPattern
 updatePatternFromNeighOccupancy(
   const MortonMap3D& occupancyAtlas,
   int x,
   int y,
   int z,
-  uint32_t neighPattern,
+  GeometryNeighPattern gnp,
   int neighIdx)
 {
   static const uint8_t childMasks[] = {
@@ -110,21 +110,29 @@ updatePatternFromNeighOccupancy(
   uint32_t patternBit = 1 << (1 << neighIdx);
   uint8_t childMask = childMasks[neighIdx];
 
-  if (neighPattern & patternBit) {
+  // conversions between neighbour occupancy and adjacency:
+  //  x: >> 4, y: >> 2, z: >> 1
+  int adjacencyShift = 4 >> neighIdx;
+
+  if (gnp.neighPattern & patternBit) {
     uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
     child_occ &= childMask;
     if (!child_occ) {
       /* neighbour is falsely occupied */
-      neighPattern ^= patternBit;
+      gnp.neighPattern ^= patternBit;
+    } else {
+      child_occ >>= adjacencyShift;
+      gnp.adjacencyGt1 |= gnp.adjacencyGt0 & child_occ;
+      gnp.adjacencyGt0 |= child_occ;
     }
   }
 
-  return neighPattern;
+  return gnp;
 }
 
 //----------------------------------------------------------------------------
 
-uint32_t
+GeometryNeighPattern
 makeGeometryNeighPattern(
   const PCCVector3<uint32_t>& position,
   const int nodeSizeLog2,
@@ -135,7 +143,7 @@ makeGeometryNeighPattern(
   const int32_t x = (position[0] >> nodeSizeLog2) & mask;
   const int32_t y = (position[1] >> nodeSizeLog2) & mask;
   const int32_t z = (position[2] >> nodeSizeLog2) & mask;
-  uint32_t neighPattern;
+  uint8_t neighPattern;
   if (
     x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
     && z < cubeSizeMinusOne) {
@@ -159,19 +167,20 @@ makeGeometryNeighPattern(
   // The patten is then refined by examining the available children
   // of the same neighbours.
 
+  // NB: the process of updating neighpattern below also derives
+  // the occupancy contextualisation bits.
+  GeometryNeighPattern gnp = {neighPattern, 0, 0};
+
   if (x > 0)
-    neighPattern = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x - 1, y, z, neighPattern, 0);
+    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x - 1, y, z, gnp, 0);
 
   if (y > 0)
-    neighPattern = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y - 1, z, neighPattern, 1);
+    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x, y - 1, z, gnp, 1);
 
   if (z > 0)
-    neighPattern = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y, z - 1, neighPattern, 2);
+    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x, y, z - 1, gnp, 2);
 
-  return neighPattern;
+  return gnp;
 }
 
 //============================================================================
