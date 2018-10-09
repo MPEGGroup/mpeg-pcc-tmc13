@@ -41,6 +41,7 @@ namespace pcc {
 
 // Symmetry reduction of 64 neighbour pattern to 10
 extern const uint8_t kNeighPattern64to10[64];
+extern const uint8_t kNeighPattern64to6[64];
 extern const uint8_t kNeighPattern10to7[10];
 extern const uint8_t kNeighPattern7to5[7];
 

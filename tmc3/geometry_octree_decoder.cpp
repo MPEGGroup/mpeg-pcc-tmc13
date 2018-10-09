@@ -75,6 +75,8 @@ private:
   // selects between the bitwise and bytewise occupancy coders
   const bool _useBitwiseOccupancyCoder;
 
+  const uint8_t (&_neighPattern64toR1)[64];
+
   o3dgc::Arithmetic_Codec* _arithmeticDecoder;
   o3dgc::Static_Bit_Model _ctxEquiProb;
   o3dgc::Adaptive_Bit_Model _ctxSingleChild;
@@ -96,6 +98,7 @@ private:
 GeometryOctreeDecoder::GeometryOctreeDecoder(
   const GeometryParameterSet& gps, o3dgc::Arithmetic_Codec* arithmeticDecoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
+  , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
   , _ctxOccupancy(gps.geom_occupancy_ctx_reduction_factor)
 {
@@ -213,9 +216,9 @@ GeometryOctreeDecoder::decodeOccupancyBitwise(int neighPattern)
   }
 
   // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10.
-  int neighPattern10 = kNeighPattern64to10[neighPattern];
-  return decodeOccupancyNeighNZ(neighPattern10);
+  // with reduction from 64 states to 10 (or 6).
+  int neighPatternR1 = _neighPattern64toR1[neighPattern];
+  return decodeOccupancyNeighNZ(neighPatternR1);
 }
 
 //-------------------------------------------------------------------------
@@ -224,9 +227,9 @@ int
 GeometryOctreeDecoder::decodeOccupancyBytewise(int neighPattern)
 {
   // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10.
-  int neighPattern10 = kNeighPattern64to10[neighPattern];
-  auto& bytewiseCoder = _bytewiseOccupancyCoder[neighPattern10];
+  // with reduction from 64 states to 10 (or 6).
+  int neighPatternR1 = _neighPattern64toR1[neighPattern];
+  auto& bytewiseCoder = _bytewiseOccupancyCoder[neighPatternR1];
   return bytewiseCoder.decode(_arithmeticDecoder);
 }
 

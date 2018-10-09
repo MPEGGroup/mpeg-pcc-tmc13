@@ -129,6 +129,19 @@ isDirectModeEligible(
 }
 
 //---------------------------------------------------------------------------
+// Select the neighbour pattern reduction table according to GPS config.
+
+using NeighPattern64toX = const uint8_t[64];
+
+inline NeighPattern64toX&
+neighPattern64toR1(const GeometryParameterSet& gps)
+{
+  if (!gps.neighbour_context_restriction_flag)
+    return kNeighPattern64to10;
+  return kNeighPattern64to6;
+}
+
+//---------------------------------------------------------------------------
 
 struct CtxModelOctreeOccupancy {
   o3dgc::Adaptive_Bit_Model_Fast contexts[256];
