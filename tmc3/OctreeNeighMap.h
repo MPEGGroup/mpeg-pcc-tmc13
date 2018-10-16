@@ -37,6 +37,7 @@
 
 #include "PCCMath.h"
 #include "PCCTMC3Common.h"
+#include "geometry_octree.h"
 #include "ringbuf.h"
 #include "tables.h"
 
