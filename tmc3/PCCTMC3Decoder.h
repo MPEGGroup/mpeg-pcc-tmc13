@@ -33,36 +33,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PCCTMC3Decoder_h
-#define PCCTMC3Decoder_h
+#pragma once
 
-#include <assert.h>
 #include <functional>
 #include <map>
-#include <queue>
-#include <string>
-#include "ringbuf.h"
 
-#include "AttributeDecoder.h"
-#include "OctreeNeighMap.h"
 #include "PayloadBuffer.h"
-#include "PCCMisc.h"
+#include "PCCMath.h"
 #include "PCCPointSet.h"
-#include "PCCTMC3Common.h"
 #include "hls.h"
-#include "io_hls.h"
-#include "io_tlv.h"
-#include "pcc_chrono.h"
-#include "osspecific.h"
-
-#include "ArithmeticCodec.h"
-#include "tables.h"
 
 namespace pcc {
+
+//============================================================================
 
 struct DecoderParams {
   // Do not delete this structure -- it is for passing options to the decoder.
 };
+
+//============================================================================
 
 class PCCTMC3Decoder3 {
 public:
@@ -71,257 +60,31 @@ public:
   PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = default;
   ~PCCTMC3Decoder3() = default;
 
-  void init()
-  {
-    _sps = nullptr;
-    _gps = nullptr;
-    _spss.clear();
-    _gpss.clear();
-    _apss.clear();
-  }
+  void init();
 
   int decompress(
     const DecoderParams& params,
     const PayloadBuffer* buf,
-    std::function<void(const PCCPointSet3&)> onOutputCloud)
-  {
-    if (!buf) {
-      // flush decoder, output pending cloud if any
-      onOutputCloud(_currentPointCloud);
-      return 0;
-    }
+    std::function<void(const PCCPointSet3&)> onOutputCloud);
 
-    switch (buf->type) {
-    case PayloadType::kSequenceParameterSet:
-      storeSps(parseSps(*buf));
-      return 0;
+  //==========================================================================
 
-    case PayloadType::kGeometryParameterSet:
-      storeGps(parseGps(*buf));
-      return 0;
-
-    case PayloadType::kAttributeParameterSet:
-      storeAps(parseAps(*buf));
-      return 0;
-
-    case PayloadType::kGeometryBrick:
-      // todo(df): call onOutputCloud when starting a new cloud
-      return decodeGeometryBrick(*buf);
-
-    case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
-    }
-
-    // todo(df): error, unhandled payload type
-    return 1;
-  }
-
-  //--------------------------------------------------------------------------
-
-  void storeSps(SequenceParameterSet&& sps)
-  {
-    // todo(df): handle replacement semantics
-    _spss.emplace(std::make_pair(sps.sps_seq_parameter_set_id, sps));
-  }
-
-  //--------------------------------------------------------------------------
-
-  void storeGps(GeometryParameterSet&& gps)
-  {
-    // todo(df): handle replacement semantics
-    _gpss.emplace(std::make_pair(gps.gps_geom_parameter_set_id, gps));
-  }
-
-  //--------------------------------------------------------------------------
-
-  void storeAps(AttributeParameterSet&& aps)
-  {
-    // todo(df): handle replacement semantics
-    _apss.emplace(std::make_pair(aps.aps_attr_parameter_set_id, aps));
-  }
+  void storeSps(SequenceParameterSet&& sps);
+  void storeGps(GeometryParameterSet&& gps);
+  void storeAps(AttributeParameterSet&& aps);
 
   //==========================================================================
 
 private:
-  //--------------------------------------------------------------------------
-  // Initialise the point cloud storage and decode a single geometry brick.
-  //
-  // NB: there is an implicit assumption that there is only a single geometry
-  //     brick per point cloud.
-  // todo(??): fixme
-
-  int decodeGeometryBrick(const PayloadBuffer& buf)
-  {
-    assert(buf.type == PayloadType::kGeometryBrick);
-    std::cout << "positions bitstream size " << buf.size() << " B\n";
-
-    // HACK: assume activation of the first SPS and GPS
-    // todo(df): parse brick header here for propper sps & gps activation
-    //  -- this is currently inconsistent between trisoup and octree
-    assert(!_spss.empty());
-    assert(!_gpss.empty());
-    _sps = &_spss.cbegin()->second;
-    _gps = &_gpss.cbegin()->second;
-
-    // todo(df): replace with attribute mapping
-    bool hasColour = std::any_of(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
-      [](const AttributeDescription& desc) {
-        return desc.attributeLabel == KnownAttributeLabel::kColour;
-      });
-
-    bool hasReflectance = std::any_of(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
-      [](const AttributeDescription& desc) {
-        return desc.attributeLabel == KnownAttributeLabel::kReflectance;
-      });
-
-    _currentPointCloud.clear();
-    _currentPointCloud.addRemoveAttributes(hasColour, hasReflectance);
-
-    pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
-    clock_user.start();
-
-    if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
-      decodePositions(buf, _currentPointCloud);
-    }
-    if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
-      if (decodeTrisoup(buf, _currentPointCloud))
-        return -1;
-    }
-    clock_user.stop();
-
-    auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
-      clock_user.count());
-    std::cout << "positions processing time (user): "
-              << total_user.count() / 1000.0 << " s\n";
-    std::cout << std::endl;
-
-    return 0;
-  }
-
-  //--------------------------------------------------------------------------
-  // Initialise the point cloud storage and decode a single geometry brick.
-  //
-  // NB: there is an implicit assumption that there is only a single geometry
-  //     brick per point cloud.
-
-  void decodeAttributeBrick(const PayloadBuffer& buf)
-  {
-    assert(buf.type == PayloadType::kAttributeBrick);
-    // todo(df): replace assertions with error handling
-    assert(_sps);
-    assert(_gps);
-
-    // todo(df): validate that sps activation is not changed via the APS
-    AttributeBrickHeader abh = parseAbh(buf, nullptr);
-    const auto it_attr_aps = _apss.find(abh.attr_attr_parameter_set_id);
-
-    assert(it_attr_aps != _apss.cend());
-    const auto& attr_aps = it_attr_aps->second;
-
-    assert(abh.attr_sps_attr_idx < _sps->attributeSets.size());
-    const auto& attr_sps = _sps->attributeSets[abh.attr_sps_attr_idx];
-    const auto& label = attr_sps.attributeLabel;
-
-    AttributeDecoder attrDecoder;
-    pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
-
-    clock_user.start();
-    attrDecoder.decode(attr_sps, attr_aps, buf, _currentPointCloud);
-    clock_user.stop();
-
-    std::cout << label << "s bitstream size " << buf.size() << " B\n";
-
-    auto total_user = std::chrono::duration_cast<std::chrono::milliseconds>(
-      clock_user.count());
-    std::cout << label
-              << "s processing time (user): " << total_user.count() / 1000.0
-              << " s\n";
-    std::cout << std::endl;
-  }
-
-  //--------------------------------------------------------------------------
-
-  int decodeTrisoup(const PayloadBuffer& buf, PCCPointSet3& pointCloud)
-  {
-    assert(buf.type == PayloadType::kGeometryBrick);
-
-    // Write out TMC1 geometry bitstream from the converged TMC13 bitstream.
-    std::ofstream fout("outbin/outbin_0000.bin", std::ios::binary);
-    if (!fout.is_open()) {
-      // maybe because directory does not exist; try again...
-      pcc::mkdir("outbin");
-      fout.open("outbin/outbin_0000.bin", std::ios::binary);
-      if (!fout.is_open())
-        return -1;
-    }
-    fout.write(buf.data(), buf.size());
-    if (!fout) {
-      return -1;
-    }
-    fout.close();
-
-    // Decompress geometry with TMC1.
-    std::string cmd;
-    cmd = "7z e -aoa -bso0 -ooutbin outbin/outbin_0000.bin";
-    if (int err = system(cmd.c_str())) {
-      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-      return -1;
-    }
-
-    cmd =
-      "TMC1_geometryDecode"
-      " -inbin outbin/outbin"
-      " -outref refinedVerticesDecoded.ply"
-      " -depth "
-      + std::to_string(_gps->trisoup_depth) + " -level "
-      + std::to_string(_gps->trisoup_triangle_level)
-      + " -format binary_little_endian";
-    if (int err = system(cmd.c_str())) {
-      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-      return -1;
-    }
-
-    cmd =
-      "TMC1_voxelize"
-      " -inref refinedVerticesDecoded.ply"
-      " -outvox quantizedPointCloudDecoded.ply"
-      " -depth "
-      + std::to_string(_gps->trisoup_depth) + " -format binary_little_endian";
-    if (int err = system(cmd.c_str())) {
-      std::cerr << "Failed (" << err << ") to run :" << cmd << '\n';
-      return -1;
-    }
-
-    bool hasColors = pointCloud.hasColors();
-    bool hasReflectances = pointCloud.hasReflectances();
-    if (!pointCloud.read("quantizedPointCloudDecoded.ply")) {
-      std::cerr << "Failed to read quantizedPointCloudDecoded.ply\n";
-      return -1;
-    }
-    pointCloud.addRemoveAttributes(hasColors, hasReflectances);
-    return 0;
-  }
-
-  //==========================================================================
-
+  int decodeGeometryBrick(const PayloadBuffer& buf);
+  void decodeAttributeBrick(const PayloadBuffer& buf);
+  int decodeTrisoup(const PayloadBuffer& buf, PCCPointSet3& pointCloud);
   void decodePositions(const PayloadBuffer& buf, PCCPointSet3& pointCloud);
 
   //==========================================================================
 
 public:
-  void inverseQuantization(PCCPointSet3& pointCloud)
-  {
-    const size_t pointCount = pointCloud.getPointCount();
-    const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
-
-    for (size_t i = 0; i < pointCount; ++i) {
-      auto& point = pointCloud[i];
-      for (size_t k = 0; k < 3; ++k) {
-        point[k] = point[k] * invScale + minPositions[k];
-      }
-    }
-  }
+  void inverseQuantization(PCCPointSet3& pointCloud);
 
   //==========================================================================
 
@@ -340,6 +103,7 @@ private:
   const SequenceParameterSet* _sps;
   const GeometryParameterSet* _gps;
 };
-}  // namespace pcc
 
-#endif /* PCCTMC3Decoder_h */
+//============================================================================
+
+}  // namespace pcc

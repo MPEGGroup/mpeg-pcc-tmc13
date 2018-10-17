@@ -92,6 +92,7 @@ file(GLOB PROJECT_CPP_FILES
   "OctreeNeighMap.cpp"
   "RAHT.cpp"
   "TMC3.cpp"
+  "decoder.cpp"
   "encoder.cpp"
   "geometry_octree.cpp"
   "geometry_octree_decoder.cpp"
