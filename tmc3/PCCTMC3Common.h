@@ -39,6 +39,7 @@
 #include "ArithmeticCodec.h"
 #include "PCCKdTree.h"
 #include "PCCMath.h"
+#include "constants.h"
 #include "ringbuf.h"
 
 #include "nanoflann.hpp"
@@ -49,8 +50,6 @@
 #include <vector>
 
 namespace pcc {
-const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 3;
-const uint32_t PCCTMC3SymbolCount = 64;
 
 // Structure for sorting weights.
 struct WeightWithIndex {
@@ -82,7 +81,7 @@ struct PCCNeighborInfo {
 struct PCCPredictor {
   size_t neighborCount;
   uint32_t index;
-  PCCNeighborInfo neighbors[PCCTMC3MaxPredictionNearestNeighborCount];
+  PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
 
   PCCColor3B predictColor(const PCCPointSet3& pointCloud) const
   {
@@ -407,7 +406,7 @@ PCCComputePredictors2(
   const size_t pointCount = pointCloud.getPointCount();
   const size_t lodCount = numberOfPointsPerLOD.size();
   predictors.resize(pointCount);
-  PCCPointDistInfo nearestNeighbors[PCCTMC3MaxPredictionNearestNeighborCount];
+  PCCPointDistInfo nearestNeighbors[kAttributePredictionMaxNeighbourCount];
   PCCNNQuery3 nNQuery = {PCCVector3D(0.0), std::numeric_limits<double>::max(),
                          numberOfNearestNeighborsInPrediction};
   PCCNNResult nNResult = {nearestNeighbors, 0};
@@ -479,8 +478,8 @@ PCCComputePredictors(
   }
   PointCloudWrapper pointCloudWrapper(pointCloud, indexes);
   const nanoflann::SearchParams params(10, 0.0f, true);
-  size_t indices[PCCTMC3MaxPredictionNearestNeighborCount];
-  double sqrDist[PCCTMC3MaxPredictionNearestNeighborCount];
+  size_t indices[kAttributePredictionMaxNeighbourCount];
+  double sqrDist[kAttributePredictionMaxNeighbourCount];
   nanoflann::KNNResultSet<double> resultSet(
     numberOfNearestNeighborsInPrediction);
   for (uint32_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {

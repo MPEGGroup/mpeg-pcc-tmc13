@@ -70,6 +70,7 @@ file(GLOB PROJECT_INC_FILES
   "PCCTMC3Encoder.h"
   "RAHT.h"
   "TMC3.h"
+  "constants.h"
   "geometry_octree.h"
   "hls.h"
   "io_hls.h"

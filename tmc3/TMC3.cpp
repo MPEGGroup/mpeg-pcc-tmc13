@@ -34,6 +34,7 @@
  */
 
 #include "TMC3.h"
+#include "constants.h"
 #include "program_options_lite.h"
 #include "io_tlv.h"
 #include "version.h"
@@ -517,10 +518,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
       if (
         attr_aps.num_pred_nearest_neighbours
-        > PCCTMC3MaxPredictionNearestNeighborCount) {
+        > kAttributePredictionMaxNeighbourCount) {
         err.error() << it.first
                     << ".numberOfNearestNeighborsInPrediction must be <= "
-                    << PCCTMC3MaxPredictionNearestNeighborCount << "\n";
+                    << kAttributePredictionMaxNeighbourCount << "\n";
       }
     }
   }

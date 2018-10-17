@@ -34,6 +34,8 @@
  */
 
 #include "AttributeEncoder.h"
+
+#include "constants.h"
 #include "RAHT.h"
 
 namespace pcc {
@@ -41,7 +43,6 @@ namespace pcc {
 // An encapsulation of the entropy coding methods used in attribute coding
 
 struct PCCResidualsEncoder {
-  uint32_t alphabetSize;
   o3dgc::Arithmetic_Codec arithmeticEncoder;
   o3dgc::Static_Bit_Model binaryModel0;
   o3dgc::Adaptive_Bit_Model binaryModelPred;
@@ -50,9 +51,7 @@ struct PCCResidualsEncoder {
   o3dgc::Adaptive_Bit_Model binaryModelDiff1;
   o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
 
-  PCCResidualsEncoder() { alphabetSize = PCCTMC3SymbolCount; }
-
-  void start(int numPoints, uint32_t alphabetSize);
+  void start(int numPoints);
   int stop();
   void encode0(const uint32_t value);
   void encode1(const uint32_t value);
@@ -62,11 +61,10 @@ struct PCCResidualsEncoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::start(int pointCount, uint32_t alphabetSize)
+PCCResidualsEncoder::start(int pointCount)
 {
-  this->alphabetSize = alphabetSize;
-  multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
-  multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
+  multiSymbolModelDiff0.set_alphabet(kAttributeResidualAlphabetSize + 1);
+  multiSymbolModelDiff1.set_alphabet(kAttributeResidualAlphabetSize + 1);
 
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = pointCount * 3 * 2 + 1024;
@@ -87,9 +85,10 @@ PCCResidualsEncoder::stop()
 inline void
 PCCResidualsEncoder::encode0(const uint32_t value)
 {
-  if (value < alphabetSize) {
+  if (value < kAttributeResidualAlphabetSize) {
     arithmeticEncoder.encode(value, multiSymbolModelDiff0);
   } else {
+    int alphabetSize = kAttributeResidualAlphabetSize;
     arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff0);
     arithmeticEncoder.ExpGolombEncode(
       value - alphabetSize, 0, binaryModel0, binaryModelDiff0);
@@ -101,9 +100,10 @@ PCCResidualsEncoder::encode0(const uint32_t value)
 inline void
 PCCResidualsEncoder::encode1(const uint32_t value)
 {
-  if (value < alphabetSize) {
+  if (value < kAttributeResidualAlphabetSize) {
     arithmeticEncoder.encode(value, multiSymbolModelDiff1);
   } else {
+    int alphabetSize = kAttributeResidualAlphabetSize;
     arithmeticEncoder.encode(alphabetSize, multiSymbolModelDiff1);
     arithmeticEncoder.ExpGolombEncode(
       value - alphabetSize, 0, binaryModel0, binaryModelDiff1);
@@ -122,8 +122,8 @@ PCCResidualsEncoder::encodePred(const bool value)
 // An encapsulation of the entropy coding methods used in attribute coding
 
 struct PCCResidualsEntropyEstimator {
-  size_t freq0[PCCTMC3SymbolCount + 1];
-  size_t freq1[PCCTMC3SymbolCount + 1];
+  size_t freq0[kAttributeResidualAlphabetSize + 1];
+  size_t freq1[kAttributeResidualAlphabetSize + 1];
   size_t symbolCount0;
   size_t symbolCount1;
   size_t isZero0Count;
@@ -147,12 +147,12 @@ struct PCCResidualsEntropyEstimator {
 void
 PCCResidualsEntropyEstimator::init()
 {
-  for (size_t i = 0; i <= PCCTMC3SymbolCount; ++i) {
+  for (size_t i = 0; i <= kAttributeResidualAlphabetSize; ++i) {
     freq0[i] = 1;
     freq1[i] = 1;
   }
-  symbolCount0 = PCCTMC3SymbolCount + 1;
-  symbolCount1 = PCCTMC3SymbolCount + 1;
+  symbolCount0 = kAttributeResidualAlphabetSize + 1;
+  symbolCount1 = kAttributeResidualAlphabetSize + 1;
   isZero1Count = isZero0Count = symbolCount0 / 2;
 }
 
@@ -165,12 +165,12 @@ PCCResidualsEntropyEstimator::bitsDetail(
   const size_t* const freq) const
 {
   const uint32_t detailClipped =
-    std::min(detail, uint32_t(PCCTMC3SymbolCount));
+    std::min(detail, uint32_t(kAttributeResidualAlphabetSize));
   const double pDetail =
     PCCClip(double(freq[detailClipped]) / symbolCount, 0.001, 0.999);
   double bits = -log2(pDetail);
-  if (detail >= PCCTMC3SymbolCount) {
-    const double x = double(detail) - double(PCCTMC3SymbolCount);
+  if (detail >= kAttributeResidualAlphabetSize) {
+    const double x = double(detail) - double(kAttributeResidualAlphabetSize);
     bits += 2.0 * std::floor(log2(x + 1.0)) + 1.0;
   }
   return bits;
@@ -200,7 +200,7 @@ PCCResidualsEntropyEstimator::update(const uint32_t value0)
   const bool isZero0 = value0 == 0;
   ++symbolCount0;
   if (!isZero0) {
-    ++freq0[std::min(value0 - 1, uint32_t(64))];
+    ++freq0[std::min(value0 - 1, uint32_t(kAttributeResidualAlphabetSize))];
   } else {
     ++isZero0Count;
   }
@@ -242,7 +242,7 @@ PCCResidualsEntropyEstimator::update(
   const bool isZero0 = value0 == 0;
   ++symbolCount0;
   if (!isZero0) {
-    ++freq0[std::min(value0 - 1, uint32_t(64))];
+    ++freq0[std::min(value0 - 1, uint32_t(kAttributeResidualAlphabetSize))];
   } else {
     ++isZero0Count;
   }
@@ -250,8 +250,8 @@ PCCResidualsEntropyEstimator::update(
   const bool isZero1 = value1 == 0 && value2 == 0;
   symbolCount1 += 2;
   if (!isZero1) {
-    ++freq1[std::min(value1, uint32_t(PCCTMC3SymbolCount))];
-    ++freq1[std::min(value2, uint32_t(PCCTMC3SymbolCount))];
+    ++freq1[std::min(value1, uint32_t(kAttributeResidualAlphabetSize))];
+    ++freq1[std::min(value2, uint32_t(kAttributeResidualAlphabetSize))];
   } else {
     ++isZero1Count;
   }
@@ -268,8 +268,7 @@ AttributeEncoder::encode(
   PayloadBuffer* payload)
 {
   PCCResidualsEncoder encoder;
-  const uint32_t alphabetSize = 64;
-  encoder.start(int(pointCloud.getPointCount()), alphabetSize);
+  encoder.start(int(pointCloud.getPointCount()));
 
   if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {

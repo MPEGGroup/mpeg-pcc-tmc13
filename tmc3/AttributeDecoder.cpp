@@ -36,6 +36,7 @@
 #include "AttributeDecoder.h"
 
 #include "ArithmeticCodec.h"
+#include "constants.h"
 #include "io_hls.h"
 #include "RAHT.h"
 
@@ -45,7 +46,6 @@ namespace pcc {
 // An encapsulation of the entropy decoding methods used in attribute coding
 
 struct PCCResidualsDecoder {
-  uint32_t alphabetSize;
   o3dgc::Arithmetic_Codec arithmeticDecoder;
   o3dgc::Static_Bit_Model binaryModel0;
   o3dgc::Adaptive_Bit_Model binaryModelPred;
@@ -54,9 +54,7 @@ struct PCCResidualsDecoder {
   o3dgc::Adaptive_Bit_Model binaryModelDiff1;
   o3dgc::Adaptive_Data_Model multiSymbolModelDiff1;
 
-  PCCResidualsDecoder() { alphabetSize = PCCTMC3SymbolCount; }
-
-  void start(const char* buf, int buf_len, uint32_t alphabetSize);
+  void start(const char* buf, int buf_len);
   void stop();
   bool decodePred();
   uint32_t decode0();
@@ -66,11 +64,10 @@ struct PCCResidualsDecoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsDecoder::start(const char* buf, int buf_len, uint32_t alphabetSize)
+PCCResidualsDecoder::start(const char* buf, int buf_len)
 {
-  this->alphabetSize = alphabetSize;
-  multiSymbolModelDiff0.set_alphabet(alphabetSize + 1);
-  multiSymbolModelDiff1.set_alphabet(alphabetSize + 1);
+  multiSymbolModelDiff0.set_alphabet(kAttributeResidualAlphabetSize + 1);
+  multiSymbolModelDiff1.set_alphabet(kAttributeResidualAlphabetSize + 1);
 
   arithmeticDecoder.set_buffer(
     buf_len, reinterpret_cast<uint8_t*>(const_cast<char*>(buf)));
@@ -100,7 +97,7 @@ uint32_t
 PCCResidualsDecoder::decode0()
 {
   uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff0);
-  if (value == alphabetSize) {
+  if (value == kAttributeResidualAlphabetSize) {
     value +=
       arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff0);
   }
@@ -113,7 +110,7 @@ uint32_t
 PCCResidualsDecoder::decode1()
 {
   uint32_t value = arithmeticDecoder.decode(multiSymbolModelDiff1);
-  if (value == alphabetSize) {
+  if (value == kAttributeResidualAlphabetSize) {
     value +=
       arithmeticDecoder.ExpGolombDecode(0, binaryModel0, binaryModelDiff1);
   }
@@ -134,9 +131,7 @@ AttributeDecoder::decode(
   /* AttributeBrickHeader abh = */ parseAbh(payload, &abhSize);
 
   PCCResidualsDecoder decoder;
-  const uint32_t alphabetSize = 64;
-  decoder.start(
-    payload.data() + abhSize, payload.size() - abhSize, alphabetSize);
+  decoder.start(payload.data() + abhSize, payload.size() - abhSize);
 
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
