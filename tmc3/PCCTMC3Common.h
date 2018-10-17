@@ -36,17 +36,14 @@
 #ifndef PCCTMC3Common_h
 #define PCCTMC3Common_h
 
-#include "ArithmeticCodec.h"
 #include "PCCKdTree.h"
 #include "PCCMath.h"
 #include "constants.h"
-#include "ringbuf.h"
 
 #include "nanoflann.hpp"
 
 #include <cstdint>
-#include <unordered_map>
-#include <unordered_set>
+#include <cstddef>
 #include <vector>
 
 namespace pcc {

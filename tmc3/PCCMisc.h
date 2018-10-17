@@ -37,10 +37,10 @@
 #define PCCMisc_h
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <utility>
-#include <stddef.h>
-#include <stdint.h>
 #include <vector>
 
 namespace pcc {

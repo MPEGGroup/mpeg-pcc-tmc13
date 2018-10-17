@@ -38,20 +38,6 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <map>
-#include <memory>
-#include <set>
-#include <sstream>
-#include <string>
-
-#include "PCCPointSet.h"
-#include "PCCTMC3Decoder.h"
-#include "PCCTMC3Encoder.h"
-
 #include "TMC3Config.h"
 
 #include "pcc_chrono.h"

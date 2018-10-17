@@ -36,6 +36,7 @@
 #ifndef PCCPointSetProcessing_h
 #define PCCPointSetProcessing_h
 
+#include <cstddef>
 #include <vector>
 
 #include "KDTreeVectorOfVectorsAdaptor.h"

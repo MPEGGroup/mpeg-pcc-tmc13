@@ -35,13 +35,9 @@
 
 #pragma once
 
-#include <stddef.h>
 #include <stdint.h>
-#include <string>
-#include <vector>
 
 #include "PayloadBuffer.h"
-#include "PCCMisc.h"
 #include "PCCTMC3Common.h"
 
 namespace pcc {

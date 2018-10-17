@@ -34,6 +34,11 @@
  */
 
 #include "TMC3.h"
+
+#include <memory>
+
+#include "PCCTMC3Encoder.h"
+#include "PCCTMC3Decoder.h"
 #include "constants.h"
 #include "program_options_lite.h"
 #include "io_tlv.h"

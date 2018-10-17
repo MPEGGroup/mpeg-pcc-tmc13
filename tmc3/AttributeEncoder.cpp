@@ -35,6 +35,7 @@
 
 #include "AttributeEncoder.h"
 
+#include "ArithmeticCodec.h"
 #include "constants.h"
 #include "RAHT.h"
 

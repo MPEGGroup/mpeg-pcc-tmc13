@@ -37,6 +37,7 @@
 #define PCCKdTree_h
 
 #include <algorithm>
+#include <cstddef>
 
 #include "PCCPointSet.h"
 
