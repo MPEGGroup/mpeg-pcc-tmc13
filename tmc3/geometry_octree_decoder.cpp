@@ -38,26 +38,63 @@
 // todo: break dependency
 #include "PCCTMC3Decoder.h"
 
+#include "OctreeNeighMap.h"
+#include "io_hls.h"
+#include "tables.h"
+
 namespace pcc {
+
+//============================================================================
+
+class GeometryOctreeDecoder {
+public:
+  GeometryOctreeDecoder(o3dgc::Arithmetic_Codec* arithmeticDecoder);
+
+  int decodePositionLeafNumPoints();
+
+  int decodeOccupancyNeighZ();
+
+  int decodeOccupancyNeighNZ(int neighPattern10);
+
+  uint32_t decodeGeometryOccupancy(const PCCOctree3Node& node0);
+
+  PCCVector3<uint32_t> decodePointPosition(int nodeSizeLog2);
+
+  template<class OutputIt>
+  int decodeDirectPosition(
+    int nodeSizeLog2, const PCCOctree3Node& node, OutputIt outputPoints);
+
+private:
+  o3dgc::Arithmetic_Codec* _arithmeticDecoder;
+  o3dgc::Static_Bit_Model _ctxEquiProb;
+  o3dgc::Adaptive_Bit_Model _ctxSingleChild;
+  o3dgc::Adaptive_Bit_Model _ctxSinglePointPerBlock;
+  o3dgc::Adaptive_Bit_Model _ctxPointCountPerBlock;
+  o3dgc::Adaptive_Bit_Model _ctxBlockSkipTh;
+  o3dgc::Adaptive_Bit_Model _ctxNumIdcmPointsEq1;
+  CtxModelOctreeOccupancy _ctxOccupancy;
+};
+
+//============================================================================
+
+GeometryOctreeDecoder::GeometryOctreeDecoder(
+  o3dgc::Arithmetic_Codec* arithmeticDecoder)
+  : _arithmeticDecoder(arithmeticDecoder)
+{}
 
 //============================================================================
 // Decode the number of points in a leaf node of the octree.
 
 int
-decodePositionLeafNumPoints(
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  o3dgc::Adaptive_Bit_Model& ctxSinglePointPerBlock,
-  o3dgc::Static_Bit_Model& ctxEquiProb,
-  o3dgc::Adaptive_Bit_Model& ctxPointCountPerBlock)
+GeometryOctreeDecoder::decodePositionLeafNumPoints()
 {
   const bool isSinglePoint =
-    arithmeticDecoder->decode(ctxSinglePointPerBlock) != 0;
+    _arithmeticDecoder->decode(_ctxSinglePointPerBlock) != 0;
 
   int count = 1;
   if (!isSinglePoint) {
-    count = 1
-      + arithmeticDecoder->ExpGolombDecode(
-          0, ctxEquiProb, ctxPointCountPerBlock);
+    count += _arithmeticDecoder->ExpGolombDecode(
+      0, _ctxEquiProb, _ctxPointCountPerBlock);
   }
 
   return count;
@@ -67,35 +104,33 @@ decodePositionLeafNumPoints(
 // decode occupancy bits (neighPattern10 == 0 case)
 
 int
-decodeOccupancyNeighZ(
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  CtxModelOctreeOccupancy& ctxOccupancy)
+GeometryOctreeDecoder::decodeOccupancyNeighZ()
 {
   int numOccupiedAcc = 0;
   int bit;
   int occupancy = 0;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b0[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b0[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 1;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b1[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b1[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 7;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b2[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b2[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 5;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b3[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b3[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 3;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b4[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b4[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 2;
 
-  bit = arithmeticDecoder->decode(ctxOccupancy.b5[numOccupiedAcc]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b5[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 4;
 
@@ -103,13 +138,13 @@ decodeOccupancyNeighZ(
   //  -- avoid coding the occupancyB if it is implied.
   bit = 1;
   if (numOccupiedAcc >= 1)
-    bit = arithmeticDecoder->decode(ctxOccupancy.b6[numOccupiedAcc]);
+    bit = _arithmeticDecoder->decode(_ctxOccupancy.b6[numOccupiedAcc]);
   numOccupiedAcc += bit;
   occupancy |= bit << 6;
 
   bit = 1;
   if (numOccupiedAcc >= 2)
-    bit = arithmeticDecoder->decode(ctxOccupancy.b7[numOccupiedAcc]);
+    bit = _arithmeticDecoder->decode(_ctxOccupancy.b7[numOccupiedAcc]);
   occupancy |= bit << 0;
 
   return occupancy;
@@ -119,10 +154,7 @@ decodeOccupancyNeighZ(
 // decode occupancy bits (neighPattern10 != 0 case)
 
 int
-decodeOccupancyNeighNZ(
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  CtxModelOctreeOccupancy& ctxOccupancy,
-  int neighPattern10)
+GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
 {
   int occupancy = 0;
   int partialOccupancy = 0;
@@ -130,42 +162,42 @@ decodeOccupancyNeighNZ(
   int bit;
 
   idx = neighPattern10;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b0[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b0[idx]);
   partialOccupancy |= bit << 0;
   occupancy |= bit << 1;
 
   idx = (neighPattern10 << 1) + partialOccupancy;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b1[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b1[idx]);
   partialOccupancy |= bit << 1;
   occupancy |= bit << 7;
 
   idx = (neighPattern10 << 2) + partialOccupancy;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b2[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b2[idx]);
   partialOccupancy |= bit << 2;
   occupancy |= bit << 5;
 
   idx = (neighPattern10 << 3) + partialOccupancy;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b3[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b3[idx]);
   partialOccupancy |= bit << 3;
   occupancy |= bit << 3;
 
   // todo(df): merge constants into lut.
   idx = ((neighPattern10 - 1) << 4) + partialOccupancy;
   idx = kOccMapBit4CtxIdx[idx] - 1 + 5;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b4[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b4[idx]);
   partialOccupancy |= bit << 4;
   occupancy |= bit << 2;
 
   idx = ((neighPattern10 - 1) << 5) + partialOccupancy;
   idx = kOccMapBit5CtxIdx[idx] - 1 + 6;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b5[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b5[idx]);
   partialOccupancy |= bit << 5;
   occupancy |= bit << 4;
 
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
   idx = ((neighPattern7 - 1) << 6) + partialOccupancy;
   idx = kOccMapBit6CtxIdx[idx] - 1 + 7;
-  bit = arithmeticDecoder->decode(ctxOccupancy.b6[idx]);
+  bit = _arithmeticDecoder->decode(_ctxOccupancy.b6[idx]);
   partialOccupancy += bit << 6;
   occupancy |= bit << 6;
 
@@ -175,7 +207,7 @@ decodeOccupancyNeighNZ(
   // NB: if firt 7 bits are 0, then the last is implicitly 1.
   bit = 1;
   if (partialOccupancy)
-    bit = arithmeticDecoder->decode(ctxOccupancy.b7[idx]);
+    bit = _arithmeticDecoder->decode(_ctxOccupancy.b7[idx]);
   occupancy |= bit << 0;
 
   return occupancy;
@@ -184,13 +216,9 @@ decodeOccupancyNeighNZ(
 //-------------------------------------------------------------------------
 // decode node occupancy bits
 //
+
 uint32_t
-decodeGeometryOccupancy(
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  o3dgc::Adaptive_Bit_Model& ctxSingleChild,
-  o3dgc::Static_Bit_Model& ctxEquiProb,
-  CtxModelOctreeOccupancy& ctxOccupancy,
-  const PCCOctree3Node& node0)
+GeometryOctreeDecoder::decodeGeometryOccupancy(const PCCOctree3Node& node0)
 {
   // neighbouring configuration with reduction from 64 to 10
   int neighPattern = node0.neighPattern;
@@ -200,18 +228,16 @@ decodeGeometryOccupancy(
   uint32_t occupancy;
   if (neighPattern10 == 0) {
     // neighbour empty and only one point => decode index, not pattern
-    if (arithmeticDecoder->decode(ctxSingleChild)) {
-      uint32_t cnt = arithmeticDecoder->decode(ctxEquiProb);
-      cnt |= arithmeticDecoder->decode(ctxEquiProb) << 1;
-      cnt |= arithmeticDecoder->decode(ctxEquiProb) << 2;
+    if (_arithmeticDecoder->decode(_ctxSingleChild)) {
+      uint32_t cnt = _arithmeticDecoder->decode(_ctxEquiProb);
+      cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 1;
+      cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 2;
       occupancy = 1 << cnt;
     } else {
-      occupancy = decodeOccupancyNeighZ(arithmeticDecoder, ctxOccupancy);
+      occupancy = decodeOccupancyNeighZ();
     }
   } else {
-    occupancy =
-      decodeOccupancyNeighNZ(arithmeticDecoder, ctxOccupancy, neighPattern10);
-
+    occupancy = decodeOccupancyNeighNZ(neighPattern10);
     occupancy = mapGeometryOccupancyInv(occupancy, neighPattern);
   }
   return occupancy;
@@ -221,17 +247,14 @@ decodeGeometryOccupancy(
 // Decode a position of a point in a given volume.
 
 PCCVector3<uint32_t>
-decodePointPosition(
-  int nodeSizeLog2,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  o3dgc::Static_Bit_Model& ctxPointPosBlock)
+GeometryOctreeDecoder::decodePointPosition(int nodeSizeLog2)
 {
   PCCVector3<uint32_t> delta{};
   for (int i = nodeSizeLog2; i > 0; i--) {
     delta <<= 1;
-    delta[0] |= arithmeticDecoder->decode(ctxPointPosBlock);
-    delta[1] |= arithmeticDecoder->decode(ctxPointPosBlock);
-    delta[2] |= arithmeticDecoder->decode(ctxPointPosBlock);
+    delta[0] |= _arithmeticDecoder->decode(_ctxEquiProb);
+    delta[1] |= _arithmeticDecoder->decode(_ctxEquiProb);
+    delta[2] |= _arithmeticDecoder->decode(_ctxEquiProb);
   }
 
   return delta;
@@ -244,29 +267,21 @@ decodePointPosition(
 
 template<class OutputIt>
 int
-decodeDirectPosition(
-  int nodeSizeLog2,
-  const PCCOctree3Node& node,
-  o3dgc::Arithmetic_Codec* arithmeticDecoder,
-  o3dgc::Adaptive_Bit_Model& ctxBlockSkipTh,
-  o3dgc::Adaptive_Bit_Model& ctxNumIdcmPointsEq1,
-  o3dgc::Static_Bit_Model& ctxPointPosBlock,
-  OutputIt outputPoints)
+GeometryOctreeDecoder::decodeDirectPosition(
+  int nodeSizeLog2, const PCCOctree3Node& node, OutputIt outputPoints)
 {
-  bool isDirectMode = arithmeticDecoder->decode(ctxBlockSkipTh);
+  bool isDirectMode = _arithmeticDecoder->decode(_ctxBlockSkipTh);
   if (!isDirectMode) {
     return 0;
   }
 
   int numPoints = 1;
-  if (arithmeticDecoder->decode(ctxNumIdcmPointsEq1))
+  if (_arithmeticDecoder->decode(_ctxNumIdcmPointsEq1))
     numPoints++;
 
   for (int i = 0; i < numPoints; i++) {
     // convert node-relative position to world position
-    PCCVector3<uint32_t> pos = node.pos
-      + decodePointPosition(nodeSizeLog2, arithmeticDecoder, ctxPointPosBlock);
-
+    PCCVector3<uint32_t> pos = node.pos + decodePointPosition(nodeSizeLog2);
     *(outputPoints++) = {double(pos[0]), double(pos[1]), double(pos[2])};
   }
 
@@ -293,14 +308,7 @@ PCCTMC3Decoder3::decodePositions(
     int(buf.size()) - gbhSize,
     reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data() + gbhSize)));
   arithmeticDecoder.start_decoder();
-
-  o3dgc::Static_Bit_Model ctxEquiProb;
-  o3dgc::Adaptive_Bit_Model ctxSingleChild;
-  o3dgc::Adaptive_Bit_Model ctxSinglePointPerBlock;
-  o3dgc::Adaptive_Bit_Model ctxPointCountPerBlock;
-  o3dgc::Adaptive_Bit_Model ctxBlockSkipTh;
-  o3dgc::Adaptive_Bit_Model ctxNumIdcmPointsEq1;
-  CtxModelOctreeOccupancy ctxOccupancy;
+  GeometryOctreeDecoder decoder(&arithmeticDecoder);
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -356,8 +364,7 @@ PCCTMC3Decoder3::decodePositions(
     }
 
     // decode occupancy pattern
-    uint8_t occupancy = decodeGeometryOccupancy(
-      &arithmeticDecoder, ctxSingleChild, ctxEquiProb, ctxOccupancy, node0);
+    uint8_t occupancy = decoder.decodeGeometryOccupancy(node0);
 
     assert(occupancy > 0);
 
@@ -384,9 +391,7 @@ PCCTMC3Decoder3::decodePositions(
         int numPoints = 1;
 
         if (!_gps->geom_unique_points_flag) {
-          numPoints = decodePositionLeafNumPoints(
-            &arithmeticDecoder, ctxSinglePointPerBlock, ctxEquiProb,
-            ctxPointCountPerBlock);
+          numPoints = decoder.decodePositionLeafNumPoints();
         }
 
         const PCCVector3D point(
@@ -413,9 +418,8 @@ PCCTMC3Decoder3::decodePositions(
 
       bool idcmEnabled = _gps->inferred_direct_coding_mode_enabled_flag;
       if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
-        int numPoints = decodeDirectPosition(
-          childSizeLog2, child, &arithmeticDecoder, ctxBlockSkipTh,
-          ctxNumIdcmPointsEq1, ctxEquiProb, &pointCloud[processedPointCount]);
+        int numPoints = decoder.decodeDirectPosition(
+          childSizeLog2, child, &pointCloud[processedPointCount]);
         processedPointCount += numPoints;
 
         if (numPoints > 0) {
