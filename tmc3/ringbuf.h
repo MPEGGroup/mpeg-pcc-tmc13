@@ -275,6 +275,41 @@ public:
 
   //--------------------------------------------------------------------------
 
+  ringbuf(ringbuf&& other) noexcept { *this = std::move(other); }
+
+  //--------------------------------------------------------------------------
+
+  ringbuf& operator=(ringbuf&& rhs) noexcept
+  {
+    // unfortunately the iterators cannot be moved, since they hold a
+    // pointer to the ringbuffer's internal iterator.
+    // it_zero is used to extract the true iterator idx
+    iterator it_zero = iterator(nullptr, 0, &it_zero);
+
+    auto lhs_rd_idx = -(it_zero - rd_it_);
+    auto lhs_wr_idx = -(it_zero - wr_it_);
+
+    auto rhs_rd_idx = -(it_zero - rhs.rd_it_);
+    auto rhs_wr_idx = -(it_zero - rhs.wr_it_);
+
+    std::swap(buf_, rhs.buf_);
+    std::swap(capacity_, rhs.capacity_);
+
+    rd_it_ = iterator(buf_.get(), capacity_, &rd_it_);
+    wr_it_ = iterator(buf_.get(), capacity_, &rd_it_);
+    rd_it_ += rhs_rd_idx;
+    wr_it_ += rhs_wr_idx;
+
+    rhs.rd_it_ = iterator(rhs.buf_.get(), rhs.capacity_, &rhs.rd_it_);
+    rhs.wr_it_ = iterator(rhs.buf_.get(), rhs.capacity_, &rhs.rd_it_);
+    rhs.rd_it_ += lhs_rd_idx;
+    rhs.wr_it_ += lhs_wr_idx;
+
+    return *this;
+  }
+
+  //--------------------------------------------------------------------------
+
   ~ringbuf()
   {
     while (rd_it_ != wr_it_) {
