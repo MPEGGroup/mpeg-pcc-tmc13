@@ -257,6 +257,15 @@ public:
 
   //--------------------------------------------------------------------------
 
+  ringbuf()
+    : buf_(nullptr)
+    , capacity_(0)
+    , rd_it_(iterator(buf_.get(), capacity_, &rd_it_))
+    , wr_it_(iterator(buf_.get(), capacity_, &rd_it_))
+  {}
+
+  //--------------------------------------------------------------------------
+
   ringbuf(size_t size)
     : buf_(static_cast<T*>(operator new[](sizeof(T) * (size + 1))))
     , capacity_(size + 1)
