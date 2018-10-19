@@ -35,72 +35,25 @@
 
 #pragma once
 
-#include <functional>
-#include <map>
-#include <string>
-#include <vector>
-
-#include "PayloadBuffer.h"
-#include "PCCMath.h"
+#include "ArithmeticCodec.h"
 #include "PCCPointSet.h"
 #include "hls.h"
 
 namespace pcc {
 
-struct EncoderParams {
-  SequenceParameterSet sps;
-  GeometryParameterSet gps;
-
-  // NB: information about attributes is split between the SPS and the APS.
-  //  => The SPS enumerates the attributes, the APS controls coding params.
-  std::vector<AttributeParameterSet> aps;
-
-  // todo(df): this should go away
-  std::map<std::string, int> attributeIdxMap;
-
-  // Filename for saving recoloured point cloud.
-  std::string postRecolorPath;
-};
-
 //============================================================================
 
-class PCCTMC3Encoder3 {
-public:
-  PCCTMC3Encoder3() { init(); }
-  PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
-  PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
-  ~PCCTMC3Encoder3() = default;
+void encodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticEncoder);
 
-  void init();
-
-  int compress(
-    const PCCPointSet3& inputPointCloud,
-    EncoderParams* params,
-    std::function<void(const PayloadBuffer&)> outputFn,
-    PCCPointSet3* reconstructedCloud = nullptr);
-
-private:
-  void reconstructedPointCloud(PCCPointSet3* reconstructedCloud);
-
-  void encodeGeometryBrick(PayloadBuffer* buf);
-
-  int encodeTrisoup(bool hasColor, bool hasReflectance, PayloadBuffer* buf);
-
-  void computeMinPositions(const PCCPointSet3& inputPointCloud);
-
-  void quantization(const PCCPointSet3& inputPointCloud);
-
-private:
-  // todo(df): minPositions is unscaled -- which isn't quite correct.
-  PCCVector3D minPositions;
-  PCCBox3<uint32_t> boundingBox;
-  PCCPointSet3 pointCloud;
-
-  // The active parameter sets
-  const SequenceParameterSet* _sps;
-  const GeometryParameterSet* _gps;
-  std::vector<const AttributeParameterSet*> _aps;
-};
+void decodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticDecoder);
 
 //============================================================================
 

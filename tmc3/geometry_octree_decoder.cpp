@@ -33,12 +33,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "geometry_octree.h"
-
-// todo: break dependency
-#include "PCCTMC3Decoder.h"
+#include "geometry.h"
 
 #include "OctreeNeighMap.h"
+#include "geometry_octree.h"
 #include "io_hls.h"
 #include "tables.h"
 
@@ -252,29 +250,18 @@ GeometryOctreeDecoder::decodeDirectPosition(
 //-------------------------------------------------------------------------
 
 void
-PCCTMC3Decoder3::decodePositions(
-  const PayloadBuffer& buf, PCCPointSet3& pointCloud)
+decodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticDecoder)
 {
-  assert(buf.type == PayloadType::kGeometryBrick);
-
-  int gbhSize;
-  GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
-  minPositions.x() = gbh.geomBoxOrigin.x();
-  minPositions.y() = gbh.geomBoxOrigin.y();
-  minPositions.z() = gbh.geomBoxOrigin.z();
-
-  pointCloud.resize(gbh.geom_num_points);
-
-  o3dgc::Arithmetic_Codec arithmeticDecoder(
-    int(buf.size()) - gbhSize,
-    reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data() + gbhSize)));
-  arithmeticDecoder.start_decoder();
-  GeometryOctreeDecoder decoder(&arithmeticDecoder);
+  GeometryOctreeDecoder decoder(arithmeticDecoder);
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
-  pcc::ringbuf<PCCOctree3Node> fifo(pointCloud.getPointCount() + 1);
+  pcc::ringbuf<PCCOctree3Node> fifo(gbh.geom_num_points + 1);
 
   // the current node dimension (log2)
   int nodeSizeLog2 = gbh.geom_max_node_size_log2;
@@ -283,7 +270,7 @@ PCCTMC3Decoder3::decodePositions(
   fifo.emplace_back();
   PCCOctree3Node& node00 = fifo.back();
   node00.start = uint32_t(0);
-  node00.end = uint32_t(pointCloud.getPointCount());
+  node00.end = uint32_t(0);
   node00.pos = uint32_t(0);
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
@@ -300,8 +287,8 @@ PCCTMC3Decoder3::decodePositions(
 
   PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
   MortonMap3D occupancyAtlas;
-  if (_gps->neighbour_avail_boundary_log2) {
-    occupancyAtlas.resize(_gps->neighbour_avail_boundary_log2);
+  if (gps.neighbour_avail_boundary_log2) {
+    occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
 
@@ -315,7 +302,7 @@ PCCTMC3Decoder3::decodePositions(
     }
     PCCOctree3Node& node0 = fifo.front();
 
-    if (_gps->neighbour_avail_boundary_log2) {
+    if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlas(
         node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
         &occupancyAtlasOrigin);
@@ -351,7 +338,7 @@ PCCTMC3Decoder3::decodePositions(
       if (childSizeLog2 == 0) {
         int numPoints = 1;
 
-        if (!_gps->geom_unique_points_flag) {
+        if (!gps.geom_unique_points_flag) {
           numPoints = decoder.decodePositionLeafNumPoints();
         }
 
@@ -377,7 +364,7 @@ PCCTMC3Decoder3::decodePositions(
       child.numSiblingsPlus1 = numOccupied;
       child.siblingOccupancy = occupancy;
 
-      bool idcmEnabled = _gps->inferred_direct_coding_mode_enabled_flag;
+      bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
       if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
         int numPoints = decoder.decodeDirectPosition(
           childSizeLog2, child, &pointCloud[processedPointCount]);
@@ -395,16 +382,13 @@ PCCTMC3Decoder3::decodePositions(
 
       numNodesNextLvl++;
 
-      if (!_gps->neighbour_avail_boundary_log2) {
+      if (!gps.neighbour_avail_boundary_log2) {
         updateGeometryNeighState(
-          _gps->neighbour_context_restriction_flag, fifo.end(),
-          numNodesNextLvl, childSizeLog2, child, i, node0.neighPattern,
-          occupancy);
+          gps.neighbour_context_restriction_flag, fifo.end(), numNodesNextLvl,
+          childSizeLog2, child, i, node0.neighPattern, occupancy);
       }
     }
   }
-
-  arithmeticDecoder.stop_decoder();
 }
 
 //============================================================================

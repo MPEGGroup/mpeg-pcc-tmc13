@@ -40,6 +40,7 @@
 
 #include "AttributeEncoder.h"
 #include "PCCPointSetProcessing.h"
+#include "geometry.h"
 #include "io_hls.h"
 #include "osspecific.h"
 #include "pcc_chrono.h"
@@ -157,7 +158,7 @@ PCCTMC3Encoder3::compress(
     clock_user.start();
 
     if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
-      encodePositions(&payload);
+      encodeGeometryBrick(&payload);
     }
     if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
       bool hasColor = inputPointCloud.hasColors();
@@ -241,6 +242,42 @@ PCCTMC3Encoder3::compress(
   reconstructedPointCloud(reconstructedCloud);
 
   return 0;
+}
+
+//----------------------------------------------------------------------------
+
+void
+PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
+{
+  // todo(df): confirm minimum of 1 isn't needed
+  uint32_t maxBB =
+    std::max({1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
+
+  // the current node dimension (log2) encompasing maxBB
+  int nodeSizeLog2 = ceillog2(maxBB + 1);
+
+  GeometryBrickHeader gbh;
+  gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
+  gbh.geomBoxOrigin.x() = int(minPositions.x());
+  gbh.geomBoxOrigin.y() = int(minPositions.y());
+  gbh.geomBoxOrigin.z() = int(minPositions.z());
+  gbh.geom_box_log2_scale = 0;
+  gbh.geom_max_node_size_log2 = nodeSizeLog2;
+  gbh.geom_num_points = int(pointCloud.getPointCount());
+  write(*_gps, gbh, buf);
+
+  // todo(df): remove estimate when arithmetic codec is replaced
+  int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
+  o3dgc::Arithmetic_Codec arithmeticEncoder(maxAcBufLen, nullptr);
+  arithmeticEncoder.start_encoder();
+
+  if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+    encodeGeometryOctree(*_gps, gbh, pointCloud, &arithmeticEncoder);
+  }
+  // todo(df): move trisoup coding here
+
+  uint32_t dataLen = arithmeticEncoder.stop_encoder();
+  std::copy_n(arithmeticEncoder.buffer(), dataLen, std::back_inserter(*buf));
 }
 
 //----------------------------------------------------------------------------

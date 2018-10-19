@@ -79,7 +79,6 @@ private:
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
   int decodeTrisoup(const PayloadBuffer& buf, PCCPointSet3& pointCloud);
-  void decodePositions(const PayloadBuffer& buf, PCCPointSet3& pointCloud);
 
   //==========================================================================
 

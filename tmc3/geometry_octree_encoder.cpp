@@ -33,12 +33,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "geometry_octree.h"
-
-// todo: break dependency
-#include "PCCTMC3Encoder.h"
+#include "geometry.h"
 
 #include "OctreeNeighMap.h"
+#include "geometry_octree.h"
 #include "io_hls.h"
 #include "tables.h"
 
@@ -248,30 +246,13 @@ GeometryOctreeEncoder::encodeDirectPosition(
 //-------------------------------------------------------------------------
 
 void
-PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
+encodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  o3dgc::Arithmetic_Codec* arithmeticEncoder)
 {
-  uint32_t maxBB =
-    std::max({// todo(df): confirm minimum of 1 isn't needed
-              1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
-
-  // the current node dimension (log2) encompasing maxBB
-  int nodeSizeLog2 = ceillog2(maxBB + 1);
-
-  GeometryBrickHeader gbh;
-  gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
-  gbh.geomBoxOrigin.x() = int(minPositions.x());
-  gbh.geomBoxOrigin.y() = int(minPositions.y());
-  gbh.geomBoxOrigin.z() = int(minPositions.z());
-  gbh.geom_box_log2_scale = 0;
-  gbh.geom_max_node_size_log2 = nodeSizeLog2;
-  gbh.geom_num_points = int(pointCloud.getPointCount());
-  write(*_gps, gbh, buf);
-
-  // todo(df): remove estimate when arithmetic codec is replaced
-  int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
-  o3dgc::Arithmetic_Codec arithmeticEncoder(maxAcBufLen, nullptr);
-  arithmeticEncoder.start_encoder();
-  GeometryOctreeEncoder encoder(&arithmeticEncoder);
+  GeometryOctreeEncoder encoder(arithmeticEncoder);
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -298,13 +279,16 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
 
   auto fifoCurrLvlEnd = fifo.end();
 
+  // the initial node size is the root node's
+  int nodeSizeLog2 = gbh.geom_max_node_size_log2;
+
   // this counter represents fifo.end() - fifoCurrLvlEnd().
   // ie, the number of nodes added to the next level of the tree
   int numNodesNextLvl = 0;
 
   MortonMap3D occupancyAtlas;
-  if (_gps->neighbour_avail_boundary_log2) {
-    occupancyAtlas.resize(_gps->neighbour_avail_boundary_log2);
+  if (gps.neighbour_avail_boundary_log2) {
+    occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
   PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
@@ -346,7 +330,7 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
       }
     }
 
-    if (_gps->neighbour_avail_boundary_log2) {
+    if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlas(
         node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
         &occupancyAtlasOrigin);
@@ -370,7 +354,7 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
 
         // if the bitstream is configured to represent unique points,
         // no point count is sent.
-        if (_gps->geom_unique_points_flag) {
+        if (gps.geom_unique_points_flag) {
           assert(childCounts[i] == 1);
           continue;
         }
@@ -412,7 +396,7 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
       child.numSiblingsPlus1 = numSiblings;
       child.siblingOccupancy = occupancy;
 
-      bool idcmEnabled = _gps->inferred_direct_coding_mode_enabled_flag;
+      bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
       if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
         bool directModeUsed =
           encoder.encodeDirectPosition(childSizeLog2, child, pointCloud);
@@ -436,11 +420,10 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
 
       // NB: when neighbourAvailBoundaryLog2 is set, an alternative
       //     implementation is used to calculate neighPattern.
-      if (!_gps->neighbour_avail_boundary_log2) {
+      if (!gps.neighbour_avail_boundary_log2) {
         updateGeometryNeighState(
-          _gps->neighbour_context_restriction_flag, fifo.end(),
-          numNodesNextLvl, childSizeLog2, child, i, node0.neighPattern,
-          occupancy);
+          gps.neighbour_context_restriction_flag, fifo.end(), numNodesNextLvl,
+          childSizeLog2, child, i, node0.neighPattern, occupancy);
       }
     }
   }
@@ -470,9 +453,6 @@ PCCTMC3Encoder3::encodePositions(PayloadBuffer* buf)
   }
 
   swap(pointCloud, pointCloud2);
-
-  uint32_t acDataLen = arithmeticEncoder.stop_encoder();
-  std::copy_n(arithmeticEncoder.buffer(), acDataLen, std::back_inserter(*buf));
 }
 
 //============================================================================

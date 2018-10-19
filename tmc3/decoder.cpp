@@ -41,6 +41,7 @@
 #include "AttributeDecoder.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
+#include "geometry.h"
 #include "io_hls.h"
 #include "io_tlv.h"
 #include "pcc_chrono.h"
@@ -159,13 +160,27 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
   clock_user.start();
 
+  int gbhSize;
+  GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
+  minPositions.x() = gbh.geomBoxOrigin.x();
+  minPositions.y() = gbh.geomBoxOrigin.y();
+  minPositions.z() = gbh.geomBoxOrigin.z();
+
+  o3dgc::Arithmetic_Codec arithmeticDecoder(
+    int(buf.size()) - gbhSize,
+    reinterpret_cast<uint8_t*>(const_cast<char*>(buf.data() + gbhSize)));
+  arithmeticDecoder.start_decoder();
+
   if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
-    decodePositions(buf, _currentPointCloud);
+    _currentPointCloud.resize(gbh.geom_num_points);
+    decodeGeometryOctree(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
   }
   if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
     if (decodeTrisoup(buf, _currentPointCloud))
       return -1;
   }
+
+  arithmeticDecoder.stop_decoder();
   clock_user.stop();
 
   auto total_user =

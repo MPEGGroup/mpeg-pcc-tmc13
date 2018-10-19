@@ -71,6 +71,7 @@ file(GLOB PROJECT_INC_FILES
   "RAHT.h"
   "TMC3.h"
   "constants.h"
+  "geometry.h"
   "geometry_octree.h"
   "hls.h"
   "io_hls.h"
