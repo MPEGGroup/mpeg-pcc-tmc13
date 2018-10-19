@@ -392,10 +392,7 @@ public:
 
   //--------------------------------------------------------------------------
 
-  size_t size() const
-  {
-    return size_t(const_iterator::difference(end(), begin()));
-  }
+  size_t size() const { return size_t(end() - begin()); }
 
   //--------------------------------------------------------------------------
 
