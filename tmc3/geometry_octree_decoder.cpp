@@ -54,7 +54,9 @@ public:
 
   int decodeOccupancyNeighNZ(int neighPattern10);
 
-  uint32_t decodeGeometryOccupancy(const PCCOctree3Node& node0);
+  int decodeOccupancyBitwise(int neighPattern);
+
+  uint32_t decodeOccupancy(int neighPattern);
 
   PCCVector3<uint32_t> decodePointPosition(int nodeSizeLog2);
 
@@ -63,6 +65,9 @@ public:
     int nodeSizeLog2, const PCCOctree3Node& node, OutputIt outputPoints);
 
 private:
+  // selects between the bitwise and bytewise occupancy coders
+  const bool _useBitwiseOccupancyCoder;
+
   o3dgc::Arithmetic_Codec* _arithmeticDecoder;
   o3dgc::Static_Bit_Model _ctxEquiProb;
   o3dgc::Adaptive_Bit_Model _ctxSingleChild;
@@ -77,7 +82,7 @@ private:
 
 GeometryOctreeDecoder::GeometryOctreeDecoder(
   o3dgc::Arithmetic_Codec* arithmeticDecoder)
-  : _arithmeticDecoder(arithmeticDecoder)
+  : _useBitwiseOccupancyCoder(true), _arithmeticDecoder(arithmeticDecoder)
 {}
 
 //============================================================================
@@ -173,33 +178,46 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(int neighPattern10)
 }
 
 //-------------------------------------------------------------------------
+
+int
+GeometryOctreeDecoder::decodeOccupancyBitwise(int neighPattern)
+{
+  if (neighPattern == 0) {
+    return decodeOccupancyNeighZ();
+  }
+
+  // code occupancy using the neighbour configuration context
+  // with reduction from 64 states to 10.
+  int neighPattern10 = kNeighPattern64to10[neighPattern];
+  return decodeOccupancyNeighNZ(neighPattern10);
+}
+
+//-------------------------------------------------------------------------
 // decode node occupancy bits
 //
 
 uint32_t
-GeometryOctreeDecoder::decodeGeometryOccupancy(const PCCOctree3Node& node0)
+GeometryOctreeDecoder::decodeOccupancy(int neighPattern)
 {
-  // neighbouring configuration with reduction from 64 to 10
-  int neighPattern = node0.neighPattern;
-  int neighPattern10 = kNeighPattern64to10[neighPattern];
-
   // decode occupancy pattern
   uint32_t occupancy;
-  if (neighPattern10 == 0) {
+  if (neighPattern == 0) {
     // neighbour empty and only one point => decode index, not pattern
     if (_arithmeticDecoder->decode(_ctxSingleChild)) {
       uint32_t cnt = _arithmeticDecoder->decode(_ctxEquiProb);
       cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 1;
       cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 2;
       occupancy = 1 << cnt;
-    } else {
-      occupancy = decodeOccupancyNeighZ();
+      return occupancy;
     }
-  } else {
-    occupancy = decodeOccupancyNeighNZ(neighPattern10);
-    occupancy = mapGeometryOccupancyInv(occupancy, neighPattern);
   }
-  return occupancy;
+
+  uint32_t mappedOccupancy;
+
+  if (_useBitwiseOccupancyCoder)
+    mappedOccupancy = decodeOccupancyBitwise(neighPattern);
+
+  return mapGeometryOccupancyInv(mappedOccupancy, neighPattern);
 }
 
 //-------------------------------------------------------------------------
@@ -323,7 +341,7 @@ decodeGeometryOctree(
     }
 
     // decode occupancy pattern
-    uint8_t occupancy = decoder.decodeGeometryOccupancy(node0);
+    uint8_t occupancy = decoder.decodeOccupancy(node0.neighPattern);
 
     assert(occupancy > 0);
 

@@ -54,7 +54,9 @@ public:
 
   void encodeOccupancyNeighNZ(int mappedOccupancy, int neighPattern10);
 
-  void encodeGeometryOccupancy(const PCCOctree3Node& node0, int occupancy);
+  void encodeOccupancyBitwise(int mappedOccupancy, int neighPattern);
+
+  void encodeOccupancy(int occupancy, int neighPattern);
 
   void encodePointPosition(int nodeSizeLog2, const PCCVector3<uint32_t>& pos);
 
@@ -64,6 +66,9 @@ public:
     const PCCPointSet3& pointCloud);
 
 private:
+  // selects between the bitwise and bytewise occupancy coders
+  const bool _useBitwiseOccupancyCoder;
+
   o3dgc::Arithmetic_Codec* _arithmeticEncoder;
   o3dgc::Static_Bit_Model _ctxEquiProb;
   o3dgc::Adaptive_Bit_Model _ctxSingleChild;
@@ -78,7 +83,7 @@ private:
 
 GeometryOctreeEncoder::GeometryOctreeEncoder(
   o3dgc::Arithmetic_Codec* arithmeticEncoder)
-  : _arithmeticEncoder(arithmeticEncoder)
+  : _useBitwiseOccupancyCoder(true), _arithmeticEncoder(arithmeticEncoder)
 {}
 
 //============================================================================
@@ -170,21 +175,30 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
 }
 
 //-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodeOccupancyBitwise(
+  int mappedOccupancy, int neighPattern)
+{
+  if (neighPattern == 0) {
+    encodeOccupancyNeighZ(mappedOccupancy);
+    return;
+  }
+
+  // code occupancy using the neighbour configuration context
+  // with reduction from 64 states to 10.
+  int neighPattern10 = kNeighPattern64to10[neighPattern];
+  encodeOccupancyNeighNZ(mappedOccupancy, neighPattern10);
+}
+
+//-------------------------------------------------------------------------
 // decode node occupancy bits
 //
 
 void
-GeometryOctreeEncoder::encodeGeometryOccupancy(
-  const PCCOctree3Node& node0, int occupancy)
+GeometryOctreeEncoder::encodeOccupancy(int occupancy, int neighPattern)
 {
-  // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10.
-  int neighPattern = node0.neighPattern;
-  int neighPattern10 = kNeighPattern64to10[neighPattern];
-
-  uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
-
-  if (neighPattern10 == 0) {
+  if (neighPattern == 0) {
     bool singleChild = !popcntGt1(occupancy);
     _arithmeticEncoder->encode(singleChild, _ctxSingleChild);
 
@@ -193,12 +207,14 @@ GeometryOctreeEncoder::encodeGeometryOccupancy(
       _arithmeticEncoder->encode(!!(occupancy & 0xaa), _ctxEquiProb);  // z
       _arithmeticEncoder->encode(!!(occupancy & 0xcc), _ctxEquiProb);  // y
       _arithmeticEncoder->encode(!!(occupancy & 0xf0), _ctxEquiProb);  // x
-    } else {
-      encodeOccupancyNeighZ(mappedOccupancy);
+      return;
     }
-  } else {
-    encodeOccupancyNeighNZ(mappedOccupancy, neighPattern10);
   }
+
+  uint32_t mappedOccupancy = mapGeometryOccupancy(occupancy, neighPattern);
+
+  if (_useBitwiseOccupancyCoder)
+    encodeOccupancyBitwise(mappedOccupancy, neighPattern);
 }
 
 //-------------------------------------------------------------------------
@@ -351,7 +367,7 @@ encodeGeometryOctree(
 
     // encode child occupancy map
     assert(occupancy > 0);
-    encoder.encodeGeometryOccupancy(node0, occupancy);
+    encoder.encodeOccupancy(occupancy, node0.neighPattern);
 
     // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
     // and are immediately coded.  No further splitting occurs.
