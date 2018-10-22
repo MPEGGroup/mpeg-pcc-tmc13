@@ -130,16 +130,14 @@ isDirectModeEligible(
 //---------------------------------------------------------------------------
 
 struct CtxModelOctreeOccupancy {
-  o3dgc::Adaptive_Bit_Model b0[10];
-  o3dgc::Adaptive_Bit_Model b1[2 * 10];
-  o3dgc::Adaptive_Bit_Model b2[4 * 10];
-  o3dgc::Adaptive_Bit_Model b3[8 * 10];
-  o3dgc::Adaptive_Bit_Model b4[75];
-  o3dgc::Adaptive_Bit_Model b5[112];
-  o3dgc::Adaptive_Bit_Model b6[117];
-  o3dgc::Adaptive_Bit_Model b7[127];
-
-  CtxModelOctreeOccupancy();
+  o3dgc::Adaptive_Bit_Model_Fast b0[10];
+  o3dgc::Adaptive_Bit_Model_Fast b1[2 * 10];
+  o3dgc::Adaptive_Bit_Model_Fast b2[4 * 10];
+  o3dgc::Adaptive_Bit_Model_Fast b3[8 * 10];
+  o3dgc::Adaptive_Bit_Model_Fast b4[75];
+  o3dgc::Adaptive_Bit_Model_Fast b5[112];
+  o3dgc::Adaptive_Bit_Model_Fast b6[117];
+  o3dgc::Adaptive_Bit_Model_Fast b7[127];
 
   o3dgc::Adaptive_Bit_Model* operator[](int bit_pos)
   {

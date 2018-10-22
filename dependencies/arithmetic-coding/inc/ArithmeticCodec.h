@@ -136,6 +136,25 @@ private: //  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 };
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// adaptive model for binary data, probability update each bin
+
+class Adaptive_Bit_Model_Fast : public Adaptive_Bit_Model
+    {
+public:
+    Adaptive_Bit_Model_Fast(void)
+    : Adaptive_Bit_Model()
+    {
+        reset();
+    }
+
+    // reset to equiprobable model
+    void reset(void)
+    {
+        Adaptive_Bit_Model::reset(true);
+    }
+};
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 class Adaptive_Data_Model // adaptive model for binary data
     {

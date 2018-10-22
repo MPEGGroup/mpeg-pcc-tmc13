@@ -196,28 +196,6 @@ updateGeometryNeighState(
   }
 }
 
-//---------------------------------------------------------------------------
-
-CtxModelOctreeOccupancy::CtxModelOctreeOccupancy()
-{
-  for (auto& ctx : b0)
-    ctx.reset(true);
-  for (auto& ctx : b1)
-    ctx.reset(true);
-  for (auto& ctx : b2)
-    ctx.reset(true);
-  for (auto& ctx : b3)
-    ctx.reset(true);
-  for (auto& ctx : b4)
-    ctx.reset(true);
-  for (auto& ctx : b5)
-    ctx.reset(true);
-  for (auto& ctx : b6)
-    ctx.reset(true);
-  for (auto& ctx : b7)
-    ctx.reset(true);
-}
-
 //============================================================================
 
 }  // namespace pcc
