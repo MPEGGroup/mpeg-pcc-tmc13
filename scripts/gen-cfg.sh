@@ -52,7 +52,7 @@ cfg_trisoup_predlift=(
 )
 
 cfg_trisoup_raht=(
-	trisoup-liftt-ctc-lossy-geom-lossy-attrs.yaml
+	trisoup-raht-ctc-lossy-geom-lossy-attrs.yaml
 )
 
 do_one_cfgset() {
