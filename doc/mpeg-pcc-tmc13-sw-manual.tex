@@ -1,0 +1,118 @@
+\documentclass[a4paper,11pt]{mpegdoc}
+
+% let latextortf know the input is utf8
+\newif\iflatextortf
+\iflatextortf
+\usepackage[utf8]{inputenc}
+\fi
+
+% prevent floats floating beyond their enclosing section
+\usepackage[section]{placeins}
+
+\usepackage{amsmath}
+
+% document links / urls
+% force urls to break at hyphens
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\newcommand\myshade{85}
+\colorlet{mylinkcolor}{violet}
+\colorlet{mycitecolor}{YellowOrange}
+\colorlet{myurlcolor}{Aquamarine}
+\hypersetup{
+  linkcolor  = mylinkcolor!\myshade!black,
+  citecolor  = mycitecolor!\myshade!black,
+  urlcolor   = myurlcolor!\myshade!black,
+  colorlinks = true,
+}
+
+%%
+% text highlighting
+\usepackage{soul}
+
+%%
+% code / algorithm formatting
+% \usepackage{minted}
+% \usepackage{fancyvrb}
+% \usepackage[]{algorithm2e}
+
+\usepackage[margin=10pt,font=small,format=hang,labelsep=endash]{caption}
+%\usepackage[position=bottom]{subfig}
+\captionsetup[subfloat]{position=top}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{dcolumn}
+\newcolumntype{.}[1]{D{.}{.}{#1}}
+\usepackage{colortbl}
+\usepackage{makecell}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\usepackage[strings]{underscore}
+\usepackage{csquotes}
+\MakeOuterQuote{"}
+\EnableQuotes
+
+% allow changing list separation
+\usepackage{enumitem}
+
+% For turning pages around
+%  - plus a fix to get the margins correct when writing a minipage
+%\usepackage{pdflscape}
+%\usepackage{afterpage}
+%\newlength{\lscapetextwidth}
+%\setlength{\lscapetextwidth}{\textheight}
+
+% Handling of figure ranges using \cref
+%\usepackage{cleveref}
+
+% some abbreviations
+\makeatletter
+\newcommand\eg{\emph{e.g\@ifnextchar.{}{.\@}}}
+\newcommand\ie{\emph{i.e\@ifnextchar.{}{.\@}}}
+\makeatother
+
+\title{G-PCC test model v4 user manual}
+\author{%
+	David Flynn
+	\email{dflynn@blackberry.com}
+}
+
+\mpegmeeting{October 2018, Macau, China}
+\mpegdocnum{wXXXXX}
+\mpegdocstatus{Draft}
+\mpegdocsource{3DG}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+This document is a user manual describing usage of reference software
+for the G-PCC project. It applies to version 4.0 of the software.
+\end{abstract}
+
+\tableofcontents
+%\listoftables
+
+\input{README.about.tex}
+\input{README.build.tex}
+\input{README.usage.tex}
+
+% provide some separation between option name (subsubsection title)
+% and the body text.
+\titlespacing{\subsubsection}{2em}{*0}{*0}
+\input{README.options.tex}
+
+
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+\bibliographystyle{IEEEtran}
+%\bibliography{manual}
+
+\end{document}
+\begin{document}
+\maketitle
+
+

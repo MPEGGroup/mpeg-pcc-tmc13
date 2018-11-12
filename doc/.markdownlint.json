@@ -1,0 +1,5 @@
+{
+	"heading-style": { "style": "setext_with_atx" },
+	"blanks-around-headings": false,
+	"no-multiple-blanks": { "maximum": 2 }
+}
