@@ -205,7 +205,7 @@ struct GeometryParameterSet {
 
 struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
-  int geom_brick_id;  // todo(df): v2
+  int geom_slice_id;
 
   // derived from geom_box_origin_{x,y,z} * (1 << geom_box_log2_scale)
   PCCVector3<int> geomBoxOrigin;
@@ -249,7 +249,7 @@ struct AttributeParameterSet {
 struct AttributeBrickHeader {
   int attr_sps_attr_idx;
   int attr_attr_parameter_set_id;
-  int attr_geom_brick_id;
+  int attr_geom_slice_id;
 };
 
 //============================================================================

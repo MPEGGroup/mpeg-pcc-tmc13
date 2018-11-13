@@ -87,6 +87,9 @@ public:
   //==========================================================================
 
 private:
+  // Current identifier of payloads with the same geometry
+  int _sliceId;
+
   PCCVector3D minPositions;
 
   // The point cloud currently being decoded

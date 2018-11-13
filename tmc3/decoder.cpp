@@ -162,6 +162,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   int gbhSize;
   GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
+  _sliceId = gbh.geom_slice_id;
   minPositions.x() = gbh.geomBoxOrigin.x();
   minPositions.y() = gbh.geomBoxOrigin.y();
   minPositions.z() = gbh.geomBoxOrigin.z();
@@ -203,8 +204,11 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   assert(_sps);
   assert(_gps);
 
-  // todo(df): validate that sps activation is not changed via the APS
+  // verify that this corresponds to the correct geometry slice
   AttributeBrickHeader abh = parseAbh(buf, nullptr);
+  assert(abh.attr_geom_slice_id == _sliceId);
+
+  // todo(df): validate that sps activation is not changed via the APS
   const auto it_attr_aps = _apss.find(abh.attr_attr_parameter_set_id);
 
   assert(it_attr_aps != _apss.cend());

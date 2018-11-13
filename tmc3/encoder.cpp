@@ -123,13 +123,15 @@ PCCTMC3Encoder3::compress(
 
   // geometry compression consists of the following stages:
   //  - prefilter/quantize geometry (non-normative)
-  //  - encode geometry
+  //  - encode geometry (single slice, id = 0)
   //  - recolour
 
   // The quantization process will determine the bounding box
   quantization(inputPointCloud);
 
   // geometry encoding
+  _sliceId = 0;
+
   if (1) {
     PayloadBuffer payload(PayloadType::kGeometryBrick);
 
@@ -189,7 +191,7 @@ PCCTMC3Encoder3::compress(
     AttributeBrickHeader abh;
     abh.attr_attr_parameter_set_id = attr_aps.aps_attr_parameter_set_id;
     abh.attr_sps_attr_idx = attrIdx;
-    abh.attr_geom_brick_id = 0;
+    abh.attr_geom_slice_id = _sliceId;
     write(abh, &payload);
 
     AttributeEncoder attrEncoder;
@@ -209,6 +211,10 @@ PCCTMC3Encoder3::compress(
 
     outputFn(payload);
   }
+
+  // prevent re-use of this sliceId:  the next slice (geometry + attributes)
+  // should be distinguishable from the current slice.
+  _sliceId++;
 
   reconstructedPointCloud(reconstructedCloud);
 
@@ -232,6 +238,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   gbh.geomBoxOrigin.x() = int(minPositions.x());
   gbh.geomBoxOrigin.y() = int(minPositions.y());
   gbh.geomBoxOrigin.z() = int(minPositions.z());
+  gbh.geom_slice_id = _sliceId;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());

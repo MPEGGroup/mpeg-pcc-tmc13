@@ -343,7 +343,7 @@ write(
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
   bs.writeUe(gbh.geom_geom_parameter_set_id);
-  //bs.writeUe(gbh.geom_brick_id);
+  bs.writeUe(gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {
     int geom_box_origin_x = gbh.geomBoxOrigin.x() >> gbh.geom_box_log2_scale;
@@ -372,7 +372,7 @@ parseGbh(
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUe(&gbh.geom_geom_parameter_set_id);
-  //bs.readUe(&gbh.geom_brick_id);
+  bs.readUe(&gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {
     bs.readUe(&gbh.geom_box_log2_scale);
@@ -408,7 +408,7 @@ write(const AttributeBrickHeader& abh, PayloadBuffer* buf)
 
   bs.writeUe(abh.attr_attr_parameter_set_id);
   bs.writeUe(abh.attr_sps_attr_idx);
-  //bs.writeUe(abh.attr_geom_brick_id);
+  bs.writeUe(abh.attr_geom_slice_id);
 
   bs.byteAlign();
 }
@@ -424,7 +424,7 @@ parseAbh(const PayloadBuffer& buf, int* bytesRead)
 
   bs.readUe(&abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
-  //bs.readUe(&abh.attr_geom_brick_id);
+  bs.readUe(&abh.attr_geom_slice_id);
 
   bs.byteAlign();
 

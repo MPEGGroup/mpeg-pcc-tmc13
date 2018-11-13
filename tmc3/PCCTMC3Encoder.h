@@ -98,6 +98,9 @@ private:
   const SequenceParameterSet* _sps;
   const GeometryParameterSet* _gps;
   std::vector<const AttributeParameterSet*> _aps;
+
+  // Current identifier of payloads with the same geometry
+  int _sliceId;
 };
 
 //============================================================================
