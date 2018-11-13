@@ -351,6 +351,31 @@ public:
     colors.clear();
     reflectances.clear();
   }
+
+  void append(const PCCPointSet3& src)
+  {
+    if (!getPointCount())
+      addRemoveAttributes(src.hasColors(), src.hasReflectances());
+
+    int dstEnd = positions.size();
+    int srcSize = src.positions.size();
+    resize(dstEnd + srcSize);
+
+    std::copy(
+      src.positions.begin(), src.positions.end(),
+      std::next(positions.begin(), dstEnd));
+
+    if (hasColors() && src.hasColors())
+      std::copy(
+        src.colors.begin(), src.colors.end(),
+        std::next(colors.begin(), dstEnd));
+
+    if (hasReflectances() && src.hasReflectances())
+      std::copy(
+        src.reflectances.begin(), src.reflectances.end(),
+        std::next(reflectances.begin(), dstEnd));
+  }
+
   void swapPoints(const size_t index1, const size_t index2)
   {
     assert(index1 < getPointCount());
