@@ -98,6 +98,20 @@ affected by geometry quantization.  When this parameter is enabled,
 allowing `dist2` to be specified as an intrinsic property of the source
 sequence.
 
+### `--seq_bounding_box_xyz0=x,y,z`
+Explicitly sets the origin of the sequence-level bounding box in
+unscaled integer coordinates.
+
+NB: This option has no effect if `seq_bounding_box_whd`=0,0,0.
+
+### `--seq_bounding_box_whd=w,h,d`
+Explicitly sets the size of the sequence-level bounding box in
+unscaled integer coordinates.
+
+When $w,h,d$ not equal to 0,0,0, the sequence-level bounding box
+origin is set according to `seq_bounding_box_xyz0`.  Otherwise,
+the sequence-level bounding box is determined by the encoder.
+
 ### `--mergeDuplicatedPoints=0|1`
 Controls the ability to code duplicate points.  When duplicate point
 merging is enabled, bitstream syntax related to duplicate points is

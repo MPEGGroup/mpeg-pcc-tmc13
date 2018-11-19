@@ -276,6 +276,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   (po::Section("Encoder"))
 
+  ("seq_bounding_box_xyz0",
+    params.encoder.sps.seq_bounding_box_xyz0, {0},
+    "seq_bounding_box_xyz0.  NB: seq_bounding_box_whd must be set for this "
+    "parameter to have an effect")
+
+  ("seq_bounding_box_whd",
+    params.encoder.sps.seq_bounding_box_whd, {0},
+    "seq_bounding_box_whd")
+
   ("positionQuantizationScale",
     params.encoder.sps.seq_source_geom_scale_factor, 1.f,
     "Scale factor to be applied to point positions during quantization process")

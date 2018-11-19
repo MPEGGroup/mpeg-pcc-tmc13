@@ -317,13 +317,28 @@ PCCTMC3Encoder3::computeMinPositions(const PCCPointSet3& inputPointCloud)
 void
 PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 {
-  // todo(df): allow overriding of minposition from CLI
-  // todo(df): remove trisoup hack
-  minPositions = PCCVector3D{0.0};
-  if (_gps->trisoup_node_size_log2 == 0)
+  // if sps sequence width/height/depth is set, don't auto compute bbox
+  bool computeBBox = _sps->seq_bounding_box_whd == PCCVector3<int>{0};
+  if (computeBBox)
     computeMinPositions(inputPointCloud);
+  else {
+    for (int k = 0; k < 3; k++)
+      minPositions[k] = _sps->seq_bounding_box_xyz0[k];
+  }
 
+  // Clamp all points to [clampBox.min, clampBox.max] after translation
+  // and quantisation.
   PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+  if (!computeBBox) {
+    // todo(df): this is icky (not to mention rounding issues)
+    // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
+    // NB: minus 1 to convert to max x/y/z position
+    clampBox = PCCBox3<int32_t>{{0, 0, 0}, _sps->seq_bounding_box_whd};
+    for (int k = 0; k < 3; k++)
+      clampBox.max[k] =
+        int(ceil(clampBox.max[k] * _sps->seq_source_geom_scale_factor)) - 1;
+  }
+
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
       _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
@@ -332,6 +347,13 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
     quantizePositions(
       _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
       inputPointCloud, &pointCloud);
+  }
+
+  if (!computeBBox) {
+    boundingBox.min = uint32_t(0);
+    for (int k = 0; k < 3; k++)
+      boundingBox.max[k] = clampBox.max[k];
+    return;
   }
 
   const size_t pointCount = pointCloud.getPointCount();
