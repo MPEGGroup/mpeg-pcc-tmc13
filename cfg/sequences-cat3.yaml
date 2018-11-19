@@ -85,6 +85,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -125,6 +129,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -165,6 +173,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -191,6 +203,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -217,6 +233,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -243,6 +263,10 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
 
@@ -269,5 +293,9 @@ sequences:
     seq_lod_bias: '1,1,8'
     has_refl: 1
     bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - seq_bounding_box_xyz0: '-131072, -131072, -131072'
+     - seq_bounding_box_whd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
