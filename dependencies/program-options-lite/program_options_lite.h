@@ -34,12 +34,14 @@
 #ifndef __PROGRAM_OPTIONS_LITE__
 #define __PROGRAM_OPTIONS_LITE__
 
+#include <array>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <list>
 #include <map>
+#include <vector>
 
 namespace df
 {
@@ -118,7 +120,7 @@ namespace df
     };
 
     /** Type specific option storage */
-    template<typename T>
+    template<typename T, typename Enable = void>
     struct Option : public OptionBase
     {
       Option(const std::string& name, T& storage, T default_val, const std::string& desc)
@@ -153,6 +155,49 @@ namespace df
       T opt_default_val;
     };
 
+    template <typename T>
+    struct option_detail_back_inserter {
+      static constexpr bool is_container = true;
+      static constexpr bool is_fixed_size = false;
+      typedef std::back_insert_iterator<T> output_iterator;
+      typedef typename T::const_iterator forward_iterator;
+
+      static void clear(T& container) { container.clear(); }
+      static output_iterator make_output_iterator(T& container) {
+        return std::back_inserter(container);
+      }
+    };
+
+    template <class Container>
+    struct option_detail;
+
+    template <class T>
+    struct option_detail {
+      static constexpr bool is_container = false;
+    };
+
+    template <typename... Ts>
+    struct option_detail<std::vector<Ts...>>
+      : public option_detail_back_inserter<std::vector<Ts...>> {};
+
+    template <typename... Ts>
+    struct option_detail<std::list<Ts...>>
+      : public option_detail_back_inserter<std::list<Ts...>> {};
+
+    template <typename... Ts>
+    struct option_detail<std::array<Ts...>> {
+      static constexpr bool is_container = true;
+      static constexpr bool is_fixed_size = true;
+      typedef typename std::array<Ts...> T;
+      typedef typename std::array<Ts...>::iterator output_iterator;
+      typedef typename std::array<Ts...>::const_iterator forward_iterator;
+
+      static void clear(T& container) { container.clear(); };
+      static output_iterator make_output_iterator(T& container) {
+        return container.begin();
+      }
+    };
+
     /**
      * Container type specific option storage.
      *
@@ -164,10 +209,16 @@ namespace df
      * NB: each application of this option overwrites the previous instance,
      *     in exactly the same way that normal (non-container) options to.
      */
-    template<template <class, class...> class TT, typename T1, typename... Ts>
-    struct Option<TT<T1,Ts...>> : public OptionBase
+    template<template <class, class...> class TT,
+      typename T1, typename... Ts>
+    struct Option<
+      TT<T1,Ts...>,
+      typename std::enable_if<option_detail<TT<T1,Ts...>>::is_container>::type>
+      : public OptionBase
     {
       typedef TT<T1,Ts...> T;
+
+      typedef option_detail<T> detail;
 
       Option(const std::string& name, T& storage, T default_val, const std::string& desc)
       : OptionBase(name, desc), opt_storage(storage), opt_default_val(default_val)
@@ -175,7 +226,8 @@ namespace df
 
       void parse(const std::string& arg, ErrorReporter&) {
         /* ensure that parsing overwrites any previous value */
-        opt_storage.clear();
+        detail::clear(opt_storage);
+        auto it = detail::make_output_iterator(opt_storage);
 
         /* effectively map parse . split m/, /, @arg */
         std::string::size_type pos = 0;
@@ -185,10 +237,14 @@ namespace df
           auto end = arg.find_first_of(", \t", pos);
           std::string sub_arg(arg, pos, end - pos);
 
+          if (detail::is_fixed_size) {
+            // todo(df): handle size check
+          }
+
           try {
             T1 value;
             parse_into(value, sub_arg);
-            opt_storage.push_back(value);
+            *it++ = value;
           }
           catch (...) {
             throw ParseFailure(opt_string, sub_arg);
@@ -207,7 +263,7 @@ namespace df
       {
         out << '"';
         bool first = true;
-        for (const auto val : opt_default_val) {
+        for (const auto& val : opt_default_val) {
           if (!first)
             out << ',';
           out << val;
