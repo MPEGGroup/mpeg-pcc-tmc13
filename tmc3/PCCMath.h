@@ -51,6 +51,12 @@ namespace pcc {
 template<typename T>
 class PCCVector3 {
 public:
+  T* begin() { return &data[0]; }
+  const T* begin() const { return &data[0]; }
+
+  T* end() { return &data[3]; }
+  const T* end() const { return &data[3]; }
+
   T& operator[](size_t i)
   {
     assert(i < 3);

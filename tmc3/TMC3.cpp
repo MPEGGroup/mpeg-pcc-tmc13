@@ -154,6 +154,23 @@ operator<<(std::ostream& out, const AttributeEncoding& val)
 }
 }  // namespace pcc
 
+namespace df {
+namespace program_options_lite {
+  template<typename T>
+  struct option_detail<pcc::PCCVector3<T>> {
+    static constexpr bool is_container = true;
+    static constexpr bool is_fixed_size = true;
+    typedef T* output_iterator;
+
+    static void clear(pcc::PCCVector3<T>& container){};
+    static output_iterator make_output_iterator(pcc::PCCVector3<T>& container)
+    {
+      return &container[0];
+    }
+  };
+}  // namespace program_options_lite
+}  // namespace df
+
 //---------------------------------------------------------------------------
 // :: Command line / config parsing
 
