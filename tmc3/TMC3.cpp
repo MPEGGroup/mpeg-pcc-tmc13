@@ -152,8 +152,15 @@ main(int argc, char* argv[])
   cout << "MPEG PCC tmc3 version " << ::pcc::version << endl;
 
   Parameters params;
-  if (!ParseParameters(argc, argv, params)) {
-    return -1;
+
+  try {
+    if (!ParseParameters(argc, argv, params))
+      return 1;
+  }
+  catch (df::program_options_lite::ParseFailure& e) {
+    std::cerr << "Error parsing option \"" << e.arg << "\" with argument \""
+              << e.val << "\"." << std::endl;
+    return 1;
   }
 
   // Timers to count elapsed wall/user time
