@@ -343,6 +343,7 @@ write(
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
   bs.writeUe(gbh.geom_geom_parameter_set_id);
+  bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {
@@ -372,6 +373,7 @@ parseGbh(
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUe(&gbh.geom_geom_parameter_set_id);
+  bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {

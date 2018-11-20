@@ -101,6 +101,9 @@ private:
 
   // Current identifier of payloads with the same geometry
   int _sliceId;
+
+  // Identifies the current tile
+  int _tileId;
 };
 
 //============================================================================

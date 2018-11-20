@@ -131,6 +131,7 @@ PCCTMC3Encoder3::compress(
 
   // geometry encoding
   _sliceId = 0;
+  _tileId = 0;
 
   if (1) {
     PayloadBuffer payload(PayloadType::kGeometryBrick);
@@ -239,6 +240,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   gbh.geomBoxOrigin.y() = int(minPositions.y());
   gbh.geomBoxOrigin.z() = int(minPositions.z());
   gbh.geom_slice_id = _sliceId;
+  gbh.geom_tile_id = _tileId;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());

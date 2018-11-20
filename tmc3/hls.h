@@ -205,6 +205,7 @@ struct GeometryParameterSet {
 
 struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
+  int geom_tile_id;
   int geom_slice_id;
 
   // derived from geom_box_origin_{x,y,z} * (1 << geom_box_log2_scale)
