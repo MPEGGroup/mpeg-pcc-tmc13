@@ -45,10 +45,12 @@ namespace pcc {
 PayloadBuffer write(const SequenceParameterSet& sps);
 PayloadBuffer write(const GeometryParameterSet& gps);
 PayloadBuffer write(const AttributeParameterSet& aps);
+PayloadBuffer write(const TileInventory& inventory);
 
 SequenceParameterSet parseSps(const PayloadBuffer& buf);
 GeometryParameterSet parseGps(const PayloadBuffer& buf);
 AttributeParameterSet parseAps(const PayloadBuffer& buf);
+TileInventory parseTileInventory(const PayloadBuffer& buf);
 
 //----------------------------------------------------------------------------
 

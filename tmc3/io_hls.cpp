@@ -438,4 +438,55 @@ parseAbh(const PayloadBuffer& buf, int* bytesRead)
 
 //============================================================================
 
+PayloadBuffer
+write(const TileInventory& inventory)
+{
+  PayloadBuffer buf(PayloadType::kTileInventory);
+  auto bs = makeBitWriter(std::back_inserter(buf));
+
+  int num_tiles = inventory.tiles.size();
+  bs.writeUe(num_tiles);
+  for (const auto& entry : inventory.tiles) {
+    bs.writeSe(entry.tile_bounding_box_xyz0.x());
+    bs.writeSe(entry.tile_bounding_box_xyz0.y());
+    bs.writeSe(entry.tile_bounding_box_xyz0.z());
+    bs.writeUe(entry.tile_bounding_box_whd.x());
+    bs.writeUe(entry.tile_bounding_box_whd.y());
+    bs.writeUe(entry.tile_bounding_box_whd.z());
+  }
+
+  bs.byteAlign();
+
+  return buf;
+}
+
+//----------------------------------------------------------------------------
+
+TileInventory
+parseTileInventory(const PayloadBuffer& buf)
+{
+  TileInventory inventory;
+  assert(buf.type == PayloadType::kTileInventory);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  int num_tiles;
+  bs.readUe(&num_tiles);
+  for (int i = 0; i < num_tiles; i++) {
+    TileInventory::Entry entry;
+    bs.readSe(&entry.tile_bounding_box_xyz0.x());
+    bs.readSe(&entry.tile_bounding_box_xyz0.y());
+    bs.readSe(&entry.tile_bounding_box_xyz0.z());
+    bs.readUe(&entry.tile_bounding_box_whd.x());
+    bs.readUe(&entry.tile_bounding_box_whd.y());
+    bs.readUe(&entry.tile_bounding_box_whd.z());
+    inventory.tiles.push_back(entry);
+  }
+
+  bs.byteAlign();
+
+  return inventory;
+}
+
+//============================================================================
+
 }  // namespace pcc

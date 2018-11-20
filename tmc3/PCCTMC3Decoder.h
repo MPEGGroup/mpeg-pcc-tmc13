@@ -72,6 +72,7 @@ public:
   void storeSps(SequenceParameterSet&& sps);
   void storeGps(GeometryParameterSet&& gps);
   void storeAps(AttributeParameterSet&& aps);
+  void storeTileInventory(TileInventory&& inventory);
 
   //==========================================================================
 
@@ -99,6 +100,9 @@ private:
   std::map<int, SequenceParameterSet> _spss;
   std::map<int, GeometryParameterSet> _gpss;
   std::map<int, AttributeParameterSet> _apss;
+
+  // Metadata that allows slices/tiles to be indentified by their bounding box
+  TileInventory _tileInventory;
 
   // The active SPS
   const SequenceParameterSet* _sps;

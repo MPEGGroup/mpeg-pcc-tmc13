@@ -87,6 +87,10 @@ PCCTMC3Decoder3::decompress(
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
+
+  case PayloadType::kTileInventory:
+    storeTileInventory(parseTileInventory(*buf));
+    return 0;
   }
 
   // todo(df): error, unhandled payload type
@@ -118,6 +122,15 @@ PCCTMC3Decoder3::storeAps(AttributeParameterSet&& aps)
 {
   // todo(df): handle replacement semantics
   _apss.emplace(std::make_pair(aps.aps_attr_parameter_set_id, aps));
+}
+
+//--------------------------------------------------------------------------
+
+void
+PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
+{
+  // todo(df): handle replacement semantics
+  _tileInventory = inventory;
 }
 
 //==========================================================================

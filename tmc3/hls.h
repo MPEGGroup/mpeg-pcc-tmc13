@@ -52,6 +52,7 @@ enum class PayloadType
   kGeometryBrick = 2,
   kAttributeParameterSet = 3,
   kAttributeBrick = 4,
+  kTileInventory = 5,
 };
 
 //============================================================================
@@ -251,6 +252,16 @@ struct AttributeBrickHeader {
   int attr_sps_attr_idx;
   int attr_attr_parameter_set_id;
   int attr_geom_slice_id;
+};
+
+//============================================================================
+
+struct TileInventory {
+  struct Entry {
+    PCCVector3<int> tile_bounding_box_xyz0;
+    PCCVector3<int> tile_bounding_box_whd;
+  };
+  std::vector<Entry> tiles;
 };
 
 //============================================================================
