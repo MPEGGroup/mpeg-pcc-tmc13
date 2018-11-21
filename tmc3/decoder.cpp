@@ -69,6 +69,15 @@ PCCTMC3Decoder3::decompress(
   const PayloadBuffer* buf,
   std::function<void(const PCCPointSet3&)> onOutputCloud)
 {
+  // offset completed slice by sliceOrigin
+  if (!buf || buf->type == PayloadType::kGeometryBrick) {
+    if (size_t numPoints = _currentPointCloud.getPointCount()) {
+      for (size_t i = 0; i < numPoints; i++)
+        for (int k = 0; k < 3; k++)
+          _currentPointCloud[i][k] += _sliceOrigin[k];
+    }
+  }
+
   if (!buf) {
     // flush decoder, output pending cloud if any
     onOutputCloud(_currentPointCloud);
@@ -176,6 +185,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   int gbhSize;
   GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
   _sliceId = gbh.geom_slice_id;
+  _sliceOrigin = gbh.geomBoxOrigin;
 
   EntropyDecoder arithmeticDecoder;
   arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);

@@ -346,18 +346,21 @@ PCCTransfertReflectances(
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+//   posInTgt =
+//     (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor - offset
 
 inline int
 recolour(
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
   PCCVector3<int> targetToSourceOffset,
+  PCCVector3<int> offset,
   PCCPointSet3* target)
 {
   PCCVector3D combinedOffset;
   for (int k = 0; k < 3; k++)
-    combinedOffset[k] = targetToSourceOffset[k];
+    combinedOffset[k] =
+      targetToSourceOffset[k] + double(offset[k]) / sourceToTargetScaleFactor;
 
   if (source.hasColors()) {
     bool ok = PCCTransfertColors(

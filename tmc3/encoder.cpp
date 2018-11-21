@@ -83,6 +83,8 @@ PCCTMC3Encoder3::compress(
     }
   }
 
+  _sliceOrigin = PCCVector3<int>{0};
+
   // fixup parameter set IDs
   params->sps.sps_seq_parameter_set_id = 0;
   params->gps.gps_seq_parameter_set_id = 0;
@@ -96,8 +98,9 @@ PCCTMC3Encoder3::compress(
   params->sps.profileCompatibility.profile_compatibility_flags = 0;
   params->sps.level = 0;
 
-  // the sps is currently used for the bounding box
-  params->gps.geom_box_present_flag = false;
+  // the encoder writes out the slice origin in the GBH
+  // NB: this may be disabled during encoding
+  params->gps.geom_box_present_flag = true;
 
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
@@ -178,7 +181,7 @@ PCCTMC3Encoder3::compress(
   if (recolourNeeded) {
     recolour(
       inputPointCloud, _sps->seq_source_geom_scale_factor,
-      _sps->seq_bounding_box_xyz0, &pointCloud);
+      _sps->seq_bounding_box_xyz0, _sliceOrigin, &pointCloud);
   }
 
   // dump recoloured point cloud
@@ -252,7 +255,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
   gbh.geom_tile_id = _tileId;
-  gbh.geomBoxOrigin = PCCVector3<int>{0};
+  gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());
@@ -296,7 +299,8 @@ PCCTMC3Encoder3::reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
     const auto quantizedPoint = pointCloud[i];
     auto& point = (*reconstructedCloud)[i];
     for (size_t k = 0; k < 3; ++k) {
-      point[k] = quantizedPoint[k] * invScale + _sps->seq_bounding_box_xyz0[k];
+      point[k] = (quantizedPoint[k] + _sliceOrigin[k]) * invScale
+        + _sps->seq_bounding_box_xyz0[k];
     }
     if (pointCloud.hasColors()) {
       reconstructedCloud->setColor(i, pointCloud.getColor(i));
@@ -340,12 +344,16 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
       clampBox, inputPointCloud, &pointCloud);
   }
 
+  // Offset the point cloud to account for (preset) _sliceOrigin.
+  PCCVector3D sliceOriginD{double(_sliceOrigin[0]), double(_sliceOrigin[1]),
+                           double(_sliceOrigin[2])};
+
   // The new maximum bounds of the offset cloud
   PCCVector3<int> maxBound{0};
 
   const size_t pointCount = pointCloud.getPointCount();
   for (size_t i = 0; i < pointCount; ++i) {
-    const PCCVector3D point = pointCloud[i];
+    const PCCVector3D point = (pointCloud[i] -= sliceOriginD);
     for (int k = 0; k < 3; ++k) {
       const int k_coord = int(point[k]);
       assert(k_coord >= 0);
