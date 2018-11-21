@@ -84,15 +84,13 @@ private:
 
   void encodeGeometryBrick(PayloadBuffer* buf);
 
-  void computeMinPositions(const PCCPointSet3& inputPointCloud);
-
   void quantization(const PCCPointSet3& inputPointCloud);
 
 private:
-  // todo(df): minPositions is unscaled -- which isn't quite correct.
-  PCCVector3D minPositions;
-  PCCBox3<uint32_t> boundingBox;
   PCCPointSet3 pointCloud;
+
+  // Size of the current slice
+  PCCVector3<int> _sliceBoxWhd;
 
   // The active parameter sets
   const SequenceParameterSet* _sps;

@@ -71,16 +71,17 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(24, sps.profileCompatibility.profile_compatibility_flags);
   bs.writeUn(8, sps.level);
 
-  bool seq_bounding_box_present_flag = false;
+  bool seq_bounding_box_present_flag = true;
   bs.write(seq_bounding_box_present_flag);
   if (seq_bounding_box_present_flag) {
-    // seq_bounding_box_x0
-    // seq_bounding_box_y0
-    // seq_bounding_box_z0
-    // seq_bounding_box_scale
-    // seq_bounding_box_w
-    // seq_bounding_box_h
-    // seq_bounding_box_d
+    bs.writeSe(sps.seq_bounding_box_xyz0.x());
+    bs.writeSe(sps.seq_bounding_box_xyz0.y());
+    bs.writeSe(sps.seq_bounding_box_xyz0.z());
+    int seq_bounding_box_scale = 1;
+    bs.writeUe(seq_bounding_box_scale);
+    bs.writeUe(sps.seq_bounding_box_whd.x());
+    bs.writeUe(sps.seq_bounding_box_whd.y());
+    bs.writeUe(sps.seq_bounding_box_whd.z());
   }
   // todo(df): determine encoding of scale factor
   bs.writeF(sps.seq_source_geom_scale_factor);
@@ -131,13 +132,14 @@ parseSps(const PayloadBuffer& buf)
 
   bool seq_bounding_box_present_flag = bs.read();
   if (seq_bounding_box_present_flag) {
-    // seq_bounding_box_x0
-    // seq_bounding_box_y0
-    // seq_bounding_box_z0
-    // seq_bounding_box_scale
-    // seq_bounding_box_w
-    // seq_bounding_box_h
-    // seq_bounding_box_d
+    bs.readSe(&sps.seq_bounding_box_xyz0.x());
+    bs.readSe(&sps.seq_bounding_box_xyz0.y());
+    bs.readSe(&sps.seq_bounding_box_xyz0.z());
+    int seq_bounding_box_scale;
+    bs.readUe(&seq_bounding_box_scale);
+    bs.readUe(&sps.seq_bounding_box_whd.x());
+    bs.readUe(&sps.seq_bounding_box_whd.y());
+    bs.readUe(&sps.seq_bounding_box_whd.z());
   }
   bs.readF(&sps.seq_source_geom_scale_factor);
 

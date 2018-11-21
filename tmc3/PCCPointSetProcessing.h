@@ -48,7 +48,7 @@ namespace pcc {
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
-// Points in the @src point cloud are translated by @offset, quantised by a
+// Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.
 //
 // The destination and source point clouds may be the same object.
@@ -58,8 +58,8 @@ namespace pcc {
 inline void
 quantizePositionsUniq(
   const float scaleFactor,
-  const PCCVector3D offset,
-  const PCCBox3<int32_t> clamp,
+  const PCCVector3<int> offset,
+  const PCCBox3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
@@ -68,12 +68,12 @@ quantizePositionsUniq(
   std::set<PCCVector3<int32_t>> uniquePoints;
   int numSrcPoints = src.getPointCount();
   for (int i = 0; i < numSrcPoints; ++i) {
-    const PCCVector3D point = (src[i] + offset) * scaleFactor;
+    const PCCVector3D& point = src[i];
 
     PCCVector3<int32_t> quantizedPoint;
     for (int k = 0; k < 3; k++) {
-      quantizedPoint[k] =
-        PCCClip(int32_t(std::round(point[k])), clamp.min[k], clamp.max[k]);
+      double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
+      quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
     }
 
     uniquePoints.insert(quantizedPoint);
@@ -97,7 +97,7 @@ quantizePositionsUniq(
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining duplicate points.
-// Points in the @src point cloud are translated by @offset, then quantised
+// Points in the @src point cloud are translated by -@offset, then quantised
 // by a multiplicitive @scaleFactor with rounding.
 //
 // The destination and source point clouds may be the same object.
@@ -107,8 +107,8 @@ quantizePositionsUniq(
 inline void
 quantizePositions(
   const float scaleFactor,
-  const PCCVector3D offset,
-  const PCCBox3<int32_t> clamp,
+  const PCCVector3<int> offset,
+  const PCCBox3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
@@ -127,11 +127,12 @@ quantizePositions(
   };
 
   for (int i = 0; i < numSrcPoints; ++i) {
-    const PCCVector3D point = (src[i] + offset) * scaleFactor;
+    const PCCVector3D point = src[i];
     auto& dstPoint = (*dst)[i];
-    for (int k = 0; k < 3; ++k)
-      dstPoint[k] =
-        PCCClip(std::round(point[k]), clampD.min[k], clampD.max[k]);
+    for (int k = 0; k < 3; ++k) {
+      double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
+      dstPoint[k] = PCCClip(k_pos, clampD.min[k], clampD.max[k]);
+    }
   }
 
   // don't copy attributes if dst already has them
@@ -351,12 +352,16 @@ inline int
 recolour(
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
-  PCCVector3D targetToSourceOffset,
+  PCCVector3<int> targetToSourceOffset,
   PCCPointSet3* target)
 {
+  PCCVector3D combinedOffset;
+  for (int k = 0; k < 3; k++)
+    combinedOffset[k] = targetToSourceOffset[k];
+
   if (source.hasColors()) {
     bool ok = PCCTransfertColors(
-      source, sourceToTargetScaleFactor, targetToSourceOffset, *target);
+      source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer colors!" << std::endl;
@@ -366,7 +371,7 @@ recolour(
 
   if (source.hasReflectances()) {
     bool ok = PCCTransfertReflectances(
-      source, sourceToTargetScaleFactor, targetToSourceOffset, *target);
+      source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer reflectance!" << std::endl;

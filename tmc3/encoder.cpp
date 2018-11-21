@@ -52,9 +52,6 @@ namespace pcc {
 void
 PCCTMC3Encoder3::init()
 {
-  minPositions = 0.0;
-  boundingBox.min = uint32_t(0);
-  boundingBox.max = uint32_t(0);
   pointCloud.clear();
 }
 
@@ -69,6 +66,23 @@ PCCTMC3Encoder3::compress(
 {
   init();
 
+  // Determine input bounding box (for SPS metadata) if not manually set
+  if (params->sps.seq_bounding_box_whd == PCCVector3<int>{0}) {
+    const auto& bbox = inputPointCloud.computeBoundingBox();
+    for (int k = 0; k < 3; k++) {
+      params->sps.seq_bounding_box_xyz0[k] = int(bbox.min[k]);
+
+      // somehow determine the decoder's reconstructed points bounding box
+      // and update sps accordingly.
+      auto max_k = bbox.max[k] - bbox.min[k];
+      max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
+      max_k = std::round(max_k / params->sps.seq_source_geom_scale_factor);
+
+      // NB: plus one to convert to range
+      params->sps.seq_bounding_box_whd[k] = int(max_k) + 1;
+    }
+  }
+
   // fixup parameter set IDs
   params->sps.sps_seq_parameter_set_id = 0;
   params->gps.gps_seq_parameter_set_id = 0;
@@ -82,8 +96,8 @@ PCCTMC3Encoder3::compress(
   params->sps.profileCompatibility.profile_compatibility_flags = 0;
   params->sps.level = 0;
 
-  // the encoder writes out the minPositions in the GBH:
-  params->gps.geom_box_present_flag = true;
+  // the sps is currently used for the bounding box
+  params->gps.geom_box_present_flag = false;
 
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
@@ -163,8 +177,8 @@ PCCTMC3Encoder3::compress(
 
   if (recolourNeeded) {
     recolour(
-      inputPointCloud, _sps->seq_source_geom_scale_factor, minPositions,
-      &pointCloud);
+      inputPointCloud, _sps->seq_source_geom_scale_factor,
+      _sps->seq_bounding_box_xyz0, &pointCloud);
   }
 
   // dump recoloured point cloud
@@ -228,19 +242,17 @@ void
 PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
 {
   // todo(df): confirm minimum of 1 isn't needed
-  uint32_t maxBB =
-    std::max({1u, boundingBox.max[0], boundingBox.max[1], boundingBox.max[2]});
+  int32_t maxBB =
+    std::max({1, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
 
   // the current node dimension (log2) encompasing maxBB
   int nodeSizeLog2 = ceillog2(maxBB + 1);
 
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
-  gbh.geomBoxOrigin.x() = int(minPositions.x());
-  gbh.geomBoxOrigin.y() = int(minPositions.y());
-  gbh.geomBoxOrigin.z() = int(minPositions.z());
   gbh.geom_slice_id = _sliceId;
   gbh.geom_tile_id = _tileId;
+  gbh.geomBoxOrigin = PCCVector3<int>{0};
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());
@@ -284,7 +296,7 @@ PCCTMC3Encoder3::reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
     const auto quantizedPoint = pointCloud[i];
     auto& point = (*reconstructedCloud)[i];
     for (size_t k = 0; k < 3; ++k) {
-      point[k] = quantizedPoint[k] * invScale + minPositions[k];
+      point[k] = quantizedPoint[k] * invScale + _sps->seq_bounding_box_xyz0[k];
     }
     if (pointCloud.hasColors()) {
       reconstructedCloud->setColor(i, pointCloud.getColor(i));
@@ -296,40 +308,19 @@ PCCTMC3Encoder3::reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
 }
 
 //----------------------------------------------------------------------------
-
-void
-PCCTMC3Encoder3::computeMinPositions(const PCCPointSet3& inputPointCloud)
-{
-  const size_t inputPointCount = inputPointCloud.getPointCount();
-  minPositions = inputPointCloud[0];
-  for (size_t i = 1; i < inputPointCount; ++i) {
-    const auto point = inputPointCloud[i];
-    for (int k = 0; k < 3; ++k) {
-      if (minPositions[k] > point[k]) {
-        minPositions[k] = point[k];
-      }
-    }
-  }
-}
-
-//----------------------------------------------------------------------------
+// translates and scales inputPointCloud, storing the result in
+// this->pointCloud for use by the encoding process.
 
 void
 PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 {
-  // if sps sequence width/height/depth is set, don't auto compute bbox
-  bool computeBBox = _sps->seq_bounding_box_whd == PCCVector3<int>{0};
-  if (computeBBox)
-    computeMinPositions(inputPointCloud);
-  else {
-    for (int k = 0; k < 3; k++)
-      minPositions[k] = _sps->seq_bounding_box_xyz0[k];
-  }
+  // Currently the sequence width/height/depth must be set
+  assert(_sps->seq_bounding_box_whd != PCCVector3<int>{0});
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
   // and quantisation.
   PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-  if (!computeBBox) {
+  if (_sps->seq_bounding_box_whd != PCCVector3<int>{0}) {
     // todo(df): this is icky (not to mention rounding issues)
     // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
     // NB: minus 1 to convert to max x/y/z position
@@ -341,33 +332,30 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
-      _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
-      inputPointCloud, &pointCloud);
+      _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
+      clampBox, inputPointCloud, &pointCloud);
   } else {
     quantizePositions(
-      _sps->seq_source_geom_scale_factor, -minPositions, clampBox,
-      inputPointCloud, &pointCloud);
+      _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
+      clampBox, inputPointCloud, &pointCloud);
   }
 
-  if (!computeBBox) {
-    boundingBox.min = uint32_t(0);
-    for (int k = 0; k < 3; k++)
-      boundingBox.max[k] = clampBox.max[k];
-    return;
-  }
+  // The new maximum bounds of the offset cloud
+  PCCVector3<int> maxBound{0};
 
   const size_t pointCount = pointCloud.getPointCount();
-  boundingBox.min = uint32_t(0);
-  boundingBox.max = uint32_t(0);
   for (size_t i = 0; i < pointCount; ++i) {
     const PCCVector3D point = pointCloud[i];
     for (int k = 0; k < 3; ++k) {
-      const uint32_t coord = uint32_t(point[k]);
-      if (boundingBox.max[k] < coord) {
-        boundingBox.max[k] = coord;
-      }
+      const int k_coord = int(point[k]);
+      assert(k_coord >= 0);
+      if (maxBound[k] < k_coord)
+        maxBound[k] = k_coord;
     }
   }
+
+  // todo(df): don't update maxBound if something is forcing the value?
+  _sliceBoxWhd = maxBound;
 }
 
 //============================================================================

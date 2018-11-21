@@ -176,9 +176,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   int gbhSize;
   GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
   _sliceId = gbh.geom_slice_id;
-  minPositions.x() = gbh.geomBoxOrigin.x();
-  minPositions.y() = gbh.geomBoxOrigin.y();
-  minPositions.z() = gbh.geomBoxOrigin.z();
 
   EntropyDecoder arithmeticDecoder;
   arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);
@@ -259,7 +256,7 @@ PCCTMC3Decoder3::inverseQuantization(PCCPointSet3& pointCloud)
   for (size_t i = 0; i < pointCount; ++i) {
     auto& point = pointCloud[i];
     for (size_t k = 0; k < 3; ++k) {
-      point[k] = point[k] * invScale + minPositions[k];
+      point[k] = point[k] * invScale + _sps->seq_bounding_box_xyz0[k];
     }
   }
 }
