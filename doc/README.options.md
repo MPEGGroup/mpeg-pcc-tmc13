@@ -121,6 +121,13 @@ disabled and a pre-filtering process is used to remove co-located points.
 This option instructs the encoder to ignore all options relating to
 attribute coding, as if they had never been configured.
 
+### `--partitionMethod=0`
+Selects the partitioning method to map points to tiles and slices:
+
+  | Value | Description         |
+  |:-----:| --------------------|
+  | 0     | none (single slice) |
+
 
 Geometry coding
 ---------------

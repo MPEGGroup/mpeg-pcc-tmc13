@@ -86,6 +86,7 @@ file(GLOB PROJECT_INC_FILES
   "io_hls.h"
   "io_tlv.h"
   "osspecific.h"
+  "partitioning.h"
   "pcc_chrono.h"
   "ringbuf.h"
   "tables.h"

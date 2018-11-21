@@ -43,19 +43,12 @@
 #include "geometry.h"
 #include "io_hls.h"
 #include "osspecific.h"
+#include "partitioning.h"
 #include "pcc_chrono.h"
 
 namespace pcc {
 
 //============================================================================
-
-void
-PCCTMC3Encoder3::init()
-{
-  pointCloud.clear();
-}
-
-//----------------------------------------------------------------------------
 
 int
 PCCTMC3Encoder3::compress(
@@ -64,7 +57,7 @@ PCCTMC3Encoder3::compress(
   std::function<void(const PayloadBuffer&)> outputFn,
   PCCPointSet3* reconstructedCloud)
 {
-  init();
+  fixupParameterSets(params);
 
   // Determine input bounding box (for SPS metadata) if not manually set
   if (params->sps.seq_bounding_box_whd == PCCVector3<int>{0}) {
@@ -83,8 +76,97 @@ PCCTMC3Encoder3::compress(
     }
   }
 
-  _sliceOrigin = PCCVector3<int>{0};
+  // placeholder to "activate" the parameter sets
+  _sps = &params->sps;
+  _gps = &params->gps;
+  _aps.clear();
+  for (const auto& aps : params->aps) {
+    _aps.push_back(&aps);
+  }
 
+  // write out all parameter sets prior to encoding
+  outputFn(write(*_sps));
+  outputFn(write(*_gps));
+  for (const auto aps : _aps) {
+    outputFn(write(*aps));
+  }
+
+  // initial geometry IDs
+  _tileId = 0;
+  _sliceId = 0;
+
+  // If partitioning is not enabled, encode input as a single "partition"
+  if (params->partitionMethod == PartitionMethod::kNone) {
+    // todo(df): params->gps.geom_box_present_flag = false;
+    _sliceOrigin = PCCVector3<int>{0};
+    compressPartition(inputPointCloud, params, outputFn, reconstructedCloud);
+    return 0;
+  }
+
+  // Partition the input point cloud
+  //  - quantise the input point cloud (without duplicate point removal)
+  //  - partitioning function produces a list of point indexes, origin and
+  //    optional tile metadata for each partition.
+  //  - encode any tile metadata
+  //  todo(df): consider requiring partitioning function to sort the input
+  //            points and provide ranges rather than a set of indicies.
+
+  PartitionSet partitions;
+  do {
+    PCCPointSet3 quantizedInputCloud;
+    PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+    quantizePositions(
+      _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
+      clampBox, inputPointCloud, &quantizedInputCloud);
+
+    switch (params->partitionMethod) {
+    // NB: this method is handled earlier
+    case PartitionMethod::kNone: return 1;
+    }
+  } while (0);
+
+  if (!partitions.tileInventory.tiles.empty()) {
+    outputFn(write(partitions.tileInventory));
+  }
+
+  // Encode each partition:
+  //  - create a pointset comprising just the partitioned points
+  //  - compress
+  for (const auto& partition : partitions.slices) {
+    // create partitioned point set
+    PCCPointSet3 srcPartition;
+    srcPartition.addRemoveAttributes(
+      inputPointCloud.hasColors(), inputPointCloud.hasReflectances());
+
+    int partitionSize = partition.pointIndexes.size();
+    srcPartition.resize(partitionSize);
+
+    for (int i = 0; i < partitionSize; i++) {
+      int inputIdx = partition.pointIndexes[i];
+      srcPartition[i] = inputPointCloud[inputIdx];
+
+      if (inputPointCloud.hasColors())
+        srcPartition.setColor(i, inputPointCloud.getColor(inputIdx));
+
+      if (inputPointCloud.hasReflectances())
+        srcPartition.setReflectance(
+          i, inputPointCloud.getReflectance(inputIdx));
+    }
+
+    _sliceId = partition.sliceId;
+    _tileId = partition.tileId;
+    _sliceOrigin = partition.origin;
+    compressPartition(srcPartition, params, outputFn, reconstructedCloud);
+  }
+
+  return 0;
+}
+
+//----------------------------------------------------------------------------
+
+void
+PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
+{
   // fixup parameter set IDs
   params->sps.sps_seq_parameter_set_id = 0;
   params->gps.gps_seq_parameter_set_id = 0;
@@ -122,28 +204,23 @@ PCCTMC3Encoder3::compress(
       attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
     }
   }
+}
 
-  // placeholder to "activate" the parameter sets
-  _sps = &params->sps;
-  _gps = &params->gps;
-  _aps.clear();
-  for (const auto& aps : params->aps) {
-    _aps.push_back(&aps);
-  }
+//----------------------------------------------------------------------------
 
-  // write out all parameter sets prior to encoding
-  outputFn(write(*_sps));
-  outputFn(write(*_gps));
-  for (const auto aps : _aps) {
-    outputFn(write(*aps));
-  }
-
+void
+PCCTMC3Encoder3::compressPartition(
+  const PCCPointSet3& inputPointCloud,
+  EncoderParams* params,
+  std::function<void(const PayloadBuffer&)> outputFn,
+  PCCPointSet3* reconstructedCloud)
+{
   // geometry compression consists of the following stages:
   //  - prefilter/quantize geometry (non-normative)
   //  - encode geometry (single slice, id = 0)
   //  - recolour
 
-  // The quantization process will determine the bounding box
+  pointCloud.clear();
   quantization(inputPointCloud);
 
   // geometry encoding
@@ -185,6 +262,7 @@ PCCTMC3Encoder3::compress(
   }
 
   // dump recoloured point cloud
+  // todo(df): this needs to work with partitioned clouds
   if (!params->postRecolorPath.empty()) {
     PCCPointSet3 tempPointCloud(pointCloud);
     tempPointCloud.convertYUVToRGB();
@@ -234,9 +312,7 @@ PCCTMC3Encoder3::compress(
   // should be distinguishable from the current slice.
   _sliceId++;
 
-  reconstructedPointCloud(reconstructedCloud);
-
-  return 0;
+  appendReconstructedPoints(reconstructedCloud);
 }
 
 //----------------------------------------------------------------------------
@@ -254,7 +330,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
-  gbh.geom_tile_id = _tileId;
+  gbh.geom_tile_id = std::max(0, _tileId);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
@@ -279,34 +355,35 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
 //----------------------------------------------------------------------------
 
 void
-PCCTMC3Encoder3::reconstructedPointCloud(PCCPointSet3* reconstructedCloud)
+PCCTMC3Encoder3::appendReconstructedPoints(PCCPointSet3* reconstructedCloud)
 {
   if (reconstructedCloud == nullptr) {
     return;
   }
   const size_t pointCount = pointCloud.getPointCount();
+  size_t outIdx = reconstructedCloud->getPointCount();
 
   reconstructedCloud->addRemoveAttributes(
     pointCloud.hasColors(), pointCloud.hasReflectances());
-  reconstructedCloud->resize(pointCount);
+  reconstructedCloud->resize(outIdx + pointCount);
 
   const double minPositionQuantizationScale = 0.0000000001;
   const double invScale =
     fabs(_sps->seq_source_geom_scale_factor) > minPositionQuantizationScale
     ? 1.0 / _sps->seq_source_geom_scale_factor
     : 1.0;
-  for (size_t i = 0; i < pointCount; ++i) {
+  for (size_t i = 0; i < pointCount; ++i, ++outIdx) {
     const auto quantizedPoint = pointCloud[i];
-    auto& point = (*reconstructedCloud)[i];
+    auto& point = (*reconstructedCloud)[outIdx];
     for (size_t k = 0; k < 3; ++k) {
       point[k] = (quantizedPoint[k] + _sliceOrigin[k]) * invScale
         + _sps->seq_bounding_box_xyz0[k];
     }
     if (pointCloud.hasColors()) {
-      reconstructedCloud->setColor(i, pointCloud.getColor(i));
+      reconstructedCloud->setColor(outIdx, pointCloud.getColor(i));
     }
     if (pointCloud.hasReflectances()) {
-      reconstructedCloud->setReflectance(i, pointCloud.getReflectance(i));
+      reconstructedCloud->setReflectance(outIdx, pointCloud.getReflectance(i));
     }
   }
 }

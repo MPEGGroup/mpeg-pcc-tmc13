@@ -35,10 +35,9 @@
 
 #pragma once
 
-#include <functional>
-#include <map>
+#include <cstdint>
+#include <vector>
 
-#include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
 #include "hls.h"
@@ -47,68 +46,28 @@ namespace pcc {
 
 //============================================================================
 
-struct DecoderParams {
-  // Do not delete this structure -- it is for passing options to the decoder.
+struct Partition {
+  // The *_slice_id to encode this partition with
+  int sliceId;
+
+  // The identifier of the tileset that describes the bounding box of all
+  // slices with the same tile_id.  A value of -1 indicates no tile_id
+  // mapping.
+  int tileId;
+
+  // The value of geom_box_origin for this partition, using the
+  // translated+scaled co-ordinate system.
+  PCCVector3<int> origin;
+
+  // Point indexes of the source point cloud that form this partition.
+  std::vector<int32_t> pointIndexes;
 };
 
-//============================================================================
+//----------------------------------------------------------------------------
 
-class PCCTMC3Decoder3 {
-public:
-  PCCTMC3Decoder3() { init(); }
-  PCCTMC3Decoder3(const PCCTMC3Decoder3&) = default;
-  PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = default;
-  ~PCCTMC3Decoder3() = default;
-
-  void init();
-
-  int decompress(
-    const DecoderParams& params,
-    const PayloadBuffer* buf,
-    std::function<void(const PCCPointSet3&)> onOutputCloud);
-
-  //==========================================================================
-
-  void storeSps(SequenceParameterSet&& sps);
-  void storeGps(GeometryParameterSet&& gps);
-  void storeAps(AttributeParameterSet&& aps);
-  void storeTileInventory(TileInventory&& inventory);
-
-  //==========================================================================
-
-private:
-  int decodeGeometryBrick(const PayloadBuffer& buf);
-  void decodeAttributeBrick(const PayloadBuffer& buf);
-
-  //==========================================================================
-
-public:
-  void inverseQuantization(PCCPointSet3& pointCloud);
-
-  //==========================================================================
-
-private:
-  // Current identifier of payloads with the same geometry
-  int _sliceId;
-
-  // Position of the slice in the translated+scaled co-ordinate system.
-  PCCVector3<int> _sliceOrigin;
-
-  // The point cloud currently being decoded
-  PCCPointSet3 _currentPointCloud;
-  PCCPointSet3 _accumCloud;
-
-  // Received parameter sets, mapping parameter set id -> parameterset
-  std::map<int, SequenceParameterSet> _spss;
-  std::map<int, GeometryParameterSet> _gpss;
-  std::map<int, AttributeParameterSet> _apss;
-
-  // Metadata that allows slices/tiles to be indentified by their bounding box
-  TileInventory _tileInventory;
-
-  // The active SPS
-  const SequenceParameterSet* _sps;
-  const GeometryParameterSet* _gps;
+struct PartitionSet {
+  TileInventory tileInventory;
+  std::vector<Partition> slices;
 };
 
 //============================================================================

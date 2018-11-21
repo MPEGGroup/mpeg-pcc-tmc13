@@ -142,6 +142,14 @@ operator>>(std::istream& in, AttributeEncoding& val)
 }  // namespace pcc
 
 namespace pcc {
+static std::istream&
+operator>>(std::istream& in, PartitionMethod& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
 static std::ostream&
 operator<<(std::ostream& out, const AttributeEncoding& val)
 {
@@ -149,6 +157,17 @@ operator<<(std::ostream& out, const AttributeEncoding& val)
   case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
   case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const PartitionMethod& val)
+{
+  switch (val) {
+  case PartitionMethod::kNone: out << "0 (None)"; break;
   }
   return out;
 }
@@ -296,6 +315,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("mergeDuplicatedPoints",
     params.encoder.gps.geom_unique_points_flag, true,
     "Enables removal of duplicated points")
+
+  ("partitionMethod",
+    params.encoder.partitionMethod, PartitionMethod::kNone,
+    "Method used to partition input point cloud into slices/tiles:\n"
+    "  0: none")
 
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,

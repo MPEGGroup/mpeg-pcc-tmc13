@@ -47,6 +47,16 @@
 
 namespace pcc {
 
+//============================================================================
+
+enum class PartitionMethod
+{
+  // Don't partition input
+  kNone = 0,
+};
+
+//============================================================================
+
 struct EncoderParams {
   SequenceParameterSet sps;
   GeometryParameterSet gps;
@@ -60,18 +70,19 @@ struct EncoderParams {
 
   // Filename for saving recoloured point cloud.
   std::string postRecolorPath;
+
+  // Method for partitioning the input cloud
+  PartitionMethod partitionMethod;
 };
 
 //============================================================================
 
 class PCCTMC3Encoder3 {
 public:
-  PCCTMC3Encoder3() { init(); }
+  PCCTMC3Encoder3() = default;
   PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
   PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
   ~PCCTMC3Encoder3() = default;
-
-  void init();
 
   int compress(
     const PCCPointSet3& inputPointCloud,
@@ -79,8 +90,16 @@ public:
     std::function<void(const PayloadBuffer&)> outputFn,
     PCCPointSet3* reconstructedCloud = nullptr);
 
+  void compressPartition(
+    const PCCPointSet3& inputPointCloud,
+    EncoderParams* params,
+    std::function<void(const PayloadBuffer&)> outputFn,
+    PCCPointSet3* reconstructedCloud = nullptr);
+
+  static void fixupParameterSets(EncoderParams* params);
+
 private:
-  void reconstructedPointCloud(PCCPointSet3* reconstructedCloud);
+  void appendReconstructedPoints(PCCPointSet3* reconstructedCloud);
 
   void encodeGeometryBrick(PayloadBuffer* buf);
 

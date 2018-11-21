@@ -69,18 +69,21 @@ PCCTMC3Decoder3::decompress(
   const PayloadBuffer* buf,
   std::function<void(const PCCPointSet3&)> onOutputCloud)
 {
-  // offset completed slice by sliceOrigin
+  // todo(df): call _accumCloud.clear() at start of frame
+  // Starting a new geometry brick/slice/tile, transfer any
+  // finished points to the output accumulator
   if (!buf || buf->type == PayloadType::kGeometryBrick) {
     if (size_t numPoints = _currentPointCloud.getPointCount()) {
       for (size_t i = 0; i < numPoints; i++)
         for (int k = 0; k < 3; k++)
           _currentPointCloud[i][k] += _sliceOrigin[k];
+      _accumCloud.append(_currentPointCloud);
     }
   }
 
   if (!buf) {
     // flush decoder, output pending cloud if any
-    onOutputCloud(_currentPointCloud);
+    onOutputCloud(_accumCloud);
     return 0;
   }
 
@@ -143,11 +146,7 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 }
 
 //==========================================================================
-// Initialise the point cloud storage and decode a single geometry brick.
-//
-// NB: there is an implicit assumption that there is only a single geometry
-//     brick per point cloud.
-// todo(??): fixme
+// Initialise the point cloud storage and decode a single geometry slice.
 
 int
 PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
@@ -212,9 +211,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
 //--------------------------------------------------------------------------
 // Initialise the point cloud storage and decode a single geometry brick.
-//
-// NB: there is an implicit assumption that there is only a single geometry
-//     brick per point cloud.
 
 void
 PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
