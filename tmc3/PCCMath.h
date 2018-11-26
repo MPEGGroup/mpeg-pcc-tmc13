@@ -347,6 +347,8 @@ typedef PCCVector3<double> PCCVector3D;
 typedef PCCVector3<double> PCCPoint3D;
 typedef PCCBox3<double> PCCBox3D;
 typedef PCCVector3<uint8_t> PCCColor3B;
+template<typename T>
+using Vec3 = PCCVector3<T>;
 
 template<typename T>
 T

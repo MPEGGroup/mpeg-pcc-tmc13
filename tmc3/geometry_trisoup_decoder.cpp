@@ -45,6 +45,14 @@ namespace pcc {
 
 //============================================================================
 
+// The number of fractional bits used in trisoup triangle voxelisation
+const int kTrisoupFpBits = 8;
+
+// The value 1 in fixed-point representation
+const int kTrisoupFpOne = 1 << (kTrisoupFpBits);
+
+//============================================================================
+
 bool
 operator<(const TrisoupSegment& s1, const TrisoupSegment& s2)
 {
@@ -124,10 +132,11 @@ decodeGeometryTrisoup(
 
 //============================================================================
 
-PCCVector3D
-crossProduct(const PCCVector3D a, const PCCVector3D b)
+template<typename T>
+Vec3<T>
+crossProduct(const Vec3<T> a, const Vec3<T> b)
 {
-  PCCVector3D ret;
+  Vec3<T> ret;
   ret[0] = a[1] * b[2] - a[2] * b[1];
   ret[1] = a[2] * b[0] - a[0] * b[2];
   ret[2] = a[0] * b[1] - a[1] * b[0];
@@ -136,20 +145,27 @@ crossProduct(const PCCVector3D a, const PCCVector3D b)
 
 //---------------------------------------------------------------------------
 
-PCCVector3D
-truncate(const PCCVector3D floatvector, float offset)
+Vec3<int32_t>
+truncate(const Vec3<int64_t> in, const int32_t offset)
 {
-  PCCVector3D intvector;
-  intvector[0] = int(floatvector[0] + offset);
-  intvector[1] = int(floatvector[1] + offset);
-  intvector[2] = int(floatvector[2] + offset);
-  return intvector;
+  Vec3<int32_t> out;
+  out[0] = (int32_t)in[0] + offset;
+  out[1] = (int32_t)in[1] + offset;
+  out[2] = (int32_t)in[2] + offset;
+  if (out[0] < 0)
+    out[0] = 0;
+  if (out[1] < 0)
+    out[1] = 0;
+  if (out[2] < 0)
+    out[2] = 0;
+
+  return out;
 }
 
 //---------------------------------------------------------------------------
 
 bool
-boundaryinsidecheck(const PCCVector3D a, const int bbsize)
+boundaryinsidecheck(const Vec3<int32_t> a, const int bbsize)
 {
   if (a[0] < 0 || a[0] > bbsize)
     return false;
@@ -164,38 +180,36 @@ boundaryinsidecheck(const PCCVector3D a, const int bbsize)
 
 bool
 rayIntersectsTriangle(
-  const PCCVector3D rayOrigin,
-  const PCCVector3D rayVector,
-  const PCCVector3D TriangleVertex0,
-  const PCCVector3D TriangleVertex1,
-  const PCCVector3D TriangleVertex2,
-  PCCVector3D& outIntersectionPoint)
+  const Vec3<int64_t> rayOrigin,
+  const Vec3<int64_t> rayVector,
+  const Vec3<int64_t> TriangleVertex0,
+  const Vec3<int64_t> TriangleVertex1,
+  const Vec3<int64_t> TriangleVertex2,
+  Vec3<int64_t>& outIntersectionPoint)
 {
-  PCCVector3D edge1 = TriangleVertex1 - TriangleVertex0;
-  PCCVector3D edge2 = TriangleVertex2 - TriangleVertex0;
-  PCCVector3D s = rayOrigin - TriangleVertex0;
+  Vec3<int64_t> edge1 = TriangleVertex1 - TriangleVertex0;
+  Vec3<int64_t> edge2 = TriangleVertex2 - TriangleVertex0;
+  Vec3<int64_t> s = rayOrigin - TriangleVertex0;
+  Vec3<int64_t> h = crossProduct(rayVector, edge2);
 
-  PCCVector3D h = crossProduct(rayVector, edge2);
-  float a = (edge1 * h);
-  if (
-    a > -std::numeric_limits<double>::epsilon()
-    && a < std::numeric_limits<double>::epsilon())
+  int64_t a = (edge1 * h) >> kTrisoupFpBits;
+  if (a == 0)
     return false;
 
-  float f = 1 / a;
-  float u = f * (s * h);
-  if (u < 0.0 || u > 1.0)
+  int64_t u = (s * h) / a;
+  if (u < 0 || u > kTrisoupFpOne)
     return false;
 
-  PCCVector3D q = crossProduct(s, edge1);
-  float v = f * (rayVector * q);
-  if (v < 0.0 || (u + v) > 1.0)
+  Vec3<int64_t> q = crossProduct(s, edge1);
+  int64_t v = (rayVector * q) / a;
+  if (v < 0 || (u + v) > kTrisoupFpOne)
     return false;
 
-  float t = f * (edge2 * q);
-  if (t > std::numeric_limits<double>::epsilon()) {
-    outIntersectionPoint = rayOrigin + rayVector * t;
+  int64_t t = (edge2 * q) / a;
+  if (t > 0) {
     // ray intersection
+    Vec3<int64_t> IntersectionPoint = (rayVector * t) >> kTrisoupFpBits;
+    outIntersectionPoint = rayOrigin + IntersectionPoint;
     return true;
   } else {
     // There is a line intersection but not a ray intersection
@@ -304,15 +318,15 @@ decodeTrisoupCommon(
   }
 
   // Create list of refined vertices, one leaf at a time.
-  std::vector<PCCPoint3D> refinedVertices;
+  std::vector<Vec3<int32_t>> refinedVertices;
   for (int i = 0; i < leaves.size(); i++) {
     uint32_t blockWidth = 0;
 
     // Representation for a vertex in preparation for sorting.
     struct Vertex {
-      PCCPoint3D pos;     // position of vertex
-      double theta;       // angle of vertex when projected along dominant axis
-      double tiebreaker;  // coordinate of vertex along dominant axis
+      Vec3<int32_t> pos;  // position of vertex
+      int32_t theta;      // angle of vertex when projected along dominant axis
+      int32_t tiebreaker;  // coordinate of vertex along dominant axis
       bool operator()(Vertex v1, Vertex v2)
       {
         if (v1.theta > v2.theta)
@@ -338,17 +352,20 @@ decodeTrisoupCommon(
       PCCVector3<uint32_t> direction = segment.endpos - segment.startpos;
       blockWidth =
         std::max(direction[0], std::max(direction[1], direction[2]));
-      double distance;
+      int32_t distance;
       if (segment.vertex == 0)
-        distance = 0.0;
+        distance = 0;
       else if (segment.vertex == blockWidth - 1)
-        distance = blockWidth;
+        distance = blockWidth << kTrisoupFpBits;
       else  // 0 < segment.vertex < blockWidth-1
-        distance = segment.vertex + 0.5;
+        distance = (int32_t)(
+          (segment.vertex << kTrisoupFpBits) + (1 << (kTrisoupFpBits - 1)));
 
       // Get 3D position of point of intersection.
-      PCCVector3D point(
-        segment.startpos[0], segment.startpos[1], segment.startpos[2]);
+      Vec3<int32_t> point(
+        segment.startpos[0] << kTrisoupFpBits,
+        segment.startpos[1] << kTrisoupFpBits,
+        segment.startpos[2] << kTrisoupFpBits);
       if (direction[0] > 0)
         point[0] += distance;
       else if (direction[1] > 0)
@@ -357,7 +374,7 @@ decodeTrisoupCommon(
         point[2] += distance;
 
       // Add vertex to list of points.
-      leafVertices.push_back({point, 0.0, 0.0});
+      leafVertices.push_back({point, 0, 0});
     }
 
     // Skip leaves that have fewer than 3 vertices.
@@ -365,23 +382,24 @@ decodeTrisoupCommon(
       continue;
 
     // Compute mean of leaf vertices.
-    PCCPoint3D blockCentroid = 0;
+    Vec3<int32_t> blockCentroid = 0;
     for (int j = 0; j < leafVertices.size(); j++) {
       blockCentroid += leafVertices[j].pos;
     }
-    blockCentroid /= leafVertices.size();
+    blockCentroid /= (int32_t)leafVertices.size();
 
     // Compute variance of each component of leaf vertices.
-    PCCVector3D SS = 0;
+    Vec3<int32_t> SS = 0;
     for (int j = 0; j < leafVertices.size(); j++) {
-      PCCVector3D S = leafVertices[j].pos - blockCentroid;
-      SS += {S[0] * S[0], S[1] * S[1], S[2] * S[2]};
+      Vec3<int32_t> S = leafVertices[j].pos - blockCentroid;
+      SS += {(S[0] * S[0]) >> kTrisoupFpBits, (S[1] * S[1]) >> kTrisoupFpBits,
+             (S[2] * S[2]) >> kTrisoupFpBits};
     }
 
     // Dominant axis is the coordinate minimizing the variance.
-    double minSS = SS[0];
-    int dominantAxis = 0;
-    for (int j = 1; j < 3; j++) {
+    int32_t minSS = SS[0];
+    int32_t dominantAxis = 0;
+    for (int32_t j = 1; j < 3; j++) {
       if (minSS > SS[j]) {
         minSS = SS[j];
         dominantAxis = j;
@@ -393,20 +411,25 @@ decodeTrisoupCommon(
     // of block (i.e., clockwise from 9:00) breaking ties in angle by
     // increasing distance along the dominant axis.
     PCCVector3<uint32_t> bc = leaves[i].pos + (blockWidth / 2);
-    PCCVector3D blockCenter = {double(bc[0]), double(bc[1]), double(bc[2])};
+    Vec3<int32_t> blockCenter = {(int32_t)(bc[0] << kTrisoupFpBits),
+                                 (int32_t)(bc[1] << kTrisoupFpBits),
+                                 (int32_t)(bc[2] << kTrisoupFpBits)};
     for (int j = 0; j < leafVertices.size(); j++) {
-      PCCVector3D S = leafVertices[j].pos - blockCenter;
+      Vec3<int32_t> S = leafVertices[j].pos - blockCenter;
       switch (dominantAxis) {
       case 0:  // dominant axis is X so project into YZ plane
-        leafVertices[j].theta = atan2(S[2], S[1]);
+        leafVertices[j].theta =
+          (int32_t)(atan2(S[2], S[1]) * (1 << kTrisoupFpBits));
         leafVertices[j].tiebreaker = S[0];
         break;
       case 1:  // dominant axis is Y so project into XZ plane
-        leafVertices[j].theta = atan2(S[2], S[0]);
+        leafVertices[j].theta =
+          (int32_t)(atan2(S[2], S[0]) * (1 << kTrisoupFpBits));
         leafVertices[j].tiebreaker = S[1];
         break;
       case 2:  // dominant axis is Z so project into XY plane
-        leafVertices[j].theta = atan2(S[1], S[0]);
+        leafVertices[j].theta =
+          (int32_t)(atan2(S[1], S[0]) * (1 << kTrisoupFpBits));
         leafVertices[j].tiebreaker = S[2];
         break;
       }
@@ -434,21 +457,28 @@ decodeTrisoupCommon(
 
     // Divide vertices into triangles according to table
     // and upsample each triangle by an upsamplingFactor.
-    int triCount = leafVertices.size() - 2;
+    int triCount = (int)leafVertices.size() - 2;
     int triStart = (triCount - 1) * triCount / 2;
     for (int triIndex = 0; triIndex < triCount; triIndex++) {
       int j0 = polyTriangles[triStart + triIndex][0];
       int j1 = polyTriangles[triStart + triIndex][1];
       int j2 = polyTriangles[triStart + triIndex][2];
-      PCCVector3D v0 = leafVertices[j0].pos;
-      PCCVector3D v1 = leafVertices[j1].pos;
-      PCCVector3D v2 = leafVertices[j2].pos;
+      Vec3<int64_t> v0 = {(int64_t)leafVertices[j0].pos[0],
+                          (int64_t)leafVertices[j0].pos[1],
+                          (int64_t)leafVertices[j0].pos[2]};
+      Vec3<int64_t> v1 = {(int64_t)leafVertices[j1].pos[0],
+                          (int64_t)leafVertices[j1].pos[1],
+                          (int64_t)leafVertices[j1].pos[2]};
+      Vec3<int64_t> v2 = {(int64_t)leafVertices[j2].pos[0],
+                          (int64_t)leafVertices[j2].pos[1],
+                          (int64_t)leafVertices[j2].pos[2]};
 
-      for (int i = 0; i < 3; i++) {
-        PCCVector3D foundvoxel =
-          truncate((i == 0 ? v0 : (i == 1 ? v1 : v2)), -0.5);
-        if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
-          refinedVertices.push_back(foundvoxel);
+      for (int k = 0; k < 3; k++) {
+        Vec3<int32_t> foundvoxel = truncate(
+          (k == 0 ? v0 : (k == 1 ? v1 : v2)), -(1 << (kTrisoupFpBits - 1)));
+        if (boundaryinsidecheck(
+              foundvoxel >> kTrisoupFpBits, poistionClipValue)) {
+          refinedVertices.push_back(foundvoxel >> kTrisoupFpBits);
         }
       }
 
@@ -456,39 +486,50 @@ decodeTrisoupCommon(
       const int g1pos[3] = {1, 0, 0};
       const int g2pos[3] = {2, 2, 1};
       for (int direction = 0; direction < 3; direction++) {
-        PCCVector3D rayVector, rayOrigin, intersection;
-        const int startposG1 = std::floor(std::min(
-          std::min(v0[g1pos[direction]], v1[g1pos[direction]]),
-          v2[g1pos[direction]]));
-        const int startposG2 = std::floor(std::min(
-          std::min(v0[g2pos[direction]], v1[g2pos[direction]]),
-          v2[g2pos[direction]]));
-        const int endposG1 = std::ceil(std::max(
-          std::max(v0[g1pos[direction]], v1[g1pos[direction]]),
-          v2[g1pos[direction]]));
-        const int endposG2 = std::ceil(std::max(
-          std::max(v0[g2pos[direction]], v1[g2pos[direction]]),
-          v2[g2pos[direction]]));
+        Vec3<int64_t> rayVector, rayOrigin, intersection;
+        const int startposG1 =
+          std::min(
+            std::min(v0[g1pos[direction]], v1[g1pos[direction]]),
+            v2[g1pos[direction]])
+          >> kTrisoupFpBits;
+        const int startposG2 =
+          std::min(
+            std::min(v0[g2pos[direction]], v1[g2pos[direction]]),
+            v2[g2pos[direction]])
+          >> kTrisoupFpBits;
+        const int endposG1 =
+          std::max(
+            std::max(v0[g1pos[direction]], v1[g1pos[direction]]),
+            v2[g1pos[direction]])
+          >> kTrisoupFpBits;
+        const int endposG2 =
+          std::max(
+            std::max(v0[g2pos[direction]], v1[g2pos[direction]]),
+            v2[g2pos[direction]])
+          >> kTrisoupFpBits;
         for (g1 = startposG1; g1 <= endposG1; g1++) {
           for (g2 = startposG2; g2 <= endposG2; g2++) {
-            std::vector<PCCPoint3D> intersectionVertices;
+            std::vector<Vec3<int64_t>> intersectionVertices;
             for (int sign = -1; sign <= 1; sign += 2) {
-              const int rayStart = sign > 0 ? -1 : poistionClipValue + 1;
+              const int rayStart = (sign > 0 ? -1 : poistionClipValue + 1);
               if (direction == 0) {
-                rayOrigin = PCCVector3D(rayStart, g1, g2);
-                rayVector = PCCVector3D(sign, 0, 0);
+                rayOrigin = Vec3<int64_t>(rayStart, g1, g2);
+                rayVector = Vec3<int64_t>(sign, 0, 0);
               } else if (direction == 1) {
-                rayOrigin = PCCVector3D(g1, rayStart, g2);
-                rayVector = PCCVector3D(0, sign, 0);
+                rayOrigin = Vec3<int64_t>(g1, rayStart, g2);
+                rayVector = Vec3<int64_t>(0, sign, 0);
               } else if (direction == 2) {
-                rayOrigin = PCCVector3D(g1, g2, rayStart);
-                rayVector = PCCVector3D(0, 0, sign);
+                rayOrigin = Vec3<int64_t>(g1, g2, rayStart);
+                rayVector = Vec3<int64_t>(0, 0, sign);
               }
               if (rayIntersectsTriangle(
-                    rayOrigin, rayVector, v0, v1, v2, intersection)) {
-                PCCVector3D foundvoxel = truncate(intersection, -0.5);
-                if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
-                  refinedVertices.push_back(foundvoxel);
+                    rayOrigin << kTrisoupFpBits, rayVector << kTrisoupFpBits,
+                    v0, v1, v2, intersection)) {
+                Vec3<int32_t> foundvoxel =
+                  truncate(intersection, -(1 << (kTrisoupFpBits - 1)));
+                if (boundaryinsidecheck(
+                      foundvoxel >> kTrisoupFpBits, poistionClipValue)) {
+                  refinedVertices.push_back(foundvoxel >> kTrisoupFpBits);
                 }
               }
             }
@@ -505,8 +546,11 @@ decodeTrisoupCommon(
 
   // Move list of points to pointCloud.
   pointCloud.resize(refinedVertices.size());
-  for (int i = 0; i < refinedVertices.size(); i++)
-    pointCloud[i] = refinedVertices[i];
+  for (int i = 0; i < refinedVertices.size(); i++) {
+    pointCloud[i] =
+      PCCPoint3D{(double)refinedVertices[i][0], (double)refinedVertices[i][1],
+                 (double)refinedVertices[i][2]};
+  }
 }
 
 //============================================================================
