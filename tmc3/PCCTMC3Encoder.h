@@ -53,6 +53,9 @@ enum class PartitionMethod
 {
   // Don't partition input
   kNone = 0,
+
+  // Partition according to uniform geometry
+  kUniformGeom = 2,
 };
 
 //============================================================================
@@ -73,6 +76,9 @@ struct EncoderParams {
 
   // Method for partitioning the input cloud
   PartitionMethod partitionMethod;
+
+  // Number of slices used by PartitionMethod::kUniformGeom
+  int partitionNumUniformGeom;
 };
 
 //============================================================================

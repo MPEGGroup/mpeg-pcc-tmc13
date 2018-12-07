@@ -122,6 +122,11 @@ PCCTMC3Encoder3::compress(
     switch (params->partitionMethod) {
     // NB: this method is handled earlier
     case PartitionMethod::kNone: return 1;
+
+    case PartitionMethod::kUniformGeom:
+      partitions = partitionByUniformGeom(
+        quantizedInputCloud, params->partitionNumUniformGeom);
+      break;
     }
   } while (0);
 

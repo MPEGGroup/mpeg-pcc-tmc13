@@ -118,6 +118,7 @@ file(GLOB PROJECT_CPP_FILES
   "io_hls.cpp"
   "io_tlv.cpp"
   "osspecific.cpp"
+  "partitioning.cpp"
   "pcc_chrono.cpp"
   "tables.cpp"
   "../dependencies/arithmetic-coding/src/*.cpp"

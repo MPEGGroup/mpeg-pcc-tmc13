@@ -124,9 +124,15 @@ attribute coding, as if they had never been configured.
 ### `--partitionMethod=0`
 Selects the partitioning method to map points to tiles and slices:
 
-  | Value | Description         |
-  |:-----:| --------------------|
-  | 0     | none (single slice) |
+  | Value | Description                             |
+  |:-----:| ----------------------------------------|
+  | 0     | none (single slice)                     |
+  | 2     | uniform partitioning along longest edge |
+
+### `--partitionNumUniformGeom=INT-VALUE`
+Sets the number of slices to generate using `partitionMethod=2`.
+If equal to zero, the number of slices is the integer ratio of the
+longest to shortest edges of the point cloud bounding box.
 
 
 Geometry coding
