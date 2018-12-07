@@ -128,12 +128,19 @@ Selects the partitioning method to map points to tiles and slices:
   |:-----:| ----------------------------------------|
   | 0     | none (single slice)                     |
   | 2     | uniform partitioning along longest edge |
+  | 3     | uniform octree partitions               |
 
 ### `--partitionNumUniformGeom=INT-VALUE`
 Sets the number of slices to generate using `partitionMethod=2`.
 If equal to zero, the number of slices is the integer ratio of the
 longest to shortest edges of the point cloud bounding box.
 
+### `--partitionOctreeDepth=INT-VALUE`
+Sets the depth of the octree for slice generation using
+`partitionMethod=3`.
+
+The input point cloud is decomposed using an octree with the configured
+depth.  Each occupied leaf of the octree represents a single slice.
 
 Geometry coding
 ---------------

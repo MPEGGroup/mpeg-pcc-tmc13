@@ -136,6 +136,73 @@ partitionByUniformGeom(const PCCPointSet3& cloud, int numPartitions)
   return partitions;
 }
 
+//----------------------------------------------------------------------------
+// Split point cloud into several parts according to octree depth.
+// No tile metadata is generated.
+
+PartitionSet
+partitionByOctreeDepth(const PCCPointSet3& cloud, int depOctree)
+{
+  PartitionSet partitions;
+
+  // noting that there is a correspondence between point position
+  // and octree node, calculate the position mask and shift required
+  // to determine the node address for a point.
+  PCCBox3<double> bbox = cloud.computeBoundingBox();
+  int maxBb = (int)std::max({bbox.max[0], bbox.max[1], bbox.max[2]});
+
+  int cloudSizeLog2 = ceillog2(maxBb + 1);
+  int posShift = cloudSizeLog2 - depOctree;
+  int posMask = (1 << depOctree) - 1;
+
+  // initially: number of points in each partition
+  // then: mapping of partId to sliceId
+  std::vector<int> partMap(1 << (3 * depOctree));
+
+  // per-point indexes used for assigning to a partition
+  std::vector<int> pointToPartId(cloud.getPointCount());
+
+  // for each point, determine a partition based upon the position
+  for (int i = 0, last = cloud.getPointCount(); i < last; i++) {
+    int x = ((int(cloud[i].x()) >> posShift) & posMask) << (2 * depOctree);
+    int y = ((int(cloud[i].y()) >> posShift) & posMask) << depOctree;
+    int z = (int(cloud[i].z()) >> posShift) & posMask;
+    int partId = x | y | z;
+    partMap[partId]++;
+    pointToPartId[i] = partId;
+  }
+
+  // generate slice mapping
+  //  - allocate slice map storage and determine contiguous sliceIds
+  //    NB: the sliceIds replace partPointCount.
+  //  - map points to each slice.
+
+  int numSlices =
+    partMap.size() - std::count(partMap.begin(), partMap.end(), 0);
+  partitions.slices.resize(numSlices);
+
+  int sliceId = 0;
+  for (auto& part : partMap) {
+    if (!part)
+      continue;
+
+    auto& slice = partitions.slices[sliceId];
+    slice.sliceId = sliceId;
+    slice.tileId = -1;
+    slice.origin = PCCVector3<int>{0};
+    slice.pointIndexes.reserve(part);
+    part = sliceId++;
+  }
+
+  for (int i = 0, last = cloud.getPointCount(); i < last; i++) {
+    int partId = pointToPartId[i];
+    int sliceId = partMap[partId];
+    partitions.slices[sliceId].pointIndexes.push_back(i);
+  }
+
+  return partitions;
+}
+
 //============================================================================
 
 }  // namespace pcc

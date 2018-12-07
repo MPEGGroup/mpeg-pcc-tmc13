@@ -56,6 +56,9 @@ enum class PartitionMethod
 
   // Partition according to uniform geometry
   kUniformGeom = 2,
+
+  // Partition according to the depth of octree
+  kOctreeUniform = 3,
 };
 
 //============================================================================
@@ -79,6 +82,9 @@ struct EncoderParams {
 
   // Number of slices used by PartitionMethod::kUniformGeom
   int partitionNumUniformGeom;
+
+  // Depth of octree used by PartitionMethod::kOctreeUniform
+  int partitionOctreeDepth;
 };
 
 //============================================================================

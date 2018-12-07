@@ -75,6 +75,8 @@ struct PartitionSet {
 PartitionSet
 partitionByUniformGeom(const PCCPointSet3& cloud, int numPartitions);
 
+PartitionSet partitionByOctreeDepth(const PCCPointSet3& cloud, int depOctree);
+
 //============================================================================
 
 }  // namespace pcc

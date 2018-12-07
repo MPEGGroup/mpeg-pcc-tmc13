@@ -169,6 +169,7 @@ operator<<(std::ostream& out, const PartitionMethod& val)
   switch (val) {
   case PartitionMethod::kNone: out << "0 (None)"; break;
   case PartitionMethod::kUniformGeom: out << "0 (UniformGeom)"; break;
+  case PartitionMethod::kOctreeUniform: out << "0 (UniformOctree)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -323,13 +324,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Method used to partition input point cloud into slices/tiles:\n"
     "  0: none\n"
     "  1: none (deprecated)\n"
-    "  2: n Uniform-Geometry partition bins along the longest edge")
+    "  2: n Uniform-Geometry partition bins along the longest edge\n"
+    "  3: Uniform Geometry partition at n octree depth")
 
   ("partitionNumUniformGeom",
     params.encoder.partitionNumUniformGeom, 0,
     "Number of bins for partitionMethod=2:\n"
     "  0: slice partition with adaptive-defined bins\n"
     "  >=1: slice partition with user-defined bins\n")
+
+  ("partitionOctreeDepth",
+    params.encoder.partitionOctreeDepth, 2,
+    "Depth of octree partition for partitionMethod=3")
 
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,

@@ -127,6 +127,11 @@ PCCTMC3Encoder3::compress(
       partitions = partitionByUniformGeom(
         quantizedInputCloud, params->partitionNumUniformGeom);
       break;
+
+    case PartitionMethod::kOctreeUniform:
+      partitions = partitionByOctreeDepth(
+        quantizedInputCloud, params->partitionOctreeDepth);
+      break;
     }
   } while (0);
 
