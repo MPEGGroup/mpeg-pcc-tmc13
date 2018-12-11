@@ -65,7 +65,9 @@ categories:
       # cat1
       arco_valentino_dense_vox12:        { test-depth:  9 }
       arco_valentino_dense_vox20:        { test-depth:  9 }
+      basketball_player_vox11_00000200:  { test-depth: 11 }
       boxer_viewdep_vox12:               { test-depth: 11 }
+      dancer_vox11_00000001:             { test-depth: 11 }
       egyptian_mask_vox12:               { test-depth:  9 }
       egyptian_mask_vox20:               { test-depth:  9 }
       facade_00009_vox12:                { test-depth: 11 }

@@ -19,6 +19,18 @@ sequences:
     pcerrorflags:
      - resolution: 1048575
 
+  basketball_player_vox11_00000200:
+    src: basketball_player_vox11_00000200.ply
+    norm: basketball_player_vox11_00000200.ply
+    group: cat1-A
+    src-geometry-precision: 11
+    seq_lod:  11
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 2047
+
   boxer_viewdep_vox12:
     src: boxer_viewdep_vox12.ply
     norm: boxer_viewdep_vox12.ply
@@ -30,6 +42,18 @@ sequences:
     bitdepth_colour: 8
     pcerrorflags:
      - resolution: 4095
+
+  dancer_vox11_00000001:
+    src: dancer_vox11_00000001.ply
+    norm: dancer_vox11_00000001.ply
+    group: cat1-A
+    src-geometry-precision: 11
+    seq_lod:  11
+    seq_dist2: 3
+    has_colour: 1
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 2047
 
   egyptian_mask_vox12:
     src: Egyptian_mask_vox12.ply
