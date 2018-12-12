@@ -33,388 +33,349 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <vector>
+#include "RAHT.h"
 
-#include "PCCMath.h"
-#include "PCCMisc.h"
+#include <cstddef>
+#include <utility>
 
 namespace pcc {
 
+//============================================================================
+
+void
+rahtFixedPointRotation(
+  FixedPoint quantStepSizeLuma,
+  uint64_t weightLeft,
+  uint64_t weightRight,
+  FixedPoint* attributeLeft,
+  FixedPoint* attributeRight,
+  FixedPoint* attributeTransformedLow,
+  FixedPoint* attributeTransformedHigh,
+  size_t attributeCount)
+{
+  FixedPoint b, adjustedQuantStepSize;
+
+  b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
+
+  adjustedQuantStepSize.val = sqrtFixedpoint(
+    ((quantStepSizeLuma.val * quantStepSizeLuma.val)
+     * (weightLeft + weightRight))
+    / (weightLeft * weightRight));
+
+  while (attributeCount--) {
+    *attributeTransformedHigh = *attributeRight;
+    *attributeTransformedHigh -= *attributeLeft;
+    *attributeTransformedLow = *attributeTransformedHigh;
+    *attributeTransformedLow *= b;
+    *attributeTransformedLow += *attributeLeft;
+    *attributeTransformedHigh /= adjustedQuantStepSize;
+
+    attributeLeft++;
+    attributeRight++;
+    attributeTransformedLow++;
+    attributeTransformedHigh++;
+  }
+}
+
+void
+rahtFixedPointInverseRotation(
+  FixedPoint quantStepSizeLuma,
+  uint64_t weightLeft,
+  uint64_t weightRight,
+  FixedPoint* attributeLeft,
+  FixedPoint* attributeRight,
+  FixedPoint* attributeTransformedLow,
+  FixedPoint* attributeTransformedHigh,
+  size_t attributeCount)
+{
+  FixedPoint b, adjustedQuantStepSize;
+
+  b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
+
+  adjustedQuantStepSize.val = sqrtFixedpoint(
+    ((quantStepSizeLuma.val * quantStepSizeLuma.val)
+     * (weightLeft + weightRight))
+    / (weightLeft * weightRight));
+
+  while (attributeCount--) {
+    *attributeRight = *attributeTransformedHigh;
+    *attributeRight *= adjustedQuantStepSize;
+    *attributeLeft = *attributeRight;
+    *attributeLeft *= b;
+    *attributeLeft -= *attributeTransformedLow;
+    *attributeRight -= *attributeLeft;
+
+    attributeLeft->val = -attributeLeft->val;
+
+    attributeLeft++;
+    attributeRight++;
+    attributeTransformedLow++;
+    attributeTransformedHigh++;
+  }
+}
+
+//============================================================================
 /*
- * RAHT
+ * RAHT Fixed Point
  *
  * Inputs:
+ * quantStepSizeLuma = Quantization step
  * mortonCode = list of 'voxelCount' Morton codes of voxels, sorted in ascending Morton code order
  * attributes = 'voxelCount' x 'attribCount' array of attributes, in row-major order
  * attribCount = number of attributes (e.g., 3 if attributes are red, green, blue)
  * voxelCount = number of voxels
- * depth = number of bits of precision (e.g., 10) for each coordinate in mortonCode
  *
  * Outputs:
- * attributes = 'voxelCount' x 'attribCount' array of transformed attributes, in row-major order
  * weights = list of 'voxelCount' weights associated with each transform coefficient
- *
- * Note transform is done 'in-place' (i.e., array 'attributes' contains
- * attributes on input, and transformed attributes on output).
+ * integerizedAttributes = quantized transformed attributes array, in column-major order
+ * binaryLayer = binary layer where each coefficient was generated
  *
  * Note output weights are typically used only for the purpose of
  * sorting or bucketing for entropy coding.
  */
 void
 regionAdaptiveHierarchicalTransform(
+  FixedPoint quantStepSizeLuma,
   long long* mortonCode,
-  float* attributes,
-  float* weight,
+  FixedPoint* attributes,
+  uint64_t* weight,
   int* binaryLayer,
-  int attribCount,
-  int voxelCount,
-  int depth)
+  const int attribCount,
+  const int voxelCount,
+  int* integerizedAttributes)
 {
-  // Prologue, common to both RAHT and IRAHT:
+  size_t M, N;
+  size_t S, d, i, j;
 
-  //% Process one level at a time, from leaves(b = 1) to root(b = 3 * depth).
-  // for b = 1:3 * depth
-  //    if b == 1 % initialize indices of coeffs at level b
-  //        I{ b } = uint32(1:N)'; % vector of indices from 1 to N
-  //    else % define indices of coeffs at level b
-  //        I{ b } = I{ b - 1 }(~[0; F{ b - 1 }]);
-  //    end
-  //    Mb = M1(I{ b }); % Morton codes at level b
-  //    W{ b } = double([I{ b }(2:end); N + 1] - I{ b }); % weights
-  //    D = bitxor(Mb(1:end - 1), Mb(2:end)); % path diffs
-  //    F{ b } = (bitand(D, (bitshift(c1, 3 * depth) - bitshift(c1, b)))) == 0; % is left sibling
-  // end
+  N = voxelCount;
 
-  // Allocate I, W, F.
-  // I[b] = indices of Morton codes of lead voxels at binary level b
-  // W[b] = weights of cells at binary level b
-  // F[b] = boolean flags to indicate left siblings at binary level b
-  int** I = new int*[3 * depth];
-  int** W = new int*[3 * depth];
-  bool** F = new bool*[3 * depth];
-  int* N = new int[3 * depth];  // length of above arrays at each level
-  long long* Mb = new long long
-    [voxelCount];  // Morton codes of lead voxels at binary level b
+  FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
+  uint64_t* weightTransformed = new uint64_t[voxelCount];
+  long long* mortonCodeTransformed = new long long[voxelCount];
 
-  // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
-  int Nparent = voxelCount;
-  for (int b = 0; b < 3 * depth; b++) {
-    // Get indices for each node at this level.
-    int Nb = Nparent;
-    N[b] = Nb;
-    int* Ib = new int[Nb];
-    I[b] = Ib;
-    if (b == 0) {
-      // Initialize indices of coefficients at level b.
-      for (int n = 0; n < Nb; n++)
-        Ib[n] = n;
-    } else {
-      // Define indices of coefficients at level b.
-      int Nchild = N[b - 1];    // number of nodes at child level
-      int* Ichild = I[b - 1];   // indices of nodes at child level
-      bool* Fchild = F[b - 1];  // left-sibling flags at child level
-      int i = 0;
-      Ib[i++] = Ichild[0];  // always promote index of child[0] to parent
-      for (int n = 1; n < Nchild; n++) {
-        // If node to left of child[n] is not a left child,
-        // then child[n] is not a right child, i.e.,
-        // child[n] is a left child or an orphan,
-        // in which case promote its index to its parent
-        if (Fchild[n - 1] == false) {
-          Ib[i++] = Ichild[n];
-        }
+  d = 0;
+  while (N > 1 || d % 2) {
+    d++;
+    i = 0;
+    M = 0;
+    S = N;
+
+    while (i < S) {
+      j = i + 1;
+      mortonCodeTransformed[M] = mortonCode[i] >> 1;
+
+      if (j < S && mortonCodeTransformed[M] == (mortonCode[j] >> 1)) {
+        N--;
+
+        weightTransformed[M] = weightTransformed[N] = weight[i] + weight[j];
+
+        rahtFixedPointRotation(
+          quantStepSizeLuma, weight[i], weight[j],
+          attributes + i * attribCount, attributes + j * attribCount,
+          attributesTransformed + M * attribCount,
+          attributesTransformed + N * attribCount, attribCount);
+
+        binaryLayer[N] = d;
+
+        i += 2;
+      } else {
+        weightTransformed[M] = weight[i];
+        for (size_t k = 0; k < attribCount; k++)
+          attributesTransformed[M * attribCount + k] =
+            attributes[i * attribCount + k];
+        i += 1;
       }
-      // assert i==Nb
+      M++;
     }
 
-    // Collect Morton codes for each node at this level.
-    for (int n = 0; n < Nb; n++)
-      Mb[n] = mortonCode[Ib[n]];
+    i = S * attribCount;
+    j = N * attribCount;
+    while (i-- > j)
+      attributes[i] = attributesTransformed[i];
 
-    // Compute Weights for each node at this level.
-    int* Wb = new int[Nb];
-    W[b] = Wb;
-    for (int n = 0; n < Nb - 1; n++)
-      Wb[n] = Ib[n + 1] - Ib[n];
-    Wb[Nb - 1] = voxelCount - Ib[Nb - 1];
-
-    // Flag whether this is a left sibling for each node at this level.
-    bool* Fb = new bool[Nb - 1];
-    F[b] = Fb;
-    long long mask = ((long long)1 << (3 * depth))
-      - ((long long)1 << (b + 1));  // turn on all bits above b
-    Nparent = 1;                    // number of nodes at parent level
-    for (int n = 0; n < Nb - 1; n++) {
-      long long D = Mb[n + 1] ^ Mb[n];  // path difference
-      Fb[n] = (D & mask) == 0;          // is left sibling if prefix is shared
-      if (Fb[n] == false)
-        Nparent++;  // count non-left-siblings
-    }
+    std::swap(attributes, attributesTransformed);
+    std::swap(mortonCode, mortonCodeTransformed);
+    std::swap(weight, weightTransformed);
   }
+  binaryLayer[0] = d;
 
-  // RAHT-specific part:
+  delete[] weightTransformed;
+  delete[] mortonCodeTransformed;
+  delete[] attributesTransformed;
 
-  //% Initialize weights to all ones.
-  // weights = ones(size(transformedAttributes,1),1);
-  //
-  //% Process one level at a time, from leaves (b=1) to root (b=3*depth).
-  // for b = 1:3*depth
-  //    i0 = I{b}([F{b};0] == 1); % left sibling indices
-  //    if isempty(i0)
-  //        continue;
-  //    end
-  //    i1 = I{b}([0;F{b}] == 1); % right sibling indices
-  //    w0 = W{b}([F{b};0] == 1); % left sibling weights
-  //    w1 = W{b}([0;F{b}] == 1); % right sibling weights
-  //    x0 = transformedAttributes(i0,:); % left sibling coefficients
-  //    x1 = transformedAttributes(i1,:); % right sibling coefficients
-  //    alpha = repmat(single(sqrt(w0 ./ (w0+w1))),1,size(transformedAttributes,2));
-  //    beta = repmat(single(sqrt(w1 ./ (w0+w1))),1,size(transformedAttributes,2));
-  //    transformedAttributes(i0,:) = alpha .* x0 + beta .* x1;
-  //    transformedAttributes(i1,:) = -beta .* x0 + alpha .* x1;
-  //    weights(i0) = weights(i0) + weights(i1);
-  //    weights(i1) = weights(i0); % same as i0
-  // end
+  // Quantization of DC coefficients
+  quantStepSizeLuma.val = sqrtFixedpoint(
+    (quantStepSizeLuma.val * quantStepSizeLuma.val) / weight[0]);
+  for (size_t k = 0; k < attribCount; k++)
+    attributes[k] /= quantStepSizeLuma;
 
-  // Allocate local workspace for attributes.
-  float* x0 = new float[attribCount];
-  float* x1 = new float[attribCount];
-
-  // Initialize weights.
-  for (int n = 0; n < voxelCount; n++) {
-    weight[n] = 1.0f;
-    binaryLayer[n] = 0;
-  }
-
-  // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
-  for (int b = 0; b < 3 * depth; b++) {
-    int Nb = N[b];
-    int* Ib = I[b];
-    int* Wb = W[b];
-    bool* Fb = F[b];
-
-    // Process all (left,right) siblings.
-    for (int n = 0; n < Nb - 1; n++) {
-      if (Fb[n] == true) {
-        // Found a (left,right) sibling.
-        // Copy attributes into local workspace.
-        int i0 = Ib[n];
-        int i1 = Ib[n + 1];
-        for (int k = 0; k < attribCount; k++) {
-          x0[k] = attributes[attribCount * i0 + k];
-          x1[k] = attributes[attribCount * i1 + k];
-        }
-        // Perform Givens rotation on attributes of (left,right) siblings.
-        int w0 = Wb[n];
-        int w1 = Wb[n + 1];
-        float frac = (float)w0 / (float)(w0 + w1);
-        float alpha = sqrt(frac);
-        float beta = sqrt(1.0f - frac);
-        for (int k = 0; k < attribCount; k++) {
-          attributes[attribCount * i0 + k] = alpha * x0[k] + beta * x1[k];
-          attributes[attribCount * i1 + k] = -beta * x0[k] + alpha * x1[k];
-        }
-        // Set weights.
-        weight[i0] = (w0 + w1);
-        weight[i1] = (w0 + w1);
-
-        binaryLayer[i0] = b + 1;
-
-        n++;  // skip over right sibling
-      }
-    }
-  }
-
-  // Free arrays.
-  delete[] x0;
-  delete[] x1;
-  for (int b = 0; b < 3 * depth; b++) {
-    delete[] I[b];
-    delete[] W[b];
-    delete[] F[b];
-  }
-  delete[] I;
-  delete[] W;
-  delete[] F;
-  delete[] N;
-  delete[] Mb;
+  for (i = 0; i < voxelCount; i++)
+    for (size_t k = 0; k < attribCount; k++)
+      integerizedAttributes[i + voxelCount * k] =
+        attributes[i * attribCount + k].round();
 }
 
+//============================================================================
 /*
- * inverse RAHT
-
+ * inverse RAHT Fixed Point
+ *
  * Inputs:
+ * quantStepSizeLuma = Quantization step
  * mortonCode = list of 'voxelCount' Morton codes of voxels, sorted in ascending Morton code order
- * attributes = 'voxelCount' x 'attribCount' array of transformed attributes, in row-major order
  * attribCount = number of attributes (e.g., 3 if attributes are red, green, blue)
  * voxelCount = number of voxels
- * depth = number of bits of precision (e.g., 10) for each coordinate in mortonCode
+ * integerizedAttributes = quantized transformed attributes array, in column-major order
  *
  * Outputs:
  * attributes = 'voxelCount' x 'attribCount' array of attributes, in row-major order
  *
- * Note transform is done 'in-place' (i.e., array 'attributes' contains
- * transformed attributes on input, and attributes on output).
+ * Note output weights are typically used only for the purpose of
+ * sorting or bucketing for entropy coding.
  */
 void
 regionAdaptiveHierarchicalInverseTransform(
+  FixedPoint quantStepSizeLuma,
   long long* mortonCode,
-  float* attributes,
-  int attribCount,
-  int voxelCount,
-  int depth)
+  FixedPoint* attributes,
+  uint64_t* weight,
+  const int attribCount,
+  const int voxelCount,
+  int* integerizedAttributes)
 {
-  // Prologue, common to both RAHT and IRAHT:
+  size_t M, N;
+  size_t S, d, i, j;
 
-  //% Process one level at a time, from leaves(b = 1) to root(b = 3 * depth).
-  // for b = 1:3 * depth
-  //    if b == 1 % initialize indices of coeffs at level b
-  //        I{ b } = uint32(1:N)'; % vector of indices from 1 to N
-  //    else % define indices of coeffs at level b
-  //        I{ b } = I{ b - 1 }(~[0; F{ b - 1 }]);
-  //    end
-  //    Mb = M1(I{ b }); % Morton codes at level b
-  //    W{ b } = double([I{ b }(2:end); N + 1] - I{ b }); % weights
-  //    D = bitxor(Mb(1:end - 1), Mb(2:end)); % path diffs
-  //    F{ b } = (bitand(D, (bitshift(c1, 3 * depth) - bitshift(c1, b)))) == 0; % is left sibling
-  // end
+  M = N = voxelCount;
 
-  // Allocate I, W, F.
-  // I[b] = indices of Morton codes of lead voxels at binary level b
-  // W[b] = weights of cells at binary level b
-  // F[b] = boolean flags to indicate left siblings at binary level b
-  int** I = new int*[3 * depth];
-  int** W = new int*[3 * depth];
-  bool** F = new bool*[3 * depth];
-  int* N = new int[3 * depth];  // length of above arrays at each level
-  long long* Mb = new long long
-    [voxelCount];  // Morton codes of lead voxels at binary level b
+  FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
+  uint64_t* weightTransformed = new uint64_t[voxelCount];
+  long long* mortonCodeTransformed = new long long[voxelCount];
 
-  // Process one level at a time, from leaves (b=0) to root (b=3*depth-1).
-  int Nparent = voxelCount;
-  for (int b = 0; b < 3 * depth; b++) {
-    // Get indices for each node at this level.
-    int Nb = Nparent;
-    N[b] = Nb;
-    int* Ib = new int[Nb];
-    I[b] = Ib;
-    if (b == 0) {
-      // Initialize indices of coefficients at level b.
-      for (int n = 0; n < Nb; n++)
-        Ib[n] = n;
-    } else {
-      // Define indices of coefficients at level b.
-      int Nchild = N[b - 1];    // number of nodes at child level
-      int* Ichild = I[b - 1];   // indices of nodes at child level
-      bool* Fchild = F[b - 1];  // left-sibling flags at child level
-      int i = 0;
-      Ib[i++] = Ichild[0];  // always promote index of child[0] to parent
-      for (int n = 1; n < Nchild; n++) {
-        // If node to left of child[n] is not a left child,
-        // then child[n] is not a right child, i.e.,
-        // child[n] is a left child or an orphan,
-        // in which case promote its index to its parent
-        if (Fchild[n - 1] == false) {
-          Ib[i++] = Ichild[n];
-        }
+  long long** mortonCodeBuffer;
+  uint64_t** weightBuffer;
+  size_t* M_buffer;
+  {
+    size_t depth = 0;
+    long long maxMortonCode = mortonCode[voxelCount - 1];
+
+    while (maxMortonCode--) {
+      depth++;
+      maxMortonCode >>= 1;
+    }
+
+    mortonCodeBuffer = new long long*[depth + 1];
+    weightBuffer = new uint64_t*[depth + 1];
+    M_buffer = new size_t[depth + 1];
+  }
+
+  for (i = 0; i < voxelCount; i++)
+    for (size_t k = 0; k < attribCount; k++)
+      attributesTransformed[i * attribCount + k] =
+        (double)integerizedAttributes[i + k * voxelCount];
+
+  // Dequantization of DC coefficients
+  {
+    FixedPoint quantStepSizeLuma2;
+    quantStepSizeLuma2.val =
+      sqrtFixedpoint((quantStepSizeLuma.val * quantStepSizeLuma.val) / N);
+    for (size_t k = 0; k < attribCount; k++)
+      attributesTransformed[k] *= quantStepSizeLuma2;
+  }
+
+  // Re-obtain weights at the decoder by partially executing the encoder
+  d = 0;
+  while (N > 1) {
+    long long* _mortonCode = new long long[M];
+    uint64_t* _weight = new uint64_t[M];
+
+    M_buffer[d] = M;
+    mortonCodeBuffer[d] = _mortonCode;
+    weightBuffer[d] = _weight;
+
+    for (i = 0; i < M; i++) {
+      _mortonCode[i] = mortonCode[i] >> 1;
+      _weight[i] = weight[i];
+    }
+    d++;
+
+    i = 0;
+    S = M;
+    M = 0;
+
+    while (i < S) {
+      mortonCodeTransformed[M] = _mortonCode[i];
+      j = i + 1;
+
+      if (j < S && _mortonCode[i] == _mortonCode[j]) {
+        N--;
+        weightTransformed[M] = weight[i] + weight[j];
+        i += 2;
+      } else {
+        weightTransformed[M] = weight[i];
+        i += 1;
       }
-      // assert i==Nb
+      M++;
     }
 
-    // Collect Morton codes for each node at this level.
-    for (int n = 0; n < Nb; n++)
-      Mb[n] = mortonCode[Ib[n]];
-
-    // Compute Weights for each node at this level.
-    int* Wb = new int[Nb];
-    W[b] = Wb;
-    for (int n = 0; n < Nb - 1; n++)
-      Wb[n] = Ib[n + 1] - Ib[n];
-    Wb[Nb - 1] = voxelCount - Ib[Nb - 1];
-
-    // Flag whether this is a left sibling for each node at this level.
-    bool* Fb = new bool[Nb - 1];
-    F[b] = Fb;
-    long long mask = ((long long)1 << (3 * depth))
-      - ((long long)1 << (b + 1));  // turn on all bits above b
-    Nparent = 1;                    // number of nodes at parent level
-    for (int n = 0; n < Nb - 1; n++) {
-      long long D = Mb[n + 1] ^ Mb[n];  // path difference
-      Fb[n] = (D & mask) == 0;          // is left sibling if prefix is shared
-      if (Fb[n] == false)
-        Nparent++;  // count non-left-siblings
-    }
+    std::swap(mortonCode, mortonCodeTransformed);
+    std::swap(weight, weightTransformed);
   }
 
-  // IRAHT-specific part:
+  if (d % 2) {
+    delete[] mortonCode;
+    delete[] weight;
+  } else {
+    delete[] mortonCodeTransformed;
+    delete[] weightTransformed;
+  }
 
-  //% Process one level at a time, from root(b = 3 * depth) to leaves(b = 1).
-  // for b = 3 * depth:-1 : (3 * (depth - level) + 1)
-  //    i0 = I{ b }([F{ b }; 0] == 1); % left sibling indices
-  //    if isempty(i0)
-  //        continue;
-  //    end
-  //    i1 = I{ b }([0; F{ b }] == 1); % right sibling indices
-  //    w0 = W{ b }([F{ b }; 0] == 1); % left sibling weights
-  //    w1 = W{ b }([0; F{ b }] == 1); % right sibling weights
-  //    x0 = attributes(i0, :); % left sibling coefficients
-  //    x1 = attributes(i1, :); % right sibling coefficients
-  //    alpha = repmat(single(sqrt(w0./(w0 + w1))), 1, size(attributes, 2));
-  //    beta = repmat(single(sqrt(w1./(w0 + w1))), 1, size(attributes, 2));
-  //    attributes(i0, :) = alpha.*x0 - beta.*x1;
-  //    attributes(i1, :) = beta.*x0 + alpha.*x1;
-  // end
+  // Inverse transform
+  while (d--) {
+    S = M_buffer[d];
 
-  // Allocate local workspace for attributes.
-  float* x0 = new float[attribCount];
-  float* x1 = new float[attribCount];
+    mortonCode = mortonCodeBuffer[d];
+    weight = weightBuffer[d];
 
-  // Process one level at a time, root (b=3*depth-1) to from leaves (b=0).
-  for (int b = 3 * depth - 1; b >= 0; b--) {
-    int Nb = N[b];
-    int* Ib = I[b];
-    int* Wb = W[b];
-    bool* Fb = F[b];
+    M = 0;
+    N = S;
+    i = 0;
 
-    // Process all (left,right) siblings.
-    for (int n = 0; n < Nb - 1; n++) {
-      if (Fb[n] == true) {
-        // Found a (left,right) sibling.
-        // Copy attributes into local workspace.
-        int i0 = Ib[n];
-        int i1 = Ib[n + 1];
-        for (int k = 0; k < attribCount; k++) {
-          x0[k] = attributes[attribCount * i0 + k];
-          x1[k] = attributes[attribCount * i1 + k];
-        }
-        // Perform Givens rotation on attributes of (left,right) siblings.
-        int w0 = Wb[n];
-        int w1 = Wb[n + 1];
-        float frac = (float)w0 / (float)(w0 + w1);
-        float alpha = sqrt(frac);
-        float beta = sqrt(1.0f - frac);
-        for (int k = 0; k < attribCount; k++) {
-          attributes[attribCount * i0 + k] = alpha * x0[k] - beta * x1[k];
-          attributes[attribCount * i1 + k] = beta * x0[k] + alpha * x1[k];
-        }
-        n++;  // skip over right sibling
+    while (i < S) {
+      j = i + 1;
+
+      if (j < S && mortonCode[i] == mortonCode[j]) {
+        N--;
+
+        rahtFixedPointInverseRotation(
+          quantStepSizeLuma, weight[i], weight[j],
+          attributes + i * attribCount, attributes + j * attribCount,
+          attributesTransformed + M * attribCount,
+          attributesTransformed + N * attribCount, attribCount);
+
+        i += 2;
+      } else {
+        for (size_t k = 0; k < attribCount; k++)
+          attributes[i * attribCount + k] =
+            attributesTransformed[M * attribCount + k];
+        i += 1;
       }
+      M++;
     }
+
+    delete[] mortonCode;
+    delete[] weight;
+
+    i = S * attribCount;
+    while (i--)
+      attributesTransformed[i] = attributes[i];
   }
 
-  // Free arrays.
-  delete[] x0;
-  delete[] x1;
-  for (int b = 0; b < 3 * depth; b++) {
-    delete[] I[b];
-    delete[] W[b];
-    delete[] F[b];
-  }
-  delete[] I;
-  delete[] W;
-  delete[] F;
-  delete[] N;
-  delete[] Mb;
+  delete[] M_buffer;
+  delete[] weightBuffer;
+  delete[] mortonCodeBuffer;
+  delete[] attributesTransformed;
 }
 
-} /* namespace pcc */
+//============================================================================
+
+}  // namespace pcc

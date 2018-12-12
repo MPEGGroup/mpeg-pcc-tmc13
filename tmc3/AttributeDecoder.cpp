@@ -40,6 +40,7 @@
 #include "entropy.h"
 #include "io_hls.h"
 #include "RAHT.h"
+#include "FixedPoint.h"
 
 namespace pcc {
 
@@ -352,8 +353,11 @@ AttributeDecoder::decodeReflectancesRaht(
   PCCPointSet3& pointCloud)
 {
   const int voxelCount = int(pointCloud.getPointCount());
+  uint64_t* weight = new uint64_t[voxelCount];
+  int* binaryLayer = new int[voxelCount];
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
+    weight[n] = 1;
     const auto position = pointCloud[n];
     int x = int(position[0]);
     int y = int(position[1]);
@@ -369,55 +373,34 @@ AttributeDecoder::decodeReflectancesRaht(
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
-  // Moroton codes
+  // Morton codes
   long long* mortonCode = new long long[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
 
-  // Re-obtain weights at the decoder by calling RAHT without any attributes.
-  float* weight = new float[voxelCount];
-  int* binaryLayer = new int[voxelCount];
-  regionAdaptiveHierarchicalTransform(
-    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, aps.raht_depth);
-
-  // Sort integerized attributes by weight
-  std::vector<WeightWithIndex> sortedWeight(voxelCount);
-  for (int n = 0; n < voxelCount; n++) {
-    sortedWeight[n].weight = weight[n];
-    sortedWeight[n].index = n;
-  }
-  sort(sortedWeight.begin(), sortedWeight.end());
-
   // Entropy decode
-  int* sortedIntegerizedAttributes = new int[voxelCount];
+  const int attribCount = 1;
+  uint32_t value;
+  int* integerizedAttributes = new int[attribCount * voxelCount];
   for (int n = 0; n < voxelCount; ++n) {
-    const uint32_t attValue0 = decoder.decode();
-    sortedIntegerizedAttributes[n] = UIntToInt(attValue0);
+    value = decoder.decode();
+    integerizedAttributes[n] = UIntToInt(value);
   }
 
-  // Unsort integerized attributes by weight.
-  int* integerizedAttributes = new int[voxelCount];
-  for (int n = 0; n < voxelCount; n++) {
-    integerizedAttributes[sortedWeight[n].index] =
-      sortedIntegerizedAttributes[n];
-  }
-
-  // Inverse Quantize.
-  float* attributes = new float[voxelCount];
-  for (int n = 0; n < voxelCount; n++) {
-    attributes[n] = integerizedAttributes[n] * aps.quant_step_size_luma;
-  }
+  FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    mortonCode, attributes, 1, voxelCount, aps.raht_depth);
+    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
+    attribCount, voxelCount, integerizedAttributes);
 
-  const int maxReflectance = (1 << desc.attr_bitdepth) - 1;
-  const int minReflectance = 0;
+  const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
+  const int64_t minReflectance = 0;
   for (int n = 0; n < voxelCount; n++) {
-    const int reflectance =
-      PCCClip((int)round(attributes[n]), minReflectance, maxReflectance);
-    pointCloud.setReflectance(packedVoxel[n].index, uint16_t(reflectance));
+    int64_t val = attributes[attribCount * n].round();
+    const uint16_t reflectance =
+      (uint16_t)PCCClip(val, minReflectance, maxReflectance);
+    pointCloud.setReflectance(packedVoxel[n].index, reflectance);
   }
 
   // De-allocate arrays.
@@ -425,7 +408,6 @@ AttributeDecoder::decodeReflectancesRaht(
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;
-  delete[] sortedIntegerizedAttributes;
   delete[] weight;
 }
 
@@ -439,8 +421,11 @@ AttributeDecoder::decodeColorsRaht(
   PCCPointSet3& pointCloud)
 {
   const int voxelCount = int(pointCloud.getPointCount());
+  uint64_t* weight = new uint64_t[voxelCount];
+  int* binaryLayer = new int[voxelCount];
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
+    weight[n] = 1;
     const auto position = pointCloud[n];
     int x = int(position[0]);
     int y = int(position[1]);
@@ -456,74 +441,35 @@ AttributeDecoder::decodeColorsRaht(
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
-  // Moroton codes
+  // Morton codes
   long long* mortonCode = new long long[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
 
-  // Re-obtain weights at the decoder by calling RAHT without any attributes.
-  float* weight = new float[voxelCount];
-  int* binaryLayer = new int[voxelCount];
-  regionAdaptiveHierarchicalTransform(
-    mortonCode, nullptr, weight, binaryLayer, 0, voxelCount, aps.raht_depth);
-
-  // Sort integerized attributes by weight
-  std::vector<WeightWithIndex> sortedWeight(voxelCount);
-  for (int n = 0; n < voxelCount; n++) {
-    sortedWeight[n].weight = weight[n];
-    sortedWeight[n].index = n;
-  }
-  sort(sortedWeight.begin(), sortedWeight.end());
-
   // Entropy decode
   const int attribCount = 3;
   uint32_t values[3];
-  int* sortedIntegerizedAttributes = new int[attribCount * voxelCount];
-  for (int n = 0; n < voxelCount; ++n) {
-    if (
-      binaryLayer[sortedWeight[n].index] >= aps.raht_binary_level_threshold) {
-      decoder.decode(values);
-      sortedIntegerizedAttributes[n] = UIntToInt(values[0]);
-      for (int d = 1; d < 3; ++d) {
-        sortedIntegerizedAttributes[voxelCount * d + n] = UIntToInt(values[d]);
-      }
-    } else {
-      values[0] = decoder.decode();
-      sortedIntegerizedAttributes[n] = UIntToInt(values[0]);
-      for (int d = 1; d < 3; d++) {
-        sortedIntegerizedAttributes[voxelCount * d + n] = 0;
-      }
-    }
-  }
-
-  // Unsort integerized attributes by weight.
   int* integerizedAttributes = new int[attribCount * voxelCount];
-  for (int n = 0; n < voxelCount; n++) {
-    for (int k = 0; k < attribCount; k++) {
-      // Pull sorted integerized attributes out of column-major order.
-      integerizedAttributes[attribCount * sortedWeight[n].index + k] =
-        sortedIntegerizedAttributes[voxelCount * k + n];
+
+  for (int n = 0; n < voxelCount; ++n) {
+    decoder.decode(values);
+    for (int d = 0; d < attribCount; ++d) {
+      integerizedAttributes[voxelCount * d + n] = UIntToInt(values[d]);
     }
   }
 
-  // Inverse Quantize.
-  float* attributes = new float[attribCount * voxelCount];
-  for (int n = 0; n < voxelCount; n++) {
-    for (int k = 0; k < attribCount; k++) {
-      attributes[attribCount * n + k] =
-        integerizedAttributes[attribCount * n + k] * aps.quant_step_size_luma;
-    }
-  }
+  FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    mortonCode, attributes, attribCount, voxelCount, aps.raht_depth);
+    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
+    attribCount, voxelCount, integerizedAttributes);
 
   const int clipMax = (1 << desc.attr_bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {
-    const int r = (int)round(attributes[attribCount * n]);
-    const int g = (int)round(attributes[attribCount * n + 1]);
-    const int b = (int)round(attributes[attribCount * n + 2]);
+    const int r = attributes[attribCount * n].round();
+    const int g = attributes[attribCount * n + 1].round();
+    const int b = attributes[attribCount * n + 2].round();
     PCCColor3B color;
     color[0] = uint8_t(PCCClip(r, 0, clipMax));
     color[1] = uint8_t(PCCClip(g, 0, clipMax));
@@ -536,7 +482,6 @@ AttributeDecoder::decodeColorsRaht(
   delete[] mortonCode;
   delete[] attributes;
   delete[] integerizedAttributes;
-  delete[] sortedIntegerizedAttributes;
   delete[] weight;
 }
 
