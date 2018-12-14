@@ -194,9 +194,9 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
   uint8_t retval = *ctxIdx;
 
   if (bit)
-    *ctxIdx = kCtxMapOctreeOccupancyEvolutionOn1[*ctxIdx];
+    *ctxIdx += kCtxMapOctreeOccupancyDelta[(255 - *ctxIdx) >> 4];
   else
-    *ctxIdx = kCtxMapOctreeOccupancyEvolutionOn0[*ctxIdx];
+    *ctxIdx -= kCtxMapOctreeOccupancyDelta[*ctxIdx >> 4];
 
   return retval;
 }

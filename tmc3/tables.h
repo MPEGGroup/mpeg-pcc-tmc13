@@ -82,9 +82,9 @@ extern const uint8_t kOccMapRotateZ270[256];
 extern const uint8_t kOccMapRotateZ180[256];
 extern const uint8_t kOccMapRotateZ090[256];
 
-// todo(df): ...
-extern const uint8_t kCtxMapOctreeOccupancyEvolutionOn0[256];
-extern const uint8_t kCtxMapOctreeOccupancyEvolutionOn1[256];
+// Geometry occupancy context map update table, represented as deltas to
+// current map entry value.
+extern const uint8_t kCtxMapOctreeOccupancyDelta[16];
 
 // LUT initialisation table
 extern const uint8_t kDualLutOccupancyCoderInit[10][32];
