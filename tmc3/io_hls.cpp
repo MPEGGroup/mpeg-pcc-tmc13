@@ -257,6 +257,7 @@ write(const AttributeParameterSet& aps)
     bs.writeUe(aps.search_range);
     bs.writeUe(aps.quant_step_size_luma);
     bs.writeUe(aps.quant_step_size_chroma);
+    bs.write(aps.lod_binary_tree_enabled_flag);
 
     bs.writeUe(aps.num_detail_levels);
     for (int idx = 0; idx < aps.num_detail_levels; idx++) {
@@ -304,6 +305,7 @@ parseAps(const PayloadBuffer& buf)
     bs.readUe(&aps.search_range);
     bs.readUe(&aps.quant_step_size_luma);
     bs.readUe(&aps.quant_step_size_chroma);
+    bs.read(&aps.lod_binary_tree_enabled_flag);
 
     aps.num_detail_levels = int(bs.readUe());
     aps.dist2.resize(aps.num_detail_levels);

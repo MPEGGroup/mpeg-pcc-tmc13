@@ -41,6 +41,10 @@ categories:
        - levelOfDetailCount: ${seq_lod}
        - positionQuantizationScaleAdjustsDist2: 1
        - dist2: ${seq_dist2}
+       - lodBinaryTree: 0
+       -
+         - !conditional '"${group}" =~ m{^cat3}'
+         - lodBinaryTree: 1
 
        ##
        # attribute coding -- reflectance

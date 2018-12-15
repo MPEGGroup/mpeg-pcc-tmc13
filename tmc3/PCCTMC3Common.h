@@ -584,7 +584,150 @@ updatePredictors(
 }
 
 //---------------------------------------------------------------------------
+// LoD generation using Binary-tree
+inline void
+buildLevelOfDetailBinaryTree(
+  const PCCPointSet3& pointCloud,
+  std::vector<uint32_t>& numberOfPointsPerLOD,
+  std::vector<uint32_t>& indexes)
+{
+  const uint32_t pointCount = pointCloud.getPointCount();
+  uint8_t const btDepth = std::log2(round(pointCount / 2)) - 1;
+  PCCKdTree3 kdtree(pointCloud, btDepth);
+  kdtree.build();
 
+  bool skipLayer = true;  //if true, skips alternate layer of BT
+  std::vector<bool> skipDepth(btDepth + 1, false);
+  if (skipLayer) {
+    for (int i = skipDepth.size() - 2; i >= 0; i--) {
+      skipDepth[i] = !skipDepth[i + 1];  //if true, that layer is skipped
+    }
+  }
+
+  indexes.resize(pointCount);
+  std::vector<bool> visited(pointCount, false);
+  uint32_t lod = 0;
+  uint32_t start = 0;
+  uint32_t end = 0;
+  for (size_t i = 0; i < btDepth + 1; i++) {
+    start = end;
+    end = start + (1 << i);
+    if (!skipDepth[i]) {
+      for (int j = start; j < end; j++) {
+        auto indx = kdtree.searchClosestAvailablePoint(kdtree.nodes[j].centd);
+        if (indx != PCC_UNDEFINED_INDEX && !visited[indx]) {
+          indexes[lod++] = indx;
+          visited[indx] = true;
+        }
+      }
+      numberOfPointsPerLOD.push_back(lod);
+    }
+  }
+  for (size_t i = 0; i < pointCount; i++) {
+    if (!visited[i]) {
+      indexes[lod++] = i;
+    }
+  }
+  numberOfPointsPerLOD.push_back(lod);
+}
+
+//---------------------------------------------------------------------------
+struct PointCloudWrapper {
+  PointCloudWrapper(
+    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes)
+    : _pointCloud(pointCloud), _indexes(indexes)
+  {}
+  inline size_t kdtree_get_point_count() const { return _pointCount; }
+  inline void kdtree_set_point_count(const size_t pointCount)
+  {
+    assert(pointCount < _indexes.size());
+    assert(pointCount < _pointCloud.getPointCount());
+    _pointCount = pointCount;
+  }
+  inline double kdtree_get_pt(const size_t idx, int dim) const
+  {
+    assert(idx < _pointCount && dim < 3);
+    return _pointCloud[_indexes[idx]][dim];
+  }
+  template<class BBOX>
+  bool kdtree_get_bbox(BBOX& /* bb */) const
+  {
+    return false;
+  }
+
+  const PCCPointSet3& _pointCloud;
+  const std::vector<uint32_t>& _indexes;
+  size_t _pointCount = 0;
+};
+
+//---------------------------------------------------------------------------
+inline void
+computePredictors(
+  const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& numberOfPointsPerLOD,
+  const std::vector<uint32_t>& indexes,
+  const size_t numberOfNearestNeighborsInPrediction,
+  std::vector<PCCPredictor>& predictors)
+{
+  const uint32_t PCCTMC3MaxPredictionNearestNeighborCount = 3;
+  const size_t pointCount = pointCloud.getPointCount();
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  assert(lodCount);
+  predictors.resize(pointCount);
+
+  // delta prediction for LOD0
+  uint32_t i0 = numberOfPointsPerLOD[0];
+  for (uint32_t i = 0; i < i0; ++i) {
+    auto& predictor = predictors[i];
+    if (i == 0) {
+      predictor.init(PCC_UNDEFINED_INDEX);
+    } else {
+      predictor.init(PCC_UNDEFINED_INDEX);
+    }
+  }
+  PointCloudWrapper pointCloudWrapper(pointCloud, indexes);
+  const nanoflann::SearchParams params(10, 0.0f, true);
+  size_t indices[PCCTMC3MaxPredictionNearestNeighborCount];
+  double sqrDist[PCCTMC3MaxPredictionNearestNeighborCount];
+  nanoflann::KNNResultSet<double> resultSet(
+    numberOfNearestNeighborsInPrediction);
+  for (uint32_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
+    pointCloudWrapper.kdtree_set_point_count(i0);
+    nanoflann::KDTreeSingleIndexAdaptor<
+      nanoflann::L2_Simple_Adaptor<double, PointCloudWrapper>,
+      PointCloudWrapper, 3>
+      kdtree(
+        3, pointCloudWrapper, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+    kdtree.buildIndex();
+    const uint32_t i1 = numberOfPointsPerLOD[lodIndex];
+
+    for (uint32_t i = i0; i < i1; ++i) {
+      const uint32_t pointIndex = indexes[i];
+      const auto& point = pointCloud[pointIndex];
+      auto& predictor = predictors[i];
+      resultSet.init(indices, sqrDist);
+      kdtree.findNeighbors(resultSet, &point[0], params);
+      const uint32_t resultCount = resultSet.size();
+      if (sqrDist[0] == 0.0 || resultCount == 1) {
+        const uint32_t predIndex = indices[0];
+        predictor.init(predIndex);
+      } else {
+        predictor.neighborCount = resultCount;
+        for (size_t n = 0; n < resultCount; ++n) {
+          const uint32_t predIndex = indices[n];
+          assert(predIndex < i);
+          predictor.neighbors[n].predictorIndex = predIndex;
+          const uint32_t pointIndex1 = indexes[predIndex];
+          const auto& point1 = pointCloud[pointIndex1];
+          predictor.neighbors[n].weight = 1.0 / (point - point1).getNorm2();
+        }
+      }
+    }
+    i0 = i1;
+  }
+}
+
+//---------------------------------------------------------------------------
 inline void
 buildPredictorsFast(
   const PCCPointSet3& pointCloud,

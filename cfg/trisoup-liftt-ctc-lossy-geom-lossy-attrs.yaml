@@ -32,6 +32,10 @@ categories:
      - transformType: 2
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: ${seq_lod}
+     - lodBinaryTree: 0
+     -
+       - !conditional '"${group}" =~ m{^cat3}'
+       - lodBinaryTree: 1
      - positionQuantizationScaleAdjustsDist2: 1
      - dist2: ${seq_dist2}
 

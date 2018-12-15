@@ -470,5 +470,244 @@ private:
   std::vector<PCCIncrementalKdTree3Node> nodes;
   uint32_t root;
 };
+
+//---------------------------------------
+class PCCKdTree3 {
+  struct PCCKdTree3Node {
+    PCCBox3D BB;
+    PCCPoint3D centd;
+    uint32_t id;
+    uint32_t start;
+    uint32_t end;
+    PCCAxis3 axis;
+    uint32_t median;
+    uint32_t medianIdx;
+  };
+  struct PointIDNode {
+    PCCPoint3D pos;
+    uint32_t id;
+    bool isVisisted;
+  };
+
+public:
+  PCCKdTree3(const PCCPointSet3& pointCloud, uint8_t depth)
+  {
+    init(pointCloud, depth);
+  }
+  PCCKdTree3(const PCCKdTree3&) = default;
+  PCCKdTree3& operator=(const PCCKdTree3&) = default;
+  ~PCCKdTree3(void) = default;
+
+  std::vector<PCCKdTree3Node> nodes;
+  void build()
+  {
+    uint32_t nodeCount =
+      (1 << (kdDepth + 1)) - 1;  // std::pow(2, kdDepth + 1) - 1
+    for (size_t nodeIt = 1; nodeIt < nodeCount; nodeIt++) {
+      bool isLeftNode = (nodeIt & 1) != 0;
+      uint32_t parentNodeIdx =
+        isLeftNode ? (nodeIt - 1) >> 1 : (nodeIt - 2) >> 1;
+      const uint32_t start = isLeftNode
+        ? static_cast<uint32_t>(nodes[parentNodeIdx].start)
+        : static_cast<uint32_t>(nodes[parentNodeIdx].medianIdx + 1);
+      const uint32_t end = isLeftNode
+        ? static_cast<uint32_t>(nodes[parentNodeIdx].medianIdx)
+        : static_cast<uint32_t>(nodes[parentNodeIdx].end);
+      PCCBox3D BB = nodes[parentNodeIdx].BB;
+      isLeftNode
+        ? BB.max[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median
+        : BB.min[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median;
+
+      PCCPoint3D nodeMean = computePCCMean(start, end);
+      PCCAxis3 axis = computeSplitAxisVar(start, end, nodeMean);
+      uint32_t medianIdx = findMedian(start, end, axis);
+
+      PCCKdTree3Node& node = nodes[nodeIt];
+      node.BB = BB;
+      node.centd = nodeMean;
+      node.id = nodeIt;
+      node.start = start;
+      node.end = end;
+      node.axis = axis;
+      node.median = pointCloudTemp[medianIdx].pos[axis];
+      node.medianIdx = medianIdx;
+    }
+  }
+
+  void init(const PCCPointSet3& pointCloud, uint8_t depth)
+  {
+    kdDepth = depth;
+    nodes.resize(0);
+    nodes.resize(std::pow(2, kdDepth + 1) - 1);
+    uint32_t pointCount = pointCloud.getPointCount();
+    pointCloudTemp.resize(pointCount);
+    for (size_t i = 0; i < pointCount; i++) {
+      pointCloudTemp[i].pos = pointCloud[i];
+      pointCloudTemp[i].id = i;
+      pointCloudTemp[i].isVisisted = false;
+    }
+
+    PCCBox3D BB = computeBoundingBox(0, pointCount);
+    PCCPoint3D nodeMean = computePCCMean(0, pointCount);
+    PCCAxis3 axis = computeSplitAxisVar(0, pointCount, nodeMean);
+    uint32_t medianIdx = findMedian(0, pointCount, axis);
+
+    PCCKdTree3Node& rootNode = nodes[0];
+    rootNode.BB = BB;
+    rootNode.centd = nodeMean;
+    rootNode.id = 0;
+    rootNode.start = static_cast<uint32_t>(0);
+    rootNode.end = static_cast<uint32_t>(pointCount - 1);
+    ;
+    rootNode.axis = axis;
+    rootNode.median = pointCloudTemp[medianIdx].pos[axis];
+    rootNode.medianIdx = medianIdx;
+  }
+
+  uint32_t searchClosestAvailablePoint(PCCPoint3D queryPoint)
+  {
+    uint32_t idToClosestPoint = -1;
+    uint32_t id = 0;
+    for (int8_t d = 0; d < kdDepth; d++) {
+      id = (queryPoint[nodes[id].axis] <= nodes[id].median) ? 2 * id + 1
+                                                            : 2 * id + 2;
+    }
+    const uint32_t start = nodes[id].start;
+    const uint32_t end = nodes[id].end;
+    const uint32_t closestDistThr = 1;
+    uint32_t smallestDist = -1;
+    uint32_t closestID = 0;
+    for (size_t i = start; i <= end; ++i) {
+      if (!pointCloudTemp[i].isVisisted) {
+        PCCPoint3D diff = pointCloudTemp[i].pos - queryPoint;
+        uint32_t dist =
+          std::sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
+        if (dist <= closestDistThr) {
+          return pointCloudTemp[i].id;
+        }
+        if (dist < smallestDist) {
+          smallestDist = dist;
+          idToClosestPoint = pointCloudTemp[i].id;
+          closestID = i;
+        }
+      }
+    }
+    if (smallestDist != -1) {
+      pointCloudTemp[closestID].isVisisted = true;
+    }
+    return idToClosestPoint;
+  }
+
+private:
+  PCCBox3D computeBoundingBox(const uint32_t start, const uint32_t end) const
+  {
+    PCCPoint3D minBB = pointCloudTemp[start].pos;
+    PCCPoint3D maxBB = pointCloudTemp[start].pos;
+    for (size_t i = start + 1; i < end; ++i) {
+      const PCCPoint3D& pt = pointCloudTemp[i].pos;
+      for (int32_t k = 0; k < 3; ++k) {
+        if (minBB[k] > pt[k]) {
+          minBB[k] = pt[k];
+        } else if (maxBB[k] < pt[k]) {
+          maxBB[k] = pt[k];
+        }
+      }
+    }
+    PCCBox3D BB;
+    {
+      BB.min = minBB;
+      BB.max = maxBB;
+    }
+    return BB;
+  }
+  PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const
+  {
+    PCCBox3D BB = computeBoundingBox(start, end);
+    PCCPoint3D d = BB.max - BB.min;
+    if (d.x() > d.y() && d.x() > d.z()) {
+      return PCC_AXIS3_X;
+    } else if (d.y() > d.z()) {
+      return PCC_AXIS3_Y;
+    } else {
+      return PCC_AXIS3_Z;
+    }
+  }
+  PCCAxis3 computeSplitAxisVar(
+    const uint32_t start, const uint32_t end, PCCPoint3D nodeMean) const
+  {
+    double nodeVar[3] = {0, 0, 0};
+    for (size_t axis = 0; axis < 3; ++axis) {
+      double acc = 0, diff = 0;
+      for (size_t i = start; i < end; i++) {
+        diff = pointCloudTemp[i].pos[axis] - nodeMean[axis];
+        acc += diff * diff;
+      }
+      nodeVar[axis] = acc / (end - start);
+    }
+    if (nodeVar[0] > nodeVar[1] && nodeVar[0] > nodeVar[2]) {
+      return PCC_AXIS3_X;
+    } else if (nodeVar[1] > nodeVar[2]) {
+      return PCC_AXIS3_Y;
+    } else {
+      return PCC_AXIS3_Z;
+    }
+  }
+  PCCPoint3D computePCCMean(const uint32_t start, const uint32_t end)
+  {
+    assert(end >= start);
+    PCCPoint3D nodeMean;
+    for (size_t axis = 0; axis < 3; ++axis) {
+      uint32_t acc = 0;
+      for (size_t i = start; i < end; i++) {
+        acc += pointCloudTemp[i].pos[axis];
+      }
+      nodeMean[axis] = round(acc / (end - start));
+    }
+    return nodeMean;
+  }
+
+  uint32_t findMedian(uint32_t start, uint32_t end, const PCCAxis3 splitAxis)
+  {
+    assert(start < end);
+    if (end == start + 1) {
+      return start;
+    }
+    const uint32_t medianIndex = start + (end - start) / 2;
+    while (1) {
+      double pivot = pointCloudTemp[medianIndex].pos[splitAxis];
+      std::swap(pointCloudTemp[medianIndex], pointCloudTemp[end - 1]);
+      uint32_t store, p;
+      for (store = p = start; p < end; p++) {
+        if (pointCloudTemp[p].pos[splitAxis] < pivot) {
+          if (p != store) {
+            std::swap(pointCloudTemp[p], pointCloudTemp[store]);
+          }
+          ++store;
+        }
+      }
+      std::swap(pointCloudTemp[store], pointCloudTemp[end - 1]);
+
+      while (store < medianIndex
+             && pointCloudTemp[store].pos[splitAxis]
+               == pointCloudTemp[store + 1].pos[splitAxis]) {
+        // optimization in case of duplicated values
+        ++store;
+      }
+
+      if (store == medianIndex) {
+        return medianIndex;
+      } else if (store > medianIndex) {
+        end = store;
+      } else {
+        start = store + 1;
+      }
+    }
+  }
+
+private:
+  std::vector<PointIDNode> pointCloudTemp;
+  uint8_t kdDepth;
+};
+//---------------------------------------
 }  // namespace pcc
 #endif /* PCCKdTree_h */

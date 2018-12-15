@@ -238,16 +238,25 @@ AttributeDecoder::decodeReflectancesPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  if (aps.num_detail_levels <= 1) {
-    buildPredictorsFastNoLod(
-      pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
-      predictors, indexesLOD);
+
+  if (!aps.lod_binary_tree_enabled_flag) {
+    if (aps.num_detail_levels <= 1) {
+      buildPredictorsFastNoLod(
+        pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
+        predictors, indexesLOD);
+    } else {
+      buildPredictorsFast(
+        pointCloud, aps.dist2, aps.num_detail_levels,
+        aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+        predictors, numberOfPointsPerLOD, indexesLOD);
+    }
   } else {
-    buildPredictorsFast(
-      pointCloud, aps.dist2, aps.num_detail_levels,
-      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-      predictors, numberOfPointsPerLOD, indexesLOD);
+    buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
+    computePredictors(
+      pointCloud, numberOfPointsPerLOD, indexesLOD,
+      aps.num_pred_nearest_neighbours, predictors);
   }
+
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -316,16 +325,25 @@ AttributeDecoder::decodeColorsPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  if (aps.num_detail_levels <= 1) {
-    buildPredictorsFastNoLod(
-      pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
-      predictors, indexesLOD);
+
+  if (!aps.lod_binary_tree_enabled_flag) {
+    if (aps.num_detail_levels <= 1) {
+      buildPredictorsFastNoLod(
+        pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
+        predictors, indexesLOD);
+    } else {
+      buildPredictorsFast(
+        pointCloud, aps.dist2, aps.num_detail_levels,
+        aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+        predictors, numberOfPointsPerLOD, indexesLOD);
+    }
   } else {
-    buildPredictorsFast(
-      pointCloud, aps.dist2, aps.num_detail_levels,
-      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-      predictors, numberOfPointsPerLOD, indexesLOD);
+    buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
+    computePredictors(
+      pointCloud, numberOfPointsPerLOD, indexesLOD,
+      aps.num_pred_nearest_neighbours, predictors);
   }
+
   uint32_t values[3];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -510,10 +528,19 @@ AttributeDecoder::decodeColorsLift(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  buildPredictorsFast(
-    pointCloud, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+
+  if (!aps.lod_binary_tree_enabled_flag) {
+    buildPredictorsFast(
+      pointCloud, aps.dist2, aps.num_detail_levels,
+      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+      predictors, numberOfPointsPerLOD, indexesLOD);
+  } else {
+    buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
+    computePredictors(
+      pointCloud, numberOfPointsPerLOD, indexesLOD,
+      aps.num_pred_nearest_neighbours, predictors);
+  }
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
@@ -573,10 +600,19 @@ AttributeDecoder::decodeReflectancesLift(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  buildPredictorsFast(
-    pointCloud, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+
+  if (!aps.lod_binary_tree_enabled_flag) {
+    buildPredictorsFast(
+      pointCloud, aps.dist2, aps.num_detail_levels,
+      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+      predictors, numberOfPointsPerLOD, indexesLOD);
+  } else {
+    buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
+    computePredictors(
+      pointCloud, numberOfPointsPerLOD, indexesLOD,
+      aps.num_pred_nearest_neighbours, predictors);
+  }
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();

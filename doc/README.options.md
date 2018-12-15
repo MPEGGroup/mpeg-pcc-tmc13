@@ -236,6 +236,14 @@ attribute prediction.
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 
+### `--lodBinaryTree=0|1`
+Controls the level-of-detail generation method:
+
+  | Value | Description                     |
+  |:-----:| ------------------------------- |
+  | 0     | Binary-tree based               |
+  | 1     | Euclidean distance thresholding |
+
 ### `--quantizationStepLuma=INT-VALUE`
 Attribute's luma quantization step size.
 
