@@ -171,17 +171,16 @@ GeometryOctreeDecoder::decodeOccupancyNeighZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
   int minOccupied = 2;
   int numOccupiedAcc = 0;
   int occupancy = 0;
 
   for (int i = 0; i < 8; i++) {
     int bit = 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> bitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> bitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
 
     int ctxIdxMapIdx =
       3 * (bitAdjGt0 + bitAdjGt1) + bitIsPredicted + bitPrediction;
@@ -195,7 +194,7 @@ GeometryOctreeDecoder::decodeOccupancyNeighZ(
     }
     ctxIdxMap.evolve(bit, &ctxIdxMap[i][numOccupiedAcc]);
     numOccupiedAcc += bit;
-    occupancy |= bit << bitCodingOrder[i];
+    occupancy |= bit << kOccBitCodingOrder[i];
   }
 
   return occupancy;
@@ -212,8 +211,6 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
-
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
   int neighPattern5 = kNeighPattern7to5[neighPattern7];
 
@@ -237,10 +234,10 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(
 
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
     int bit = 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> bitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> bitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
 
     int ctxIdxMapIdx =
       3 * (bitAdjGt0 + bitAdjGt1) + bitIsPredicted + bitPrediction;
@@ -253,7 +250,7 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(
 
     ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
     partialOccupancy |= bit << i;
-    occupancy |= bit << bitCodingOrder[i];
+    occupancy |= bit << kOccBitCodingOrder[i];
   }
 
   return occupancy;

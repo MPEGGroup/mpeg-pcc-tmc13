@@ -176,16 +176,15 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
   int minOccupied = 2;
   int numOccupiedAcc = 0;
 
   for (int i = 0; i < 8; i++) {
-    int bit = (mappedOccupancy >> bitCodingOrder[i]) & 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> bitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> bitCodingOrder[i]) & 1;
+    int bit = (mappedOccupancy >> kOccBitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
 
     int ctxIdxMapIdx =
       3 * (bitAdjGt0 + bitAdjGt1) + bitIsPredicted + bitPrediction;
@@ -216,8 +215,6 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  static const int8_t bitCodingOrder[8]{1, 7, 5, 3, 2, 4, 6, 0};
-
   int neighPattern7 = kNeighPattern10to7[neighPattern10];
   int neighPattern5 = kNeighPattern7to5[neighPattern7];
 
@@ -237,11 +234,11 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
       break;
     }
 
-    int bit = (mappedOccupancy >> bitCodingOrder[i]) & 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> bitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> bitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> bitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> bitCodingOrder[i]) & 1;
+    int bit = (mappedOccupancy >> kOccBitCodingOrder[i]) & 1;
+    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
+    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
 
     int ctxIdxMapIdx =
       3 * (bitAdjGt0 + bitAdjGt1) + bitIsPredicted + bitPrediction;

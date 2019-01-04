@@ -82,6 +82,9 @@ extern const uint8_t kOccMapRotateZ270[256];
 extern const uint8_t kOccMapRotateZ180[256];
 extern const uint8_t kOccMapRotateZ090[256];
 
+// Geometry occupancy bit scan order for entropy coding
+extern const int8_t kOccBitCodingOrder[8];
+
 // Geometry occupancy context map update table, represented as deltas to
 // current map entry value.
 extern const uint8_t kCtxMapOctreeOccupancyDelta[16];
