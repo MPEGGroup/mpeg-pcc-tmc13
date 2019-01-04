@@ -62,7 +62,7 @@ public:
     int mappedOccAdjGt1);
 
   int decodeOccupancyNeighNZ(
-    int neighPattern10,
+    int neighPattern,
     int mappedOccIsPredicted,
     int mappedOccPrediction,
     int mappedOccAdjGt0,
@@ -205,14 +205,22 @@ GeometryOctreeDecoder::decodeOccupancyNeighZ(
 
 int
 GeometryOctreeDecoder::decodeOccupancyNeighNZ(
-  int neighPattern10,
+  int neighPattern,
   int mappedOccIsPredicted,
   int mappedOccPrediction,
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  int neighPattern7 = kNeighPattern10to7[neighPattern10];
-  int neighPattern5 = kNeighPattern7to5[neighPattern7];
+  // code occupancy using the neighbour configuration context
+  // with reduction from 64 states to 9 (or 6).
+  int neighPatternR1 = _neighPattern64toR1[neighPattern];
+
+  //  int neighPattern9 = kNeighPattern64to9[neighPattern];
+  int neighPattern5 = kNeighPattern9to5[neighPatternR1];
+  int neighPattern3 = kNeighPattern9to3[neighPatternR1];
+
+  //  int neighPattern7 = kNeighPattern10to7[neighPattern10];
+  //  int neighPattern5 = kNeighPattern7to5[neighPattern7];
 
   int occupancy = 0;
   int partialOccupancy = 0;
@@ -221,17 +229,18 @@ GeometryOctreeDecoder::decodeOccupancyNeighNZ(
   // NB: offsets are added since ctxIdxMap is shared between Z and NZ cases.
   for (int i = 0; i < 8; i++) {
     int idx;
-    if (i < 6) {
-      idx = ((neighPattern10 - 1) << i) + partialOccupancy + i + 1;
-    } else if (i == 6) {
-      idx = ((neighPattern7 - 1) << i) + partialOccupancy + i + 1;
-    } else if (i == 7) {
+    if (i < 4) {
+      idx = ((neighPatternR1 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i < 6) {
       idx = ((neighPattern5 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i == 6) {
+      idx = ((neighPattern3 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i == 7) {
+      idx = partialOccupancy + i + 1;
     } else {
       // work around clang -Wsometimes-uninitialized fault
       break;
     }
-
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
     int bit = 1;
     int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
@@ -272,11 +281,8 @@ GeometryOctreeDecoder::decodeOccupancyBitwise(
       mappedOccAdjGt1);
   }
 
-  // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10 (or 6).
-  int neighPatternR1 = _neighPattern64toR1[neighPattern];
   return decodeOccupancyNeighNZ(
-    neighPatternR1, mappedOccIsPredicted, mappedOccPrediction, mappedOccAdjGt0,
+    neighPattern, mappedOccIsPredicted, mappedOccPrediction, mappedOccAdjGt0,
     mappedOccAdjGt1);
 }
 

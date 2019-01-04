@@ -38,15 +38,19 @@
 // indicates impossible values in the following table
 static const int x = 0;
 
-const uint8_t pcc::kNeighPattern64to10[64] = {
-  0, 1, 1, 2, 1, 3, 3, 4, 1, 3, 3, 4, 2, 4, 4, 5, 1, 3, 3, 4, 3, 6,
-  6, 7, 3, 6, 6, 7, 4, 7, 7, 8, 1, 3, 3, 4, 3, 6, 6, 7, 3, 6, 6, 7,
-  4, 7, 7, 8, 2, 4, 4, 5, 4, 7, 7, 8, 4, 7, 7, 8, 5, 8, 8, 9};
+const uint8_t pcc::kNeighPattern64to9[64] = {
+  0, 1, 1, 1, 1, 2, 2, 3, 1, 2, 2, 3, 1, 3, 3, 4, 1, 2, 2, 3, 2, 5,
+  5, 6, 2, 5, 5, 6, 3, 6, 6, 7, 1, 2, 2, 3, 2, 5, 5, 6, 2, 5, 5, 6,
+  3, 6, 6, 7, 1, 3, 3, 4, 3, 6, 6, 7, 3, 6, 6, 7, 4, 7, 7, 8};
 
 const uint8_t pcc::kNeighPattern64to6[64] = {
   0, 4, 4, x, 4, 2, 2, x, 4, 2, 2, x, x, x, x, x, 5, 3, 3, x, 3, 1,
   1, x, 3, 1, 1, x, x, x, x, x, 5, 3, 3, x, 3, 1, 1, x, 3, 1, 1, x,
   x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
+
+const uint8_t pcc::kNeighPattern9to5[9] = {0, 1, 2, 3, 1, 2, 3, 4, 4};
+
+const uint8_t pcc::kNeighPattern9to3[9] = {0, 1, 1, 2, 2, 1, 2, 2, 2};
 
 const uint8_t pcc::kNeighPattern10to7[10] = {0, 1, 2, 3, 4, 5, 3, 4, 5, 6};
 

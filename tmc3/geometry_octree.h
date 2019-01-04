@@ -137,7 +137,7 @@ inline NeighPattern64toX&
 neighPattern64toR1(const GeometryParameterSet& gps)
 {
   if (!gps.neighbour_context_restriction_flag)
-    return kNeighPattern64to10;
+    return kNeighPattern64to9;
   return kNeighPattern64to6;
 }
 
@@ -162,14 +162,14 @@ struct CtxModelOctreeOccupancy {
 class CtxMapOctreeOccupancy {
 public:
   struct CtxIdxMap {
-    uint8_t b0[10];
-    uint8_t b1[20];
-    uint8_t b2[39];
-    uint8_t b3[76];
-    uint8_t b4[149];
-    uint8_t b5[294];
-    uint8_t b6[391];
-    uint8_t b7[520];
+    uint8_t b0[9];
+    uint8_t b1[18];
+    uint8_t b2[35];
+    uint8_t b3[68];
+    uint8_t b4[69];
+    uint8_t b5[134];
+    uint8_t b6[135];
+    uint8_t b7[136];
   };
 
   CtxMapOctreeOccupancy();

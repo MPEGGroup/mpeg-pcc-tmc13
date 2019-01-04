@@ -63,7 +63,7 @@ public:
     int mappedOccAdjGt1);
 
   void encodeOccupancyNeighNZ(
-    int neighPattern10,
+    int neighPattern,
     int mappedOccupancy,
     int mappedOccIsPredicted,
     int mappedOccPrediction,
@@ -208,27 +208,37 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(
 
 void
 GeometryOctreeEncoder::encodeOccupancyNeighNZ(
-  int neighPattern10,
+  int neighPattern,
   int mappedOccupancy,
   int mappedOccIsPredicted,
   int mappedOccPrediction,
   int mappedOccAdjGt0,
   int mappedOccAdjGt1)
 {
-  int neighPattern7 = kNeighPattern10to7[neighPattern10];
-  int neighPattern5 = kNeighPattern7to5[neighPattern7];
+  // code occupancy using the neighbour configuration context
+  // with reduction from 64 states to 9 (or 6).
+  int neighPatternR1 = _neighPattern64toR1[neighPattern];
+
+  //  int neighPattern9 = kNeighPattern64to9[neighPattern];
+  int neighPattern5 = kNeighPattern9to5[neighPatternR1];
+  int neighPattern3 = kNeighPattern9to3[neighPatternR1];
+
+  //  int neighPattern7 = kNeighPattern10to7[neighPattern10];
+  //  int neighPattern5 = kNeighPattern7to5[neighPattern7];
 
   uint32_t partialOccupancy = 0;
 
   // NB: it is impossible for pattern to be 0 (handled in Z case).
   for (int i = 0; i < 8; i++) {
     int idx;
-    if (i < 6) {
-      idx = ((neighPattern10 - 1) << i) + partialOccupancy + i + 1;
-    } else if (i == 6) {
-      idx = ((neighPattern7 - 1) << i) + partialOccupancy + i + 1;
-    } else if (i == 7) {
+    if (i < 4) {
+      idx = ((neighPatternR1 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i < 6) {
       idx = ((neighPattern5 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i == 6) {
+      idx = ((neighPattern3 - 1) << i) + partialOccupancy + i + 1;
+    } else if (i == 7) {
+      idx = partialOccupancy + i + 1;
     } else {
       // work around clang -Wsometimes-uninitialized fault
       break;
@@ -272,11 +282,8 @@ GeometryOctreeEncoder::encodeOccupancyBitwise(
     return;
   }
 
-  // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10 (or 6).
-  int neighPatternR1 = _neighPattern64toR1[neighPattern];
   encodeOccupancyNeighNZ(
-    neighPatternR1, mappedOccupancy, mappedOccIsPredicted, mappedOccPrediction,
+    neighPattern, mappedOccupancy, mappedOccIsPredicted, mappedOccPrediction,
     mappedOccAdjGt0, mappedOccAdjGt1);
 }
 
