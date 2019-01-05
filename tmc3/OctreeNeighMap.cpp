@@ -116,6 +116,7 @@ updatePatternFromNeighOccupancy(
 
   if (gnp.neighPattern & patternBit) {
     uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
+    uint8_t child_unocc = ~child_occ;
     child_occ &= childMask;
     if (!child_occ) {
       /* neighbour is falsely occupied */
@@ -125,6 +126,9 @@ updatePatternFromNeighOccupancy(
       gnp.adjacencyGt1 |= gnp.adjacencyGt0 & child_occ;
       gnp.adjacencyGt0 |= child_occ;
     }
+
+    // map of children with any unoccupied adjacent child
+    gnp.adjacencyUnocc |= (child_unocc & childMask) >> adjacencyShift;
   }
 
   return gnp;
@@ -170,7 +174,7 @@ makeGeometryNeighPattern(
 
   // NB: the process of updating neighpattern below also derives
   // the occupancy contextualisation bits.
-  GeometryNeighPattern gnp = {neighPattern, 0, 0};
+  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0};
 
   if (!adjacent_child_contextualization_enabled_flag)
     return gnp;

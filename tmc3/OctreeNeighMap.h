@@ -161,8 +161,12 @@ struct GeometryNeighPattern {
   // Mask indicating presence of neigbours of the corresponding tree node
   uint8_t neighPattern;
 
+  // mask indicating the number of external child neighbours
   uint8_t adjacencyGt0;
   uint8_t adjacencyGt1;
+
+  // mask indicating unoccupied external child neighbours
+  uint8_t adjacencyUnocc;
 };
 
 //============================================================================
