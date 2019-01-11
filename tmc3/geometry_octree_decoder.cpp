@@ -134,8 +134,9 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 
   int count = 1;
   if (!isSinglePoint) {
-    count += _arithmeticDecoder->decodeExpGolomb(
-      0, _ctxEquiProb, _ctxPointCountPerBlock);
+    count += 1
+      + _arithmeticDecoder->decodeExpGolomb(
+          0, _ctxEquiProb, _ctxPointCountPerBlock);
   }
 
   return count;

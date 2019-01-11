@@ -146,7 +146,7 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
   } else {
     _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
     _arithmeticEncoder->encodeExpGolomb(
-      uint32_t(count - 1), 0, _ctxEquiProb, _ctxPointCountPerBlock);
+      uint32_t(count - 2), 0, _ctxEquiProb, _ctxPointCountPerBlock);
   }
 
   return count;
