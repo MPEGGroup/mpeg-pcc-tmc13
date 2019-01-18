@@ -44,6 +44,14 @@ to effectively remove a sequence from being used in an experiment.
 It may be useful to disable this option when generating config files when
 the source location of the input data is not known.
 
+=item B<--only-seqs>=seq1[:seq2][:...]
+
+Generate configuration files for only the named sequences.
+
+=item B<--exclude-seqs>=seq1[:seq2][:...]
+
+Do not generate configuration files for the named sequences.
+
 =item B<--batch-template>=script.tt
 
 Generate a script from the template script.tt.  The output is written to
@@ -70,6 +78,8 @@ my $skip_sequences_without_src = 1;
 my $experiment_name = '';
 my $batch_template = '';
 my $prefix = '.';
+my $only_seqs = '';
+my $exclude_seqs = '';
 GetOptions(
 	'help' => \$do_help,
 	'prefix=s' => \$prefix,
@@ -77,12 +87,18 @@ GetOptions(
 	'skip-sequences-without-src!' => \$skip_sequences_without_src,
 	'batch-template=s' => \$batch_template,
 	'experiment-name=s' => \$experiment_name,
+	'only-seqs=s' => \$only_seqs,
+	'exlude-seqs=s' => \$exclude_seqs,
 );
 
 ##
 # display help text and exit if asked, or if no config is provided
 pod2usage(0) if $do_help;
 pod2usage(1) unless @ARGV;
+
+# sanitise command line arguments
+my @only_seqs = split /:/, $only_seqs;
+my @exclude_seqs = split /:/, $exclude_seqs;
 
 ##
 # load all yaml snippets and merge into a single description
@@ -116,6 +132,9 @@ foreach my $cat_name (sort keys %{$cfg->{categories}}) {
 	my $cat = $cfg->{categories}{$cat_name};
 
 	foreach my $seq_name (sort keys %{$cat->{sequences}}) {
+		next if @only_seqs && !grep {$_ eq $seq_name} @only_seqs;
+		next if grep {$_ eq $seq_name} @exclude_seqs;
+
 		my $cat_seq = $cat->{sequences}{$seq_name};
 		my $seq = $cfg->{sequences}{$seq_name};
 
