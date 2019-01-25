@@ -74,6 +74,7 @@ categories:
       facade_00009_vox20:                { test-depth: 11 }
       facade_00015_vox14:                { test-depth: 12 }
       facade_00015_vox20:                { test-depth: 12 }
+      facade_00064_vox11:                { test-depth: 11 }
       facade_00064_vox14:                { test-depth: 12 }
       facade_00064_vox20:                { test-depth: 12 }
       frog_00067_vox12:                  { test-depth: 11 }
