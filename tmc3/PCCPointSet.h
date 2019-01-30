@@ -756,14 +756,12 @@ public:
       const uint8_t r = color[0];
       const uint8_t g = color[1];
       const uint8_t b = color[2];
-      const double y = std::round(0.212600 * r + 0.715200 * g + 0.072200 * b);
-      const double u =
-        std::round(-0.114572 * r - 0.385428 * g + 0.500000 * b + 128.0);
-      const double v =
-        std::round(0.500000 * r - 0.454153 * g - 0.045847 * b + 128.0);
-      assert(
-        y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0
-        && v <= 255.0);
+      const double y = PCCClip(
+        std::round(0.212600 * r + 0.715200 * g + 0.072200 * b), 0., 255.);
+      const double u = PCCClip(
+        std::round(-0.114572 * r - 0.385428 * g + 0.5 * b + 128.0), 0., 255.);
+      const double v = PCCClip(
+        std::round(0.5 * r - 0.454153 * g - 0.045847 * b + 128.0), 0., 255.);
       color[0] = static_cast<uint8_t>(y);
       color[1] = static_cast<uint8_t>(u);
       color[2] = static_cast<uint8_t>(v);
