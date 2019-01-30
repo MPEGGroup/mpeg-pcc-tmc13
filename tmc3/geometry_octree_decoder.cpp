@@ -354,11 +354,6 @@ decodeGeometryOctree(
   // the current node dimension (log2)
   int nodeSizeLog2 = gbh.geom_max_node_size_log2;
 
-  // termination for trisoup
-  int terminalNodeSizeLog2 = 0;
-  if (gps.geom_codec_type == GeometryCodecType::kTriSoup)
-    terminalNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
-
   // push the first node
   fifo.emplace_back();
   PCCOctree3Node& node00 = fifo.back();
@@ -396,7 +391,7 @@ decodeGeometryOctree(
       decoder.beginOctreeLevel();
 
       // allow partial tree encoding using trisoup
-      if (nodeSizeLog2 == terminalNodeSizeLog2)
+      if (nodeSizeLog2 == gps.trisoup_node_size_log2)
         break;
     }
 

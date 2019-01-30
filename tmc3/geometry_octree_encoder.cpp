@@ -381,11 +381,6 @@ encodeGeometryOctree(
   // the initial node size is the root node's
   int nodeSizeLog2 = gbh.geom_max_node_size_log2;
 
-  // termination for trisoup
-  int terminalNodeSizeLog2 = 0;
-  if (gps.geom_codec_type == GeometryCodecType::kTriSoup)
-    terminalNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
-
   // this counter represents fifo.end() - fifoCurrLvlEnd().
   // ie, the number of nodes added to the next level of the tree
   int numNodesNextLvl = 0;
@@ -408,7 +403,7 @@ encodeGeometryOctree(
       encoder.beginOctreeLevel();
 
       // allow partial tree encoding using trisoup
-      if (nodeSizeLog2 == terminalNodeSizeLog2)
+      if (nodeSizeLog2 == gps.trisoup_node_size_log2)
         break;
     }
 

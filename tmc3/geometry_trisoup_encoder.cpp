@@ -54,7 +54,7 @@ encodeGeometryTrisoup(
   pcc::ringbuf<PCCOctree3Node> nodes;
   encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoder, &nodes);
 
-  int blockWidth = 1 << (gps.trisoup_depth - gps.trisoup_triangle_level);
+  int blockWidth = 1 << gps.trisoup_node_size_log2;
 
   uint32_t symbolCount;
 
@@ -96,7 +96,7 @@ encodeGeometryTrisoup(
   }
 
   // Decode refinedVertices from segind and vertices.
-  int32_t maxval = (1 << gps.trisoup_depth) - 1;
+  int32_t maxval = (1 << gbh.geom_max_node_size_log2) - 1;
   decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
 }
 

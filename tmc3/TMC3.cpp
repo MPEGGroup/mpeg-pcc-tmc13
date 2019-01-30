@@ -142,14 +142,6 @@ operator>>(std::istream& in, AttributeEncoding& val)
 }  // namespace pcc
 
 namespace pcc {
-static std::istream&
-operator>>(std::istream& in, GeometryCodecType& val)
-{
-  return readUInt(in, val);
-}
-}  // namespace pcc
-
-namespace pcc {
 static std::ostream&
 operator<<(std::ostream& out, const AttributeEncoding& val)
 {
@@ -157,18 +149,6 @@ operator<<(std::ostream& out, const AttributeEncoding& val)
   case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
   case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
-  }
-  return out;
-}
-}  // namespace pcc
-
-namespace pcc {
-static std::ostream&
-operator<<(std::ostream& out, const GeometryCodecType& val)
-{
-  switch (val) {
-  case GeometryCodecType::kOctree: out << "1 (Octree)"; break;
-  case GeometryCodecType::kTriSoup: out << "2 (TriSoup)"; break;
   }
   return out;
 }
@@ -298,12 +278,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   (po::Section("Geometry"))
 
   // tools
-  ("geometryCodec",
-    params.encoder.gps.geom_codec_type, GeometryCodecType::kOctree,
-    "Controls the method used to encode geometry:\n"
-    "  1: octree (TMC3)\n"
-    "  2: trisoup (TMC1)")
-
   ("bitwiseOccupancyCoding",
     params.encoder.gps.bitwise_occupancy_coding_flag, true,
     "Selects between bitwise and bytewise occupancy coding:\n"
@@ -331,18 +305,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
      params.encoder.gps.geom_occupancy_ctx_reduction_factor, 3,
      "Adjusts the number of contexts used in occupancy coding")
 
-  // (trisoup) geometry parameters
-  ("triSoupDepth",  // log2(maxBB+1), where maxBB+1 is analogous to image width
-    params.encoder.gps.trisoup_depth, 10,
-    "Depth of voxels (reconstructed points) in trisoup geometry")
-
-  ("triSoupLevel",
-    params.encoder.gps.trisoup_triangle_level, 7,
-    "Level of triangles (reconstructed surface) in trisoup geometry")
-
-  ("triSoupIntToOrigScale",  // reciprocal of positionQuantizationScale
-    params.encoder.sps.donotuse_trisoup_int_to_orig_scale, 1.f,
-    "orig_coords = integer_coords * intToOrigScale")
+  ("trisoup_node_size_log2",
+    params.encoder.gps.trisoup_node_size_log2, 0,
+    "Size of nodes for surface triangulation.\n"
+    "  0: disabled\n")
 
   (po::Section("Attributes"))
 
@@ -430,31 +396,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
-  if (int(params.encoder.gps.geom_codec_type) == 0) {
-    err.error() << "Bypassed geometry coding is no longer supported\n";
-  }
-
-  // For trisoup, ensure that positionQuantizationScale is the exact inverse of intToOrigScale.
-  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
-    params.encoder.sps.seq_source_geom_scale_factor =
-      1.0f / params.encoder.sps.donotuse_trisoup_int_to_orig_scale;
-  }
-
-  // TriSoup geometry is only enabled when trisoup depth > triangle_level.
-  // NB: this happens after the scale factor fudge above, since the user
-  //     believes they are configuring trisoup
-  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
-    const auto& gps = params.encoder.gps;
-    int trisoupNodeSizeLog2 = gps.trisoup_depth - gps.trisoup_triangle_level;
-    if (trisoupNodeSizeLog2 <= 0) {
-      err.warn() << "TriSoup disabled when depth <= triangle level\n";
-      params.encoder.gps.geom_codec_type = GeometryCodecType::kOctree;
-    }
-  }
-
   // Certain coding modes are not available when trisoup is enabled.
   // Disable them, and warn if set (they may be set as defaults).
-  if (params.encoder.gps.geom_codec_type == GeometryCodecType::kTriSoup) {
+  if (params.encoder.gps.trisoup_node_size_log2 > 0) {
     if (!params.encoder.gps.geom_unique_points_flag)
       err.warn() << "TriSoup geometry does not preserve duplicated points\n";
 

@@ -9,7 +9,7 @@ categories:
      ##
      # geometry parameters (octree)
      #  - preserve lossless geometry property
-     - geometryCodec: 1
+     - trisoup_node_size_log2: 0
      - mergeDuplicatedPoints: 0
      - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8

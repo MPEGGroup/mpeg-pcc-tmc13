@@ -111,19 +111,6 @@ attribute coding, as if they had never been configured.
 Geometry coding
 ---------------
 
-### `--geometryCodec=1|2`
-Selects the geometry coding method.  Both available methods use octree
-coding as a base, where points are represented by the occupancy of an
-octree.  The trisoup method terminates the octree coding early and
-continues by encoding triangles which are subsequently voxelised to
-produce points.
-
-  | Value | Description      |
-  |:-----:| ---------------- |
-  | 0     | invalid          |
-  | 1     | octree only      |
-  | 2     | octree + trisoup |
-
 ### `--bitwiseOccupancyCoding=0|1`
 In octree geometry coding, there are both byte-wise and bit-wise tools to
 encode the occupancy data.  This option selects between the two methods.
@@ -163,19 +150,13 @@ The total number of contexts used is 256 >> *VALUE*.
 
 NB: the final standard is expected to define this factor as a constant.
 
-### `--triSoupDepth=INT-VALUE`
-Configures the maximum log2 node size of the geometry octree used by
-trisoup geometry coding.
+### `--trisoup_node_size_log2=INT-VALUE`
+Controls the use of trisoup by setting the node size for triangle
+based surface reconstruction.  The trisoup method terminates the
+octree coding at the given node size and continues by encoding
+triangles which are subsequently voxelised to produce points.
 
-### `--triSoupLevel=INT-VALUE`
-Configures the log2 octree node size used for triangulation (the
-reconstructed surface) in trisoup geometry coding.
-
-### `--triSoupIntToOrigScale=REAL-VALUE`
-This option is the inverse of `positionQuantizationScale`, and is used to
-configure input scaling when trisoup geometry coding is enabled.
-
-NB: this option will be removed in a future software version.
+A value of 0 disables the use of trisoup.
 
 
 Attribute coding

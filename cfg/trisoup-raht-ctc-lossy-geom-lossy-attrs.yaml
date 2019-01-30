@@ -9,20 +9,18 @@ categories:
 
      ##
      # geometry parameters (trisoup)
-     - geometryCodec: 2
      - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - inferredDirectCodingMode: 0
-     - triSoupDepth: ${test-depth}
-     - triSoupIntToOrigScale: '$eval{ 1 << ( ${src-geometry-precision} - ${test-depth} ) }'
-     - triSoupLevel:
-         r01: '$eval{ ${test-depth} - 4 }'
-         r02: '$eval{ ${test-depth} - 3 }'
-         r03: '$eval{ ${test-depth} - 3 }'
-         r04: '$eval{ ${test-depth} - 3 }'
-         r05: '$eval{ ${test-depth} - 2 }'
-         r06: ${test-depth}
+     - positionQuantizationScale: '$eval{ 1 / (1 << ( ${src-geometry-precision} - ${test-depth} )) }'
+     - trisoup_node_size_log2:
+         r01: 4
+         r02: 3
+         r03: 3
+         r04: 3
+         r05: 2
+         r06: 0
 
      ####
      # attribute coding (common options -- relies on option ordering)

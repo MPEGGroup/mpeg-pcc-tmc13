@@ -187,7 +187,6 @@ write(const GeometryParameterSet& gps)
 
   bs.writeUe(gps.gps_geom_parameter_set_id);
   bs.writeUe(gps.gps_seq_parameter_set_id);
-  bs.writeUe(gps.geom_codec_type);
   bs.write(gps.geom_box_present_flag);
   bs.write(gps.geom_unique_points_flag);
   bs.write(gps.neighbour_context_restriction_flag);
@@ -196,11 +195,7 @@ write(const GeometryParameterSet& gps)
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
-
-  if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
-    bs.writeUe(gps.trisoup_depth);
-    bs.writeUe(gps.trisoup_triangle_level);
-  }
+  bs.writeUe(gps.trisoup_node_size_log2);
 
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
@@ -220,7 +215,6 @@ parseGps(const PayloadBuffer& buf)
 
   bs.readUe(&gps.gps_geom_parameter_set_id);
   bs.readUe(&gps.gps_seq_parameter_set_id);
-  bs.readUe(&gps.geom_codec_type);
   bs.read(&gps.geom_box_present_flag);
   bs.read(&gps.geom_unique_points_flag);
   bs.read(&gps.neighbour_context_restriction_flag);
@@ -229,11 +223,7 @@ parseGps(const PayloadBuffer& buf)
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);
-
-  if (gps.geom_codec_type == GeometryCodecType::kTriSoup) {
-    bs.readUe(&gps.trisoup_depth);
-    bs.readUe(&gps.trisoup_triangle_level);
-  }
+  bs.readUe(&gps.trisoup_node_size_log2);
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {

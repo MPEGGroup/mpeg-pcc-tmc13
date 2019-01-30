@@ -155,8 +155,8 @@ PCCTMC3Encoder3::compress(
   // recolouring
 
   // NB: recolouring is required if points are added / removed
-  bool recolourNeeded = _gps->geom_unique_points_flag
-    || _gps->geom_codec_type == GeometryCodecType::kTriSoup;
+  bool recolourNeeded =
+    _gps->geom_unique_points_flag || _gps->trisoup_node_size_log2 > 0;
 
   if (recolourNeeded) {
     recolour(
@@ -227,10 +227,6 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   // the current node dimension (log2) encompasing maxBB
   int nodeSizeLog2 = ceillog2(maxBB + 1);
 
-  // todo(df): consider removal of trisoup_depth
-  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup)
-    nodeSizeLog2 = _gps->trisoup_depth;
-
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geomBoxOrigin.x() = int(minPositions.x());
@@ -246,10 +242,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   EntropyEncoder arithmeticEncoder(maxAcBufLen, nullptr);
   arithmeticEncoder.start();
 
-  if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+  if (_gps->trisoup_node_size_log2 == 0) {
     encodeGeometryOctree(*_gps, gbh, pointCloud, &arithmeticEncoder);
-  }
-  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+  } else {
     encodeGeometryTrisoup(*_gps, gbh, pointCloud, &arithmeticEncoder);
   }
 
@@ -316,20 +311,10 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   // todo(df): allow overriding of minposition from CLI
   // todo(df): remove trisoup hack
   minPositions = PCCVector3D{0.0};
-  if (_gps->geom_codec_type == GeometryCodecType::kOctree)
+  if (_gps->trisoup_node_size_log2 == 0)
     computeMinPositions(inputPointCloud);
 
   PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
-    // NB: Since trisoup forces the octree root node size, and the
-    //     quantiser above rounds half away from zero it is possible that
-    //     an input ranged [0,2**n) becomes [0,2**m], requiring an octree
-    //     root node size of 2**(m+1).
-    // todo(??): consider truncation towards zero in quantisation.
-    int32_t maxval = (1 << _gps->trisoup_depth) - 1;
-    clampBox = PCCBox3<int32_t>{{0, 0, 0}, {maxval, maxval, maxval}};
-  }
-
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
       _sps->seq_source_geom_scale_factor, -minPositions, clampBox,

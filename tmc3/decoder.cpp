@@ -170,11 +170,10 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);
   arithmeticDecoder.start();
 
-  if (_gps->geom_codec_type == GeometryCodecType::kOctree) {
+  if (_gps->trisoup_node_size_log2 == 0) {
     _currentPointCloud.resize(gbh.geom_num_points);
     decodeGeometryOctree(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
-  }
-  if (_gps->geom_codec_type == GeometryCodecType::kTriSoup) {
+  } else {
     decodeGeometryTrisoup(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
   }
 

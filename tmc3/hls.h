@@ -56,17 +56,6 @@ enum class PayloadType
 
 //============================================================================
 
-// Describes the geometry coding method.
-enum class GeometryCodecType
-{
-  // TMC3 lossless geometry codec using ocrees
-  kOctree = 1,
-  // TMC1 octree + triangulation
-  kTriSoup = 2,
-};
-
-//============================================================================
-
 enum class KnownAttributeLabel : uint32_t
 {
   kColour = 0,
@@ -165,10 +154,6 @@ struct SequenceParameterSet {
   // A value describing the scaling of the source positions prior to encoding.
   float seq_source_geom_scale_factor;
 
-  // orig_coords = integer_coords * intToOrigScale + intToOrigTranslation
-  // NB: this parameter has been replaced by seq_source_geom_scale_factor
-  float donotuse_trisoup_int_to_orig_scale;
-
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;
 };
@@ -178,9 +163,6 @@ struct SequenceParameterSet {
 struct GeometryParameterSet {
   int gps_geom_parameter_set_id;
   int gps_seq_parameter_set_id;
-
-  // The geometry coding method
-  GeometryCodecType geom_codec_type;
 
   // Indicates that the GeometryBrickHeader contains a valid
   // geom_box_origin_xyz.
@@ -214,11 +196,9 @@ struct GeometryParameterSet {
   // Maximum node size where intra prediction is enabled
   int intra_pred_max_node_size_log2;
 
-  // depth of voxels (reconstructed points) in trisoup geometry
-  int trisoup_depth;
-
-  // level of triangles (reconstructed surface) in trisoup geometry
-  int trisoup_triangle_level;
+  // size of triangle nodes (reconstructed surface) in trisoup geometry.
+  // a value of zero disables the feature
+  int trisoup_node_size_log2;
 };
 
 //============================================================================

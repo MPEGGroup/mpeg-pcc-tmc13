@@ -12,7 +12,7 @@ categories:
 
      ##
      # geometry parameters (octree)
-     - geometryCodec: 1
+     - trisoup_node_size_log2: 0
      - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
