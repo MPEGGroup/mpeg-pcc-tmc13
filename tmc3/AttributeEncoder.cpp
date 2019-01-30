@@ -429,11 +429,16 @@ AttributeEncoder::encodeReflectancesPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  buildPredictorsFast(
-    pointCloud, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
-
+  if (aps.num_detail_levels <= 1) {
+    buildPredictorsFastNoLod(
+      pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
+      predictors, indexesLOD);
+  } else {
+    buildPredictorsFast(
+      pointCloud, aps.dist2, aps.num_detail_levels,
+      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+      predictors, numberOfPointsPerLOD, indexesLOD);
+  }
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -572,10 +577,16 @@ AttributeEncoder::encodeColorsPred(
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
-  buildPredictorsFast(
-    pointCloud, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+  if (aps.num_detail_levels <= 1) {
+    buildPredictorsFastNoLod(
+      pointCloud, aps.num_pred_nearest_neighbours, aps.search_range,
+      predictors, indexesLOD);
+  } else {
+    buildPredictorsFast(
+      pointCloud, aps.dist2, aps.num_detail_levels,
+      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
+      predictors, numberOfPointsPerLOD, indexesLOD);
+  }
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   uint32_t values[3];
   PCCResidualsEntropyEstimator context;

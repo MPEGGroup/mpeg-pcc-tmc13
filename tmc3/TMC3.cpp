@@ -457,18 +457,23 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
 
     // derive the dist2 values based on an initial value
-    if (isLifting && !attr_aps.dist2.empty()) {
-      if (attr_aps.dist2.size() < attr_aps.num_detail_levels) {
+    if (isLifting) {
+      if (attr_aps.dist2.size() > attr_aps.num_detail_levels) {
         attr_aps.dist2.resize(attr_aps.num_detail_levels);
-        const double distRatio = 4.0;
-        uint64_t d2 = attr_aps.dist2[0];
-        for (int i = 0; i < attr_aps.num_detail_levels; ++i) {
-          attr_aps.dist2[i] = d2;
-          d2 = uint64_t(std::round(distRatio * d2));
+      } else if (
+        attr_aps.dist2.size() < attr_aps.num_detail_levels
+        && !attr_aps.dist2.empty()) {
+        if (attr_aps.dist2.size() < attr_aps.num_detail_levels) {
+          attr_aps.dist2.resize(attr_aps.num_detail_levels);
+          const double distRatio = 4.0;
+          uint64_t d2 = attr_aps.dist2[0];
+          for (int i = 0; i < attr_aps.num_detail_levels; ++i) {
+            attr_aps.dist2[i] = d2;
+            d2 = uint64_t(std::round(distRatio * d2));
+          }
         }
       }
     }
-
     // In order to simplify specification of dist2 values, which are
     // depending on the scale of the coded point cloud, the following
     // adjust the dist2 values according to PQS.  The user need only
@@ -528,10 +533,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     if (isLifting) {
       int lod = attr_aps.num_detail_levels;
-
-      if (lod > 255 || lod < 1) {
+      if (lod > 255 || lod < 0) {
         err.error() << it.first
-                    << ".levelOfDetailCount must be in the range [1,255]\n";
+                    << ".levelOfDetailCount must be in the range [0,255]\n";
       }
       if (attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod

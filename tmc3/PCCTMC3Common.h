@@ -98,7 +98,7 @@ struct PCCNeighborInfo {
 //---------------------------------------------------------------------------
 
 struct PCCPredictor {
-  size_t neighborCount;
+  uint32_t neighborCount;
   PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
   int8_t predMode;
 
@@ -664,6 +664,57 @@ buildPredictorsFast(
   std::reverse(
     numberOfPointsPerLevelOfDetail.begin(),
     numberOfPointsPerLevelOfDetail.end());
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+buildPredictorsFastNoLod(
+  const PCCPointSet3& pointCloud,
+  const int32_t numberOfNearestNeighborsInPrediction,
+  const int32_t searchRange,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& indexes)
+{
+  const int32_t pointCount = int32_t(pointCloud.getPointCount());
+  assert(pointCount);
+
+  indexes.resize(pointCount);
+  // re-order points
+  {
+    std::vector<MortonCodeWithIndex> packedVoxel;
+    computeMortonCodes(pointCloud, packedVoxel);
+    for (int32_t i = 0; i < pointCount; ++i) {
+      indexes[i] = packedVoxel[i].index;
+    }
+  }
+  predictors.resize(pointCount);
+  for (int32_t i = 0; i < pointCount; ++i) {
+    const int32_t index = indexes[i];
+    const auto& point = pointCloud[index];
+    auto& predictor = predictors[i];
+    predictor.init();
+    const int32_t k0 = std::max(0, i - searchRange);
+    const int32_t k1 = i - 1;
+    for (int32_t k = k1; k >= k0; --k) {
+      const int32_t index1 = indexes[k];
+      const auto& point1 = pointCloud[index1];
+      predictor.insertNeighbor(
+        k, (point - point1).getNorm2(), numberOfNearestNeighborsInPrediction);
+    }
+    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
+    if (predictor.neighborCount < 2) {
+      predictor.neighbors[0].weight = 1.0;
+    } else if (predictor.neighbors[0].weight == 0.0) {
+      predictor.neighborCount = 1;
+      predictor.neighbors[0].weight = 1.0;
+    } else {
+      for (int32_t k = 0; k < predictor.neighborCount; ++k) {
+        auto& weight = predictor.neighbors[k].weight;
+        weight = 1.0 / weight;
+      }
+    }
+  }
 }
 
 //---------------------------------------------------------------------------

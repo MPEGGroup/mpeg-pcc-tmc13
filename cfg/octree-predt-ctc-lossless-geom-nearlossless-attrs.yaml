@@ -32,6 +32,9 @@ categories:
      - transformType: 0
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: ${seq_lod}
+     -
+       - !conditional '"${group}" =~ m{^cat3}'
+       - levelOfDetailCount: 0
      - positionQuantizationScaleAdjustsDist2: 1
      - dist2: ${seq_dist2}
 
