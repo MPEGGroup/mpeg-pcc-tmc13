@@ -767,23 +767,7 @@ public:
       color[2] = static_cast<uint8_t>(v);
     }
   }
-  void convertRGBToYUVClosedLoop()
-  {  // BT709
-    for (auto& color : colors) {
-      const uint8_t r = color[0];
-      const uint8_t g = color[1];
-      const uint8_t b = color[2];
-      const double y = std::round(0.212600 * r + 0.715200 * g + 0.072200 * b);
-      const double u = std::round((b - y) / 1.8556 + 128.0);
-      const double v = std::round((r - y) / 1.5748 + 128.0);
-      assert(
-        y >= 0.0 && y <= 255.0 && u >= 0.0 && u <= 255.0 && v >= 0.0
-        && v <= 255.0);
-      color[0] = static_cast<uint8_t>(y);
-      color[1] = static_cast<uint8_t>(u);
-      color[2] = static_cast<uint8_t>(v);
-    }
-  }
+
   void convertYUVToRGB()
   {  // BT709
     for (auto& color : colors) {
