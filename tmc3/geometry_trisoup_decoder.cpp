@@ -187,10 +187,10 @@ trisoupAtan2(int32_t x, int32_t y)
     if (z <= 256) {             //1<<kTrisoupFpBits
       idx = z / 12;             //0.05<<kTrisoupFpBits
     } else {
-      idx = z > 49 ? 49 : z;
+      idx = z > 40 ? 40 : z;
     }
 
-    static const int kAtanLut[50] = {
+    static const int kAtanLut[41] = {
       0,   12,  25,  38,  50,  62,  74,  86,  97,  108, 118, 128, 138, 147,
       156, 164, 172, 180, 187, 194, 201, 283, 319, 339, 351, 359, 365, 370,
       373, 376, 378, 380, 382, 383, 385, 386, 387, 387, 388, 389, 389};
