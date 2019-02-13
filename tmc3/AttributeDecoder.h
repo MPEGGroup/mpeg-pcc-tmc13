@@ -53,6 +53,7 @@ struct PCCResidualsDecoder;
 class AttributeDecoder {
 public:
   void decode(
+    const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PayloadBuffer&,

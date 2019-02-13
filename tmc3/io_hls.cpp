@@ -111,6 +111,8 @@ write(const SequenceParameterSet& sps)
     }
   }
 
+  bs.write(sps.cabac_bypass_stream_enabled_flag);
+
   bool sps_extension_flag = false;
   bs.write(sps_extension_flag);
   bs.byteAlign();
@@ -168,6 +170,8 @@ parseSps(const PayloadBuffer& buf)
       bs.readUn(32, &label.attribute_label_four_bytes);
     }
   }
+
+  bs.read(&sps.cabac_bypass_stream_enabled_flag);
 
   bool sps_extension_flag = bs.read();
   if (sps_extension_flag) {

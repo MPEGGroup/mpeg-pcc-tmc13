@@ -157,6 +157,10 @@ struct SequenceParameterSet {
 
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;
+
+  // Controls whether bypass bins are written to a seperate sub-stream, or
+  // encoded as ep bins via CABAC.
+  bool cabac_bypass_stream_enabled_flag;
 };
 
 //============================================================================

@@ -55,6 +55,7 @@ struct PCCResidualsEntropyEstimator;
 class AttributeEncoder {
 public:
   void encode(
+    const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
     const AttributeBrickHeader& abh,

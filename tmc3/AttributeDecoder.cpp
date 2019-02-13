@@ -57,7 +57,7 @@ struct PCCResidualsDecoder {
   AdaptiveBitModel binaryModelIsOne[7];
   DualLutCoder<false> symbolCoder[2];
 
-  void start(const char* buf, int buf_len);
+  void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
   int decodePredMode(int max);
   int decodeZeroCnt(int max);
@@ -69,9 +69,11 @@ struct PCCResidualsDecoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsDecoder::start(const char* buf, int buf_len)
+PCCResidualsDecoder::start(
+  const SequenceParameterSet& sps, const char* buf, int buf_len)
 {
   arithmeticDecoder.setBuffer(buf_len, buf);
+  arithmeticDecoder.enableBypassStream(sps.cabac_bypass_stream_enabled_flag);
   arithmeticDecoder.start();
 }
 
@@ -174,6 +176,7 @@ PCCResidualsDecoder::decode()
 
 void
 AttributeDecoder::decode(
+  const SequenceParameterSet& sps,
   const AttributeDescription& attr_desc,
   const AttributeParameterSet& attr_aps,
   const PayloadBuffer& payload,
@@ -185,7 +188,7 @@ AttributeDecoder::decode(
   std::vector<Quantizers> quantLayers = deriveQuantizerLayers(attr_aps, abh);
 
   PCCResidualsDecoder decoder;
-  decoder.start(payload.data() + abhSize, payload.size() - abhSize);
+  decoder.start(sps, payload.data() + abhSize, payload.size() - abhSize);
 
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {

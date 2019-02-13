@@ -323,7 +323,7 @@ PCCTMC3Encoder3::compressPartition(
     write(attr_aps, abh, &payload);
 
     AttributeEncoder attrEncoder;
-    attrEncoder.encode(attr_sps, attr_aps, abh, pointCloud, &payload);
+    attrEncoder.encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
     clock_user.stop();
 
     int coded_size = int(payload.size());
@@ -372,6 +372,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
   EntropyEncoder arithmeticEncoder(maxAcBufLen, nullptr);
+  arithmeticEncoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
   arithmeticEncoder.start();
 
   if (_gps->trisoup_node_size_log2 == 0) {

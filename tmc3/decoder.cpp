@@ -187,6 +187,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceOrigin = gbh.geomBoxOrigin;
 
   EntropyDecoder arithmeticDecoder;
+  arithmeticDecoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
   arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);
   arithmeticDecoder.start();
 
@@ -238,7 +239,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   clock_user.start();
-  attrDecoder.decode(attr_sps, attr_aps, buf, _currentPointCloud);
+  attrDecoder.decode(*_sps, attr_sps, attr_aps, buf, _currentPointCloud);
   clock_user.stop();
 
   std::cout << label << "s bitstream size " << buf.size() << " B\n";

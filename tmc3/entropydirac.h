@@ -105,6 +105,17 @@ namespace dirac {
         allocatedBuffer.reset(new uint8_t[size]);
         buf.data = allocatedBuffer.get();
       }
+
+      // bypass data is written backwards, starting at the end of the buffer
+      bypassPtr = buf.data + size;
+      bypassCount = 8;
+    }
+
+    //------------------------------------------------------------------------
+
+    void enableBypassStream(bool cabac_bypass_stream_enabled_flag)
+    {
+      _cabac_bypass_stream_enabled_flag = cabac_bypass_stream_enabled_flag;
     }
 
     //------------------------------------------------------------------------
@@ -116,7 +127,17 @@ namespace dirac {
     size_t stop()
     {
       schro_arith_flush(&impl);
-      return impl.offset;
+      if (bypassCount != 8) {
+        bypassAccum <<= bypassCount;
+        *--bypassPtr = bypassAccum;
+      }
+
+      // make the bypass data contiguous with the arithmetic coded data
+      // since they share an initial buffer
+      auto end =
+        std::move(bypassPtr, buf.data + buf.length, buf.data + impl.offset);
+
+      return end - buf.data;
     }
 
     //------------------------------------------------------------------------
@@ -125,10 +146,22 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    void encode(int bit, SchroContextFixed& model)
+    void encode(int bit, SchroContextFixed&)
     {
-      uint16_t probability = 0x8000;  // p=0.5
-      schro_arith_encode_bit(&impl, &probability, bit);
+      if (!_cabac_bypass_stream_enabled_flag) {
+        uint16_t probability = 0x8000;  // p=0.5
+        schro_arith_encode_bit(&impl, &probability, bit);
+        return;
+      }
+
+      bypassAccum <<= 1;
+      bypassAccum |= bit;
+
+      if (--bypassCount)
+        return;
+
+      bypassCount = 8;
+      *--bypassPtr = bypassAccum;
     }
 
     //------------------------------------------------------------------------
@@ -150,6 +183,22 @@ namespace dirac {
     ::SchroArith impl;
     ::SchroBuffer buf;
     std::unique_ptr<uint8_t[]> allocatedBuffer;
+
+    // Controls entropy coding method for bypass bins
+    bool _cabac_bypass_stream_enabled_flag = false;
+
+    // State related to bypass stream coding.
+    // The bypass stream is stored as a byte-reversed sequence starting at
+    // the end of buf and growing downwards.
+
+    // Pointer to the tail of the bypass stream
+    uint8_t* bypassPtr;
+
+    // Number of bins in the bypass accumulator
+    int bypassCount;
+
+    // Accumulator for bypass bins to construct
+    uint8_t bypassAccum;
   };
 
   //==========================================================================
@@ -160,6 +209,16 @@ namespace dirac {
     {
       buf.data = reinterpret_cast<uint8_t*>(const_cast<char*>(buffer));
       buf.length = int(size);
+
+      bypassPtr = buf.data + buf.length - 1;
+      bypassCount = 0;
+    }
+
+    //------------------------------------------------------------------------
+
+    void enableBypassStream(bool cabac_bypass_stream_enabled_flag)
+    {
+      _cabac_bypass_stream_enabled_flag = cabac_bypass_stream_enabled_flag;
     }
 
     //------------------------------------------------------------------------
@@ -172,10 +231,20 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    int decode(SchroContextFixed& model)
+    int decode(SchroContextFixed&)
     {
-      uint16_t probability = 0x8000;  // p=0.5
-      return schro_arith_decode_bit(&impl, &probability);
+      if (!_cabac_bypass_stream_enabled_flag) {
+        uint16_t probability = 0x8000;  // p=0.5
+        return schro_arith_decode_bit(&impl, &probability);
+      }
+
+      if (!bypassCount--) {
+        bypassAccum = *bypassPtr--;
+        bypassCount = 7;
+      }
+      int bit = !!(bypassAccum & 0x80);
+      bypassAccum <<= 1;
+      return bit;
     }
 
     //------------------------------------------------------------------------
@@ -202,6 +271,22 @@ namespace dirac {
   private:
     ::SchroArith impl;
     ::SchroBuffer buf;
+
+    // Controls entropy coding method for bypass bins
+    bool _cabac_bypass_stream_enabled_flag = false;
+
+    // State related to bypass stream coding.
+    // The bypass stream is stored as a byte-reversed sequence starting at
+    // the end of buf and growing downwards.
+
+    // Pointer to the tail of the bypass stream
+    uint8_t* bypassPtr;
+
+    // Number of bins in the bypass accumulator
+    int bypassCount;
+
+    // Accumulator for bypass bins to construct
+    uint8_t bypassAccum;
   };
 
   //==========================================================================

@@ -61,7 +61,7 @@ struct PCCResidualsEncoder {
   AdaptiveBitModel binaryModelIsOne[7];
   DualLutCoder<false> symbolCoder[2];
 
-  void start(int numPoints);
+  void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
   void encodePredMode(int value, int max);
   void encodeZeroCnt(int value, int max);
@@ -73,11 +73,12 @@ struct PCCResidualsEncoder {
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::start(int pointCount)
+PCCResidualsEncoder::start(const SequenceParameterSet& sps, int pointCount)
 {
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = pointCount * 3 * 2 + 1024;
   arithmeticEncoder.setBuffer(maxAcBufLen, nullptr);
+  arithmeticEncoder.enableBypassStream(sps.cabac_bypass_stream_enabled_flag);
   arithmeticEncoder.start();
 }
 
@@ -327,6 +328,7 @@ PCCResidualsEntropyEstimator::update(
 
 void
 AttributeEncoder::encode(
+  const SequenceParameterSet& sps,
   const AttributeDescription& desc,
   const AttributeParameterSet& attr_aps,
   const AttributeBrickHeader& abh,
@@ -336,7 +338,7 @@ AttributeEncoder::encode(
   std::vector<Quantizers> quantLayers = deriveQuantizerLayers(attr_aps, abh);
 
   PCCResidualsEncoder encoder;
-  encoder.start(int(pointCloud.getPointCount()));
+  encoder.start(sps, int(pointCloud.getPointCount()));
 
   if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {

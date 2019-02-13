@@ -142,6 +142,15 @@ Sets the depth of the octree for slice generation using
 The input point cloud is decomposed using an octree with the configured
 depth.  Each occupied leaf of the octree represents a single slice.
 
+### `--cabac_bypass_stream_enabled_flag=0|1`
+Controls the entropy coding method used for equi-probable (bypass) bins:
+
+  | Value | Description                           |
+  |:-----:| --------------------------------------|
+  | 0     | bypass bins coded using CABAC         |
+  | 1     | bypass bins coded in bypass substream |
+
+
 Geometry coding
 ---------------
 

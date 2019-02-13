@@ -57,6 +57,7 @@ class EntropyEncoderWrapper : protected Base {
 public:
   using Base::Base;
   using Base::buffer;
+  using Base::enableBypassStream;
   using Base::encode;
   using Base::setBuffer;
   using Base::start;
@@ -105,6 +106,7 @@ public:
   EntropyDecoderWrapper() : Base() {}
 
   using Base::decode;
+  using Base::enableBypassStream;
   using Base::setBuffer;
   using Base::start;
   using Base::stop;

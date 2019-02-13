@@ -340,6 +340,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.partitionOctreeDepth, 2,
     "Depth of octree partition for partitionMethod=3")
 
+  ("cabac_bypass_stream_enabled_flag",
+    params.encoder.sps.cabac_bypass_stream_enabled_flag, false,
+    "Controls coding method for ep(bypass) bins")
+
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,
     "Ignore attribute coding configuration")
