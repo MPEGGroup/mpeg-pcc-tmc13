@@ -215,9 +215,6 @@ schro_arith_flush (SchroArith * arith)
     arith->dataptr[arith->offset] = arith->range[0] >> 0;
     arith->offset++;
   }
-  while (arith->offset > 1 && arith->dataptr[arith->offset - 1] == 0xff) {
-    arith->offset--;
-  }
 }
 
 /* wrappers */
