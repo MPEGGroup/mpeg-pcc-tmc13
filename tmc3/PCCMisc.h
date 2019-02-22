@@ -61,6 +61,12 @@ PCCSystemEndianness()
 }
 
 //---------------------------------------------------------------------------
+// Replace any occurence of %d with formatted number.  The %d format
+// specifier may use the formatting conventions of snprintf().
+
+std::string expandNum(const std::string& src, int num);
+
+//---------------------------------------------------------------------------
 // Population count -- return the number of bits set in @x.
 //
 inline int

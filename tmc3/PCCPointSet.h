@@ -231,6 +231,7 @@ public:
   {
     withColors = false;
     withReflectances = false;
+    withFrameIndex = false;
   }
   PCCPointSet3(const PCCPointSet3&) = default;
   PCCPointSet3& operator=(const PCCPointSet3& rhs) = default;
@@ -242,8 +243,10 @@ public:
     swap(positions, other.positions);
     swap(colors, other.colors);
     swap(reflectances, other.reflectances);
+    swap(frameidx, other.frameidx);
     swap(withColors, other.withColors);
     swap(withReflectances, other.withReflectances);
+    swap(withFrameIndex, other.withFrameIndex);
   }
 
   PCCPoint3D operator[](const size_t index) const
@@ -299,6 +302,36 @@ public:
     reflectances.resize(0);
   }
 
+  uint8_t getFrameIndex(const size_t index) const
+  {
+    assert(index < frameidx.size() && withFrameIndex);
+    return frameidx[index];
+  }
+
+  uint8_t& getFrameIndex(const size_t index)
+  {
+    assert(index < frameidx.size() && withFrameIndex);
+    return frameidx[index];
+  }
+
+  void setFrameIndex(const size_t index, const uint8_t frameindex)
+  {
+    assert(index < frameidx.size() && withFrameIndex);
+    frameidx[index] = frameindex;
+  }
+
+  bool hasFrameIndex() const { return withFrameIndex; }
+  void addFrameIndex()
+  {
+    withFrameIndex = true;
+    resize(getPointCount());
+  }
+  void removeFrameIndex()
+  {
+    withFrameIndex = false;
+    frameidx.resize(0);
+  }
+
   bool hasColors() const { return withColors; }
   void addColors()
   {
@@ -334,6 +367,9 @@ public:
     if (hasReflectances()) {
       reflectances.resize(size);
     }
+    if (hasFrameIndex()) {
+      frameidx.resize(size);
+    }
   }
   void reserve(const size_t size)
   {
@@ -344,12 +380,16 @@ public:
     if (hasReflectances()) {
       reflectances.reserve(size);
     }
+    if (hasFrameIndex()) {
+      frameidx.reserve(size);
+    }
   }
   void clear()
   {
     positions.clear();
     colors.clear();
     reflectances.clear();
+    frameidx.clear();
   }
 
   void append(const PCCPointSet3& src)
@@ -443,6 +483,7 @@ public:
     if (!fout.is_open()) {
       return false;
     }
+
     const size_t pointCount = getPointCount();
     fout << "ply" << std::endl;
 
@@ -475,6 +516,9 @@ public:
     if (hasReflectances()) {
       fout << "property uint16 refc" << std::endl;
     }
+    if (hasFrameIndex()) {
+      fout << "property uint8 frameindex" << std::endl;
+    }
     fout << "element face 0" << std::endl;
     fout << "property list uint8 int32 vertex_index" << std::endl;
     fout << "end_header" << std::endl;
@@ -492,6 +536,9 @@ public:
         }
         if (hasReflectances()) {
           fout << " " << static_cast<int>(getReflectance(i));
+        }
+        if (hasFrameIndex()) {
+          fout << " " << static_cast<int>(getFrameIndex(i));
         }
         fout << std::endl;
       }
@@ -512,6 +559,10 @@ public:
           const uint16_t& reflectance = getReflectance(i);
           fout.write(
             reinterpret_cast<const char*>(&reflectance), sizeof(uint16_t));
+        }
+        if (hasFrameIndex()) {
+          const uint16_t& findex = getFrameIndex(i);
+          fout.write(reinterpret_cast<const char*>(&findex), sizeof(uint16_t));
         }
       }
     }
@@ -645,6 +696,10 @@ public:
     size_t indexG = PCC_UNDEFINED_INDEX;
     size_t indexB = PCC_UNDEFINED_INDEX;
     size_t indexReflectance = PCC_UNDEFINED_INDEX;
+    size_t indexFrame = PCC_UNDEFINED_INDEX;
+    size_t indexNX = PCC_UNDEFINED_INDEX;
+    size_t indexNY = PCC_UNDEFINED_INDEX;
+    size_t indexNZ = PCC_UNDEFINED_INDEX;
     const size_t attributeCount = attributesInfo.size();
     for (size_t a = 0; a < attributeCount; ++a) {
       const auto& attributeInfo = attributesInfo[a];
@@ -672,6 +727,21 @@ public:
         (attributeInfo.name == "reflectance" || attributeInfo.name == "refc")
         && attributeInfo.byteCount <= 2) {
         indexReflectance = a;
+      } else if (
+        attributeInfo.name == "frameindex" && attributeInfo.byteCount <= 2) {
+        indexFrame = a;
+      } else if (
+        attributeInfo.name == "nx"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+        indexNX = a;
+      } else if (
+        attributeInfo.name == "ny"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+        indexNY = a;
+      } else if (
+        attributeInfo.name == "nz"
+        && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
+        indexNZ = a;
       }
     }
     if (
@@ -683,6 +753,7 @@ public:
     withColors = indexR != PCC_UNDEFINED_INDEX && indexG != PCC_UNDEFINED_INDEX
       && indexB != PCC_UNDEFINED_INDEX;
     withReflectances = indexReflectance != PCC_UNDEFINED_INDEX;
+    withFrameIndex = indexFrame != PCC_UNDEFINED_INDEX;
     resize(pointCount);
     if (isAscii) {
       size_t pointCounter = 0;
@@ -708,6 +779,9 @@ public:
         if (hasReflectances()) {
           reflectances[pointCounter] =
             uint16_t(atoi(tokens[indexReflectance].c_str()));
+        }
+        if (hasFrameIndex()) {
+          frameidx[pointCounter] = uint8_t(atoi(tokens[indexFrame].c_str()));
         }
         ++pointCounter;
       }
@@ -766,6 +840,15 @@ public:
               ifs.read(
                 reinterpret_cast<char*>(&reflectance), sizeof(uint16_t));
             }
+          } else if (a == indexFrame && attributeInfo.byteCount <= 2) {
+            if (attributeInfo.byteCount == 1) {
+              auto& findex = frameidx[pointCounter];
+              ifs.read(reinterpret_cast<char*>(&findex), sizeof(uint8_t));
+            } else {
+              uint16_t findex;
+              ifs.read(reinterpret_cast<char*>(&findex), sizeof(uint16_t));
+              frameidx[pointCounter] = uint8_t(findex);
+            }
           } else {
             char buffer[128];
             ifs.read(buffer, attributeInfo.byteCount);
@@ -815,8 +898,10 @@ private:
   std::vector<PCCPoint3D> positions;
   std::vector<PCCColor3B> colors;
   std::vector<uint16_t> reflectances;
+  std::vector<uint8_t> frameidx;
   bool withColors;
   bool withReflectances;
+  bool withFrameIndex;
 };
 
 //===========================================================================
