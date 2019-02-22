@@ -35,85 +35,627 @@
 
 #include "RAHT.h"
 
+#include <cassert>
+#include <cinttypes>
+#include <climits>
 #include <cstddef>
 #include <utility>
+#include <vector>
+#include <stdio.h>
 
+#include "PCCTMC3Common.h"
 #include "PCCMisc.h"
 
 namespace pcc {
 
 //============================================================================
 
-void
-rahtFixedPointRotation(
-  FixedPoint quantStepSizeLuma,
-  uint64_t weightLeft,
-  uint64_t weightRight,
-  FixedPoint* attributeLeft,
-  FixedPoint* attributeRight,
-  FixedPoint* attributeTransformedLow,
-  FixedPoint* attributeTransformedHigh,
-  size_t attributeCount)
+struct UrahtNode {
+  int64_t pos;
+  int weight;
+};
+
+//============================================================================
+// remove any non-unique leaves from a level in the uraht tree
+
+int
+reduceUnique(
+  int numNodes,
+  int numAttrs,
+  std::vector<UrahtNode>* weightsIn,
+  std::vector<UrahtNode>* weightsOut,
+  std::vector<int>* attrsIn,
+  std::vector<int>* attrsOut)
 {
-  FixedPoint b, adjustedQuantStepSize;
+  // process a single level of the tree
+  int64_t posPrev = -1;
+  auto weightsInWrIt = weightsIn->begin();
+  auto weightsInRdIt = weightsIn->cbegin();
+  auto attrsInWrIt = attrsIn->begin();
+  auto attrsInRdIt = attrsIn->begin();
+  for (int i = 0; i < numNodes; i++) {
+    const auto& node = *weightsInRdIt++;
 
-  b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
+    // copy across unique nodes
+    if (node.pos != posPrev) {
+      posPrev = node.pos;
+      *weightsInWrIt++ = node;
+      for (int k = 0; k < numAttrs; k++)
+        *attrsInWrIt++ = *attrsInRdIt++;
+      continue;
+    }
 
-  adjustedQuantStepSize.val = isqrt(
-    ((quantStepSizeLuma.val * quantStepSizeLuma.val)
-     * (weightLeft + weightRight))
-    / (weightLeft * weightRight));
+    // duplicate node
+    (weightsInWrIt - 1)->weight += node.weight;
+    weightsOut->push_back(node);
+    for (int k = 0; k < numAttrs; k++) {
+      *(attrsInWrIt - numAttrs + k) += *attrsInRdIt;
+      attrsOut->push_back(*attrsInRdIt++);
+    }
+  }
 
-  while (attributeCount--) {
-    *attributeTransformedHigh = *attributeRight;
-    *attributeTransformedHigh -= *attributeLeft;
-    *attributeTransformedLow = *attributeTransformedHigh;
-    *attributeTransformedLow *= b;
-    *attributeTransformedLow += *attributeLeft;
-    *attributeTransformedHigh /= adjustedQuantStepSize;
+  // number of nodes in next level
+  return std::distance(weightsIn->begin(), weightsInWrIt);
+}
 
-    attributeLeft++;
-    attributeRight++;
-    attributeTransformedLow++;
-    attributeTransformedHigh++;
+//============================================================================
+// Split a level of values into sum and difference pairs.
+
+int
+reduceLevel(
+  int level,
+  int numNodes,
+  int numAttrs,
+  std::vector<UrahtNode>* weightsIn,
+  std::vector<UrahtNode>* weightsOut,
+  std::vector<int>* attrsIn,
+  std::vector<int>* attrsOut)
+{
+  // process a single level of the tree
+  int64_t posPrev = -1;
+  auto weightsInWrIt = weightsIn->begin();
+  auto weightsInRdIt = weightsIn->cbegin();
+  auto attrsInWrIt = attrsIn->begin();
+  auto attrsInRdIt = attrsIn->begin();
+  for (int i = 0; i < numNodes; i++) {
+    const auto& node = *weightsInRdIt++;
+    bool newPair = (posPrev ^ node.pos) >> level != 0;
+    posPrev = node.pos;
+    if (newPair) {
+      *weightsInWrIt++ = node;
+      for (int k = 0; k < numAttrs; k++)
+        *attrsInWrIt++ = *attrsInRdIt++;
+    } else {
+      (weightsInWrIt - 1)->weight += node.weight;
+      weightsOut->push_back(node);
+      for (int k = 0; k < numAttrs; k++) {
+        *(attrsInWrIt - numAttrs + k) += *attrsInRdIt;
+        attrsOut->push_back(*attrsInRdIt++);
+      }
+    }
+  }
+
+  // number of nodes in next level
+  return std::distance(weightsIn->begin(), weightsInWrIt);
+}
+
+//============================================================================
+// Merge sum and difference values to form a tree.
+
+void
+expandLevel(
+  int level,
+  int numNodes,
+  int numAttrs,
+  std::vector<UrahtNode>* weightsIn,   // expand by numNodes before expand
+  std::vector<UrahtNode>* weightsOut,  // shrink after expand
+  std::vector<int>* attrsIn,
+  std::vector<int>* attrsOut)
+{
+  if (numNodes == 0)
+    return;
+
+  // process a single level of the tree
+  auto weightsInWrIt = weightsIn->rbegin();
+  auto weightsInRdIt = std::next(weightsIn->crbegin(), numNodes);
+  auto weightsOutRdIt = weightsOut->crbegin();
+  auto attrsInWrIt = attrsIn->rbegin();
+  auto attrsInRdIt = std::next(attrsIn->crbegin(), numNodes * numAttrs);
+  auto attrsOutRdIt = attrsOut->crbegin();
+  for (int i = 0; i < numNodes;) {
+    bool isPair = (weightsOutRdIt->pos ^ weightsInRdIt->pos) >> level == 0;
+    if (!isPair) {
+      *weightsInWrIt++ = *weightsInRdIt++;
+      for (int k = 0; k < numAttrs; k++)
+        *attrsInWrIt++ = *attrsInRdIt++;
+      continue;
+    }
+
+    // going to process a pair
+    i++;
+
+    // Out node is inserted before In node.
+    const auto& nodeDelta = *weightsInWrIt++ = *weightsOutRdIt++;
+    auto curAttrIt = attrsInWrIt;
+    for (int k = 0; k < numAttrs; k++)
+      *attrsInWrIt++ = *attrsOutRdIt++;
+
+    // move In node to correct position, subtracting delta
+    *weightsInWrIt = *weightsInRdIt++;
+    (weightsInWrIt++)->weight -= nodeDelta.weight;
+    for (int k = 0; k < numAttrs; k++) {
+      *attrsInWrIt = *attrsInRdIt++;
+      *attrsInWrIt++ -= *curAttrIt++;
+    }
   }
 }
 
-void
-rahtFixedPointInverseRotation(
-  FixedPoint quantStepSizeLuma,
-  uint64_t weightLeft,
-  uint64_t weightRight,
-  FixedPoint* attributeLeft,
-  FixedPoint* attributeRight,
-  FixedPoint* attributeTransformedLow,
-  FixedPoint* attributeTransformedHigh,
-  size_t attributeCount)
-{
-  FixedPoint b, adjustedQuantStepSize;
+//============================================================================
+// Encapsulation of a RAHT transform stage.
 
-  b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
-
-  adjustedQuantStepSize.val = isqrt(
-    ((quantStepSizeLuma.val * quantStepSizeLuma.val)
-     * (weightLeft + weightRight))
-    / (weightLeft * weightRight));
-
-  while (attributeCount--) {
-    *attributeRight = *attributeTransformedHigh;
-    *attributeRight *= adjustedQuantStepSize;
-    *attributeLeft = *attributeRight;
-    *attributeLeft *= b;
-    *attributeLeft -= *attributeTransformedLow;
-    *attributeRight -= *attributeLeft;
-
-    attributeLeft->val = -attributeLeft->val;
-
-    attributeLeft++;
-    attributeRight++;
-    attributeTransformedLow++;
-    attributeTransformedHigh++;
+class RahtKernel {
+public:
+  RahtKernel(int weightLeft, int weightRight)
+  {
+    int w = weightLeft + weightRight;
+    _a.val = isqrt((int64_t(weightLeft) << (2 * _a.kFracBits)) / w);
+    _b.val = isqrt((int64_t(weightRight) << (2 * _b.kFracBits)) / w);
   }
+
+  void fwdTransform(
+    FixedPoint left, FixedPoint right, FixedPoint* lf, FixedPoint* hf)
+  {
+    FixedPoint a = _a, b = _b;
+    // lf = left * a + right * b
+    // hf = right * a - left * b
+
+    *lf = right;
+    *lf *= b;
+    *hf = right;
+    *hf *= a;
+
+    a *= left;
+    b *= left;
+
+    *lf += a;
+    *hf -= b;
+  }
+
+  void invTransform(
+    FixedPoint lf, FixedPoint hf, FixedPoint* left, FixedPoint* right)
+  {
+    FixedPoint a = _a, b = _b;
+
+    *left = lf;
+    *left *= a;
+    *right = lf;
+    *right *= b;
+
+    b *= hf;
+    a *= hf;
+
+    *left -= b;
+    *right += a;
+  }
+
+private:
+  FixedPoint _a, _b;
+};
+
+//============================================================================
+// In-place transform a set of sparse 2x2x2 blocks each using the same weights
+
+template<class Kernel>
+void
+fwdTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
+{
+  for (int iw = 0, stride = 1; stride < 8; stride <<= 1) {
+    for (int i0 = 0; i0 < 8; i0 += 2 * stride, iw += 2) {
+      int i1 = i0 + stride;
+
+      // the following tests can be simplified using an occupancy mask
+      if (weights[iw] + weights[iw + 1] == 0)
+        continue;
+
+      // only one occupied, propagate to next level
+      if (!weights[iw] || !weights[iw + 1]) {
+        if (!weights[iw]) {
+          for (int k = 0; k < numBufs; k++)
+            std::swap(buf[k][i0], buf[k][i1]);
+        }
+        continue;
+      }
+
+      // actual transform
+      Kernel kernel(weights[iw], weights[iw + 1]);
+      for (int k = 0; k < numBufs; k++) {
+        auto& bufk = buf[k];
+        kernel.fwdTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
+      }
+    }
+  }
+}
+
+//============================================================================
+// In-place inverse transform a set of sparse 2x2x2 blocks each using the
+// same weights
+
+template<class Kernel>
+void
+invTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
+{
+  for (int iw = 12, stride = 4; stride > 0; stride >>= 1) {
+    for (int i1 = 8 - stride; i1 > 0; i1 -= 2 * stride, iw -= 2) {
+      int i0 = i1 - stride;
+
+      // the following tests can be simplified using an occupancy mask
+      if (weights[iw] + weights[iw + 1] == 0)
+        continue;
+
+      // only one occupied, propagate to next level
+      if (!weights[iw] || !weights[iw + 1]) {
+        if (!weights[iw]) {
+          for (int k = 0; k < numBufs; k++)
+            std::swap(buf[k][i0], buf[k][i1]);
+        }
+        continue;
+      }
+
+      // actual transform
+      Kernel kernel(weights[iw], weights[iw + 1]);
+      for (int k = 0; k < numBufs; k++) {
+        auto& bufk = buf[k];
+        kernel.invTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
+      }
+    }
+  }
+}
+
+//============================================================================
+// expand a set of eight weights into three levels
+
+void
+mkWeightTree(int weights[8 + 4 + 2])
+{
+  int* in = &weights[0];
+  int* out = &weights[8];
+  for (int i = 0; i < 6; i++) {
+    *out++ = in[0] + in[1];
+    in += 2;
+  }
+}
+
+//============================================================================
+// Invoke mapFn(coefIdx) for each present coefficient in the transform
+
+template<class T>
+void
+scanBlock(int weights[8 + 4 + 2], T mapFn)
+{
+  static const int8_t kRahtScanOrder[] = {0, 4, 6, 2, 7, 5, 3, 1};
+
+  // there is always the DC coefficient (empty blocks are not transformed)
+  mapFn(0);
+
+  for (int i = 1, iw = 12; iw >= 0; i++, iw -= 2) {
+    if (!weights[iw] || !weights[iw + 1])
+      continue;
+
+    mapFn(kRahtScanOrder[i]);
+  }
+}
+
+//============================================================================
+// Tests if two positions are siblings at the given tree level
+
+static bool
+isSibling(int64_t pos0, int64_t pos1, int level)
+{
+  return ((pos0 ^ pos1) >> level) == 0;
+}
+
+//============================================================================
+// Core transform process (for encoder/decoder)
+
+template<bool isEncoder>
+void
+uraht_process(
+  const Quantizers& qstep,
+  int numPoints,
+  int numAttrs,
+  int64_t* positions,
+  int* attributes,
+  int32_t* coeffBufIt)
+{
+  // coefficients are stored in three planar arrays.  coeffBufItK is a set
+  // of iterators to each array.
+  int32_t* coeffBufItK[3] = {
+    coeffBufIt,
+    coeffBufIt + numPoints,
+    coeffBufIt + numPoints * 2,
+  };
+
+  std::vector<UrahtNode> weightsLf, weightsHf;
+  std::vector<int> attrsLf, attrsHf;
+
+  weightsLf.reserve(numPoints);
+  attrsLf.reserve(numPoints * numAttrs);
+
+  // copy positions into internal form
+  // todo(df): lift to api
+  for (int i = 0; i < numPoints; i++) {
+    weightsLf.emplace_back(UrahtNode{positions[i], 1});
+    for (int k = 0; k < numAttrs; k++) {
+      attrsLf.push_back(attributes[i * numAttrs + k]);
+    }
+  }
+
+  weightsHf.reserve(numPoints);
+  attrsHf.reserve(numPoints * numAttrs);
+
+  // ascend tree
+  std::vector<int> levelHfPos;
+
+  for (int level = 0, numNodes = weightsLf.size(); numNodes > 1; level++) {
+    levelHfPos.push_back(weightsHf.size());
+    if (level == 0) {
+      // process any duplicate points
+      numNodes = reduceUnique(
+        numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
+    } else {
+      // normal level reduction
+      numNodes = reduceLevel(
+        level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
+    }
+  }
+
+  assert(weightsLf[0].weight == numPoints);
+
+  // reconstruction buffers
+  std::vector<int> attrRec, attrRecParent;
+  attrRec.resize(numPoints * numAttrs);
+  attrRecParent.resize(numPoints * numAttrs);
+
+  std::vector<int> attrRecUs, attrRecParentUs;
+  attrRecUs.resize(numPoints * numAttrs);
+  attrRecParentUs.resize(numPoints * numAttrs);
+
+  std::vector<UrahtNode> weightsParent;
+  weightsParent.reserve(numPoints);
+
+  // descend tree
+  weightsLf.resize(1);
+  attrsLf.resize(numAttrs);
+  for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
+    int numNodes = weightsHf.size() - levelHfPos[level];
+    weightsLf.resize(weightsLf.size() + numNodes);
+    attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
+    expandLevel(
+      level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
+    weightsHf.resize(levelHfPos[level]);
+    attrsHf.resize(levelHfPos[level] * numAttrs);
+
+    // expansion of level is complete, processing is now on the next level
+    level--;
+
+    // every three levels, perform transform
+    if (level % 3)
+      continue;
+
+    // initial scan position of the coefficient buffer
+    //  -> first level = all coeffs
+    //  -> otherwise = ac coeffs only
+    bool inheritDc = !isFirst;
+    isFirst = 0;
+
+    // prepare reconstruction buffers
+    //  previous reconstruction -> attrRecParent
+    std::swap(attrRec, attrRecParent);
+    std::swap(attrRecUs, attrRecParentUs);
+    auto attrRecParentUsIt = attrRecParentUs.cbegin();
+    auto attrRecParentIt = attrRecParent.cbegin();
+    auto weightsParentIt = weightsParent.cbegin();
+
+    for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
+      // todo(df): hoist and dynamically allocate
+      FixedPoint transformBuf[6][8] = {};
+      FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
+      int weights[8 + 4 + 2] = {};
+      uint8_t occupancy = 0;
+
+      // generate weights, occupancy mask, and fwd transform buffers
+      // for all siblings of the current node.
+      for (iLast = i; iLast < iEnd; iLast++) {
+        int nextNode = iLast > i
+          && !isSibling(weightsLf[iLast].pos, weightsLf[i].pos, level + 3);
+        if (nextNode)
+          break;
+
+        int nodeIdx = (weightsLf[iLast].pos >> level) & 0x7;
+        weights[nodeIdx] = weightsLf[iLast].weight;
+        occupancy |= 1 << nodeIdx;
+
+        if (isEncoder) {
+          for (int k = 0; k < numAttrs; k++)
+            transformBuf[k][nodeIdx] = attrsLf[iLast * numAttrs + k];
+        }
+      }
+
+      mkWeightTree(weights);
+
+      int parentWeight = 0;
+      if (inheritDc) {
+        parentWeight = weightsParentIt->weight;
+        weightsParentIt++;
+      }
+
+      // normalise coefficients
+      for (int childIdx = 0; childIdx < 8; childIdx++) {
+        if (weights[childIdx] <= 1)
+          continue;
+
+        FixedPoint sqrtWeight;
+        sqrtWeight.val =
+          isqrt(uint64_t(weights[childIdx]) << (2 * FixedPoint::kFracBits));
+
+        // Summed attribute values
+        if (isEncoder) {
+          for (int k = 0; k < numAttrs; k++)
+            transformBuf[k][childIdx] /= sqrtWeight;
+        }
+      }
+
+      // forward transform:
+      //  - encoder: transform both attribute sums
+      if (isEncoder)
+        fwdTransformBlock222<RahtKernel>(numAttrs, transformBuf, weights);
+
+      // per-coefficient operations:
+      //  - subtract transform domain prediction (encoder)
+      //  - write out/read in quantised coefficients
+      //  - inverse quantise + add transform domain prediction
+      scanBlock(weights, [&](int idx) {
+        // skip the DC coefficient unless at the root of the tree
+        if (inheritDc && !idx)
+          return;
+
+        // The RAHT transform
+        for (int k = 0; k < numAttrs; k++) {
+          // todo: hoist to preallocated array
+          auto quantStepSize = qstep[std::min(k, int(qstep.size()) - 1)];
+          if (isEncoder) {
+            auto coeff = transformBuf[k][idx].round();
+            assert(coeff <= INT_MAX && coeff >= INT_MIN);
+            *coeffBufItK[k]++ = coeff =
+              PCCQuantization(coeff, quantStepSize, true);
+            transformPredBuf[k][idx] +=
+              PCCInverseQuantization(coeff, quantStepSize, true);
+          } else {
+            int64_t coeff = *coeffBufItK[k]++;
+            transformPredBuf[k][idx] +=
+              PCCInverseQuantization(coeff, quantStepSize, true);
+          }
+        }
+      });
+
+      // replace DC coefficient with parent if inheritable
+      if (inheritDc) {
+        FixedPoint sqrtWeight;
+        sqrtWeight.val =
+          isqrt(uint64_t(parentWeight) << (2 * FixedPoint::kFracBits));
+
+        for (int k = 0; k < numAttrs; k++) {
+          attrRecParentIt++;
+          transformPredBuf[k][0] = *attrRecParentUsIt++;
+        }
+      }
+
+      invTransformBlock222<RahtKernel>(numAttrs, transformPredBuf, weights);
+
+      for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
+        if (!weights[nodeIdx])
+          continue;
+
+        for (int k = 0; k < numAttrs; k++)
+          attrRecUs[j * numAttrs + k] = transformPredBuf[k][nodeIdx].round();
+
+        // scale values for next level
+        if (weights[nodeIdx] > 1) {
+          FixedPoint sqrtWeight;
+          sqrtWeight.val =
+            isqrt(uint64_t(weights[nodeIdx]) << (2 * FixedPoint::kFracBits));
+          for (int k = 0; k < numAttrs; k++)
+            transformPredBuf[k][nodeIdx] /= sqrtWeight;
+        }
+
+        for (int k = 0; k < numAttrs; k++)
+          attrRec[j * numAttrs + k] = transformPredBuf[k][nodeIdx].round();
+        j++;
+      }
+    }
+
+    // preserve current weights/positions for later search
+    weightsParent = weightsLf;
+  }
+
+  // process duplicate points at level 0
+  std::swap(attrRec, attrRecParent);
+  auto attrRecParentIt = attrRecParent.cbegin();
+  auto attrsHfIt = attrsHf.cbegin();
+  for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
+    int weight = weightsLf[i].weight;
+    // unique points have weight = 1
+    if (weight == 1) {
+      for (int k = 0; k < numAttrs; k++)
+        attrRec[out++] = *attrRecParentIt++;
+      continue;
+    }
+
+    // duplicates
+    FixedPoint attrSum[3];
+    FixedPoint attrRecDc[3];
+    FixedPoint sqrtWeight;
+    sqrtWeight.val = isqrt(uint64_t(weight) << (2 * FixedPoint::kFracBits));
+    for (int k = 0; k < numAttrs; k++) {
+      if (isEncoder)
+        attrSum[k] = attrsLf[i * numAttrs + k];
+      attrRecDc[k] = *attrRecParentIt++;
+      attrRecDc[k] *= sqrtWeight;
+    }
+
+    for (int w = weight - 1; w > 0; w--) {
+      RahtKernel kernel(w, 1);
+      sqrtWeight.val = isqrt(uint64_t(w) << (2 * FixedPoint::kFracBits));
+
+      for (int k = 0; k < numAttrs; k++) {
+        auto quantStepSize = qstep[std::min(k, int(qstep.size()) - 1)];
+
+        FixedPoint transformBuf[2];
+        if (isEncoder) {
+          // invert the initial reduction (sum)
+          // NB: read from (w-1) since left side came from attrsLf.
+          transformBuf[1] = attrsHfIt[(w - 1) * numAttrs + k];
+          attrSum[k] -= transformBuf[1];
+          transformBuf[0] = attrSum[k];
+
+          // NB: weight of transformBuf[1] is by construction 1.
+          transformBuf[0] /= sqrtWeight;
+
+          kernel.fwdTransform(
+            transformBuf[0], transformBuf[1], &transformBuf[0],
+            &transformBuf[1]);
+
+          auto coeff = transformBuf[1].round();
+          assert(coeff <= INT_MAX && coeff >= INT_MIN);
+          *coeffBufItK[k]++ = coeff =
+            PCCQuantization(coeff, quantStepSize, true);
+          transformBuf[1] = PCCInverseQuantization(coeff, quantStepSize, true);
+        } else {
+          int64_t coeff = *coeffBufItK[k]++;
+          transformBuf[1] = PCCInverseQuantization(coeff, quantStepSize, true);
+        }
+
+        // inherit the DC value
+        transformBuf[0] = attrRecDc[k];
+
+        kernel.invTransform(
+          transformBuf[0], transformBuf[1], &transformBuf[0],
+          &transformBuf[1]);
+
+        attrRecDc[k] = transformBuf[0];
+        attrRec[out + w * numAttrs + k] = transformBuf[1].round();
+        if (w == 1)
+          attrRec[out + k] = transformBuf[0].round();
+      }
+    }
+
+    attrsHfIt += (weight - 1) * numAttrs;
+    out += weight * numAttrs;
+  }
+
+  // write-back reconstructed attributes
+  assert(attrRec.size() == numAttrs * numPoints);
+  std::copy(attrRec.begin(), attrRec.end(), attributes);
 }
 
 //============================================================================
@@ -129,7 +671,7 @@ rahtFixedPointInverseRotation(
  *
  * Outputs:
  * weights = list of 'voxelCount' weights associated with each transform coefficient
- * integerizedAttributes = quantized transformed attributes array, in column-major order
+ * coefficients = quantized transformed attributes array, in column-major order
  * binaryLayer = binary layer where each coefficient was generated
  *
  * Note output weights are typically used only for the purpose of
@@ -137,86 +679,15 @@ rahtFixedPointInverseRotation(
  */
 void
 regionAdaptiveHierarchicalTransform(
-  FixedPoint quantStepSizeLuma,
+  const Quantizers& qstep,
   int64_t* mortonCode,
-  FixedPoint* attributes,
-  uint64_t* weight,
-  int* binaryLayer,
+  int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* integerizedAttributes)
+  int* coefficients)
 {
-  size_t M, N;
-  size_t S, d, i, j;
-
-  N = voxelCount;
-
-  FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
-  uint64_t* weightTransformed = new uint64_t[voxelCount];
-  int64_t* mortonCodeTransformed = new int64_t[voxelCount];
-
-  d = 0;
-  while (N > 1 || d % 2) {
-    d++;
-    i = 0;
-    M = 0;
-    S = N;
-
-    while (i < S) {
-      j = i + 1;
-      mortonCodeTransformed[M] = mortonCode[i] >> 1;
-
-      if (j < S && mortonCodeTransformed[M] == (mortonCode[j] >> 1)) {
-        N--;
-
-        weightTransformed[M] = weightTransformed[N] = weight[i] + weight[j];
-
-        rahtFixedPointRotation(
-          quantStepSizeLuma, weight[i], weight[j],
-          attributes + i * attribCount, attributes + j * attribCount,
-          attributesTransformed + M * attribCount,
-          attributesTransformed + N * attribCount, attribCount);
-
-        binaryLayer[N] = d;
-
-        i += 2;
-      } else {
-        weightTransformed[M] = weight[i];
-        for (size_t k = 0; k < attribCount; k++)
-          attributesTransformed[M * attribCount + k] =
-            attributes[i * attribCount + k];
-        i += 1;
-      }
-      M++;
-    }
-
-    i = S * attribCount;
-    j = N * attribCount;
-    while (i-- > j)
-      attributes[i] = attributesTransformed[i];
-
-    std::swap(attributes, attributesTransformed);
-    std::swap(mortonCode, mortonCodeTransformed);
-    std::swap(weight, weightTransformed);
-  }
-  binaryLayer[0] = d;
-
-  delete[] weightTransformed;
-  delete[] mortonCodeTransformed;
-  delete[] attributesTransformed;
-
-  // Quantization of DC coefficients
-  quantStepSizeLuma.val =
-    isqrt((quantStepSizeLuma.val * quantStepSizeLuma.val) / weight[0]);
-  for (size_t k = 0; k < attribCount; k++)
-    attributes[k] /= quantStepSizeLuma;
-
-  // write-back coefficients at full precision since quantisation has removed
-  // the fractional part.
-  for (i = 0; i < voxelCount; i++)
-    for (size_t k = 0; k < attribCount; k++)
-      integerizedAttributes[i + voxelCount * k] =
-        attributes[i * attribCount + k].val;
+  uraht_process<true>(
+    qstep, voxelCount, attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================
@@ -228,7 +699,7 @@ regionAdaptiveHierarchicalTransform(
  * mortonCode = list of 'voxelCount' Morton codes of voxels, sorted in ascending Morton code order
  * attribCount = number of attributes (e.g., 3 if attributes are red, green, blue)
  * voxelCount = number of voxels
- * integerizedAttributes = quantized transformed attributes array, in column-major order
+ * coefficients = quantized transformed attributes array, in column-major order
  *
  * Outputs:
  * attributes = 'voxelCount' x 'attribCount' array of attributes, in row-major order
@@ -238,152 +709,15 @@ regionAdaptiveHierarchicalTransform(
  */
 void
 regionAdaptiveHierarchicalInverseTransform(
-  FixedPoint quantStepSizeLuma,
+  const Quantizers& qstep,
   int64_t* mortonCode,
-  FixedPoint* attributes,
-  uint64_t* weight,
+  int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* integerizedAttributes)
+  int* coefficients)
 {
-  size_t M, N;
-  size_t S, d, i, j;
-
-  M = N = voxelCount;
-
-  FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
-  uint64_t* weightTransformed = new uint64_t[voxelCount];
-  int64_t* mortonCodeTransformed = new int64_t[voxelCount];
-
-  int64_t** mortonCodeBuffer;
-  uint64_t** weightBuffer;
-  size_t* M_buffer;
-  {
-    size_t depth = 0;
-    int64_t maxMortonCode = mortonCode[voxelCount - 1];
-
-    while (maxMortonCode--) {
-      depth++;
-      maxMortonCode >>= 1;
-    }
-
-    mortonCodeBuffer = new int64_t*[depth + 1];
-    weightBuffer = new uint64_t*[depth + 1];
-    M_buffer = new size_t[depth + 1];
-  }
-
-  for (i = 0; i < voxelCount; i++)
-    for (size_t k = 0; k < attribCount; k++)
-      attributesTransformed[i * attribCount + k].val =
-        integerizedAttributes[i + k * voxelCount];
-
-  // Dequantization of DC coefficients
-  {
-    FixedPoint quantStepSizeLuma2;
-    quantStepSizeLuma2.val =
-      isqrt((quantStepSizeLuma.val * quantStepSizeLuma.val) / N);
-    for (size_t k = 0; k < attribCount; k++)
-      attributesTransformed[k] *= quantStepSizeLuma2;
-  }
-
-  // Handle case when there is only a single point
-  if (N == 1) {
-    for (size_t k = 0; k < attribCount; k++)
-      attributes[k] = attributesTransformed[k];
-  }
-
-  // Re-obtain weights at the decoder by partially executing the encoder
-  d = 0;
-  while (N > 1) {
-    int64_t* _mortonCode = new int64_t[M];
-    uint64_t* _weight = new uint64_t[M];
-
-    M_buffer[d] = M;
-    mortonCodeBuffer[d] = _mortonCode;
-    weightBuffer[d] = _weight;
-
-    for (i = 0; i < M; i++) {
-      _mortonCode[i] = mortonCode[i] >> 1;
-      _weight[i] = weight[i];
-    }
-    d++;
-
-    i = 0;
-    S = M;
-    M = 0;
-
-    while (i < S) {
-      mortonCodeTransformed[M] = _mortonCode[i];
-      j = i + 1;
-
-      if (j < S && _mortonCode[i] == _mortonCode[j]) {
-        N--;
-        weightTransformed[M] = weight[i] + weight[j];
-        i += 2;
-      } else {
-        weightTransformed[M] = weight[i];
-        i += 1;
-      }
-      M++;
-    }
-
-    std::swap(mortonCode, mortonCodeTransformed);
-    std::swap(weight, weightTransformed);
-  }
-
-  if (d % 2) {
-    delete[] mortonCode;
-    delete[] weight;
-  } else {
-    delete[] mortonCodeTransformed;
-    delete[] weightTransformed;
-  }
-
-  // Inverse transform
-  while (d--) {
-    S = M_buffer[d];
-
-    mortonCode = mortonCodeBuffer[d];
-    weight = weightBuffer[d];
-
-    M = 0;
-    N = S;
-    i = 0;
-
-    while (i < S) {
-      j = i + 1;
-
-      if (j < S && mortonCode[i] == mortonCode[j]) {
-        N--;
-
-        rahtFixedPointInverseRotation(
-          quantStepSizeLuma, weight[i], weight[j],
-          attributes + i * attribCount, attributes + j * attribCount,
-          attributesTransformed + M * attribCount,
-          attributesTransformed + N * attribCount, attribCount);
-
-        i += 2;
-      } else {
-        for (size_t k = 0; k < attribCount; k++)
-          attributes[i * attribCount + k] =
-            attributesTransformed[M * attribCount + k];
-        i += 1;
-      }
-      M++;
-    }
-
-    delete[] mortonCode;
-    delete[] weight;
-
-    i = S * attribCount;
-    while (i--)
-      attributesTransformed[i] = attributes[i];
-  }
-
-  delete[] M_buffer;
-  delete[] weightBuffer;
-  delete[] mortonCodeBuffer;
-  delete[] attributesTransformed;
+  uraht_process<false>(
+    qstep, voxelCount, attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================

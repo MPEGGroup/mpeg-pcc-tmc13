@@ -549,9 +549,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
       attr_aps.num_detail_levels = 0;
       attr_aps.adaptive_prediction_threshold = 0;
-
-      // todo(df): suggest chroma quant_step_size for raht
-      attr_aps.aps_chroma_qp_offset = 0;
     }
   }
 

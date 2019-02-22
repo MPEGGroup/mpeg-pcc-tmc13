@@ -174,7 +174,7 @@ ceillog2(uint32_t x)
 //---------------------------------------------------------------------------
 // Compute an approximation of \left\floor \sqrt{x} \right\floor
 
-uint32_t isqrt(uint64_t x);
+uint32_t isqrt(uint64_t x) __attribute__((const));
 
 //---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
@@ -184,6 +184,23 @@ morton3dAxisDec(int64_t val, int axis)
 {
   const int64_t mask0 = 0x9249249249249249llu << axis;
   return ((val & mask0) - 1 & mask0) | (val & ~mask0);
+}
+
+//---------------------------------------------------------------------------
+// add the three dimentional addresses @a + @b;
+//
+inline uint64_t
+morton3dAdd(uint64_t a, uint64_t b)
+{
+  uint64_t mask = 0x9249249249249249llu;
+  uint64_t val = 0;
+
+  for (int i = 0; i < 3; i++) {
+    val |= (a | ~mask) + (b & mask) & mask;
+    mask <<= 1;
+  }
+
+  return val;
 }
 
 //---------------------------------------------------------------------------

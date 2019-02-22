@@ -38,26 +38,24 @@
 #include <cstdint>
 
 #include "FixedPoint.h"
+#include "quantization.h"
 
 namespace pcc {
 
 void regionAdaptiveHierarchicalTransform(
-  FixedPoint quantStepSizeLuma,
+  const Quantizers& qstep,
   int64_t* mortonCode,
-  FixedPoint* attributes,
-  uint64_t* weight,
-  int* binaryLayer,
+  int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* integerizedAttributes);
+  int* coefficients);
 
 void regionAdaptiveHierarchicalInverseTransform(
-  FixedPoint quantStepSizeLuma,
+  const Quantizers& qstep,
   int64_t* mortonCode,
-  FixedPoint* attributes,
-  uint64_t* weight,
+  int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* integerizedAttributes);
+  int* coefficients);
 
 } /* namespace pcc */

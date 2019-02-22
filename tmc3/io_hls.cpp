@@ -262,7 +262,6 @@ write(const AttributeParameterSet& aps)
   bs.writeUe(aps.attr_encoding);
 
   bs.writeUe(aps.init_qp);
-  // todo(?): raht chroma qp support?
   bs.writeSe(aps.aps_chroma_qp_offset);
   bs.write(aps.aps_slice_qp_deltas_present_flag);
 
@@ -311,7 +310,6 @@ parseAps(const PayloadBuffer& buf)
   bs.readUe(&aps.attr_encoding);
 
   bs.readUe(&aps.init_qp);
-  // todo(?): raht chroma qp support?
   bs.readSe(&aps.aps_chroma_qp_offset);
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 

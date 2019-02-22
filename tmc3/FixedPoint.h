@@ -57,6 +57,8 @@ public:
   FixedPoint& operator=(FixedPoint&&) = default;
 
   FixedPoint(int val) { this->operator=(int64_t(val)); }
+  FixedPoint(int64_t val) { this->operator=(val); }
+  FixedPoint(double val) { this->val = int64_t(val * (1 << kFracBits)); }
 
   // return the rounded integer value
   int64_t round();

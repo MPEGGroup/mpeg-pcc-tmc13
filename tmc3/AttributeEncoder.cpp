@@ -773,14 +773,11 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   // Allocate arrays.
   int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 1;
-  FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
-  int* integerizedAttributes = new int[attribCount * voxelCount];
-  uint64_t* weight = new uint64_t[voxelCount];
-  int* binaryLayer = new int[voxelCount];
+  int* attributes = new int[attribCount * voxelCount];
+  int* coefficients = new int[attribCount * voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
-    weight[n] = 1;
     mortonCode[n] = packedVoxel[n].mortonCode;
     const auto reflectance = pointCloud.getReflectance(packedVoxel[n].index);
     attributes[attribCount * n] = reflectance;
@@ -788,14 +785,13 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    FixedPoint(qstep[0]), mortonCode, attributes, weight, binaryLayer,
-    attribCount, voxelCount, integerizedAttributes);
+    qstep, mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   int zero_cnt = 0;
   uint32_t value;
   for (int n = 0; n < voxelCount; ++n) {
-    const int64_t detail = IntToUInt(integerizedAttributes[n]);
+    const int64_t detail = IntToUInt(coefficients[n]);
     assert(detail < std::numeric_limits<uint32_t>::max());
     value = uint32_t(detail);
     if (!value)
@@ -808,32 +804,19 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   }
   encoder.encodeZeroCnt(zero_cnt, voxelCount);
 
-  // local decode
-  std::fill_n(attributes, attribCount * voxelCount, FixedPoint(0));
-  for (int n = 0; n < voxelCount; n++) {
-    mortonCode[n] = packedVoxel[n].mortonCode;
-    weight[n] = 1;
-  }
-
-  regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
-    voxelCount, integerizedAttributes);
-
   const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   const int64_t minReflectance = 0;
   for (int n = 0; n < voxelCount; n++) {
-    int64_t val = attributes[attribCount * n].round();
+    int64_t val = attributes[attribCount * n];
     const uint16_t reflectance =
       (uint16_t)PCCClip(val, minReflectance, maxReflectance);
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
   }
 
   // De-allocate arrays.
-  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
-  delete[] integerizedAttributes;
-  delete[] weight;
+  delete[] coefficients;
 }
 
 //----------------------------------------------------------------------------
@@ -857,14 +840,11 @@ AttributeEncoder::encodeColorsTransformRaht(
   // Allocate arrays.
   int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 3;
-  FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
-  int* integerizedAttributes = new int[attribCount * voxelCount];
-  uint64_t* weight = new uint64_t[voxelCount];
-  int* binaryLayer = new int[voxelCount];
+  int* attributes = new int[attribCount * voxelCount];
+  int* coefficients = new int[attribCount * voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
-    weight[n] = 1;
     mortonCode[n] = packedVoxel[n].mortonCode;
     const auto color = pointCloud.getColor(packedVoxel[n].index);
     attributes[attribCount * n] = color[0];
@@ -874,16 +854,14 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    FixedPoint(qstep[0]), mortonCode, attributes, weight, binaryLayer,
-    attribCount, voxelCount, integerizedAttributes);
+    qstep, mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   uint32_t values[attribCount];
   int zero_cnt = 0;
   for (int n = 0; n < voxelCount; ++n) {
     for (int d = 0; d < attribCount; ++d) {
-      const int64_t detail =
-        IntToUInt(integerizedAttributes[voxelCount * d + n]);
+      const int64_t detail = IntToUInt(coefficients[voxelCount * d + n]);
       assert(detail < std::numeric_limits<uint32_t>::max());
       values[d] = uint32_t(detail);
     }
@@ -895,25 +873,13 @@ AttributeEncoder::encodeColorsTransformRaht(
       zero_cnt = 0;
     }
   }
-
   encoder.encodeZeroCnt(zero_cnt, voxelCount);
-
-  // local decode
-  std::fill_n(attributes, attribCount * voxelCount, FixedPoint(0));
-  for (int n = 0; n < voxelCount; n++) {
-    weight[n] = 1;
-    mortonCode[n] = packedVoxel[n].mortonCode;
-  }
-
-  regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
-    voxelCount, integerizedAttributes);
 
   const int clipMax = (1 << desc.attr_bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {
-    const int r = attributes[attribCount * n].round();
-    const int g = attributes[attribCount * n + 1].round();
-    const int b = attributes[attribCount * n + 2].round();
+    const int r = attributes[attribCount * n];
+    const int g = attributes[attribCount * n + 1];
+    const int b = attributes[attribCount * n + 2];
     Vec3<uint8_t> color;
     color[0] = uint8_t(PCCClip(r, 0, clipMax));
     color[1] = uint8_t(PCCClip(g, 0, clipMax));
@@ -922,11 +888,9 @@ AttributeEncoder::encodeColorsTransformRaht(
   }
 
   // De-allocate arrays.
-  delete[] binaryLayer;
   delete[] mortonCode;
   delete[] attributes;
-  delete[] integerizedAttributes;
-  delete[] weight;
+  delete[] coefficients;
 }
 //----------------------------------------------------------------------------
 
