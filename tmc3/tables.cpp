@@ -44,8 +44,8 @@ const uint8_t pcc::kNeighPattern64to9[64] = {
   3, 6, 6, 7, 1, 3, 3, 4, 3, 6, 6, 7, 3, 6, 6, 7, 4, 7, 7, 8};
 
 const uint8_t pcc::kNeighPattern64to6[64] = {
-  0, 4, 4, x, 4, 2, 2, x, 4, 2, 2, x, x, x, x, x, 5, 3, 3, x, 3, 1,
-  1, x, 3, 1, 1, x, x, x, x, x, 5, 3, 3, x, 3, 1, 1, x, 3, 1, 1, x,
+  0, 5, 5, x, 5, 1, 1, x, 5, 1, 1, x, x, x, x, x, 2, 3, 3, x, 3, 7,
+  7, x, 3, 7, 7, x, x, x, x, x, 2, 3, 3, x, 3, 7, 7, x, 3, 7, 7, x,
   x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x};
 
 const uint8_t pcc::kNeighPattern9to5[9] = {0, 1, 2, 3, 1, 2, 3, 4, 4};
