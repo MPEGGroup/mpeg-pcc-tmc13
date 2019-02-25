@@ -476,8 +476,10 @@ decodeGeometryOctree(
     assert(occupancy > 0);
 
     // update atlas for advanced neighbours
-    updateGeometryOccupancyAtlasOccChild(
-      node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+    if (gps.neighbour_avail_boundary_log2) {
+      updateGeometryOccupancyAtlasOccChild(
+        node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+    }
 
     // population count of occupancy for IDCM
     int numOccupied = popcnt(occupancy);

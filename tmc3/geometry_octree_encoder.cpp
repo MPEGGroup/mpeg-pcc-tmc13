@@ -497,8 +497,10 @@ encodeGeometryOctree(
     }
 
     // update atlas for advanced neighbours
-    updateGeometryOccupancyAtlasOccChild(
-      node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+    if (gps.neighbour_avail_boundary_log2) {
+      updateGeometryOccupancyAtlasOccChild(
+        node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+    }
 
     // encode child occupancy map
     assert(occupancy > 0);
