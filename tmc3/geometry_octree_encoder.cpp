@@ -287,7 +287,7 @@ GeometryOctreeEncoder::encodeOccupancyBitwise(
 
 void
 GeometryOctreeEncoder::encodeOccupancyBytewise(
-  int mappedOccupancy, int neighPattern)
+  int neighPattern, int mappedOccupancy)
 {
   // code occupancy using the neighbour configuration context
   // with reduction from 64 states to 10 (or 6).
