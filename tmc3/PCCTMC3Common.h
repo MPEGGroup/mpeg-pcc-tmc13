@@ -101,6 +101,7 @@ struct PCCPredictor {
   uint32_t neighborCount;
   PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
   int8_t predMode;
+  int64_t maxDiff;
 
   Vec3<uint8_t> predictColor(
     const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const

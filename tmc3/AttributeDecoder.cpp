@@ -53,11 +53,14 @@ struct PCCResidualsDecoder {
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
+  AdaptiveBitModel ctxZeroCnt[3];
+  AdaptiveBitModel binaryModelIsOne[7];
   DualLutCoder<false> symbolCoder[2];
 
   void start(const char* buf, int buf_len);
   void stop();
   int decodePredMode(int max);
+  int decodeZeroCnt(int max);
   uint32_t decodeSymbol(int k1, int k2);
   void decode(uint32_t values[3]);
   uint32_t decode();
@@ -103,21 +106,42 @@ PCCResidualsDecoder::decodePredMode(int maxMode)
 
 //----------------------------------------------------------------------------
 
+int
+PCCResidualsDecoder::decodeZeroCnt(int maxMode)
+{
+  int mode = 0;
+
+  if (maxMode == 0)
+    return mode;
+
+  int ctxIdx = 0;
+  while (arithmeticDecoder.decode(ctxZeroCnt[ctxIdx])) {
+    ctxIdx = (ctxIdx == 0 ? 1 : 2);
+    mode++;
+    if (mode == maxMode)
+      break;
+  }
+  return mode;
+}
+
+//----------------------------------------------------------------------------
+
 uint32_t
 PCCResidualsDecoder::decodeSymbol(int k1, int k2)
 {
-  if (arithmeticDecoder.decode(binaryModelIsZero[k1])) {
+  if (arithmeticDecoder.decode(binaryModelIsZero[k1]))
     return 0u;
-  }
+
+  if (arithmeticDecoder.decode(binaryModelIsOne[k1]))
+    return 1u;
 
   uint32_t value = symbolCoder[k2].decode(&arithmeticDecoder);
   if (value == kAttributeResidualAlphabetSize) {
     value +=
       arithmeticDecoder.decodeExpGolomb(0, binaryModel0, binaryModelDiff[k1]);
   }
-  ++value;
 
-  return value;
+  return value + 2;
 }
 
 //----------------------------------------------------------------------------
@@ -130,6 +154,11 @@ PCCResidualsDecoder::decode(uint32_t value[3])
   value[1] = decodeSymbol(1 + b0, 1);
   int b1 = value[1] == 0;
   value[2] = decodeSymbol(3 + (b0 << 1) + b1, 1);
+
+  int d = (value[0] == value[1] && value[0] == value[2]);
+  for (int k = 0; k < 3; k++) {
+    value[k] += d;
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -137,7 +166,7 @@ PCCResidualsDecoder::decode(uint32_t value[3])
 uint32_t
 PCCResidualsDecoder::decode()
 {
-  return decodeSymbol(0, 0);
+  return decodeSymbol(0, 0) + 1;
 }
 
 //============================================================================
@@ -260,6 +289,7 @@ AttributeDecoder::decodeReflectancesPred(
   }
 
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
+  int zero_cnt = decoder.decodeZeroCnt(pointCount);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
@@ -268,7 +298,13 @@ AttributeDecoder::decodeReflectancesPred(
       aps, pointCloud, indexesLOD, predictor, decoder);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
     uint16_t& reflectance = pointCloud.getReflectance(pointIndex);
-    const uint32_t attValue0 = decoder.decode();
+    uint32_t attValue0 = 0;
+    if (zero_cnt > 0) {
+      zero_cnt--;
+    } else {
+      attValue0 = decoder.decode();
+      zero_cnt = decoder.decodeZeroCnt(pointCount);
+    }
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, indexesLOD);
     const int64_t delta =
@@ -349,6 +385,7 @@ AttributeDecoder::decodeColorsPred(
   }
 
   uint32_t values[3];
+  int zero_cnt = decoder.decodeZeroCnt(pointCount);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
@@ -356,7 +393,13 @@ AttributeDecoder::decodeColorsPred(
     const int64_t qs2 = qstep[1];
     computeColorPredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
-    decoder.decode(values);
+    if (zero_cnt > 0) {
+      values[0] = values[1] = values[2] = 0;
+      zero_cnt--;
+    } else {
+      decoder.decode(values);
+      zero_cnt = decoder.decodeZeroCnt(pointCount);
+    }
     const uint32_t pointIndex = indexesLOD[predictorIndex];
     Vec3<uint8_t>& color = pointCloud.getColor(pointIndex);
     const Vec3<uint8_t> predictedColor =
@@ -408,10 +451,16 @@ AttributeDecoder::decodeReflectancesRaht(
 
   // Entropy decode
   const int attribCount = 1;
-  uint32_t value;
   int* integerizedAttributes = new int[attribCount * voxelCount];
+  int zero_cnt = decoder.decodeZeroCnt(voxelCount);
   for (int n = 0; n < voxelCount; ++n) {
-    value = decoder.decode();
+    uint32_t value = 0;
+    if (zero_cnt > 0) {
+      zero_cnt--;
+    } else {
+      value = decoder.decode();
+      zero_cnt = decoder.decodeZeroCnt(voxelCount);
+    }
     integerizedAttributes[n] = UIntToInt(value);
   }
 
@@ -467,11 +516,18 @@ AttributeDecoder::decodeColorsRaht(
 
   // Entropy decode
   const int attribCount = 3;
-  uint32_t values[3];
+  int zero_cnt = decoder.decodeZeroCnt(voxelCount);
   int* integerizedAttributes = new int[attribCount * voxelCount];
 
   for (int n = 0; n < voxelCount; ++n) {
-    decoder.decode(values);
+    uint32_t values[3];
+    if (zero_cnt > 0) {
+      values[0] = values[1] = values[2] = 0;
+      zero_cnt--;
+    } else {
+      decoder.decode(values);
+      zero_cnt = decoder.decodeZeroCnt(voxelCount);
+    }
     for (int d = 0; d < attribCount; ++d) {
       integerizedAttributes[voxelCount * d + n] = UIntToInt(values[d]);
     }
@@ -540,10 +596,17 @@ AttributeDecoder::decodeColorsLift(
   std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
   // decompress
+  int zero_cnt = decoder.decodeZeroCnt(pointCount);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     uint32_t values[3];
-    decoder.decode(values);
+    if (zero_cnt > 0) {
+      values[0] = values[1] = values[2] = 0;
+      zero_cnt--;
+    } else {
+      decoder.decode(values);
+      zero_cnt = decoder.decodeZeroCnt(pointCount);
+    }
     const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
     const int64_t qs2 = qstep[1] << (kFixedPointWeightShift / 2);
     // + kFixedPointAttributeShift ???
@@ -617,9 +680,16 @@ AttributeDecoder::decodeReflectancesLift(
   reflectances.resize(pointCount);
 
   // decompress
+  int zero_cnt = decoder.decodeZeroCnt(pointCount);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const int64_t detail = decoder.decode();
+    int64_t detail = 0;
+    if (zero_cnt > 0) {
+      zero_cnt--;
+    } else {
+      detail = decoder.decode();
+      zero_cnt = decoder.decodeZeroCnt(pointCount);
+    }
     const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];

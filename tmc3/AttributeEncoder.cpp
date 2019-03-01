@@ -57,11 +57,14 @@ struct PCCResidualsEncoder {
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
+  AdaptiveBitModel ctxZeroCnt[3];
+  AdaptiveBitModel binaryModelIsOne[7];
   DualLutCoder<false> symbolCoder[2];
 
   void start(int numPoints);
   int stop();
   void encodePredMode(int value, int max);
+  void encodeZeroCnt(int value, int max);
   void encodeSymbol(uint32_t value, int k1, int k2);
   void encode(uint32_t value0, uint32_t value1, uint32_t value2);
   void encode(uint32_t value);
@@ -109,6 +112,26 @@ PCCResidualsEncoder::encodePredMode(int mode, int maxMode)
 //----------------------------------------------------------------------------
 
 void
+PCCResidualsEncoder::encodeZeroCnt(int mode, int maxMode)
+{
+  // max = 0 => no direct predictors are used
+  if (maxMode == 0)
+    return;
+
+  int ctxIdx = 0;
+  for (int i = 0; i < mode; i++) {
+    arithmeticEncoder.encode(1, ctxZeroCnt[ctxIdx]);
+    ctxIdx = (ctxIdx == 0 ? 1 : 2);
+  }
+
+  // Truncated unary
+  if (mode != maxMode)
+    arithmeticEncoder.encode(0, ctxZeroCnt[ctxIdx]);
+}
+
+//----------------------------------------------------------------------------
+
+void
 PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
 {
   bool isZero = value == 0;
@@ -116,7 +139,14 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
   if (isZero) {
     return;
   }
-  --value;
+
+  bool isOne = value == 1;
+  arithmeticEncoder.encode(isOne, binaryModelIsOne[k1]);
+  if (isOne) {
+    return;
+  }
+  value -= 2;
+
   if (value < kAttributeResidualAlphabetSize) {
     symbolCoder[k2].encode(value, &arithmeticEncoder);
   } else {
@@ -132,6 +162,12 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
 void
 PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
 {
+  if (value0 == value1 && value0 == value2) {
+    value0--;
+    value1--;
+    value2--;
+  }
+
   int b0 = value0 == 0;
   int b1 = value1 == 0;
   encodeSymbol(value0, 0, 0);
@@ -144,7 +180,7 @@ PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
 void
 PCCResidualsEncoder::encode(uint32_t value)
 {
-  encodeSymbol(value, 0, 0);
+  encodeSymbol(value - 1, 0, 0);
 }
 
 //============================================================================
@@ -371,6 +407,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
   const int64_t qs)
 {
   predictor.computeWeights();
+  predictor.maxDiff = -1;
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
@@ -385,6 +422,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
       }
     }
     const int64_t maxDiff = maxValue - minValue;
+    predictor.maxDiff = maxDiff;
     if (maxDiff > aps.adaptive_prediction_threshold) {
       uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
@@ -418,9 +456,6 @@ AttributeEncoder::computeReflectancePredictionWeights(
           // with reconstruction.
         }
       }
-
-      encoder.encodePredMode(
-        predictor.predMode, aps.max_num_direct_predictors);
     }
   }
 }
@@ -460,6 +495,12 @@ AttributeEncoder::encodeReflectancesPred(
 
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
+  int zero_cnt = 0;
+  std::vector<int> zerorun;
+  zerorun.reserve(pointCount);
+  std::vector<uint32_t> residual;
+  residual.resize(pointCount);
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
@@ -483,8 +524,36 @@ AttributeEncoder::encodeReflectancesPred(
     const uint16_t reconstructedReflectance =
       uint16_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
 
-    encoder.encode(attValue0);
+    if (!attValue0)
+      ++zero_cnt;
+    else {
+      zerorun.push_back(zero_cnt);
+      zero_cnt = 0;
+    }
+    residual[predictorIndex] = attValue0;
     pointCloud.setReflectance(pointIndex, reconstructedReflectance);
+  }
+
+  zerorun.push_back(zero_cnt);
+  int run_index = 0;
+  encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+  zero_cnt = zerorun[run_index++];
+
+  for (size_t predictorIndex = 0; predictorIndex < pointCount;
+       ++predictorIndex) {
+    auto& predictor = predictors[predictorIndex];
+    if (predictor.maxDiff > aps.adaptive_prediction_threshold) {
+      encoder.encodePredMode(
+        predictor.predMode, aps.max_num_direct_predictors);
+    }
+    if (zero_cnt > 0)
+      zero_cnt--;
+    else {
+      encoder.encode(residual[predictorIndex]);
+      if (predictorIndex != pointCount - 1)
+        encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+      zero_cnt = zerorun[run_index++];
+    }
   }
 }
 
@@ -528,6 +597,7 @@ AttributeEncoder::computeColorPredictionWeights(
   const int64_t qs2)
 {
   predictor.computeWeights();
+  predictor.maxDiff = -1;
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
@@ -546,6 +616,8 @@ AttributeEncoder::computeColorPredictionWeights(
     const int64_t maxDiff = (std::max)(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
+    predictor.maxDiff = maxDiff;
+
     if (maxDiff > aps.adaptive_prediction_threshold) {
       Vec3<uint8_t> attrValue =
         pointCloud.getColor(indexesLOD[predictorIndex]);
@@ -581,9 +653,6 @@ AttributeEncoder::computeColorPredictionWeights(
           // with reconstruction.
         }
       }
-
-      encoder.encodePredMode(
-        predictor.predMode, aps.max_num_direct_predictors);
     }
   }
 }
@@ -624,6 +693,14 @@ AttributeEncoder::encodeColorsPred(
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   uint32_t values[3];
   PCCResidualsEntropyEstimator context;
+
+  int zero_cnt = 0;
+  std::vector<int> zerorun;
+  std::vector<uint32_t> residual[3];
+  for (int i = 0; i < 3; i++) {
+    residual[i].resize(pointCount);
+  }
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
@@ -661,7 +738,41 @@ AttributeEncoder::encodeColorsPred(
         uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     }
     pointCloud.setColor(pointIndex, reconstructedColor);
-    encoder.encode(values[0], values[1], values[2]);
+
+    if (!values[0] && !values[1] && !values[2]) {
+      ++zero_cnt;
+    } else {
+      zerorun.push_back(zero_cnt);
+      zero_cnt = 0;
+    }
+
+    for (int i = 0; i < 3; i++) {
+      residual[i][predictorIndex] = values[i];
+    }
+  }
+
+  zerorun.push_back(zero_cnt);
+  int run_index = 0;
+  encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+  zero_cnt = zerorun[run_index++];
+  for (size_t predictorIndex = 0; predictorIndex < pointCount;
+       ++predictorIndex) {
+    auto& predictor = predictors[predictorIndex];
+    if (predictor.maxDiff > aps.adaptive_prediction_threshold) {
+      encoder.encodePredMode(
+        predictor.predMode, aps.max_num_direct_predictors);
+    }
+    if (zero_cnt > 0)
+      zero_cnt--;
+    else {
+      for (size_t k = 0; k < 3; k++)
+        values[k] = residual[k][predictorIndex];
+
+      encoder.encode(values[0], values[1], values[2]);
+      if (predictorIndex != pointCount - 1)
+        encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+      zero_cnt = zerorun[run_index++];
+    }
   }
 }
 
@@ -705,13 +816,21 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     attribCount, voxelCount, integerizedAttributes);
 
   // Entropy encode.
+  int zero_cnt = 0;
   uint32_t value;
   for (int n = 0; n < voxelCount; ++n) {
     const int64_t detail = IntToUInt(integerizedAttributes[n]);
     assert(detail < std::numeric_limits<uint32_t>::max());
     value = uint32_t(detail);
-    encoder.encode(value);
+    if (!value)
+      ++zero_cnt;
+    else {
+      encoder.encodeZeroCnt(zero_cnt, voxelCount);
+      encoder.encode(value);
+      zero_cnt = 0;
+    }
   }
+  encoder.encodeZeroCnt(zero_cnt, voxelCount);
 
   // local decode
   std::fill_n(attributes, attribCount * voxelCount, FixedPoint(0));
@@ -784,6 +903,7 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Entropy encode.
   uint32_t values[attribCount];
+  int zero_cnt = 0;
   for (int n = 0; n < voxelCount; ++n) {
     for (int d = 0; d < attribCount; ++d) {
       const int64_t detail =
@@ -791,8 +911,16 @@ AttributeEncoder::encodeColorsTransformRaht(
       assert(detail < std::numeric_limits<uint32_t>::max());
       values[d] = uint32_t(detail);
     }
-    encoder.encode(values[0], values[1], values[2]);
+    if (!values[0] && !values[1] && !values[2])
+      ++zero_cnt;
+    else {
+      encoder.encodeZeroCnt(zero_cnt, voxelCount);
+      encoder.encode(values[0], values[1], values[2]);
+      zero_cnt = 0;
+    }
   }
+
+  encoder.encodeZeroCnt(zero_cnt, voxelCount);
 
   // local decode
   std::fill_n(attributes, attribCount * voxelCount, FixedPoint(0));
@@ -824,7 +952,6 @@ AttributeEncoder::encodeColorsTransformRaht(
   delete[] integerizedAttributes;
   delete[] weight;
 }
-
 //----------------------------------------------------------------------------
 
 void
@@ -878,6 +1005,7 @@ AttributeEncoder::encodeColorsLift(
   }
 
   // compress
+  int zero_cnt = 0;
   const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
   const size_t qs2 = qstep[1] << (kFixedPointWeightShift / 2);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -899,8 +1027,15 @@ AttributeEncoder::encodeColorsLift(
       color[d] = reconstructedDelta / quantWeight;
       values[d] = uint32_t(detail);
     }
-    encoder.encode(values[0], values[1], values[2]);
+    if (!values[0] && !values[1] && !values[2])
+      ++zero_cnt;
+    else {
+      encoder.encodeZeroCnt(zero_cnt, pointCount);
+      encoder.encode(values[0], values[1], values[2]);
+      zero_cnt = 0;
+    }
   }
+  encoder.encodeZeroCnt(zero_cnt, pointCount);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
@@ -975,6 +1110,7 @@ AttributeEncoder::encodeReflectancesLift(
   }
 
   // compress
+  int zero_cnt = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
@@ -985,8 +1121,15 @@ AttributeEncoder::encodeReflectancesLift(
     assert(detail < std::numeric_limits<uint32_t>::max());
     const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
     reflectance = reconstructedDelta / quantWeight;
-    encoder.encode(detail);
+    if (!detail)
+      ++zero_cnt;
+    else {
+      encoder.encodeZeroCnt(zero_cnt, pointCount);
+      encoder.encode(detail);
+      zero_cnt = 0;
+    }
   }
+  encoder.encodeZeroCnt(zero_cnt, pointCount);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
