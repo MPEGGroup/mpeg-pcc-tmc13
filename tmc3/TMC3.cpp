@@ -444,6 +444,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Attribute's list of squared distances, or initial value for automatic"
     "derivation")
 
+  ("intraLodPredictionEnabled",
+    params_attr.aps.intra_lod_prediction_enabled_flag, false,
+    "Permits referring to points in same LoD")
+
   ("qp",
     params_attr.aps.init_qp, 4,
     "Attribute's luma quantisation parameter")
@@ -543,6 +547,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       attr_aps.adaptive_prediction_threshold = 0;
+      attr_aps.intra_lod_prediction_enabled_flag = false;
     }
 
     // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)

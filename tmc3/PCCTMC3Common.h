@@ -499,7 +499,8 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  std::vector<Box3<double>>& bBoxes)
+  std::vector<Box3<double>>& bBoxes,
+  const bool intraLodPredictionEnabled)
 {
   const int32_t retainedSize = retained.size();
   const int32_t bucketSize = 8;
@@ -513,6 +514,24 @@ computeNearestNeighbors(
       for (int32_t p = 0; p < 3; ++p) {
         bBox.min[p] = std::min(bBox.min[p], point[p]);
         bBox.max[p] = std::max(bBox.max[p], point[p]);
+      }
+    }
+  }
+
+  std::vector<Box3<double>> bBoxesI;
+  const int32_t indexesSize = endIndex - startIndex;
+  if (intraLodPredictionEnabled) {
+    bBoxesI.resize((indexesSize + bucketSize - 1) / bucketSize);
+    for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
+      auto& bBox = bBoxesI[b];
+      bBox.min = bBox.max = pointCloud[packedVoxel[indexes[i++]].index];
+      for (int32_t k = 1; k < bucketSize && i < endIndex; ++k, ++i) {
+        const int32_t pointIndex = packedVoxel[indexes[i]].index;
+        const auto& point = pointCloud[pointIndex];
+        for (int32_t p = 0; p < 3; ++p) {
+          bBox.min[p] = std::min(bBox.min[p], point[p]);
+          bBox.max[p] = std::max(bBox.max[p], point[p]);
+        }
       }
     }
   }
@@ -564,6 +583,45 @@ computeNearestNeighbors(
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
           for (int32_t k = k0; k < k1; ++k) {
             const int32_t pointIndex1 = packedVoxel[retained[k]].index;
+            const auto& point1 = pointCloud[pointIndex1];
+            predictor.insertNeighbor(
+              pointIndex1, (point - point1).getNorm2(),
+              numberOfNearestNeighborsInPrediction);
+          }
+        }
+      }
+    }
+
+    if (intraLodPredictionEnabled) {
+      const int32_t i0 = i - startIndex;
+      const int32_t j1 = std::min(indexesSize, i0 + searchRange + 1);
+      const int32_t bucketIndex0 = i0 / bucketSize;
+      int32_t k0 = i0 + 1;
+      int32_t k1 = std::min((bucketIndex0 + 1) * bucketSize, j1);
+
+      for (int32_t k = k0; k < k1; ++k) {
+        const int32_t pointIndex1 = packedVoxel[indexes[startIndex + k]].index;
+        const auto& point1 = pointCloud[pointIndex1];
+        predictor.insertNeighbor(
+          pointIndex1, (point - point1).getNorm2(),
+          numberOfNearestNeighborsInPrediction);
+      }
+
+      for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr;
+           ++s0) {
+        const int32_t bucketIndex1 = bucketIndex0 + s0;
+        if (bucketIndex1 >= bBoxesI.size())
+          continue;
+
+        if (
+          predictor.neighborCount < numberOfNearestNeighborsInPrediction
+          || bBoxesI[bucketIndex1].getDist2(point)
+            < predictor.neighbors[index0].weight) {
+          const int32_t k0 = bucketIndex1 * bucketSize;
+          const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
+          for (int32_t k = k0; k < k1; ++k) {
+            const int32_t pointIndex1 =
+              packedVoxel[indexes[startIndex + k]].index;
             const auto& point1 = pointCloud[pointIndex1];
             predictor.insertNeighbor(
               pointIndex1, (point - point1).getNorm2(),
@@ -695,6 +753,7 @@ inline void
 buildPredictorsFast(
   const PCCPointSet3& pointCloud,
   bool lod_decimation_enabled_flag,
+  bool intraLodPredictionEnabled,
   const std::vector<int64_t>& dist2,
   const int32_t levelOfDetailCount,
   const int32_t numberOfNearestNeighborsInPrediction,
@@ -759,7 +818,8 @@ buildPredictorsFast(
       computeNearestNeighbors(
         pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
         numberOfNearestNeighborsInPrediction, indexes, predictors,
-        pointIndexToPredictorIndex, predIndex, bBoxes);
+        pointIndexToPredictorIndex, predIndex, bBoxes,
+        intraLodPredictionEnabled);
     }
 
     numberOfPointsPerLevelOfDetail.push_back(retained.size());

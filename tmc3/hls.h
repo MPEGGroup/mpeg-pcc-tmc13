@@ -237,6 +237,7 @@ struct AttributeParameterSet {
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
   int search_range;
+  bool intra_lod_prediction_enabled_flag;
 
   // NB: derived from num_detail_levels_minus1
   int num_detail_levels;

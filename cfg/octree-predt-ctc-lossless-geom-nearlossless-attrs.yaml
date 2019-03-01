@@ -37,6 +37,7 @@ categories:
        - levelOfDetailCount: 0
      - positionQuantizationScaleAdjustsDist2: 1
      - dist2: ${seq_dist2}
+     - intraLodPredictionEnabled: 1
 
      ##
      # attribute coding -- reflectance

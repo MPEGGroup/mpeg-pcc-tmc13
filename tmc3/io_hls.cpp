@@ -273,6 +273,7 @@ write(const AttributeParameterSet& aps)
 
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.writeUe(aps.adaptive_prediction_threshold);
+    bs.write(aps.intra_lod_prediction_enabled_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
@@ -320,8 +321,10 @@ parseAps(const PayloadBuffer& buf)
     }
   }
 
+  aps.intra_lod_prediction_enabled_flag = false;
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.adaptive_prediction_threshold);
+    bs.read(&aps.intra_lod_prediction_enabled_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {

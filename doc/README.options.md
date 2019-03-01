@@ -262,6 +262,10 @@ Controls the level-of-detail generation method:
   | 0     | Euclidean distance thresholding |
   | 1     | Decimation by 1:3               |
 
+### `--intraLodPredictionEnabled=0|1`
+Part of LoD attribute coding.  Permits (1) points to be predicted from
+previously reconstructed points within the same LoD.
+
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 
