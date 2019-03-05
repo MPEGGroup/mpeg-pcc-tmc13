@@ -430,6 +430,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     " 0: distance based subsampling\n"
     " 1: binary tree")
 
+  ("lodDecimation",
+    params_attr.aps.lod_decimation_enabled_flag, false,
+    "Controls LoD generation method:\n"
+    " 0: distance based subsampling\n"
+    " 1: decimation by 1:3")
+
   ("max_num_direct_predictors",
     params_attr.aps.max_num_direct_predictors, 3,
     "Maximum number of nearest neighbour candidates used in direct"

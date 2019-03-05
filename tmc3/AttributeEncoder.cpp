@@ -482,9 +482,10 @@ AttributeEncoder::encodeReflectancesPred(
         predictors, indexesLOD);
     } else {
       buildPredictorsFast(
-        pointCloud, aps.dist2, aps.num_detail_levels,
-        aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-        predictors, numberOfPointsPerLOD, indexesLOD);
+        pointCloud, aps.lod_decimation_enabled_flag, aps.dist2,
+        aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+        aps.search_range, aps.search_range, predictors, numberOfPointsPerLOD,
+        indexesLOD);
     }
   } else {
     buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
@@ -679,9 +680,10 @@ AttributeEncoder::encodeColorsPred(
         predictors, indexesLOD);
     } else {
       buildPredictorsFast(
-        pointCloud, aps.dist2, aps.num_detail_levels,
-        aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-        predictors, numberOfPointsPerLOD, indexesLOD);
+        pointCloud, aps.lod_decimation_enabled_flag, aps.dist2,
+        aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+        aps.search_range, aps.search_range, predictors, numberOfPointsPerLOD,
+        indexesLOD);
     }
   } else {
     buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
@@ -969,9 +971,9 @@ AttributeEncoder::encodeColorsLift(
 
   if (!aps.lod_binary_tree_enabled_flag) {
     buildPredictorsFast(
-      pointCloud, aps.dist2, aps.num_detail_levels,
-      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-      predictors, numberOfPointsPerLOD, indexesLOD);
+      pointCloud, aps.lod_decimation_enabled_flag, aps.dist2,
+      aps.num_detail_levels, aps.num_pred_nearest_neighbours, aps.search_range,
+      aps.search_range, predictors, numberOfPointsPerLOD, indexesLOD);
   } else {
     buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
     computePredictors(
@@ -1074,9 +1076,9 @@ AttributeEncoder::encodeReflectancesLift(
 
   if (!aps.lod_binary_tree_enabled_flag) {
     buildPredictorsFast(
-      pointCloud, aps.dist2, aps.num_detail_levels,
-      aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-      predictors, numberOfPointsPerLOD, indexesLOD);
+      pointCloud, aps.lod_decimation_enabled_flag, aps.dist2,
+      aps.num_detail_levels, aps.num_pred_nearest_neighbours, aps.search_range,
+      aps.search_range, predictors, numberOfPointsPerLOD, indexesLOD);
   } else {
     buildLevelOfDetailBinaryTree(pointCloud, numberOfPointsPerLOD, indexesLOD);
     computePredictors(

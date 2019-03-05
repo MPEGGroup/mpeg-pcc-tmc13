@@ -254,6 +254,14 @@ Range for nearest neighbour search.
 Maximum number of nearest neighbour candidates used in direct
 attribute prediction.
 
+### `--lodDecimation=0|1`
+Controls the level-of-detail generation method:
+
+  | Value | Description                     |
+  |:-----:| ------------------------------- |
+  | 0     | Euclidean distance thresholding |
+  | 1     | Decimation by 1:3               |
+
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 

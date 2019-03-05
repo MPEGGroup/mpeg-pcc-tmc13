@@ -262,6 +262,7 @@ write(const AttributeParameterSet& aps)
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.max_num_direct_predictors);
     bs.writeUe(aps.search_range);
+    bs.write(aps.lod_decimation_enabled_flag);
     bs.write(aps.lod_binary_tree_enabled_flag);
 
     bs.writeUe(aps.num_detail_levels);
@@ -311,6 +312,7 @@ parseAps(const PayloadBuffer& buf)
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.max_num_direct_predictors);
     bs.readUe(&aps.search_range);
+    bs.read(&aps.lod_decimation_enabled_flag);
     bs.read(&aps.lod_binary_tree_enabled_flag);
 
     aps.num_detail_levels = int(bs.readUe());

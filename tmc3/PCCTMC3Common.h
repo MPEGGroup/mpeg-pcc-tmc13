@@ -579,7 +579,7 @@ computeNearestNeighbors(
 //---------------------------------------------------------------------------
 
 inline void
-subsample(
+subsampleByDistance(
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& input,
@@ -609,6 +609,44 @@ subsample(
       }
     }
   }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+subsampleByDecimation(
+  const std::vector<uint32_t>& input,
+  std::vector<uint32_t>& retained,
+  std::vector<uint32_t>& indexes)
+{
+  static const int kLodUniformQuant = 4;
+  const int indexCount = int(input.size());
+  for (int i = 0; i < indexCount; ++i) {
+    if (i % kLodUniformQuant == 0)
+      retained.push_back(input[i]);
+    else
+      indexes.push_back(input[i]);
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+subsample(
+  bool useDecimation,
+  const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& input,
+  const double radius2,
+  const int32_t searchRange,
+  std::vector<uint32_t>& retained,
+  std::vector<uint32_t>& indexes)
+{
+  if (useDecimation)
+    subsampleByDecimation(input, retained, indexes);
+  else
+    subsampleByDistance(
+      pointCloud, packedVoxel, input, radius2, searchRange, retained, indexes);
 }
 
 //---------------------------------------------------------------------------
@@ -799,6 +837,7 @@ computePredictors(
 inline void
 buildPredictorsFast(
   const PCCPointSet3& pointCloud,
+  bool lod_decimation_enabled_flag,
   const std::vector<int64_t>& dist2,
   const int32_t levelOfDetailCount,
   const int32_t numberOfNearestNeighborsInPrediction,
@@ -843,8 +882,8 @@ buildPredictorsFast(
     } else {
       const double radius2 = dist2[lodIndex];
       subsample(
-        pointCloud, packedVoxel, input, radius2, searchRange1, retained,
-        indexes);
+        lod_decimation_enabled_flag, pointCloud, packedVoxel, input, radius2,
+        searchRange1, retained, indexes);
     }
     const int32_t endIndex = indexes.size();
 
