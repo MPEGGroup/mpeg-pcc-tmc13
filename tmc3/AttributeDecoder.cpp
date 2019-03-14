@@ -525,26 +525,28 @@ AttributeDecoder::decodeColorsLift(
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<double> weights;
+  std::vector<uint64_t> weights;
   PCCComputeQuantizationWeights(predictors, weights);
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<Vec3<double>> colors;
+  std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     uint32_t values[3];
     decoder.decode(values);
-    const int64_t qs = aps.quant_step_size_luma;
-    const int64_t qs2 = aps.quant_step_size_chroma;
-    const double quantWeight = sqrt(weights[predictorIndex]);
+    const int64_t qs = aps.quant_step_size_luma
+      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t qs2 = aps.quant_step_size_chroma
+      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
     const int64_t delta = UIntToInt(values[0]);
-    const double reconstructedDelta = PCCInverseQuantization(delta, qs);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
     color[0] = reconstructedDelta / quantWeight;
     for (size_t d = 1; d < 3; ++d) {
       const int64_t delta = UIntToInt(values[d]);
-      const double reconstructedDelta = PCCInverseQuantization(delta, qs2);
+      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs2);
       color[d] = reconstructedDelta / quantWeight;
     }
   }
@@ -557,11 +559,13 @@ AttributeDecoder::decodeColorsLift(
     PCCLiftPredict(predictors, startIndex, endIndex, false, colors);
   }
 
-  const double clipMax = (1 << desc.attr_bitdepth) - 1;
+  const int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
+    const auto color0 =
+      divExp2RoundHalfInf(colors[f], kFixedPointAttributeShift);
     Vec3<uint8_t> color;
     for (size_t d = 0; d < 3; ++d) {
-      color[d] = uint8_t(PCCClip(std::round(colors[f][d]), 0.0, clipMax));
+      color[d] = uint8_t(PCCClip(color0[d], int64_t(0), clipMax));
     }
     pointCloud.setColor(indexesLOD[f], color);
   }
@@ -597,21 +601,22 @@ AttributeDecoder::decodeReflectancesLift(
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<double> weights;
+  std::vector<uint64_t> weights;
   PCCComputeQuantizationWeights(predictors, weights);
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<double> reflectances;
+  std::vector<int64_t> reflectances;
   reflectances.resize(pointCount);
 
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     const int64_t detail = decoder.decode();
-    const int64_t qs = aps.quant_step_size_luma;
-    const double quantWeight = sqrt(weights[predictorIndex]);
+    const int64_t qs = aps.quant_step_size_luma
+      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = UIntToInt(detail);
-    const double reconstructedDelta = PCCInverseQuantization(delta, qs);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
     reflectance = reconstructedDelta / quantWeight;
   }
 
@@ -623,11 +628,12 @@ AttributeDecoder::decodeReflectancesLift(
       predictors, weights, startIndex, endIndex, false, reflectances);
     PCCLiftPredict(predictors, startIndex, endIndex, false, reflectances);
   }
-  const double maxReflectance = (1 << desc.attr_bitdepth) - 1;
+  const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
+    const auto refl =
+      divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
     pointCloud.setReflectance(
-      indexesLOD[f],
-      uint16_t(PCCClip(std::round(reflectances[f]), 0.0, maxReflectance)));
+      indexesLOD[f], uint16_t(PCCClip(refl, int64_t(0), maxReflectance)));
   }
 }
 

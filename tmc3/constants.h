@@ -43,6 +43,8 @@ namespace pcc {
 
 const uint32_t kAttributePredictionMaxNeighbourCount = 3;
 const uint32_t kAttributeResidualAlphabetSize = 255;
+const uint32_t kFixedPointWeightShift = 8;
+const uint32_t kFixedPointAttributeShift = 8;
 
 //============================================================================
 

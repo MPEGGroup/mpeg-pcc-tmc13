@@ -43,8 +43,8 @@
 #include "FixedPoint.h"
 
 // todo(df): promote to per-attribute encoder parameter
-static const float kAttrPredLambdaR = 0.01;
-static const float kAttrPredLambdaC = 0.01;
+static const double kAttrPredLambdaR = 0.01;
+static const double kAttrPredLambdaC = 0.01;
 
 namespace pcc {
 //============================================================================
@@ -367,7 +367,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
     int64_t minValue = 0;
     int64_t maxValue = 0;
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
-      const uint16_t reflectanceNeighbor = pointCloud.getReflectance(
+      const uint64_t reflectanceNeighbor = pointCloud.getReflectance(
         indexesLOD[predictor.neighbors[i].predictorIndex]);
       if (i == 0 || reflectanceNeighbor < minValue) {
         minValue = reflectanceNeighbor;
@@ -379,16 +379,16 @@ AttributeEncoder::computeReflectancePredictionWeights(
     const int64_t maxDiff = maxValue - minValue;
     if (maxDiff > aps.adaptive_prediction_threshold) {
       const int qs = aps.quant_step_size_luma;
-      uint16_t attrValue =
+      uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
 
       // base case: weighted average of n neighbours
       predictor.predMode = 0;
-      uint16_t attrPred = predictor.predictReflectance(pointCloud, indexesLOD);
+      uint64_t attrPred = predictor.predictReflectance(pointCloud, indexesLOD);
       int64_t attrResidualQuant =
         computeReflectanceResidual(attrValue, attrPred, qs);
 
-      double best_score = attrResidualQuant + kAttrPredLambdaR * (double)qs;
+      double best_score = attrResidualQuant + kAttrPredLambdaR * qs;
 
       for (int i = 0; i < predictor.neighborCount; i++) {
         if (i == aps.max_num_direct_predictors)
@@ -458,7 +458,7 @@ AttributeEncoder::encodeReflectancesPred(
       aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder,
       context);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
-    const uint16_t reflectance = pointCloud.getReflectance(pointIndex);
+    const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
     const uint16_t predictedReflectance =
       predictor.predictReflectance(pointCloud, indexesLOD);
     const int64_t quantAttValue = reflectance;
@@ -837,16 +837,16 @@ AttributeEncoder::encodeColorsLift(
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<double> weights;
+  std::vector<uint64_t> weights;
   PCCComputeQuantizationWeights(predictors, weights);
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<Vec3<double>> colors;
+  std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
 
   for (size_t index = 0; index < pointCount; ++index) {
     const auto& color = pointCloud.getColor(indexesLOD[index]);
     for (size_t d = 0; d < 3; ++d) {
-      colors[index][d] = color[d];
+      colors[index][d] = int32_t(color[d]) << kFixedPointAttributeShift;
     }
   }
 
@@ -859,16 +859,18 @@ AttributeEncoder::encodeColorsLift(
   }
 
   // compress
-  const int64_t qs = aps.quant_step_size_luma;
-  const size_t qs2 = aps.quant_step_size_chroma;
+  const int64_t qs = aps.quant_step_size_luma
+    << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+  const size_t qs2 = aps.quant_step_size_chroma
+    << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const double quantWeight = sqrt(weights[predictorIndex]);
+    const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
     const int64_t delta = PCCQuantization(color[0] * quantWeight, qs);
     const int64_t detail = IntToUInt(delta);
     assert(detail < std::numeric_limits<uint32_t>::max());
-    const double reconstructedDelta = PCCInverseQuantization(delta, qs);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
     color[0] = reconstructedDelta / quantWeight;
     uint32_t values[3];
     values[0] = uint32_t(detail);
@@ -876,7 +878,7 @@ AttributeEncoder::encodeColorsLift(
       const int64_t delta = PCCQuantization(color[d] * quantWeight, qs2);
       const int64_t detail = IntToUInt(delta);
       assert(detail < std::numeric_limits<uint32_t>::max());
-      const double reconstructedDelta = PCCInverseQuantization(delta, qs2);
+      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs2);
       color[d] = reconstructedDelta / quantWeight;
       values[d] = uint32_t(detail);
     }
@@ -891,11 +893,13 @@ AttributeEncoder::encodeColorsLift(
     PCCLiftPredict(predictors, startIndex, endIndex, false, colors);
   }
 
-  const double clipMax = (1 << desc.attr_bitdepth) - 1;
+  const int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
+    const auto color0 =
+      divExp2RoundHalfInf(colors[f], kFixedPointAttributeShift);
     Vec3<uint8_t> color;
     for (size_t d = 0; d < 3; ++d) {
-      color[d] = uint8_t(PCCClip(std::round(colors[f][d]), 0.0, clipMax));
+      color[d] = uint8_t(PCCClip(color0[d], 0.0, clipMax));
     }
     pointCloud.setColor(indexesLOD[f], color);
   }
@@ -931,15 +935,16 @@ AttributeEncoder::encodeReflectancesLift(
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
-  std::vector<double> weights;
+  std::vector<uint64_t> weights;
   PCCComputeQuantizationWeights(predictors, weights);
 
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<double> reflectances;
+  std::vector<int64_t> reflectances;
   reflectances.resize(pointCount);
 
   for (size_t index = 0; index < pointCount; ++index) {
-    reflectances[index] = pointCloud.getReflectance(indexesLOD[index]);
+    reflectances[index] = int32_t(pointCloud.getReflectance(indexesLOD[index]))
+      << kFixedPointAttributeShift;
   }
 
   for (size_t i = 0; (i + 1) < lodCount; ++i) {
@@ -954,13 +959,14 @@ AttributeEncoder::encodeReflectancesLift(
   // compress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const int64_t qs = aps.quant_step_size_luma;
-    const double quantWeight = sqrt(weights[predictorIndex]);
+    const int64_t qs = aps.quant_step_size_luma
+      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = PCCQuantization(reflectance * quantWeight, qs);
     const int64_t detail = IntToUInt(delta);
     assert(detail < std::numeric_limits<uint32_t>::max());
-    const double reconstructedDelta = PCCInverseQuantization(delta, qs);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
     reflectance = reconstructedDelta / quantWeight;
     encoder.encode(detail);
   }
@@ -973,11 +979,12 @@ AttributeEncoder::encodeReflectancesLift(
       predictors, weights, startIndex, endIndex, false, reflectances);
     PCCLiftPredict(predictors, startIndex, endIndex, false, reflectances);
   }
-  const double maxReflectance = (1 << desc.attr_bitdepth) - 1;
+  const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
+    const int64_t refl =
+      divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
     pointCloud.setReflectance(
-      indexesLOD[f],
-      uint16_t(PCCClip(std::round(reflectances[f]), 0.0, maxReflectance)));
+      indexesLOD[f], uint16_t(PCCClip(refl, int64_t(0), maxReflectance)));
   }
 }
 

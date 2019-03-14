@@ -387,6 +387,55 @@ mortonAddr(const Vec3<T>& vec, int depth)
 
 //---------------------------------------------------------------------------
 
+inline int64_t
+PCCClip(const int64_t& n, const int64_t& lower, const int64_t& upper)
+{
+  return std::max(lower, std::min(n, upper));
+}
+
+//---------------------------------------------------------------------------
+// Integer division of @scalar by 2^shift, rounding intermediate half values
+// away from zero.
+
+inline int64_t
+divExp2RoundHalfInf(int64_t scalar, int shift)
+{
+  if (!shift)
+    return scalar;
+
+  int64_t s0 = 1 << (shift - 1);
+  return scalar >= 0 ? (s0 + scalar) >> shift : -((s0 - scalar) >> shift);
+}
+
+//---------------------------------------------------------------------------
+// Integer division of @scalar by 2^shift, rounding intermediate half values
+// away from zero.
+
+inline uint64_t
+divExp2RoundHalfInf(uint64_t scalar, int shift)
+{
+  if (!shift)
+    return scalar;
+
+  return ((1 << (shift - 1)) + scalar) >> shift;
+}
+
+//---------------------------------------------------------------------------
+// Component-wise integer division of @vec by 2^shift, rounding intermediate
+// half values away from zero.
+
+template<typename T>
+inline Vec3<T>
+divExp2RoundHalfInf(Vec3<T> vec, int shift)
+{
+  for (int k = 0; k < 3; ++k)
+    vec[k] = divExp2RoundHalfInf(vec[k], shift);
+
+  return vec;
+}
+
+//---------------------------------------------------------------------------
+
 } /* namespace pcc */
 
 #endif /* PCCMath_h */
