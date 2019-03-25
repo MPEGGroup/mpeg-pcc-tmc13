@@ -660,17 +660,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
-    const auto position = pointCloud[n];
-    int x = int(position[0]);
-    int y = int(position[1]);
-    int z = int(position[2]);
-    uint64_t mortonCode = 0;
-    for (int b = 0; b < aps.raht_depth; b++) {
-      mortonCode |= (uint64_t)((x >> b) & 1) << (3 * b + 2);
-      mortonCode |= (uint64_t)((y >> b) & 1) << (3 * b + 1);
-      mortonCode |= (uint64_t)((z >> b) & 1) << (3 * b);
-    }
-    packedVoxel[n].mortonCode = mortonCode;
+    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n], 0);
     packedVoxel[n].index = n;
   }
   sort(packedVoxel.begin(), packedVoxel.end());
@@ -745,17 +735,7 @@ AttributeEncoder::encodeColorsTransformRaht(
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
-    const auto position = pointCloud[n];
-    int x = int(position[0]);
-    int y = int(position[1]);
-    int z = int(position[2]);
-    uint64_t mortonCode = 0;
-    for (int b = 0; b < aps.raht_depth; b++) {
-      mortonCode |= (uint64_t)((x >> b) & 1) << (3 * b + 2);
-      mortonCode |= (uint64_t)((y >> b) & 1) << (3 * b + 1);
-      mortonCode |= (uint64_t)((z >> b) & 1) << (3 * b);
-    }
-    packedVoxel[n].mortonCode = mortonCode;
+    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n], 0);
     packedVoxel[n].index = n;
   }
   sort(packedVoxel.begin(), packedVoxel.end());
