@@ -365,17 +365,6 @@ PCCApproximatelyEqual(
 }
 
 //---------------------------------------------------------------------------
-// Convert a vector position (divided by 2^depth) to morton order address.
-
-template<typename T>
-uint64_t
-mortonAddr(const PCCVector3<T>& vec, int depth)
-{
-  uint64_t addr = interleave3b0(uint64_t(vec.z()) >> depth);
-  addr |= interleave3b0(uint64_t(vec.y()) >> depth) << 1;
-  addr |= interleave3b0(uint64_t(vec.x()) >> depth) << 2;
-  return addr;
-}
 
 inline uint64_t
 mortonAddr(const int32_t x, const int32_t y, const int32_t z)
@@ -385,10 +374,24 @@ mortonAddr(const int32_t x, const int32_t y, const int32_t z)
     | kMortonCode256Y[(y >> 16) & 0xFF] | kMortonCode256Z[(x >> 16) & 0xFF];
   answer = answer << 48 | kMortonCode256X[(z >> 8) & 0xFF]
     | kMortonCode256Y[(y >> 8) & 0xFF] | kMortonCode256Z[(x >> 8) & 0xFF];
-  answer = answer << 24 | kMortonCode256X[(z)&0xFF] | kMortonCode256Y[(y)&0xFF]
-    | kMortonCode256Z[(x)&0xFF];
+  answer = answer << 24 | kMortonCode256X[z & 0xFF] | kMortonCode256Y[y & 0xFF]
+    | kMortonCode256Z[x & 0xFF];
   return answer;
 }
+
+//---------------------------------------------------------------------------
+// Convert a vector position (divided by 2^depth) to morton order address.
+
+template<typename T>
+uint64_t
+mortonAddr(const PCCVector3<T>& vec, int depth)
+{
+  int x = int(vec.x()) >> depth;
+  int y = int(vec.y()) >> depth;
+  int z = int(vec.z()) >> depth;
+  return mortonAddr(x, y, z);
+}
+
 //---------------------------------------------------------------------------
 
 } /* namespace pcc */

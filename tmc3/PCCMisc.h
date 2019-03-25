@@ -163,21 +163,6 @@ ceillog2(uint32_t x)
   return ilog2(x - 1) + 1;
 }
 
-//-------------------------------------------------------------------------
-// Shuffle bits of x so as to interleave 0b00 between each pair.
-// NB: x must be in the range [0, 2**21 - 1].
-//
-inline int64_t
-interleave3b0(uint64_t x)
-{
-  x = ((x << 32) | x) & 0x00ff00000000ffffllu;
-  x = ((x << 16) | x) & 0x00ff0000ff0000ffllu;
-  x = ((x << 8) | x) & 0xf00f00f00f00f00fllu;
-  x = ((x << 4) | x) & 0x30c30c30c30c30c3llu;
-  x = ((x << 2) | x) & 0x9249249249249249llu;
-  return x;
-}
-
 //---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
