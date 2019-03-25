@@ -392,11 +392,11 @@ AttributeDecoder::decodeReflectancesRaht(
     int x = int(position[0]);
     int y = int(position[1]);
     int z = int(position[2]);
-    long long mortonCode = 0;
+    uint64_t mortonCode = 0;
     for (int b = 0; b < aps.raht_depth; b++) {
-      mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
-      mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
-      mortonCode |= (long long)((z >> b) & 1) << (3 * b);
+      mortonCode |= (uint64_t)((x >> b) & 1) << (3 * b + 2);
+      mortonCode |= (uint64_t)((y >> b) & 1) << (3 * b + 1);
+      mortonCode |= (uint64_t)((z >> b) & 1) << (3 * b);
     }
     packedVoxel[n].mortonCode = mortonCode;
     packedVoxel[n].index = n;
@@ -404,7 +404,7 @@ AttributeDecoder::decodeReflectancesRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  long long* mortonCode = new long long[voxelCount];
+  uint64_t* mortonCode = new uint64_t[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
@@ -460,11 +460,11 @@ AttributeDecoder::decodeColorsRaht(
     int x = int(position[0]);
     int y = int(position[1]);
     int z = int(position[2]);
-    long long mortonCode = 0;
+    uint64_t mortonCode = 0;
     for (int b = 0; b < aps.raht_depth; b++) {
-      mortonCode |= (long long)((x >> b) & 1) << (3 * b + 2);
-      mortonCode |= (long long)((y >> b) & 1) << (3 * b + 1);
-      mortonCode |= (long long)((z >> b) & 1) << (3 * b);
+      mortonCode |= (uint64_t)((x >> b) & 1) << (3 * b + 2);
+      mortonCode |= (uint64_t)((y >> b) & 1) << (3 * b + 1);
+      mortonCode |= (uint64_t)((z >> b) & 1) << (3 * b);
     }
     packedVoxel[n].mortonCode = mortonCode;
     packedVoxel[n].index = n;
@@ -472,7 +472,7 @@ AttributeDecoder::decodeColorsRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  long long* mortonCode = new long long[voxelCount];
+  uint64_t* mortonCode = new uint64_t[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
