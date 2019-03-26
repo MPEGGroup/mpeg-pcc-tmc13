@@ -221,7 +221,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   assert(_gps);
 
   // verify that this corresponds to the correct geometry slice
-  AttributeBrickHeader abh = parseAbh(buf, nullptr);
+  AttributeBrickHeader abh = parseAbhIds(buf);
   assert(abh.attr_geom_slice_id == _sliceId);
 
   // todo(df): validate that sps activation is not changed via the APS

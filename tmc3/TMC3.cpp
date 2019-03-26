@@ -405,10 +405,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Sets coefficients to zero in the bottom n levels of RAHT tree. "
     "Used for chroma-subsampling in attribute=color only.")
 
-  ("rahtQuantizationStep",
-    params_attr.aps.quant_step_size_luma, 0,
-    "deprecated -- use quantizationStepsLuma")
-
   ("rahtDepth",
     params_attr.aps.raht_depth, 21,
     "Number of bits for morton representation of an RAHT co-ordinate"
@@ -443,18 +439,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.num_detail_levels, 1,
     "Attribute's number of levels of detail")
 
-  ("quantizationStepLuma",
-    params_attr.aps.quant_step_size_luma, 0,
-    "Attribute's luma quantization step size")
-
-  ("quantizationStepChroma",
-    params_attr.aps.quant_step_size_chroma, 0,
-    "Attribute's chroma quantization step size")
-
   ("dist2",
     params_attr.aps.dist2, {},
     "Attribute's list of squared distances, or initial value for automatic"
     "derivation")
+
+  ("qp",
+    params_attr.aps.init_qp, 4,
+    "Attribute's luma quantisation parameter")
+
+  ("qpChromaOffset",
+    params_attr.aps.aps_chroma_qp_offset, 0,
+    "Attribute's chroma quantisation parameter offset (relative to luma)")
   ;
   /* clang-format on */
 
@@ -499,7 +495,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     // Avoid wasting bits signalling chroma quant step size for reflectance
     if (it.first == "reflectance") {
-      attr_aps.quant_step_size_chroma = 0;
+      attr_aps.aps_chroma_qp_offset = 0;
     }
 
     bool isLifting =
@@ -551,7 +547,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       attr_aps.adaptive_prediction_threshold = 0;
 
       // todo(df): suggest chroma quant_step_size for raht
-      attr_aps.quant_step_size_chroma = 0;
+      attr_aps.aps_chroma_qp_offset = 0;
     }
   }
 
@@ -604,6 +600,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                     << ".numberOfNearestNeighborsInPrediction must be <= "
                     << kAttributePredictionMaxNeighbourCount << "\n";
       }
+    }
+
+    if (attr_aps.init_qp < 4)
+      err.error() << it.first << ".qp must be greater than 3\n";
+
+    if (attr_aps.init_qp + attr_aps.aps_chroma_qp_offset < 4) {
+      err.error() << it.first << ".qpChromaOffset must be greater than "
+                  << attr_aps.init_qp - 5 << "\n";
     }
   }
 

@@ -39,6 +39,7 @@
 #include "DualLutCoder.h"
 #include "constants.h"
 #include "entropy.h"
+#include "quantization.h"
 #include "RAHT.h"
 #include "FixedPoint.h"
 
@@ -292,38 +293,42 @@ void
 AttributeEncoder::encode(
   const AttributeDescription& desc,
   const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh,
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
+  Quantizers qstep = deriveQuantSteps(attr_aps);
+
   PCCResidualsEncoder encoder;
   encoder.start(int(pointCloud.getPointCount()));
 
   if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      encodeReflectancesTransformRaht(desc, attr_aps, pointCloud, encoder);
+      encodeReflectancesTransformRaht(
+        desc, attr_aps, qstep, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      encodeReflectancesPred(desc, attr_aps, pointCloud, encoder);
+      encodeReflectancesPred(desc, attr_aps, qstep, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      encodeReflectancesLift(desc, attr_aps, pointCloud, encoder);
+      encodeReflectancesLift(desc, attr_aps, qstep, pointCloud, encoder);
       break;
     }
   } else if (desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      encodeColorsTransformRaht(desc, attr_aps, pointCloud, encoder);
+      encodeColorsTransformRaht(desc, attr_aps, qstep, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      encodeColorsPred(desc, attr_aps, pointCloud, encoder);
+      encodeColorsPred(desc, attr_aps, qstep, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      encodeColorsLift(desc, attr_aps, pointCloud, encoder);
+      encodeColorsLift(desc, attr_aps, qstep, pointCloud, encoder);
       break;
     }
   } else {
@@ -346,7 +351,9 @@ AttributeEncoder::computeReflectanceResidual(
 {
   const int64_t quantAttValue = reflectance;
   const int64_t quantPredAttValue = predictedReflectance;
-  const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
+  const int64_t delta =
+    PCCQuantization(quantAttValue - quantPredAttValue, qs, true);
+
   return IntToUInt(delta);
 }
 
@@ -360,7 +367,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
   const uint32_t predictorIndex,
   PCCPredictor& predictor,
   PCCResidualsEncoder& encoder,
-  PCCResidualsEntropyEstimator& context)
+  PCCResidualsEntropyEstimator& context,
+  const int64_t qs)
 {
   predictor.computeWeights();
   if (predictor.neighborCount > 1) {
@@ -378,7 +386,6 @@ AttributeEncoder::computeReflectancePredictionWeights(
     }
     const int64_t maxDiff = maxValue - minValue;
     if (maxDiff > aps.adaptive_prediction_threshold) {
-      const int qs = aps.quant_step_size_luma;
       uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
 
@@ -388,7 +395,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
       int64_t attrResidualQuant =
         computeReflectanceResidual(attrValue, attrPred, qs);
 
-      double best_score = attrResidualQuant + kAttrPredLambdaR * qs;
+      double best_score = attrResidualQuant
+        + kAttrPredLambdaR * (qs >> kFixedPointAttributeShift);
 
       for (int i = 0; i < predictor.neighborCount; i++) {
         if (i == aps.max_num_direct_predictors)
@@ -400,7 +408,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
           computeReflectanceResidual(attrValue, attrPred, qs);
 
         double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
-        double score = attrResidualQuant + idxBits * kAttrPredLambdaR * qs;
+        double score = attrResidualQuant
+          + idxBits * kAttrPredLambdaR * (qs >> kFixedPointAttributeShift);
 
         if (score < best_score) {
           best_score = score;
@@ -422,6 +431,7 @@ void
 AttributeEncoder::encodeReflectancesPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -453,10 +463,11 @@ AttributeEncoder::encodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const int64_t qs = aps.quant_step_size_luma;
+    const int64_t qs = qstep[0];
     computeReflectancePredictionWeights(
-      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder,
-      context);
+      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
+      qs);
+
     const uint32_t pointIndex = indexesLOD[predictorIndex];
     const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
     const uint16_t predictedReflectance =
@@ -464,9 +475,9 @@ AttributeEncoder::encodeReflectancesPred(
     const int64_t quantAttValue = reflectance;
     const int64_t quantPredAttValue = predictedReflectance;
     const int64_t delta =
-      PCCQuantization(quantAttValue - quantPredAttValue, qs);
+      PCCQuantization(quantAttValue - quantPredAttValue, qs, true);
     const uint32_t attValue0 = uint32_t(IntToUInt(long(delta)));
-    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs, true);
     const int64_t reconstructedQuantAttValue =
       quantPredAttValue + reconstructedDelta;
     const uint16_t reconstructedReflectance =
@@ -489,13 +500,14 @@ AttributeEncoder::computeColorResiduals(
   Vec3<int64_t> residuals;
   const int64_t quantAttValue = color[0];
   const int64_t quantPredAttValue = predictedColor[0];
-  const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
+  const int64_t delta =
+    PCCQuantization(quantAttValue - quantPredAttValue, qs, true);
   residuals[0] = IntToUInt(delta);
   for (size_t k = 1; k < 3; ++k) {
     const int64_t quantAttValue = color[k];
     const int64_t quantPredAttValue = predictedColor[k];
     const int64_t delta =
-      PCCQuantization(quantAttValue - quantPredAttValue, qs2);
+      PCCQuantization(quantAttValue - quantPredAttValue, qs2, true);
     residuals[k] = IntToUInt(delta);
   }
   return residuals;
@@ -511,7 +523,9 @@ AttributeEncoder::computeColorPredictionWeights(
   const uint32_t predictorIndex,
   PCCPredictor& predictor,
   PCCResidualsEncoder& encoder,
-  PCCResidualsEntropyEstimator& context)
+  PCCResidualsEntropyEstimator& context,
+  const int64_t qs,
+  const int64_t qs2)
 {
   predictor.computeWeights();
   if (predictor.neighborCount > 1) {
@@ -533,8 +547,6 @@ AttributeEncoder::computeColorPredictionWeights(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
     if (maxDiff > aps.adaptive_prediction_threshold) {
-      const int qs = aps.quant_step_size_luma;
-      const int qs2 = aps.quant_step_size_chroma;
       Vec3<uint8_t> attrValue =
         pointCloud.getColor(indexesLOD[predictorIndex]);
 
@@ -545,7 +557,8 @@ AttributeEncoder::computeColorPredictionWeights(
         computeColorResiduals(attrValue, attrPred, qs, qs2);
 
       double best_score = attrResidualQuant[0] + attrResidualQuant[1]
-        + attrResidualQuant[2] + kAttrPredLambdaC * (double)qs;
+        + attrResidualQuant[2]
+        + kAttrPredLambdaC * (double)(qs >> kFixedPointAttributeShift);
 
       for (int i = 0; i < predictor.neighborCount; i++) {
         if (i == aps.max_num_direct_predictors)
@@ -558,7 +571,8 @@ AttributeEncoder::computeColorPredictionWeights(
 
         double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
         double score = attrResidualQuant[0] + attrResidualQuant[1]
-          + attrResidualQuant[2] + idxBits * kAttrPredLambdaC * qs;
+          + attrResidualQuant[2]
+          + idxBits * kAttrPredLambdaC * (qs >> kFixedPointAttributeShift);
 
         if (score < best_score) {
           best_score = score;
@@ -580,6 +594,7 @@ void
 AttributeEncoder::encodeColorsPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -612,11 +627,11 @@ AttributeEncoder::encodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const int64_t qs = aps.quant_step_size_luma;
-    const int64_t qs2 = aps.quant_step_size_chroma;
+    const int64_t qs = qstep[0];
+    const int64_t qs2 = qstep[1];
     computeColorPredictionWeights(
-      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder,
-      context);
+      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
+      qs, qs2);
     const auto pointIndex = indexesLOD[predictorIndex];
     const Vec3<uint8_t> color = pointCloud.getColor(pointIndex);
     const Vec3<uint8_t> predictedColor =
@@ -624,8 +639,8 @@ AttributeEncoder::encodeColorsPred(
     const int64_t quantAttValue = color[0];
     const int64_t quantPredAttValue = predictedColor[0];
     const int64_t delta =
-      PCCQuantization(quantAttValue - quantPredAttValue, qs);
-    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs);
+      PCCQuantization(quantAttValue - quantPredAttValue, qs, true);
+    const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs, true);
     const int64_t reconstructedQuantAttValue =
       quantPredAttValue + reconstructedDelta;
     values[0] = uint32_t(IntToUInt(long(delta)));
@@ -636,8 +651,9 @@ AttributeEncoder::encodeColorsPred(
       const int64_t quantAttValue = color[k];
       const int64_t quantPredAttValue = predictedColor[k];
       const int64_t delta =
-        PCCQuantization(quantAttValue - quantPredAttValue, qs2);
-      const int64_t reconstructedDelta = PCCInverseQuantization(delta, qs2);
+        PCCQuantization(quantAttValue - quantPredAttValue, qs2, true);
+      const int64_t reconstructedDelta =
+        PCCInverseQuantization(delta, qs2, true);
       const int64_t reconstructedQuantAttValue =
         quantPredAttValue + reconstructedDelta;
       values[k] = uint32_t(IntToUInt(long(delta)));
@@ -655,6 +671,7 @@ void
 AttributeEncoder::encodeReflectancesTransformRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -684,8 +701,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    binaryLayer, attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, binaryLayer,
+    attribCount, voxelCount, integerizedAttributes);
 
   // Entropy encode.
   uint32_t value;
@@ -704,8 +721,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
+    voxelCount, integerizedAttributes);
 
   const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -730,6 +747,7 @@ void
 AttributeEncoder::encodeColorsTransformRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -761,8 +779,8 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    binaryLayer, attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, binaryLayer,
+    attribCount, voxelCount, integerizedAttributes);
 
   // Entropy encode.
   uint32_t values[attribCount];
@@ -784,8 +802,8 @@ AttributeEncoder::encodeColorsTransformRaht(
   }
 
   regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
+    voxelCount, integerizedAttributes);
 
   const int clipMax = (1 << desc.attr_bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {
@@ -813,6 +831,7 @@ void
 AttributeEncoder::encodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -859,10 +878,8 @@ AttributeEncoder::encodeColorsLift(
   }
 
   // compress
-  const int64_t qs = aps.quant_step_size_luma
-    << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
-  const size_t qs2 = aps.quant_step_size_chroma
-    << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+  const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
+  const size_t qs2 = qstep[1] << (kFixedPointWeightShift / 2);
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     const int64_t quantWeight = weights[predictorIndex];
@@ -911,6 +928,7 @@ void
 AttributeEncoder::encodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -959,8 +977,7 @@ AttributeEncoder::encodeReflectancesLift(
   // compress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    const int64_t qs = aps.quant_step_size_luma
-      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = PCCQuantization(reflectance * quantWeight, qs);

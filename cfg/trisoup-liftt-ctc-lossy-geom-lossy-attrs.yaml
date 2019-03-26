@@ -44,20 +44,14 @@ categories:
      -
        - !conditional '${has_colour}'
        - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
-       - quantizationStepLuma:
-           r01: 256
-           r02: 128
-           r03:  64
-           r04:  32
-           r05:  16
-           r06:   8
-       - quantizationStepChroma:
-           r01: 256
-           r02: 128
-           r03:  64
-           r04:  32
-           r05:  16
-           r06:   8
+       - qp:
+           r01: 52
+           r02: 46
+           r03: 40
+           r04: 34
+           r05: 28
+           r06: 22
+       - qpChromaOffset: 0
        - bitdepth: 8
        - attribute: color
 

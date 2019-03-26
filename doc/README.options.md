@@ -234,9 +234,6 @@ Sets coefficients to zero in the bottom n levels of the RAHT tree.
 This option provides a means to perform chroma-subsampling.  Applies
 when `attribute=colour` only.
 
-### `--rahtQuantizationStep=INT-VALUE`
-Deprecated -- use `quantizationStepsLuma`.
-
 ### `--rahtDepth=INT-VALUE`
 Number of bits for Morton representation of RAHT co-ordinate
 components.
@@ -268,13 +265,13 @@ Controls the level-of-detail generation method:
   | 0     | Binary-tree based               |
   | 1     | Euclidean distance thresholding |
 
-### `--quantizationStepLuma=INT-VALUE`
-Attribute's luma quantization step size.
-
-### `--quantizationStepChroma=INT-VALUE`
-Attribute's chroma quantization step size.  Only applies when
-`attribute=colour`.
-
 ### `--dist2=INT-VALUE|INT-VALUE-LIST`
 Attribute's list of squared distances, or initial value for automatic
 derivation.
+
+### `--qp=INT-VALUE`
+Attribute's luma quantization parameter.
+
+### `--qpChromaOffset=INT-VALUE`
+Attribute's chroma quantization quantization parameter relative to luma.
+Only applies when `attribute=colour`.

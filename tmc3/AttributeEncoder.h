@@ -40,6 +40,7 @@
 
 #include "PayloadBuffer.h"
 #include "PCCTMC3Common.h"
+#include "quantization.h"
 
 namespace pcc {
 
@@ -56,6 +57,7 @@ public:
   void encode(
     const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
+    const AttributeBrickHeader& abh,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload);
 
@@ -65,36 +67,42 @@ protected:
   void encodeReflectancesLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const Quantizers& qstep,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
@@ -111,7 +119,9 @@ protected:
     const uint32_t predictorIndex,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
-    PCCResidualsEntropyEstimator& context);
+    PCCResidualsEntropyEstimator& context,
+    const int64_t qs,
+    const int64_t qs2);
 
   static int64_t computeReflectanceResidual(
     const uint64_t reflectance,
@@ -125,7 +135,8 @@ protected:
     const uint32_t predictorIndex,
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
-    PCCResidualsEntropyEstimator& context);
+    PCCResidualsEntropyEstimator& context,
+    const int64_t qs);
 };
 
 //============================================================================

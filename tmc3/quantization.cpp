@@ -33,50 +33,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "quantization.h"
 
-#include "PayloadBuffer.h"
 #include "hls.h"
+#include "tables.h"
 
 namespace pcc {
 
 //============================================================================
 
-PayloadBuffer write(const SequenceParameterSet& sps);
-PayloadBuffer write(const GeometryParameterSet& gps);
-PayloadBuffer write(const AttributeParameterSet& aps);
-PayloadBuffer write(const TileInventory& inventory);
+Quantizers
+deriveQuantSteps(const AttributeParameterSet& attr_aps)
+{
+  int sliceQpLuma = attr_aps.init_qp;
+  int sliceQpChroma = attr_aps.init_qp + attr_aps.aps_chroma_qp_offset;
 
-SequenceParameterSet parseSps(const PayloadBuffer& buf);
-GeometryParameterSet parseGps(const PayloadBuffer& buf);
-AttributeParameterSet parseAps(const PayloadBuffer& buf);
-TileInventory parseTileInventory(const PayloadBuffer& buf);
+  int qpShiftLuma = sliceQpLuma / 6;
+  int qpShiftChroma = sliceQpChroma / 6;
 
-//----------------------------------------------------------------------------
-
-void write(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PayloadBuffer* buf);
-
-void write(
-  const AttributeParameterSet& aps,
-  const AttributeBrickHeader& abh,
-  PayloadBuffer* buf);
-
-GeometryBrickHeader parseGbh(
-  const GeometryParameterSet& gps, const PayloadBuffer& buf, int* bytesRead);
-
-AttributeBrickHeader parseAbh(
-  const AttributeParameterSet& aps, const PayloadBuffer& buf, int* bytesRead);
-
-/**
- * Parse @buf, decoding only the parameter set and slice ids.
- * NB: the returned header is intentionally incomplete.
- */
-AttributeBrickHeader parseAbhIds(const PayloadBuffer& buf);
-
-//----------------------------------------------------------------------------
+  return {kQpStep[sliceQpLuma % 6] << qpShiftLuma,
+          kQpStep[sliceQpChroma % 6] << qpShiftChroma};
+}
 
 //============================================================================
 

@@ -211,10 +211,12 @@ regionAdaptiveHierarchicalTransform(
   for (size_t k = 0; k < attribCount; k++)
     attributes[k] /= quantStepSizeLuma;
 
+  // write-back coefficients at full precision since quantisation has removed
+  // the fractional part.
   for (i = 0; i < voxelCount; i++)
     for (size_t k = 0; k < attribCount; k++)
       integerizedAttributes[i + voxelCount * k] =
-        attributes[i * attribCount + k].round();
+        attributes[i * attribCount + k].val;
 }
 
 //============================================================================
@@ -272,8 +274,8 @@ regionAdaptiveHierarchicalInverseTransform(
 
   for (i = 0; i < voxelCount; i++)
     for (size_t k = 0; k < attribCount; k++)
-      attributesTransformed[i * attribCount + k] =
-        (double)integerizedAttributes[i + k * voxelCount];
+      attributesTransformed[i * attribCount + k].val =
+        integerizedAttributes[i + k * voxelCount];
 
   // Dequantization of DC coefficients
   {

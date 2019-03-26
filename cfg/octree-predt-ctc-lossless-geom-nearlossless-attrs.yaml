@@ -43,13 +43,12 @@ categories:
      -
        - !conditional '${has_refl}'
        - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
-       - quantizationStepLuma:
-           r01:  2
-           r02:  4
-           r03:  8
-           r04: 16
-           r05: 32
-       - quantizationStepChroma: 0
+       - qp:
+           r01: 10
+           r02: 16
+           r03: 22
+           r04: 28
+           r05: 34
        - bitdepth: 8
        - attribute: reflectance
 
@@ -58,18 +57,13 @@ categories:
      -
        - !conditional '${has_colour}'
        - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
-       - quantizationStepLuma:
-           r01:  2
-           r02:  4
-           r03:  8
-           r04: 16
-           r05: 32
-       - quantizationStepChroma:
-           r01:  2
-           r02:  4
-           r03:  8
-           r04: 16
-           r05: 32
+       - qp:
+           r01: 10
+           r02: 16
+           r03: 22
+           r04: 28
+           r05: 34
+       - qpChromaOffset: 0
        - bitdepth: 8
        - attribute: color
 

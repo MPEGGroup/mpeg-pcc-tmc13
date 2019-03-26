@@ -242,12 +242,11 @@ struct AttributeParameterSet {
   int num_detail_levels;
   std::vector<int64_t> dist2;
 
-  // NB: these parameters are shared by raht and lift
-  int quant_step_size_luma;
-  int quant_step_size_chroma;
+  // NB: these parameters are shared by all transform implementations
+  int init_qp;
+  int aps_chroma_qp_offset;
 
   //--- raht parameters
-
   int raht_depth;
   int raht_binary_level_threshold;
 };

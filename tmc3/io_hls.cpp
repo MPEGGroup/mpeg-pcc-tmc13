@@ -251,14 +251,16 @@ write(const AttributeParameterSet& aps)
   bs.writeUe(aps.aps_seq_parameter_set_id);
   bs.writeUe(aps.attr_encoding);
 
+  bs.writeUe(aps.init_qp);
+  // todo(?): raht chroma qp support?
+  bs.writeSe(aps.aps_chroma_qp_offset);
+
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.max_num_direct_predictors);
     bs.writeUe(aps.search_range);
-    bs.writeUe(aps.quant_step_size_luma);
-    bs.writeUe(aps.quant_step_size_chroma);
     bs.write(aps.lod_binary_tree_enabled_flag);
 
     bs.writeUe(aps.num_detail_levels);
@@ -275,8 +277,6 @@ write(const AttributeParameterSet& aps)
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.writeUe(aps.raht_depth);
     bs.writeUe(aps.raht_binary_level_threshold);
-    bs.writeUe(aps.quant_step_size_luma);
-    // todo(?): raht chroma quant_step_size?
   }
 
   bool aps_extension_flag = false;
@@ -299,14 +299,16 @@ parseAps(const PayloadBuffer& buf)
   bs.readUe(&aps.aps_seq_parameter_set_id);
   bs.readUe(&aps.attr_encoding);
 
+  bs.readUe(&aps.init_qp);
+  // todo(?): raht chroma qp support?
+  bs.readSe(&aps.aps_chroma_qp_offset);
+
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.max_num_direct_predictors);
     bs.readUe(&aps.search_range);
-    bs.readUe(&aps.quant_step_size_luma);
-    bs.readUe(&aps.quant_step_size_chroma);
     bs.read(&aps.lod_binary_tree_enabled_flag);
 
     aps.num_detail_levels = int(bs.readUe());
@@ -323,8 +325,6 @@ parseAps(const PayloadBuffer& buf)
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.readUe(&aps.raht_depth);
     bs.readUe(&aps.raht_binary_level_threshold);
-    bs.readUe(&aps.quant_step_size_luma);
-    // todo(?): raht chroma quant_step_size
   }
 
   bool aps_extension_flag = bs.read();
@@ -409,7 +409,10 @@ parseGbh(
 //============================================================================
 
 void
-write(const AttributeBrickHeader& abh, PayloadBuffer* buf)
+write(
+  const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
+  PayloadBuffer* buf)
 {
   assert(buf->type == PayloadType::kAttributeBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
@@ -424,7 +427,27 @@ write(const AttributeBrickHeader& abh, PayloadBuffer* buf)
 //----------------------------------------------------------------------------
 
 AttributeBrickHeader
-parseAbh(const PayloadBuffer& buf, int* bytesRead)
+parseAbhIds(const PayloadBuffer& buf)
+{
+  AttributeBrickHeader abh;
+  assert(buf.type == PayloadType::kAttributeBrick);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUe(&abh.attr_attr_parameter_set_id);
+  bs.readUe(&abh.attr_sps_attr_idx);
+  bs.readUe(&abh.attr_geom_slice_id);
+
+  /* NB: this function only decodes ids at the start of the header. */
+  /* NB: do not attempt to parse any further */
+
+  return abh;
+}
+
+//----------------------------------------------------------------------------
+
+AttributeBrickHeader
+parseAbh(
+  const AttributeParameterSet& aps, const PayloadBuffer& buf, int* bytesRead)
 {
   AttributeBrickHeader abh;
   assert(buf.type == PayloadType::kAttributeBrick);

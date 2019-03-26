@@ -151,7 +151,8 @@ AttributeDecoder::decode(
   PCCPointSet3& pointCloud)
 {
   int abhSize;
-  /* AttributeBrickHeader abh = */ parseAbh(payload, &abhSize);
+  AttributeBrickHeader abh = parseAbh(attr_aps, payload, &abhSize);
+  Quantizers qstep = deriveQuantSteps(attr_aps);
 
   PCCResidualsDecoder decoder;
   decoder.start(payload.data() + abhSize, payload.size() - abhSize);
@@ -159,29 +160,29 @@ AttributeDecoder::decode(
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeReflectancesRaht(attr_desc, attr_aps, decoder, pointCloud);
+      decodeReflectancesRaht(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeReflectancesPred(attr_desc, attr_aps, decoder, pointCloud);
+      decodeReflectancesPred(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      decodeReflectancesLift(attr_desc, attr_aps, decoder, pointCloud);
+      decodeReflectancesLift(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
     }
   } else if (attr_desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeColorsRaht(attr_desc, attr_aps, decoder, pointCloud);
+      decodeColorsRaht(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeColorsPred(attr_desc, attr_aps, decoder, pointCloud);
+      decodeColorsPred(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      decodeColorsLift(attr_desc, attr_aps, decoder, pointCloud);
+      decodeColorsLift(attr_desc, attr_aps, qstep, decoder, pointCloud);
       break;
     }
   } else {
@@ -231,6 +232,7 @@ void
 AttributeDecoder::decodeReflectancesPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -261,7 +263,7 @@ AttributeDecoder::decodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const int64_t qs = aps.quant_step_size_luma;
+    const int64_t qs = qstep[0];
     computeReflectancePredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
@@ -269,7 +271,8 @@ AttributeDecoder::decodeReflectancesPred(
     const uint32_t attValue0 = decoder.decode();
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, indexesLOD);
-    const int64_t delta = PCCInverseQuantization(UIntToInt(attValue0), qs);
+    const int64_t delta =
+      PCCInverseQuantization(UIntToInt(attValue0), qs, true);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     reflectance = uint16_t(
       PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
@@ -318,6 +321,7 @@ void
 AttributeDecoder::decodeColorsPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -348,8 +352,8 @@ AttributeDecoder::decodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    const int64_t qs = aps.quant_step_size_luma;
-    const int64_t qs2 = aps.quant_step_size_chroma;
+    const int64_t qs = qstep[0];
+    const int64_t qs2 = qstep[1];
     computeColorPredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
     decoder.decode(values);
@@ -358,14 +362,16 @@ AttributeDecoder::decodeColorsPred(
     const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
     const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta = PCCInverseQuantization(UIntToInt(values[0]), qs);
+    const int64_t delta =
+      PCCInverseQuantization(UIntToInt(values[0]), qs, true);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
     color[0] =
       uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     for (size_t k = 1; k < 3; ++k) {
       const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta = PCCInverseQuantization(UIntToInt(values[k]), qs2);
+      const int64_t delta =
+        PCCInverseQuantization(UIntToInt(values[k]), qs2, true);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
       color[k] =
         uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
@@ -379,6 +385,7 @@ void
 AttributeDecoder::decodeReflectancesRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -411,8 +418,8 @@ AttributeDecoder::decodeReflectancesRaht(
   FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
+    voxelCount, integerizedAttributes);
 
   const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -437,6 +444,7 @@ void
 AttributeDecoder::decodeColorsRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -472,8 +480,8 @@ AttributeDecoder::decodeColorsRaht(
   FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    FixedPoint(aps.quant_step_size_luma), mortonCode, attributes, weight,
-    attribCount, voxelCount, integerizedAttributes);
+    FixedPoint(qstep[0]), mortonCode, attributes, weight, attribCount,
+    voxelCount, integerizedAttributes);
 
   const int clipMax = (1 << desc.attr_bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {
@@ -501,6 +509,7 @@ void
 AttributeDecoder::decodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -535,10 +544,9 @@ AttributeDecoder::decodeColorsLift(
        ++predictorIndex) {
     uint32_t values[3];
     decoder.decode(values);
-    const int64_t qs = aps.quant_step_size_luma
-      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
-    const int64_t qs2 = aps.quant_step_size_chroma
-      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
+    const int64_t qs2 = qstep[1] << (kFixedPointWeightShift / 2);
+    // + kFixedPointAttributeShift ???
     const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
     const int64_t delta = UIntToInt(values[0]);
@@ -577,6 +585,7 @@ void
 AttributeDecoder::decodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const Quantizers& qstep,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -611,8 +620,7 @@ AttributeDecoder::decodeReflectancesLift(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     const int64_t detail = decoder.decode();
-    const int64_t qs = aps.quant_step_size_luma
-      << (kFixedPointWeightShift / 2 + kFixedPointAttributeShift);
+    const int64_t qs = qstep[0] << (kFixedPointWeightShift / 2);
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = UIntToInt(detail);

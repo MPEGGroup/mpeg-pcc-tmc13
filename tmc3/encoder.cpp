@@ -298,10 +298,10 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_attr_parameter_set_id = attr_aps.aps_attr_parameter_set_id;
     abh.attr_sps_attr_idx = attrIdx;
     abh.attr_geom_slice_id = _sliceId;
-    write(abh, &payload);
+    write(attr_aps, abh, &payload);
 
     AttributeEncoder attrEncoder;
-    attrEncoder.encode(attr_sps, attr_aps, pointCloud, &payload);
+    attrEncoder.encode(attr_sps, attr_aps, abh, pointCloud, &payload);
     clock_user.stop();
 
     int coded_size = int(payload.size());

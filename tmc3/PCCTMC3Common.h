@@ -241,22 +241,35 @@ struct PCCPredictor {
 //---------------------------------------------------------------------------
 
 inline int64_t
-PCCQuantization(const int64_t value, const int64_t qs)
+PCCQuantization(const int64_t value, const int64_t qs, bool isup = false)
 {
   const int64_t shift = (qs / 3);
   if (!qs) {
     return value;
   }
-  if (value >= 0) {
+  if (isup) {
+    if (value >= 0) {
+      return ((value << kFixedPointAttributeShift) + shift) / qs;
+    }
+    return -((shift - (value << kFixedPointAttributeShift)) / qs);
+  } else if (value >= 0) {
     return (value + shift) / qs;
   }
   return -((shift - value) / qs);
 }
 
 inline int64_t
-PCCInverseQuantization(const int64_t value, const int64_t qs)
+PCCInverseQuantization(
+  const int64_t value, const int64_t qs, bool isdown = false)
 {
-  return qs == 0 ? value : (value * qs);
+  if (!qs)
+    return value;
+
+  if (isdown) {
+    const int offset = 1 << (kFixedPointAttributeShift - 1);
+    return (value * qs + offset) >> kFixedPointAttributeShift;
+  }
+  return value * qs;
 }
 
 //---------------------------------------------------------------------------

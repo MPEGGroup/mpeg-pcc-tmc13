@@ -100,4 +100,8 @@ extern const uint32_t kMortonCode256X[256];
 extern const uint32_t kMortonCode256Y[256];
 extern const uint32_t kMortonCode256Z[256];
 
+//============================================================================
+
+extern const int16_t kQpStep[6];
+
 } /* namespace pcc */
