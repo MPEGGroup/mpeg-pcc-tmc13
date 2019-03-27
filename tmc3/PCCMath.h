@@ -372,7 +372,7 @@ mortonAddr(const int32_t x, const int32_t y, const int32_t z)
   assert(x >= 0 && y >= 0 && z >= 0);
   uint64_t answer = kMortonCode256X[(z >> 16) & 0xFF]
     | kMortonCode256Y[(y >> 16) & 0xFF] | kMortonCode256Z[(x >> 16) & 0xFF];
-  answer = answer << 48 | kMortonCode256X[(z >> 8) & 0xFF]
+  answer = answer << 24 | kMortonCode256X[(z >> 8) & 0xFF]
     | kMortonCode256Y[(y >> 8) & 0xFF] | kMortonCode256Z[(x >> 8) & 0xFF];
   answer = answer << 24 | kMortonCode256X[z & 0xFF] | kMortonCode256Y[y & 0xFF]
     | kMortonCode256Z[x & 0xFF];
