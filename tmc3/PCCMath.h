@@ -281,7 +281,7 @@ private:
 };
 
 template<typename T>
-struct PCCBox3 {
+struct Box3 {
   Vec3<T> min;
   Vec3<T> max;
   bool contains(const Vec3<T> point) const
@@ -291,7 +291,7 @@ struct PCCBox3 {
       || point.y() > max.y() || point.z() < min.z() || point.z() > max.z());
   }
 
-  PCCBox3 merge(const PCCBox3& box)
+  Box3 merge(const Box3& box)
   {
     min.x() = std::min(min.x(), box.min.x());
     min.y() = std::min(min.y(), box.min.y());
@@ -302,7 +302,7 @@ struct PCCBox3 {
     return box;
   }
 
-  bool intersects(const PCCBox3& box) const
+  bool intersects(const Box3& box) const
   {
     return max.x() >= box.min.x() && min.x() <= box.max.x()
       && max.y() >= box.min.y() && min.y() <= box.max.y()
@@ -317,13 +317,13 @@ struct PCCBox3 {
     return dx * dx + dy * dy + dz * dz;
   }
 
-  friend std::ostream& operator<<(std::ostream& os, const PCCBox3& box)
+  friend std::ostream& operator<<(std::ostream& os, const Box3& box)
   {
     os << box.min[0] << " " << box.min[1] << " " << box.min[2] << " "
        << box.max[0] << " " << box.max[1] << " " << box.max[2] << std::endl;
     return os;
   }
-  friend std::istream& operator>>(std::istream& is, PCCBox3& box)
+  friend std::istream& operator>>(std::istream& is, Box3& box)
   {
     is >> box.min[0] >> box.min[1] >> box.min[2] >> box.max[0] >> box.max[1]
       >> box.max[2];
@@ -335,7 +335,7 @@ struct PCCBox3 {
 
 typedef DEPRECATED_MSVC Vec3<double> PCCVector3D DEPRECATED;
 typedef DEPRECATED_MSVC Vec3<double> PCCPoint3D DEPRECATED;
-typedef PCCBox3<double> PCCBox3D;
+typedef Box3<double> PCCBox3D;
 typedef DEPRECATED_MSVC Vec3<uint8_t> PCCColor3B DEPRECATED;
 
 template<typename T>

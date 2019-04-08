@@ -114,7 +114,7 @@ PCCTMC3Encoder3::compress(
   PartitionSet partitions;
   do {
     PCCPointSet3 quantizedInputCloud;
-    PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+    Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
     quantizePositions(
       _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
       clampBox, inputPointCloud, &quantizedInputCloud);
@@ -410,12 +410,12 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
   // and quantisation.
-  PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+  Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
   if (_sps->seq_bounding_box_whd != Vec3<int>{0}) {
     // todo(df): this is icky (not to mention rounding issues)
     // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
     // NB: minus 1 to convert to max x/y/z position
-    clampBox = PCCBox3<int32_t>{{0, 0, 0}, _sps->seq_bounding_box_whd};
+    clampBox = Box3<int32_t>{{0, 0, 0}, _sps->seq_bounding_box_whd};
     for (int k = 0; k < 3; k++)
       clampBox.max[k] =
         int(ceil(clampBox.max[k] * _sps->seq_source_geom_scale_factor)) - 1;

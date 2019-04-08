@@ -44,7 +44,7 @@ namespace pcc {
 
 template<typename T>
 static int
-longestAxis(const PCCBox3<T>& curBox)
+longestAxis(const Box3<T>& curBox)
 {
   int edgeAxis = 0;
 
@@ -62,7 +62,7 @@ longestAxis(const PCCBox3<T>& curBox)
 
 template<typename T>
 static int
-shortestAxis(const PCCBox3<T>& curBox)
+shortestAxis(const Box3<T>& curBox)
 {
   int edgeAxis = 0;
 
@@ -148,7 +148,7 @@ partitionByOctreeDepth(const PCCPointSet3& cloud, int depOctree)
   // noting that there is a correspondence between point position
   // and octree node, calculate the position mask and shift required
   // to determine the node address for a point.
-  PCCBox3<double> bbox = cloud.computeBoundingBox();
+  Box3<double> bbox = cloud.computeBoundingBox();
   int maxBb = (int)std::max({bbox.max[0], bbox.max[1], bbox.max[2]});
 
   int cloudSizeLog2 = ceillog2(maxBb + 1);

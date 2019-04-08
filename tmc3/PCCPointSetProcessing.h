@@ -59,7 +59,7 @@ inline void
 quantizePositionsUniq(
   const float scaleFactor,
   const Vec3<int> offset,
-  const PCCBox3<int> clamp,
+  const Box3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
@@ -108,7 +108,7 @@ inline void
 quantizePositions(
   const float scaleFactor,
   const Vec3<int> offset,
-  const PCCBox3<int> clamp,
+  const Box3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
