@@ -474,7 +474,7 @@ private:
 //---------------------------------------
 class PCCKdTree3 {
   struct PCCKdTree3Node {
-    PCCBox3D BB;
+    Box3<double> BB;
     Vec3<double> centd;
     uint32_t id;
     uint32_t start;
@@ -513,7 +513,7 @@ public:
       const uint32_t end = isLeftNode
         ? static_cast<uint32_t>(nodes[parentNodeIdx].medianIdx)
         : static_cast<uint32_t>(nodes[parentNodeIdx].end);
-      PCCBox3D BB = nodes[parentNodeIdx].BB;
+      Box3<double> BB = nodes[parentNodeIdx].BB;
       isLeftNode
         ? BB.max[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median
         : BB.min[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median;
@@ -547,7 +547,7 @@ public:
       pointCloudTemp[i].isVisisted = false;
     }
 
-    PCCBox3D BB = computeBoundingBox(0, pointCount);
+    Box3<double> BB = computeBoundingBox(0, pointCount);
     Vec3<double> nodeMean = computePCCMean(0, pointCount);
     PCCAxis3 axis = computeSplitAxisVar(0, pointCount, nodeMean);
     uint32_t medianIdx = findMedian(0, pointCount, axis);
@@ -599,7 +599,8 @@ public:
   }
 
 private:
-  PCCBox3D computeBoundingBox(const uint32_t start, const uint32_t end) const
+  Box3<double>
+  computeBoundingBox(const uint32_t start, const uint32_t end) const
   {
     Vec3<double> minBB = pointCloudTemp[start].pos;
     Vec3<double> maxBB = pointCloudTemp[start].pos;
@@ -613,7 +614,7 @@ private:
         }
       }
     }
-    PCCBox3D BB;
+    Box3<double> BB;
     {
       BB.min = minBB;
       BB.max = maxBB;
@@ -622,7 +623,7 @@ private:
   }
   PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const
   {
-    PCCBox3D BB = computeBoundingBox(start, end);
+    Box3<double> BB = computeBoundingBox(start, end);
     Vec3<double> d = BB.max - BB.min;
     if (d.x() > d.y() && d.x() > d.z()) {
       return PCC_AXIS3_X;

@@ -428,10 +428,10 @@ public:
       std::swap(getReflectance(index1), getReflectance(index2));
     }
   }
-  PCCBox3D computeBoundingBox() const
+  Box3<double> computeBoundingBox() const
   {
-    PCCBox3D bbox = {std::numeric_limits<double>::max(),
-                     std::numeric_limits<double>::lowest()};
+    Box3<double> bbox = {std::numeric_limits<double>::max(),
+                         std::numeric_limits<double>::lowest()};
     const size_t pointCount = getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
       const Vec3<double>& pt = (*this)[i];

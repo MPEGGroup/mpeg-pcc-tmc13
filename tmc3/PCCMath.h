@@ -335,7 +335,7 @@ struct Box3 {
 
 typedef DEPRECATED_MSVC Vec3<double> PCCVector3D DEPRECATED;
 typedef DEPRECATED_MSVC Vec3<double> PCCPoint3D DEPRECATED;
-typedef Box3<double> PCCBox3D;
+typedef DEPRECATED_MSVC Box3<double> PCCBox3D DEPRECATED;
 typedef DEPRECATED_MSVC Vec3<uint8_t> PCCColor3B DEPRECATED;
 
 template<typename T>

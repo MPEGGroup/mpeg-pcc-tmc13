@@ -426,7 +426,7 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  std::vector<PCCBox3D>& bBoxes)
+  std::vector<Box3<double>>& bBoxes)
 {
   const int32_t retainedSize = retained.size();
   const int32_t bucketSize = 8;
@@ -762,7 +762,7 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.reserve(21);
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
-  std::vector<PCCBox3D> bBoxes;
+  std::vector<Box3<double>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
   for (uint32_t lodIndex = 0; !input.empty() && lodIndex <= levelOfDetailCount;
        ++lodIndex) {

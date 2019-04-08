@@ -87,7 +87,7 @@ partitionByUniformGeom(const PCCPointSet3& cloud, int numPartitions)
 {
   PartitionSet partitions;
 
-  PCCBox3D bbox = cloud.computeBoundingBox();
+  Box3<double> bbox = cloud.computeBoundingBox();
 
   int maxEdgeAxis = longestAxis(bbox);
   int maxEdge = bbox.max[maxEdgeAxis] - bbox.min[maxEdgeAxis];

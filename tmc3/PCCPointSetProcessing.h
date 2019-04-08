@@ -121,7 +121,7 @@ quantizePositions(
     dst->resize(numSrcPoints);
   }
 
-  PCCBox3D clampD{
+  Box3<double> clampD{
     {double(clamp.min[0]), double(clamp.min[1]), double(clamp.min[2])},
     {double(clamp.max[0]), double(clamp.max[1]), double(clamp.max[2])},
   };
@@ -154,7 +154,7 @@ quantizePositions(
 // Clamp point co-ordinates in @cloud to @bbox, preserving attributes.
 
 inline void
-clampVolume(PCCBox3D bbox, PCCPointSet3* cloud)
+clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 {
   int numSrcPoints = cloud->getPointCount();
 
