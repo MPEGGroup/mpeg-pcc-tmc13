@@ -282,6 +282,12 @@ regionAdaptiveHierarchicalInverseTransform(
       attributesTransformed[k] *= quantStepSizeLuma2;
   }
 
+  // Handle case when there is only a single point
+  if (N == 1) {
+    for (size_t k = 0; k < attribCount; k++)
+      attributes[k] = attributesTransformed[k];
+  }
+
   // Re-obtain weights at the decoder by partially executing the encoder
   d = 0;
   while (N > 1) {
