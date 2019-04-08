@@ -43,6 +43,14 @@
 #include <utility>
 #include <vector>
 
+#if _MSC_VER
+#  define DEPRECATED_MSVC __declspec(deprecated)
+#  define DEPRECATED
+#else
+#  define DEPRECATED_MSVC
+#  define DEPRECATED __attribute__((deprecated))
+#endif
+
 namespace pcc {
 const uint32_t PCC_UNDEFINED_INDEX = -1;
 

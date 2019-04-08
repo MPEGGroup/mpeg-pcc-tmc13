@@ -102,21 +102,21 @@ struct PCCPredictor {
   PCCNeighborInfo neighbors[kAttributePredictionMaxNeighbourCount];
   int8_t predMode;
 
-  PCCColor3B predictColor(
+  Vec3<uint8_t> predictColor(
     const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const
   {
-    PCCVector3D predicted(0.0);
+    Vec3<double> predicted(0.0);
     if (predMode > neighborCount) {
       /* nop */
     } else if (predMode > 0) {
-      const PCCColor3B color =
+      const Vec3<uint8_t> color =
         pointCloud.getColor(indexes[neighbors[predMode - 1].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         predicted[k] += color[k];
       }
     } else {
       for (size_t i = 0; i < neighborCount; ++i) {
-        const PCCColor3B color =
+        const Vec3<uint8_t> color =
           pointCloud.getColor(indexes[neighbors[i].predictorIndex]);
         const double w = neighbors[i].weight;
         for (size_t k = 0; k < 3; ++k) {
@@ -124,7 +124,7 @@ struct PCCPredictor {
         }
       }
     }
-    return PCCColor3B(
+    return Vec3<uint8_t>(
       uint8_t(std::round(predicted[0])), uint8_t(std::round(predicted[1])),
       uint8_t(std::round(predicted[2])));
   }

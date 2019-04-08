@@ -53,7 +53,7 @@
 namespace pcc {
 class PCCPointSet3 {
 public:
-  typedef PCCVector3D PointType;
+  typedef Vec3<double> PointType;
 
   //=========================================================================
   // proxy object for use with iterator, allowing handling of PCCPointSet3's
@@ -249,27 +249,27 @@ public:
     swap(withFrameIndex, other.withFrameIndex);
   }
 
-  PCCPoint3D operator[](const size_t index) const
+  Vec3<double> operator[](const size_t index) const
   {
     assert(index < positions.size());
     return positions[index];
   }
-  PCCPoint3D& operator[](const size_t index)
+  Vec3<double>& operator[](const size_t index)
   {
     assert(index < positions.size());
     return positions[index];
   }
-  PCCColor3B getColor(const size_t index) const
+  Vec3<uint8_t> getColor(const size_t index) const
   {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  PCCColor3B& getColor(const size_t index)
+  Vec3<uint8_t>& getColor(const size_t index)
   {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  void setColor(const size_t index, const PCCColor3B color)
+  void setColor(const size_t index, const Vec3<uint8_t> color)
   {
     assert(index < colors.size() && withColors);
     colors[index] = color;
@@ -434,7 +434,7 @@ public:
                      std::numeric_limits<double>::lowest()};
     const size_t pointCount = getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
-      const PCCPoint3D& pt = (*this)[i];
+      const Vec3<double>& pt = (*this)[i];
       for (int k = 0; k < 3; ++k) {
         if (pt[k] > bbox.max[k]) {
           bbox.max[k] = pt[k];
@@ -526,10 +526,10 @@ public:
       //      fout << std::setprecision(std::numeric_limits<double>::max_digits10);
       fout << std::fixed << std::setprecision(5);
       for (size_t i = 0; i < pointCount; ++i) {
-        const PCCPoint3D& position = (*this)[i];
+        const Vec3<double>& position = (*this)[i];
         fout << position.x() << " " << position.y() << " " << position.z();
         if (hasColors()) {
-          const PCCColor3B& color = getColor(i);
+          const Vec3<uint8_t>& color = getColor(i);
           fout << " " << static_cast<int>(color[0]) << " "
                << static_cast<int>(color[1]) << " "
                << static_cast<int>(color[2]);
@@ -547,11 +547,11 @@ public:
       fout.close();
       fout.open(fileName, std::ofstream::binary | std::ofstream::app);
       for (size_t i = 0; i < pointCount; ++i) {
-        const PCCPoint3D& position = (*this)[i];
+        const Vec3<double>& position = (*this)[i];
         fout.write(
           reinterpret_cast<const char* const>(&position), sizeof(double) * 3);
         if (hasColors()) {
-          const PCCColor3B& color = getColor(i);
+          const Vec3<uint8_t>& color = getColor(i);
           fout.write(
             reinterpret_cast<const char*>(&color), sizeof(uint8_t) * 3);
         }
@@ -895,8 +895,8 @@ public:
   }
 
 private:
-  std::vector<PCCPoint3D> positions;
-  std::vector<PCCColor3B> colors;
+  std::vector<Vec3<double>> positions;
+  std::vector<Vec3<uint8_t>> colors;
   std::vector<uint16_t> reflectances;
   std::vector<uint8_t> frameidx;
   bool withColors;

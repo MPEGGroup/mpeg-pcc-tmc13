@@ -509,7 +509,7 @@ decodeGeometryOctree(
           numPoints = decoder.decodePositionLeafNumPoints();
         }
 
-        const PCCVector3D point(
+        const Vec3<double> point(
           node0.pos[0] + (x << childSizeLog2),
           node0.pos[1] + (y << childSizeLog2),
           node0.pos[2] + (z << childSizeLog2));

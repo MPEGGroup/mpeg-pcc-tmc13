@@ -432,15 +432,15 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   }
 
   // Offset the point cloud to account for (preset) _sliceOrigin.
-  PCCVector3D sliceOriginD{double(_sliceOrigin[0]), double(_sliceOrigin[1]),
-                           double(_sliceOrigin[2])};
+  Vec3<double> sliceOriginD{double(_sliceOrigin[0]), double(_sliceOrigin[1]),
+                            double(_sliceOrigin[2])};
 
   // The new maximum bounds of the offset cloud
   Vec3<int> maxBound{0};
 
   const size_t pointCount = pointCloud.getPointCount();
   for (size_t i = 0; i < pointCount; ++i) {
-    const PCCVector3D point = (pointCloud[i] -= sliceOriginD);
+    const Vec3<double> point = (pointCloud[i] -= sliceOriginD);
     for (int k = 0; k < 3; ++k) {
       const int k_coord = int(point[k]);
       assert(k_coord >= 0);

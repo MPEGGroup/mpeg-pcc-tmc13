@@ -70,13 +70,13 @@ struct PCCRangeResult {
 };
 
 struct PCCNNQuery3 {
-  PCCPoint3D point;
+  Vec3<double> point;
   double radius;
   size_t nearestNeighborCount;
 };
 
 struct PCCRangeQuery3 {
-  PCCPoint3D point;
+  Vec3<double> point;
   double radius;
   size_t maxResultCount;
 };
@@ -151,7 +151,7 @@ private:
 
 class PCCIncrementalKdTree3 {
   struct PCCIncrementalKdTree3Node {
-    PCCPoint3D pos;
+    Vec3<double> pos;
     uint32_t id;
     uint32_t left;
     uint32_t right;
@@ -178,7 +178,7 @@ public:
     root = PCC_UNDEFINED_INDEX;
   }
   void reserve(const size_t pointCount) { nodes.reserve(pointCount); }
-  uint32_t insert(const PCCPoint3D point)
+  uint32_t insert(const Vec3<double> point)
   {
     const uint32_t id = static_cast<uint32_t>(nodes.size());
     nodes.resize(id + 1);
@@ -250,7 +250,7 @@ public:
   }
 
   uint32_t
-  hasNeighborWithinRange(const PCCVector3D& point, const double radius2) const
+  hasNeighborWithinRange(const Vec3<double>& point, const double radius2) const
   {
     return hasNeighborWithinRange(root, point, radius2);
   }
@@ -281,10 +281,10 @@ private:
   }
   PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const
   {
-    PCCPoint3D minBB = nodes[start].pos;
-    PCCPoint3D maxBB = nodes[start].pos;
+    Vec3<double> minBB = nodes[start].pos;
+    Vec3<double> maxBB = nodes[start].pos;
     for (size_t i = start + 1; i < end; ++i) {
-      const PCCPoint3D& pt = nodes[i].pos;
+      const Vec3<double>& pt = nodes[i].pos;
       for (int32_t k = 0; k < 3; ++k) {
         if (minBB[k] > pt[k]) {
           minBB[k] = pt[k];
@@ -293,7 +293,7 @@ private:
         }
       }
     }
-    PCCPoint3D d = maxBB - minBB;
+    Vec3<double> d = maxBB - minBB;
     if (d.x() > d.y() && d.x() > d.z()) {
       return PCC_AXIS3_X;
     } else if (d.y() > d.z()) {
@@ -434,7 +434,7 @@ private:
 
   uint32_t hasNeighborWithinRange(
     const uint32_t current,
-    const PCCVector3D& point,
+    const Vec3<double>& point,
     const double radius2) const
   {
     if (current == PCC_UNDEFINED_INDEX) {
@@ -475,7 +475,7 @@ private:
 class PCCKdTree3 {
   struct PCCKdTree3Node {
     PCCBox3D BB;
-    PCCPoint3D centd;
+    Vec3<double> centd;
     uint32_t id;
     uint32_t start;
     uint32_t end;
@@ -484,7 +484,7 @@ class PCCKdTree3 {
     uint32_t medianIdx;
   };
   struct PointIDNode {
-    PCCPoint3D pos;
+    Vec3<double> pos;
     uint32_t id;
     bool isVisisted;
   };
@@ -518,7 +518,7 @@ public:
         ? BB.max[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median
         : BB.min[nodes[parentNodeIdx].axis] = nodes[parentNodeIdx].median;
 
-      PCCPoint3D nodeMean = computePCCMean(start, end);
+      Vec3<double> nodeMean = computePCCMean(start, end);
       PCCAxis3 axis = computeSplitAxisVar(start, end, nodeMean);
       uint32_t medianIdx = findMedian(start, end, axis);
 
@@ -548,7 +548,7 @@ public:
     }
 
     PCCBox3D BB = computeBoundingBox(0, pointCount);
-    PCCPoint3D nodeMean = computePCCMean(0, pointCount);
+    Vec3<double> nodeMean = computePCCMean(0, pointCount);
     PCCAxis3 axis = computeSplitAxisVar(0, pointCount, nodeMean);
     uint32_t medianIdx = findMedian(0, pointCount, axis);
 
@@ -564,7 +564,7 @@ public:
     rootNode.medianIdx = medianIdx;
   }
 
-  uint32_t searchClosestAvailablePoint(PCCPoint3D queryPoint)
+  uint32_t searchClosestAvailablePoint(Vec3<double> queryPoint)
   {
     uint32_t idToClosestPoint = -1;
     uint32_t id = 0;
@@ -579,7 +579,7 @@ public:
     uint32_t closestID = 0;
     for (size_t i = start; i <= end; ++i) {
       if (!pointCloudTemp[i].isVisisted) {
-        PCCPoint3D diff = pointCloudTemp[i].pos - queryPoint;
+        Vec3<double> diff = pointCloudTemp[i].pos - queryPoint;
         uint32_t dist =
           std::sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
         if (dist <= closestDistThr) {
@@ -601,10 +601,10 @@ public:
 private:
   PCCBox3D computeBoundingBox(const uint32_t start, const uint32_t end) const
   {
-    PCCPoint3D minBB = pointCloudTemp[start].pos;
-    PCCPoint3D maxBB = pointCloudTemp[start].pos;
+    Vec3<double> minBB = pointCloudTemp[start].pos;
+    Vec3<double> maxBB = pointCloudTemp[start].pos;
     for (size_t i = start + 1; i < end; ++i) {
-      const PCCPoint3D& pt = pointCloudTemp[i].pos;
+      const Vec3<double>& pt = pointCloudTemp[i].pos;
       for (int32_t k = 0; k < 3; ++k) {
         if (minBB[k] > pt[k]) {
           minBB[k] = pt[k];
@@ -623,7 +623,7 @@ private:
   PCCAxis3 computeSplitAxis(const uint32_t start, const uint32_t end) const
   {
     PCCBox3D BB = computeBoundingBox(start, end);
-    PCCPoint3D d = BB.max - BB.min;
+    Vec3<double> d = BB.max - BB.min;
     if (d.x() > d.y() && d.x() > d.z()) {
       return PCC_AXIS3_X;
     } else if (d.y() > d.z()) {
@@ -633,7 +633,7 @@ private:
     }
   }
   PCCAxis3 computeSplitAxisVar(
-    const uint32_t start, const uint32_t end, PCCPoint3D nodeMean) const
+    const uint32_t start, const uint32_t end, Vec3<double> nodeMean) const
   {
     double nodeVar[3] = {0, 0, 0};
     for (size_t axis = 0; axis < 3; ++axis) {
@@ -652,10 +652,10 @@ private:
       return PCC_AXIS3_Z;
     }
   }
-  PCCPoint3D computePCCMean(const uint32_t start, const uint32_t end)
+  Vec3<double> computePCCMean(const uint32_t start, const uint32_t end)
   {
     assert(end >= start);
-    PCCPoint3D nodeMean;
+    Vec3<double> nodeMean;
     for (size_t axis = 0; axis < 3; ++axis) {
       uint32_t acc = 0;
       for (size_t i = start; i < end; i++) {

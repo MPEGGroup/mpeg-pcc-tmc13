@@ -99,8 +99,8 @@ protected:
     PCCResidualsEncoder& encoder);
 
   static Vec3<int64_t> computeColorResiduals(
-    const PCCColor3B color,
-    const PCCColor3B predictedColor,
+    const Vec3<uint8_t> color,
+    const Vec3<uint8_t> predictedColor,
     const int64_t qs,
     const int64_t qs2);
 

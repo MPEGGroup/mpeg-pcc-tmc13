@@ -291,7 +291,7 @@ AttributeDecoder::computeColorPredictionWeights(
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
     for (int i = 0; i < predictor.neighborCount; ++i) {
-      const PCCColor3B colorNeighbor =
+      const Vec3<uint8_t> colorNeighbor =
         pointCloud.getColor(indexes[predictor.neighbors[i].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         if (i == 0 || colorNeighbor[k] < minValue[k]) {
@@ -354,8 +354,8 @@ AttributeDecoder::decodeColorsPred(
       aps, pointCloud, indexesLOD, predictor, decoder);
     decoder.decode(values);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
-    PCCColor3B& color = pointCloud.getColor(pointIndex);
-    const PCCColor3B predictedColor =
+    Vec3<uint8_t>& color = pointCloud.getColor(pointIndex);
+    const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
     const int64_t quantPredAttValue = predictedColor[0];
     const int64_t delta = PCCInverseQuantization(UIntToInt(values[0]), qs);
@@ -480,7 +480,7 @@ AttributeDecoder::decodeColorsRaht(
     const int r = attributes[attribCount * n].round();
     const int g = attributes[attribCount * n + 1].round();
     const int b = attributes[attribCount * n + 2].round();
-    PCCColor3B color;
+    Vec3<uint8_t> color;
     color[0] = uint8_t(PCCClip(r, 0, clipMax));
     color[1] = uint8_t(PCCClip(g, 0, clipMax));
     color[2] = uint8_t(PCCClip(b, 0, clipMax));
@@ -528,7 +528,7 @@ AttributeDecoder::decodeColorsLift(
   std::vector<double> weights;
   PCCComputeQuantizationWeights(predictors, weights);
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<PCCVector3D> colors;
+  std::vector<Vec3<double>> colors;
   colors.resize(pointCount);
   // decompress
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -559,7 +559,7 @@ AttributeDecoder::decodeColorsLift(
 
   const double clipMax = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
-    PCCColor3B color;
+    Vec3<uint8_t> color;
     for (size_t d = 0; d < 3; ++d) {
       color[d] = uint8_t(PCCClip(std::round(colors[f][d]), 0.0, clipMax));
     }

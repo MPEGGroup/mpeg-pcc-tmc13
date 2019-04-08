@@ -481,8 +481,8 @@ AttributeEncoder::encodeReflectancesPred(
 
 Vec3<int64_t>
 AttributeEncoder::computeColorResiduals(
-  const PCCColor3B color,
-  const PCCColor3B predictedColor,
+  const Vec3<uint8_t> color,
+  const Vec3<uint8_t> predictedColor,
   const int64_t qs,
   const int64_t qs2)
 {
@@ -518,7 +518,7 @@ AttributeEncoder::computeColorPredictionWeights(
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
     for (int i = 0; i < predictor.neighborCount; ++i) {
-      const PCCColor3B colorNeighbor =
+      const Vec3<uint8_t> colorNeighbor =
         pointCloud.getColor(indexesLOD[predictor.neighbors[i].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         if (i == 0 || colorNeighbor[k] < minValue[k]) {
@@ -535,11 +535,12 @@ AttributeEncoder::computeColorPredictionWeights(
     if (maxDiff > aps.adaptive_prediction_threshold) {
       const int qs = aps.quant_step_size_luma;
       const int qs2 = aps.quant_step_size_chroma;
-      PCCColor3B attrValue = pointCloud.getColor(indexesLOD[predictorIndex]);
+      Vec3<uint8_t> attrValue =
+        pointCloud.getColor(indexesLOD[predictorIndex]);
 
       // base case: weighted average of n neighbours
       predictor.predMode = 0;
-      PCCColor3B attrPred = predictor.predictColor(pointCloud, indexesLOD);
+      Vec3<uint8_t> attrPred = predictor.predictColor(pointCloud, indexesLOD);
       Vec3<int64_t> attrResidualQuant =
         computeColorResiduals(attrValue, attrPred, qs, qs2);
 
@@ -617,8 +618,8 @@ AttributeEncoder::encodeColorsPred(
       aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder,
       context);
     const auto pointIndex = indexesLOD[predictorIndex];
-    const PCCColor3B color = pointCloud.getColor(pointIndex);
-    const PCCColor3B predictedColor =
+    const Vec3<uint8_t> color = pointCloud.getColor(pointIndex);
+    const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
     const int64_t quantAttValue = color[0];
     const int64_t quantPredAttValue = predictedColor[0];
@@ -628,7 +629,7 @@ AttributeEncoder::encodeColorsPred(
     const int64_t reconstructedQuantAttValue =
       quantPredAttValue + reconstructedDelta;
     values[0] = uint32_t(IntToUInt(long(delta)));
-    PCCColor3B reconstructedColor;
+    Vec3<uint8_t> reconstructedColor;
     reconstructedColor[0] =
       uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     for (size_t k = 1; k < 3; ++k) {
@@ -791,7 +792,7 @@ AttributeEncoder::encodeColorsTransformRaht(
     const int r = attributes[attribCount * n].round();
     const int g = attributes[attribCount * n + 1].round();
     const int b = attributes[attribCount * n + 2].round();
-    PCCColor3B color;
+    Vec3<uint8_t> color;
     color[0] = uint8_t(PCCClip(r, 0, clipMax));
     color[1] = uint8_t(PCCClip(g, 0, clipMax));
     color[2] = uint8_t(PCCClip(b, 0, clipMax));
@@ -839,7 +840,7 @@ AttributeEncoder::encodeColorsLift(
   std::vector<double> weights;
   PCCComputeQuantizationWeights(predictors, weights);
   const size_t lodCount = numberOfPointsPerLOD.size();
-  std::vector<PCCVector3D> colors;
+  std::vector<Vec3<double>> colors;
   colors.resize(pointCount);
 
   for (size_t index = 0; index < pointCount; ++index) {
@@ -892,7 +893,7 @@ AttributeEncoder::encodeColorsLift(
 
   const double clipMax = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
-    PCCColor3B color;
+    Vec3<uint8_t> color;
     for (size_t d = 0; d < 3; ++d) {
       color[d] = uint8_t(PCCClip(std::round(colors[f][d]), 0.0, clipMax));
     }

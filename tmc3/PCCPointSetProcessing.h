@@ -68,7 +68,7 @@ quantizePositionsUniq(
   std::set<Vec3<int32_t>> uniquePoints;
   int numSrcPoints = src.getPointCount();
   for (int i = 0; i < numSrcPoints; ++i) {
-    const PCCVector3D& point = src[i];
+    const Vec3<double>& point = src[i];
 
     Vec3<int32_t> quantizedPoint;
     for (int k = 0; k < 3; k++) {
@@ -127,7 +127,7 @@ quantizePositions(
   };
 
   for (int i = 0; i < numSrcPoints; ++i) {
-    const PCCVector3D point = src[i];
+    const Vec3<double> point = src[i];
     auto& dstPoint = (*dst)[i];
     for (int k = 0; k < 3; ++k) {
       double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
@@ -184,7 +184,7 @@ inline bool
 PCCTransfertColors(
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  PCCVector3D targetToSourceOffset,
+  Vec3<double> targetToSourceOffset,
   PCCPointSet3& target)
 {
   double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
@@ -200,8 +200,8 @@ PCCTransfertColors(
     3, source, 10);
 
   target.addColors();
-  std::vector<PCCColor3B> refinedColors1;
-  std::vector<std::vector<PCCColor3B>> refinedColors2;
+  std::vector<Vec3<uint8_t>> refinedColors1;
+  std::vector<std::vector<Vec3<uint8_t>>> refinedColors2;
   refinedColors1.resize(pointCountTarget);
   refinedColors2.resize(pointCountTarget);
   const size_t num_results = 1;
@@ -212,7 +212,7 @@ PCCTransfertColors(
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
 
-    PCCVector3D posInSrc =
+    Vec3<double> posInSrc =
       target[index] * targetToSourceScaleFactor + targetToSourceOffset;
 
     kdtreeSource.index->findNeighbors(
@@ -221,10 +221,10 @@ PCCTransfertColors(
   }
 
   for (size_t index = 0; index < pointCountSource; ++index) {
-    const PCCColor3B color = source.getColor(index);
+    const Vec3<uint8_t> color = source.getColor(index);
     resultSet.init(&indices[0], &sqrDist[0]);
 
-    PCCVector3D posInTgt =
+    Vec3<double> posInTgt =
       (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
 
     kdtreeTarget.index->findNeighbors(
@@ -233,19 +233,19 @@ PCCTransfertColors(
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    const PCCColor3B color1 = refinedColors1[index];
-    const std::vector<PCCColor3B>& colors2 = refinedColors2[index];
+    const Vec3<uint8_t> color1 = refinedColors1[index];
+    const std::vector<Vec3<uint8_t>>& colors2 = refinedColors2[index];
     if (colors2.empty()) {
       target.setColor(index, color1);
     } else {
-      PCCVector3D centroid2(0.0);
+      Vec3<double> centroid2(0.0);
       for (const auto& color2 : colors2) {
         for (size_t k = 0; k < 3; ++k) {
           centroid2[k] += color2[k];
         }
       }
       centroid2 /= colors2.size();
-      PCCColor3B color0;
+      Vec3<uint8_t> color0;
       for (size_t k = 0; k < 3; ++k) {
         color0[k] = uint8_t(PCCClip(round(centroid2[k]), 0.0, 255.0));
       }
@@ -274,7 +274,7 @@ inline bool
 PCCTransfertReflectances(
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  PCCVector3D targetToSourceOffset,
+  Vec3<double> targetToSourceOffset,
   PCCPointSet3& target)
 {
   double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
@@ -302,7 +302,7 @@ PCCTransfertReflectances(
   for (size_t index = 0; index < pointCountTarget; ++index) {
     resultSet.init(&indices[0], &sqrDist[0]);
 
-    PCCVector3D posInSrc =
+    Vec3<double> posInSrc =
       target[index] * targetToSourceScaleFactor + targetToSourceOffset;
 
     kdtreeSource.index->findNeighbors(
@@ -314,7 +314,7 @@ PCCTransfertReflectances(
     const uint16_t reflectance = source.getReflectance(index);
     resultSet.init(&indices[0], &sqrDist[0]);
 
-    PCCVector3D posInTgt =
+    Vec3<double> posInTgt =
       (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
 
     kdtreeTarget.index->findNeighbors(
@@ -357,7 +357,7 @@ recolour(
   Vec3<int> offset,
   PCCPointSet3* target)
 {
-  PCCVector3D combinedOffset;
+  Vec3<double> combinedOffset;
   for (int k = 0; k < 3; k++)
     combinedOffset[k] =
       targetToSourceOffset[k] + double(offset[k]) / sourceToTargetScaleFactor;
