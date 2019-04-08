@@ -84,7 +84,7 @@ public:
     int occupancyAdjGt0,
     int occupancyAdjGt1);
 
-  PCCVector3<uint32_t> decodePointPosition(int nodeSizeLog2);
+  Vec3<uint32_t> decodePointPosition(int nodeSizeLog2);
 
   template<class OutputIt>
   int decodeDirectPosition(
@@ -338,10 +338,10 @@ GeometryOctreeDecoder::decodeOccupancy(
 //-------------------------------------------------------------------------
 // Decode a position of a point in a given volume.
 
-PCCVector3<uint32_t>
+Vec3<uint32_t>
 GeometryOctreeDecoder::decodePointPosition(int nodeSizeLog2)
 {
-  PCCVector3<uint32_t> delta{};
+  Vec3<uint32_t> delta{};
   for (int i = nodeSizeLog2; i > 0; i--) {
     delta <<= 1;
     delta[0] |= _arithmeticDecoder->decode(_ctxEquiProb);
@@ -373,7 +373,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
 
   for (int i = 0; i < numPoints; i++) {
     // convert node-relative position to world position
-    PCCVector3<uint32_t> pos = node.pos + decodePointPosition(nodeSizeLog2);
+    Vec3<uint32_t> pos = node.pos + decodePointPosition(nodeSizeLog2);
     *(outputPoints++) = {double(pos[0]), double(pos[1]), double(pos[2])};
   }
 
@@ -419,7 +419,7 @@ decodeGeometryOctree(
   // ie, the number of nodes added to the next level of the tree
   int numNodesNextLvl = 0;
 
-  PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+  Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);

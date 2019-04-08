@@ -479,14 +479,14 @@ AttributeEncoder::encodeReflectancesPred(
 
 //----------------------------------------------------------------------------
 
-PCCVector3<int64_t>
+Vec3<int64_t>
 AttributeEncoder::computeColorResiduals(
   const PCCColor3B color,
   const PCCColor3B predictedColor,
   const int64_t qs,
   const int64_t qs2)
 {
-  PCCVector3<int64_t> residuals;
+  Vec3<int64_t> residuals;
   const int64_t quantAttValue = color[0];
   const int64_t quantPredAttValue = predictedColor[0];
   const int64_t delta = PCCQuantization(quantAttValue - quantPredAttValue, qs);
@@ -540,7 +540,7 @@ AttributeEncoder::computeColorPredictionWeights(
       // base case: weighted average of n neighbours
       predictor.predMode = 0;
       PCCColor3B attrPred = predictor.predictColor(pointCloud, indexesLOD);
-      PCCVector3<int64_t> attrResidualQuant =
+      Vec3<int64_t> attrResidualQuant =
         computeColorResiduals(attrValue, attrPred, qs, qs2);
 
       double best_score = attrResidualQuant[0] + attrResidualQuant[1]

@@ -98,7 +98,7 @@ protected:
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
-  static PCCVector3<int64_t> computeColorResiduals(
+  static Vec3<int64_t> computeColorResiduals(
     const PCCColor3B color,
     const PCCColor3B predictedColor,
     const int64_t qs,

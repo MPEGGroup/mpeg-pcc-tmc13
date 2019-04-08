@@ -127,14 +127,14 @@ determineTrisoupVertices(
     const uint32_t blockWidth = defaultBlockWidth;
 
     // Eight corners of block.
-    const PCCVector3<uint32_t> pos000({0, 0, 0});
-    const PCCVector3<uint32_t> posW00({blockWidth, 0, 0});
-    const PCCVector3<uint32_t> pos0W0({0, blockWidth, 0});
-    const PCCVector3<uint32_t> posWW0({blockWidth, blockWidth, 0});
-    const PCCVector3<uint32_t> pos00W({0, 0, blockWidth});
-    const PCCVector3<uint32_t> posW0W({blockWidth, 0, blockWidth});
-    const PCCVector3<uint32_t> pos0WW({0, blockWidth, blockWidth});
-    const PCCVector3<uint32_t> posWWW({blockWidth, blockWidth, blockWidth});
+    const Vec3<uint32_t> pos000({0, 0, 0});
+    const Vec3<uint32_t> posW00({blockWidth, 0, 0});
+    const Vec3<uint32_t> pos0W0({0, blockWidth, 0});
+    const Vec3<uint32_t> posWW0({blockWidth, blockWidth, 0});
+    const Vec3<uint32_t> pos00W({0, 0, blockWidth});
+    const Vec3<uint32_t> posW0W({blockWidth, 0, blockWidth});
+    const Vec3<uint32_t> pos0WW({0, blockWidth, blockWidth});
+    const Vec3<uint32_t> posWWW({blockWidth, blockWidth, blockWidth});
 
     // x: left to right; y: bottom to top; z: far to near
     TrisoupSegmentEnc seg000W00 =  // far bottom edge
@@ -164,7 +164,7 @@ determineTrisoupVertices(
 
     // Each voxel votes for a position along each edge it is close to
     for (int j = leaf.start; j < leaf.end; j++) {
-      PCCVector3<int> voxel;
+      Vec3<int> voxel;
       voxel.x() = int(pointCloud[j].x()) - leaf.pos.x();
       voxel.y() = int(pointCloud[j].y()) - leaf.pos.y();
       voxel.z() = int(pointCloud[j].z()) - leaf.pos.z();

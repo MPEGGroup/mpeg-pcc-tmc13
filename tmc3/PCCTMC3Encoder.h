@@ -121,10 +121,10 @@ private:
   PCCPointSet3 pointCloud;
 
   // Position of the slice in the translated+scaled co-ordinate system.
-  PCCVector3<int> _sliceOrigin;
+  Vec3<int> _sliceOrigin;
 
   // Size of the current slice
-  PCCVector3<int> _sliceBoxWhd;
+  Vec3<int> _sliceBoxWhd;
 
   // The active parameter sets
   const SequenceParameterSet* _sps;

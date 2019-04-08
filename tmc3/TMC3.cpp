@@ -179,13 +179,13 @@ operator<<(std::ostream& out, const PartitionMethod& val)
 namespace df {
 namespace program_options_lite {
   template<typename T>
-  struct option_detail<pcc::PCCVector3<T>> {
+  struct option_detail<pcc::Vec3<T>> {
     static constexpr bool is_container = true;
     static constexpr bool is_fixed_size = true;
     typedef T* output_iterator;
 
-    static void clear(pcc::PCCVector3<T>& container){};
-    static output_iterator make_output_iterator(pcc::PCCVector3<T>& container)
+    static void clear(pcc::Vec3<T>& container){};
+    static output_iterator make_output_iterator(pcc::Vec3<T>& container)
     {
       return &container[0];
     }

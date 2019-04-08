@@ -172,22 +172,22 @@ struct GeometryNeighPattern {
 // the neighbour pattern and derive external adjacency counts for each child.
 GeometryNeighPattern makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
-  const PCCVector3<uint32_t>& currentPosition,
+  const Vec3<uint32_t>& currentPosition,
   const int nodeSizeLog2,
   const MortonMap3D& occupancyAtlas);
 
 // populate (if necessary) the occupancy atlas with occupancy information
 // from @fifo.
 void updateGeometryOccupancyAtlas(
-  const PCCVector3<uint32_t>& position,
+  const Vec3<uint32_t>& position,
   const int nodeSizeLog2,
   const ringbuf<PCCOctree3Node>& fifo,
   const ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,
-  PCCVector3<uint32_t>* atlasOrigin);
+  Vec3<uint32_t>* atlasOrigin);
 
 void updateGeometryOccupancyAtlasOccChild(
-  const PCCVector3<uint32_t>& pos,
+  const Vec3<uint32_t>& pos,
   int nodeSizeLog2,
   uint8_t childOccupancy,
   MortonMap3D* occupancyAtlas);

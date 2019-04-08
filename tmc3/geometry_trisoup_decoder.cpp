@@ -290,14 +290,14 @@ decodeTrisoupCommon(
       defaultBlockWidth;  // in future, may override with leaf blockWidth
 
     // Eight corners of block.
-    const PCCVector3<uint32_t> pos000({0, 0, 0});
-    const PCCVector3<uint32_t> posW00({blockWidth, 0, 0});
-    const PCCVector3<uint32_t> pos0W0({0, blockWidth, 0});
-    const PCCVector3<uint32_t> posWW0({blockWidth, blockWidth, 0});
-    const PCCVector3<uint32_t> pos00W({0, 0, blockWidth});
-    const PCCVector3<uint32_t> posW0W({blockWidth, 0, blockWidth});
-    const PCCVector3<uint32_t> pos0WW({0, blockWidth, blockWidth});
-    const PCCVector3<uint32_t> posWWW({blockWidth, blockWidth, blockWidth});
+    const Vec3<uint32_t> pos000({0, 0, 0});
+    const Vec3<uint32_t> posW00({blockWidth, 0, 0});
+    const Vec3<uint32_t> pos0W0({0, blockWidth, 0});
+    const Vec3<uint32_t> posWW0({blockWidth, blockWidth, 0});
+    const Vec3<uint32_t> pos00W({0, 0, blockWidth});
+    const Vec3<uint32_t> posW0W({blockWidth, 0, blockWidth});
+    const Vec3<uint32_t> pos0WW({0, blockWidth, blockWidth});
+    const Vec3<uint32_t> posWWW({blockWidth, blockWidth, blockWidth});
 
     // x: left to right; y: bottom to top; z: far to near
     segments.push_back(  // far bottom edge
@@ -394,7 +394,7 @@ decodeTrisoupCommon(
       // of surface intersection./ Put decoded vertex at center of voxel,
       // unless voxel is first or last along the edge, in which case put the
       // decoded vertex at the start or endpoint of the segment.
-      PCCVector3<uint32_t> direction = segment.endpos - segment.startpos;
+      Vec3<uint32_t> direction = segment.endpos - segment.startpos;
       blockWidth =
         std::max(direction[0], std::max(direction[1], direction[2]));
       int32_t distance;
@@ -455,7 +455,7 @@ decodeTrisoupCommon(
     // Sort projected vertices by decreasing angle in [-pi,+pi] around center
     // of block (i.e., clockwise from 9:00) breaking ties in angle by
     // increasing distance along the dominant axis.
-    PCCVector3<uint32_t> bc = leaves[i].pos + (blockWidth / 2);
+    Vec3<uint32_t> bc = leaves[i].pos + (blockWidth / 2);
     Vec3<int32_t> blockCenter = {(int32_t)(bc[0] << kTrisoupFpBits),
                                  (int32_t)(bc[1] << kTrisoupFpBits),
                                  (int32_t)(bc[2] << kTrisoupFpBits)};

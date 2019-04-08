@@ -92,7 +92,7 @@ private:
   int _sliceId;
 
   // Position of the slice in the translated+scaled co-ordinate system.
-  PCCVector3<int> _sliceOrigin;
+  Vec3<int> _sliceOrigin;
 
   // The point cloud currently being decoded
   PCCPointSet3 _currentPointCloud;

@@ -57,7 +57,7 @@ struct Partition {
 
   // The value of geom_box_origin for this partition, using the
   // translated+scaled co-ordinate system.
-  PCCVector3<int> origin;
+  Vec3<int> origin;
 
   // Point indexes of the source point cloud that form this partition.
   std::vector<int32_t> pointIndexes;

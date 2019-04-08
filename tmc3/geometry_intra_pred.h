@@ -46,7 +46,7 @@ namespace pcc {
 
 void predictGeometryOccupancyIntra(
   const MortonMap3D& occupancyAtlas,
-  PCCVector3<uint32_t> pos,
+  Vec3<uint32_t> pos,
   int nodeSizeLog2,
   int* occupacyIsPredIntra,
   int* occupacyPredIntra);

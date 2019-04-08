@@ -54,7 +54,7 @@ const int MAX_NUM_DM_LEAF_POINTS = 2;
 
 struct PCCOctree3Node {
   // 3D position of the current node's origin (local x,y,z = 0).
-  PCCVector3<uint32_t> pos;
+  Vec3<uint32_t> pos;
 
   // Range of point indexes spanned by node
   uint32_t start;

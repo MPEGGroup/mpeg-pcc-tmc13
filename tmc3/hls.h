@@ -148,8 +148,8 @@ struct SequenceParameterSet {
   int level;
 
   // todo(df): encode the following
-  PCCVector3<int> seq_bounding_box_xyz0;
-  PCCVector3<int> seq_bounding_box_whd;
+  Vec3<int> seq_bounding_box_xyz0;
+  Vec3<int> seq_bounding_box_whd;
   //int seq_bounding_box_scale_log2;
 
   // A value describing the scaling of the source positions prior to encoding.
@@ -215,7 +215,7 @@ struct GeometryBrickHeader {
   int geom_slice_id;
 
   // derived from geom_box_origin_{x,y,z} * (1 << geom_box_log2_scale)
-  PCCVector3<int> geomBoxOrigin;
+  Vec3<int> geomBoxOrigin;
   int geom_box_log2_scale;
 
   // todo(df): minus1?
@@ -264,8 +264,8 @@ struct AttributeBrickHeader {
 
 struct TileInventory {
   struct Entry {
-    PCCVector3<int> tile_bounding_box_xyz0;
-    PCCVector3<int> tile_bounding_box_whd;
+    Vec3<int> tile_bounding_box_xyz0;
+    Vec3<int> tile_bounding_box_whd;
   };
   std::vector<Entry> tiles;
 };

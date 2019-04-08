@@ -88,7 +88,7 @@ public:
     int occupancyAdjGt0,
     int occupancyAdjGt1);
 
-  void encodePointPosition(int nodeSizeLog2, const PCCVector3<uint32_t>& pos);
+  void encodePointPosition(int nodeSizeLog2, const Vec3<uint32_t>& pos);
 
   bool encodeDirectPosition(
     int nodeSizeLog2,
@@ -340,7 +340,7 @@ GeometryOctreeEncoder::encodeOccupancy(
 
 void
 GeometryOctreeEncoder::encodePointPosition(
-  int nodeSizeLog2, const PCCVector3<uint32_t>& pos)
+  int nodeSizeLog2, const Vec3<uint32_t>& pos)
 {
   for (int mask = 1 << (nodeSizeLog2 - 1); mask; mask >>= 1) {
     _arithmeticEncoder->encode(!!(pos[0] & mask), _ctxEquiProb);
@@ -369,9 +369,9 @@ GeometryOctreeEncoder::encodeDirectPosition(
     // determine the point position relative to box edge
     encodePointPosition(
       nodeSizeLog2,
-      PCCVector3<uint32_t>{int(pointCloud[idx][0]) - node.pos[0],
-                           int(pointCloud[idx][1]) - node.pos[1],
-                           int(pointCloud[idx][2]) - node.pos[2]});
+      Vec3<uint32_t>{int(pointCloud[idx][0]) - node.pos[0],
+                     int(pointCloud[idx][1]) - node.pos[1],
+                     int(pointCloud[idx][2]) - node.pos[2]});
   }
 
   return true;
@@ -426,7 +426,7 @@ encodeGeometryOctree(
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
-  PCCVector3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+  Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {

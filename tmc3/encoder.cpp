@@ -60,7 +60,7 @@ PCCTMC3Encoder3::compress(
   fixupParameterSets(params);
 
   // Determine input bounding box (for SPS metadata) if not manually set
-  if (params->sps.seq_bounding_box_whd == PCCVector3<int>{0}) {
+  if (params->sps.seq_bounding_box_whd == Vec3<int>{0}) {
     const auto& bbox = inputPointCloud.computeBoundingBox();
     for (int k = 0; k < 3; k++) {
       params->sps.seq_bounding_box_xyz0[k] = int(bbox.min[k]);
@@ -98,7 +98,7 @@ PCCTMC3Encoder3::compress(
   // If partitioning is not enabled, encode input as a single "partition"
   if (params->partitionMethod == PartitionMethod::kNone) {
     // todo(df): params->gps.geom_box_present_flag = false;
-    _sliceOrigin = PCCVector3<int>{0};
+    _sliceOrigin = Vec3<int>{0};
     compressPartition(inputPointCloud, params, outputFn, reconstructedCloud);
     return 0;
   }
@@ -406,12 +406,12 @@ void
 PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 {
   // Currently the sequence width/height/depth must be set
-  assert(_sps->seq_bounding_box_whd != PCCVector3<int>{0});
+  assert(_sps->seq_bounding_box_whd != Vec3<int>{0});
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
   // and quantisation.
   PCCBox3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-  if (_sps->seq_bounding_box_whd != PCCVector3<int>{0}) {
+  if (_sps->seq_bounding_box_whd != Vec3<int>{0}) {
     // todo(df): this is icky (not to mention rounding issues)
     // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
     // NB: minus 1 to convert to max x/y/z position
@@ -436,7 +436,7 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
                            double(_sliceOrigin[2])};
 
   // The new maximum bounds of the offset cloud
-  PCCVector3<int> maxBound{0};
+  Vec3<int> maxBound{0};
 
   const size_t pointCount = pointCloud.getPointCount();
   for (size_t i = 0; i < pointCount; ++i) {

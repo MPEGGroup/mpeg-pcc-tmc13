@@ -64,8 +64,8 @@ void decodeTrisoupCommon(
 //============================================================================
 
 struct TrisoupSegment {
-  PCCVector3<uint32_t> startpos;  // start point of edge segment
-  PCCVector3<uint32_t> endpos;    // end point of edge segment
+  Vec3<uint32_t> startpos;  // start point of edge segment
+  Vec3<uint32_t> endpos;    // end point of edge segment
 
   int index;        // index of segment, to reorder after sorting
   int uniqueIndex;  // index of uniqueSegment
@@ -74,8 +74,8 @@ struct TrisoupSegment {
 
 struct TrisoupSegmentEnc : public TrisoupSegment {
   TrisoupSegmentEnc(
-    const PCCVector3<uint32_t>& startpos,
-    const PCCVector3<uint32_t>& endpos,
+    const Vec3<uint32_t>& startpos,
+    const Vec3<uint32_t>& endpos,
     int index,
     int uniqueIndex,
     int vertex,

@@ -58,19 +58,19 @@ namespace pcc {
 inline void
 quantizePositionsUniq(
   const float scaleFactor,
-  const PCCVector3<int> offset,
+  const Vec3<int> offset,
   const PCCBox3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
 {
   // Determine the set of unique quantised points
 
-  std::set<PCCVector3<int32_t>> uniquePoints;
+  std::set<Vec3<int32_t>> uniquePoints;
   int numSrcPoints = src.getPointCount();
   for (int i = 0; i < numSrcPoints; ++i) {
     const PCCVector3D& point = src[i];
 
-    PCCVector3<int32_t> quantizedPoint;
+    Vec3<int32_t> quantizedPoint;
     for (int k = 0; k < 3; k++) {
       double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
       quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
@@ -107,7 +107,7 @@ quantizePositionsUniq(
 inline void
 quantizePositions(
   const float scaleFactor,
-  const PCCVector3<int> offset,
+  const Vec3<int> offset,
   const PCCBox3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst)
@@ -353,8 +353,8 @@ inline int
 recolour(
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
-  PCCVector3<int> targetToSourceOffset,
-  PCCVector3<int> offset,
+  Vec3<int> targetToSourceOffset,
+  Vec3<int> offset,
   PCCPointSet3* target)
 {
   PCCVector3D combinedOffset;

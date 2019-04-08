@@ -111,7 +111,7 @@ partitionByUniformGeom(const PCCPointSet3& cloud, int numPartitions)
     auto& slice = partitions.slices[i];
     slice.sliceId = i;
     slice.tileId = -1;
-    slice.origin = PCCVector3<int>{0};
+    slice.origin = Vec3<int>{0};
   }
 
   for (int n = 0; n < cloud.getPointCount(); n++) {
@@ -189,7 +189,7 @@ partitionByOctreeDepth(const PCCPointSet3& cloud, int depOctree)
     auto& slice = partitions.slices[sliceId];
     slice.sliceId = sliceId;
     slice.tileId = -1;
-    slice.origin = PCCVector3<int>{0};
+    slice.origin = Vec3<int>{0};
     slice.pointIndexes.reserve(part);
     part = sliceId++;
   }
