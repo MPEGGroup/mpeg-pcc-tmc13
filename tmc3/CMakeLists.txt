@@ -117,6 +117,7 @@ file(GLOB PROJECT_CPP_FILES
   "geometry_trisoup_encoder.cpp"
   "io_hls.cpp"
   "io_tlv.cpp"
+  "misc.cpp"
   "osspecific.cpp"
   "partitioning.cpp"
   "pcc_chrono.cpp"

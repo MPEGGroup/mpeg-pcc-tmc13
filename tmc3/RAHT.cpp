@@ -38,6 +38,8 @@
 #include <cstddef>
 #include <utility>
 
+#include "PCCMisc.h"
+
 namespace pcc {
 
 //============================================================================
@@ -57,7 +59,7 @@ rahtFixedPointRotation(
 
   b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
 
-  adjustedQuantStepSize.val = sqrtFixedpoint(
+  adjustedQuantStepSize.val = isqrt(
     ((quantStepSizeLuma.val * quantStepSizeLuma.val)
      * (weightLeft + weightRight))
     / (weightLeft * weightRight));
@@ -92,7 +94,7 @@ rahtFixedPointInverseRotation(
 
   b.val = (weightRight << b.kFracBits) / (weightLeft + weightRight);
 
-  adjustedQuantStepSize.val = sqrtFixedpoint(
+  adjustedQuantStepSize.val = isqrt(
     ((quantStepSizeLuma.val * quantStepSizeLuma.val)
      * (weightLeft + weightRight))
     / (weightLeft * weightRight));
@@ -204,8 +206,8 @@ regionAdaptiveHierarchicalTransform(
   delete[] attributesTransformed;
 
   // Quantization of DC coefficients
-  quantStepSizeLuma.val = sqrtFixedpoint(
-    (quantStepSizeLuma.val * quantStepSizeLuma.val) / weight[0]);
+  quantStepSizeLuma.val =
+    isqrt((quantStepSizeLuma.val * quantStepSizeLuma.val) / weight[0]);
   for (size_t k = 0; k < attribCount; k++)
     attributes[k] /= quantStepSizeLuma;
 
@@ -277,7 +279,7 @@ regionAdaptiveHierarchicalInverseTransform(
   {
     FixedPoint quantStepSizeLuma2;
     quantStepSizeLuma2.val =
-      sqrtFixedpoint((quantStepSizeLuma.val * quantStepSizeLuma.val) / N);
+      isqrt((quantStepSizeLuma.val * quantStepSizeLuma.val) / N);
     for (size_t k = 0; k < attribCount; k++)
       attributesTransformed[k] *= quantStepSizeLuma2;
   }

@@ -172,6 +172,11 @@ ceillog2(uint32_t x)
 }
 
 //---------------------------------------------------------------------------
+// Compute an approximation of \left\floor \sqrt{x} \right\floor
+
+uint32_t isqrt(uint64_t x);
+
+//---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
 inline uint64_t
