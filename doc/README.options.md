@@ -275,3 +275,6 @@ Attribute's luma quantization parameter.
 ### `--qpChromaOffset=INT-VALUE`
 Attribute's chroma quantization quantization parameter relative to luma.
 Only applies when `attribute=colour`.
+
+### `--aps_slice_qp_deltas_present_flag=0|1`
+Enables signalling of per-slice QP values.

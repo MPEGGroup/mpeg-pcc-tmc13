@@ -152,7 +152,7 @@ AttributeDecoder::decode(
 {
   int abhSize;
   AttributeBrickHeader abh = parseAbh(attr_aps, payload, &abhSize);
-  Quantizers qstep = deriveQuantSteps(attr_aps);
+  Quantizers qstep = deriveQuantSteps(attr_aps, abh);
 
   PCCResidualsDecoder decoder;
   decoder.start(payload.data() + abhSize, payload.size() - abhSize);

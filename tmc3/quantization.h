@@ -50,7 +50,8 @@ typedef std::array<int, 2> Quantizers;
 //============================================================================
 // Derive quantisation step sizes for each component given attribute
 
-Quantizers deriveQuantSteps(const AttributeParameterSet& attr_aps);
+Quantizers deriveQuantSteps(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 //============================================================================
 

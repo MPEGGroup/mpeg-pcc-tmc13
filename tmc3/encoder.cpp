@@ -298,6 +298,8 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_attr_parameter_set_id = attr_aps.aps_attr_parameter_set_id;
     abh.attr_sps_attr_idx = attrIdx;
     abh.attr_geom_slice_id = _sliceId;
+    abh.attr_qp_delta_luma = 0;
+    abh.attr_qp_delta_chroma = 0;
     write(attr_aps, abh, &payload);
 
     AttributeEncoder attrEncoder;

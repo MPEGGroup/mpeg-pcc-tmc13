@@ -43,10 +43,16 @@ namespace pcc {
 //============================================================================
 
 Quantizers
-deriveQuantSteps(const AttributeParameterSet& attr_aps)
+deriveQuantSteps(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
 {
   int sliceQpLuma = attr_aps.init_qp;
   int sliceQpChroma = attr_aps.init_qp + attr_aps.aps_chroma_qp_offset;
+
+  if (attr_aps.aps_slice_qp_deltas_present_flag) {
+    sliceQpLuma += abh.attr_qp_delta_luma;
+    sliceQpChroma += abh.attr_qp_delta_chroma;
+  }
 
   int qpShiftLuma = sliceQpLuma / 6;
   int qpShiftChroma = sliceQpChroma / 6;

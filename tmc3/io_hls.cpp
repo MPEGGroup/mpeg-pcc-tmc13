@@ -254,6 +254,7 @@ write(const AttributeParameterSet& aps)
   bs.writeUe(aps.init_qp);
   // todo(?): raht chroma qp support?
   bs.writeSe(aps.aps_chroma_qp_offset);
+  bs.write(aps.aps_slice_qp_deltas_present_flag);
 
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
@@ -302,6 +303,7 @@ parseAps(const PayloadBuffer& buf)
   bs.readUe(&aps.init_qp);
   // todo(?): raht chroma qp support?
   bs.readSe(&aps.aps_chroma_qp_offset);
+  bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
   bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
@@ -421,6 +423,11 @@ write(
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
+  if (aps.aps_slice_qp_deltas_present_flag) {
+    bs.writeSe(abh.attr_qp_delta_luma);
+    bs.writeSe(abh.attr_qp_delta_chroma);
+  }
+
   bs.byteAlign();
 }
 
@@ -456,6 +463,11 @@ parseAbh(
   bs.readUe(&abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
+
+  if (aps.aps_slice_qp_deltas_present_flag) {
+    bs.readSe(&abh.attr_qp_delta_luma);
+    bs.readSe(&abh.attr_qp_delta_chroma);
+  }
 
   bs.byteAlign();
 

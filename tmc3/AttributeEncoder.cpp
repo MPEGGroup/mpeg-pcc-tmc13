@@ -297,7 +297,7 @@ AttributeEncoder::encode(
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
-  Quantizers qstep = deriveQuantSteps(attr_aps);
+  Quantizers qstep = deriveQuantSteps(attr_aps, abh);
 
   PCCResidualsEncoder encoder;
   encoder.start(int(pointCloud.getPointCount()));

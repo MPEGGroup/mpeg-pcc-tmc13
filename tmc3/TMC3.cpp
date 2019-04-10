@@ -451,6 +451,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("qpChromaOffset",
     params_attr.aps.aps_chroma_qp_offset, 0,
     "Attribute's chroma quantisation parameter offset (relative to luma)")
+
+  ("aps_slice_qp_deltas_present_flag",
+    params_attr.aps.aps_slice_qp_deltas_present_flag, false,
+    "Enable signalling of per-slice QP values")
   ;
   /* clang-format on */
 
