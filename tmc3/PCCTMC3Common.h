@@ -365,55 +365,6 @@ FindNeighborWithinDistance(
 //---------------------------------------------------------------------------
 
 inline void
-computeNearestNeighbors2(
-  const PCCPointSet3& pointCloud,
-  const std::vector<MortonCodeWithIndex>& packedVoxel,
-  const std::vector<uint32_t>& retained,
-  const int32_t startIndex,
-  const int32_t endIndex,
-  const int32_t searchRange,
-  const int32_t numberOfNearestNeighborsInPrediction,
-  std::vector<uint32_t>& indexes,
-  std::vector<PCCPredictor>& predictors,
-  std::vector<uint32_t>& pointIndexToPredictorIndex,
-  int32_t& predIndex)
-{
-  const int32_t retainedSize = retained.size();
-  for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
-    const int32_t index = indexes[i];
-    const uint64_t mortonCode = packedVoxel[index].mortonCode;
-    const int32_t pointIndex = packedVoxel[index].index;
-    const auto& point = pointCloud[pointIndex];
-    indexes[i] = pointIndex;
-    while (j < retainedSize
-           && mortonCode >= packedVoxel[retained[j]].mortonCode)
-      ++j;
-    j = std::min(retainedSize - 1, j);
-    auto& predictor = predictors[--predIndex];
-    pointIndexToPredictorIndex[pointIndex] = predIndex;
-    predictor.init();
-    for (int32_t k = j, r = 0; k >= 0 && r < searchRange; --k, ++r) {
-      const int32_t pointIndex1 = packedVoxel[retained[k]].index;
-      const auto& point1 = pointCloud[pointIndex1];
-      predictor.insertNeighbor(
-        pointIndex1, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction);
-    }
-    for (int32_t k = j + 1, r = 0; k < retainedSize && r < searchRange;
-         ++k, ++r) {
-      const int32_t pointIndex1 = packedVoxel[retained[k]].index;
-      const auto& point1 = pointCloud[pointIndex1];
-      predictor.insertNeighbor(
-        pointIndex1, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction);
-    }
-    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
-  }
-}
-
-//---------------------------------------------------------------------------
-
-inline void
 computeNearestNeighbors(
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
