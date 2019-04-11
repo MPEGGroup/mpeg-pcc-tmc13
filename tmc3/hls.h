@@ -232,7 +232,6 @@ struct AttributeParameterSet {
 
   //--- lifting/predicting transform parameters
 
-  bool lod_binary_tree_enabled_flag;
   bool lod_decimation_enabled_flag;
   int num_pred_nearest_neighbours;
   int max_num_direct_predictors;

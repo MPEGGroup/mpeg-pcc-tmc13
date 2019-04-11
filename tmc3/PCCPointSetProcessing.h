@@ -41,7 +41,6 @@
 #include <vector>
 
 #include "KDTreeVectorOfVectorsAdaptor.h"
-#include "PCCKdTree.h"
 #include "PCCPointSet.h"
 
 namespace pcc {

@@ -41,7 +41,6 @@ categories:
        - levelOfDetailCount: ${seq_lod}
        - positionQuantizationScaleAdjustsDist2: 1
        - dist2: ${seq_dist2}
-       - lodBinaryTree: 0
        - lodDecimation: 0
        -
          - !conditional '"${group}" =~ m{^cat3}'

@@ -424,12 +424,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.search_range, 128,
     "Range for nearest neighbor search")
 
-  ("lodBinaryTree",
-    params_attr.aps.lod_binary_tree_enabled_flag, false,
-    "Controls LoD generation method:\n"
-    " 0: distance based subsampling\n"
-    " 1: binary tree")
-
   ("lodDecimation",
     params_attr.aps.lod_decimation_enabled_flag, false,
     "Controls LoD generation method:\n"

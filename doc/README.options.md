@@ -265,14 +265,6 @@ Controls the level-of-detail generation method:
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 
-### `--lodBinaryTree=0|1`
-Controls the level-of-detail generation method:
-
-  | Value | Description                     |
-  |:-----:| ------------------------------- |
-  | 0     | Binary-tree based               |
-  | 1     | Euclidean distance thresholding |
-
 ### `--dist2=INT-VALUE|INT-VALUE-LIST`
 Attribute's list of squared distances, or initial value for automatic
 derivation.
