@@ -193,6 +193,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // the encoder writes out the slice origin in the GBH
   // NB: this may be disabled during encoding
   params->gps.geom_box_present_flag = true;
+  params->gps.geom_box_log2_scale_present_flag = true;
+  params->gps.gps_geom_box_log2_scale = 0;
 
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {

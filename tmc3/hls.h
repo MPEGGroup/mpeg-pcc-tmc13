@@ -169,6 +169,13 @@ struct GeometryParameterSet {
   // geom_box_origin_xyz.
   int geom_box_present_flag;
 
+  // Indicates the presence of gps_geom_box_log2_scale and
+  // geom_box_log2_scale.
+  bool geom_box_log2_scale_present_flag;
+
+  // Default scaling factor for per-slice geometry box origin
+  int gps_geom_box_log2_scale;
+
   // Controls the ability to represent multiple points (with associated
   // attributes) at the same spatial position.
   bool geom_unique_points_flag;
@@ -221,6 +228,15 @@ struct GeometryBrickHeader {
   // todo(df): minus1?
   int geom_max_node_size_log2;
   int geom_num_points;
+
+  int geomBoxLog2Scale(const GeometryParameterSet& gps) const
+  {
+    if (!gps.geom_box_present_flag)
+      return 0;
+    if (!gps.geom_box_log2_scale_present_flag)
+      return gps.gps_geom_box_log2_scale;
+    return geom_box_log2_scale;
+  }
 };
 
 //============================================================================

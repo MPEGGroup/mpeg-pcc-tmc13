@@ -190,6 +190,11 @@ write(const GeometryParameterSet& gps)
   bs.writeUe(gps.gps_geom_parameter_set_id);
   bs.writeUe(gps.gps_seq_parameter_set_id);
   bs.write(gps.geom_box_present_flag);
+  if (gps.geom_box_present_flag) {
+    bs.write(gps.geom_box_log2_scale_present_flag);
+    if (!gps.geom_box_log2_scale_present_flag)
+      bs.writeUe(gps.gps_geom_box_log2_scale);
+  }
   bs.write(gps.geom_unique_points_flag);
   bs.write(gps.neighbour_context_restriction_flag);
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
@@ -219,6 +224,11 @@ parseGps(const PayloadBuffer& buf)
   bs.readUe(&gps.gps_geom_parameter_set_id);
   bs.readUe(&gps.gps_seq_parameter_set_id);
   bs.read(&gps.geom_box_present_flag);
+  if (gps.geom_box_present_flag) {
+    bs.read(&gps.geom_box_log2_scale_present_flag);
+    if (!gps.geom_box_log2_scale_present_flag)
+      bs.readUe(&gps.gps_geom_box_log2_scale);
+  }
   bs.read(&gps.geom_unique_points_flag);
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
@@ -358,11 +368,13 @@ write(
   bs.writeUe(gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {
-    int geom_box_origin_x = gbh.geomBoxOrigin.x() >> gbh.geom_box_log2_scale;
-    int geom_box_origin_y = gbh.geomBoxOrigin.y() >> gbh.geom_box_log2_scale;
-    int geom_box_origin_z = gbh.geomBoxOrigin.z() >> gbh.geom_box_log2_scale;
+    int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
+    int geom_box_origin_x = gbh.geomBoxOrigin.x() >> geomBoxLog2Scale;
+    int geom_box_origin_y = gbh.geomBoxOrigin.y() >> geomBoxLog2Scale;
+    int geom_box_origin_z = gbh.geomBoxOrigin.z() >> geomBoxLog2Scale;
 
-    bs.writeUe(gbh.geom_box_log2_scale);
+    if (gps.geom_box_log2_scale_present_flag)
+      bs.writeUe(gbh.geom_box_log2_scale);
     bs.writeUe(geom_box_origin_x);
     bs.writeUe(geom_box_origin_y);
     bs.writeUe(geom_box_origin_z);
@@ -388,7 +400,8 @@ parseGbh(
   bs.readUe(&gbh.geom_slice_id);
 
   if (gps.geom_box_present_flag) {
-    bs.readUe(&gbh.geom_box_log2_scale);
+    if (gps.geom_box_log2_scale_present_flag)
+      bs.readUe(&gbh.geom_box_log2_scale);
 
     int geom_box_origin_x;
     int geom_box_origin_y;
@@ -396,9 +409,10 @@ parseGbh(
     bs.readUe(&geom_box_origin_x);
     bs.readUe(&geom_box_origin_y);
     bs.readUe(&geom_box_origin_z);
-    gbh.geomBoxOrigin.x() = geom_box_origin_x << gbh.geom_box_log2_scale;
-    gbh.geomBoxOrigin.y() = geom_box_origin_y << gbh.geom_box_log2_scale;
-    gbh.geomBoxOrigin.z() = geom_box_origin_z << gbh.geom_box_log2_scale;
+    int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
+    gbh.geomBoxOrigin.x() = geom_box_origin_x << geomBoxLog2Scale;
+    gbh.geomBoxOrigin.y() = geom_box_origin_y << geomBoxLog2Scale;
+    gbh.geomBoxOrigin.z() = geom_box_origin_z << geomBoxLog2Scale;
   }
 
   bs.readUe(&gbh.geom_max_node_size_log2);
