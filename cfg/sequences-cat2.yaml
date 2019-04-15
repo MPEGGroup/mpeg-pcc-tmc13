@@ -65,6 +65,34 @@ sequences:
     pcerrorflags:
      - resolution: 1023
 
+  basketball_player_vox11:
+    src-dir: basketball_player_vox11
+    src: basketball_player_vox11_{00000001..00000128}.ply
+    #src: basketball_player_vox11_%08d.ply
+    first-frame: 1
+    frame-rate: 30
+    num-frames: 128
+    group: cat2-C
+    src-geometry-precision: 11
+    has_colour: true
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 2047
+
+  dancer_player_vox11:
+    src-dir: dancer_vox11
+    src: dancer_vox11_{00000001..00000128}.ply
+    #src: dancer_vox11_%08d.ply
+    first-frame: 1
+    frame-rate: 30
+    num-frames: 128
+    group: cat2-C
+    src-geometry-precision: 11
+    has_colour: true
+    bitdepth_colour: 8
+    pcerrorflags:
+     - resolution: 2047
+
   queen:
     src-dir: queen
     src: frame_{0000..0249}.ply
