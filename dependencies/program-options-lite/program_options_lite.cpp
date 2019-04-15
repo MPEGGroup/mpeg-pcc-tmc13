@@ -202,7 +202,7 @@ namespace df
       auto section_it = opts.sections.begin();
       for(Options::NamesPtrList::iterator it = opts.opt_list.begin(); it != opts.opt_list.end(); it++)
       {
-        if (it == section_it->second) {
+        if (section_it != opts.sections.end() && it == section_it->second) {
           const auto& section_name = section_it->first.name;
           out << "\n " << section_name << "\n ";
           fill_n(std::ostreambuf_iterator<char>(out), section_name.size(), '-');
