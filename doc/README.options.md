@@ -172,6 +172,10 @@ respectively.
 Controls the use of early termination of the geometry octree for
 isolated points.
 
+### `--adjacentChildContextualization=0|1`
+Controls the contextualization of occupancy bits according to the
+state of adjacent children of neighbouring nodes.
+
 ### `--intra_pred_max_node_size_log2=INT-VALUE`
 Intra occupancy prediction uses an octree node's neighbours to predict
 its occupancy.  The prediction mode is enabled for octree nodes smaller

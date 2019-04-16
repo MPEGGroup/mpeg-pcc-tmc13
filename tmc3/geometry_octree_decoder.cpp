@@ -451,8 +451,10 @@ decodeGeometryOctree(
         node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
         &occupancyAtlasOrigin);
 
-      GeometryNeighPattern gnp =
-        makeGeometryNeighPattern(node0.pos, nodeSizeLog2, occupancyAtlas);
+      GeometryNeighPattern gnp = makeGeometryNeighPattern(
+        gps.adjacent_child_contextualization_enabled_flag, node0.pos,
+        nodeSizeLog2, occupancyAtlas);
+
       node0.neighPattern = gnp.neighPattern;
       occupancyAdjacencyGt0 = gnp.adjacencyGt0;
       occupancyAdjacencyGt1 = gnp.adjacencyGt1;

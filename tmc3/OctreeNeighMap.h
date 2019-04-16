@@ -166,10 +166,12 @@ struct GeometryNeighPattern {
 };
 
 //============================================================================
-
 // determine the occupancy pattern of the six neighbours of the node at
-// @position.
+// @position.  If @adjacent_child_contextualization_enabled_flag is true,
+// the occupancy state of previously coded neighbours is used to refine
+// the neighbour pattern and derive external adjacency counts for each child.
 GeometryNeighPattern makeGeometryNeighPattern(
+  bool adjacent_child_contextualization_enabled_flag,
   const PCCVector3<uint32_t>& currentPosition,
   const int nodeSizeLog2,
   const MortonMap3D& occupancyAtlas);

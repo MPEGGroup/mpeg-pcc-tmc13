@@ -134,6 +134,7 @@ updatePatternFromNeighOccupancy(
 
 GeometryNeighPattern
 makeGeometryNeighPattern(
+  bool adjacent_child_contextualization_enabled_flag,
   const PCCVector3<uint32_t>& position,
   const int nodeSizeLog2,
   const MortonMap3D& occupancyAtlas)
@@ -170,6 +171,9 @@ makeGeometryNeighPattern(
   // NB: the process of updating neighpattern below also derives
   // the occupancy contextualisation bits.
   GeometryNeighPattern gnp = {neighPattern, 0, 0};
+
+  if (!adjacent_child_contextualization_enabled_flag)
+    return gnp;
 
   if (x > 0)
     gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x - 1, y, z, gnp, 0);

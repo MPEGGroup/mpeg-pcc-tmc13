@@ -190,6 +190,11 @@ struct GeometryParameterSet {
   // Selects between bitwise and bytewise occupancy coding
   bool bitwise_occupancy_coding_flag;
 
+  // Controlls contextualization of occupancy bits and refinement of
+  // the neighbour pattern according to the occupancy of adjacent
+  // children in neighbouring nodes.
+  bool adjacent_child_contextualization_enabled_flag;
+
   // Experimental knob to control the number of contexts used
   // for occupancy coding.
   int geom_occupancy_ctx_reduction_factor;

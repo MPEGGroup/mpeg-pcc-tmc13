@@ -363,6 +363,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
     "Permits early termination of the geometry octree for isolated points")
 
+  ("adjacentChildContextualization",
+    params.encoder.gps.adjacent_child_contextualization_enabled_flag, true,
+    "Occupancy contextualization using neighbouring adjacent children")
+
   ("intra_pred_max_node_size_log2",
     params.encoder.gps.intra_pred_max_node_size_log2, 0,
     "octree nodesizes eligible for occupancy intra prediction")

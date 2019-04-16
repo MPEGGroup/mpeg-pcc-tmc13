@@ -194,6 +194,7 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.neighbour_context_restriction_flag);
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
   bs.write(gps.bitwise_occupancy_coding_flag);
+  bs.write(gps.adjacent_child_contextualization_enabled_flag);
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
@@ -222,6 +223,7 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
   bs.read(&gps.bitwise_occupancy_coding_flag);
+  bs.read(&gps.adjacent_child_contextualization_enabled_flag);
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);
