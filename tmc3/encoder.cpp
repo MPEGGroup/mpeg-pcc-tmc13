@@ -236,9 +236,6 @@ PCCTMC3Encoder3::compressPartition(
   quantization(inputPointCloud);
 
   // geometry encoding
-  _sliceId = 0;
-  _tileId = 0;
-
   if (1) {
     PayloadBuffer payload(PayloadType::kGeometryBrick);
 
