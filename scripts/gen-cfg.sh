@@ -19,7 +19,7 @@ while (( $# )); do
 	--pred-lift) attr="predlift" ;;
 	--all) all=1 ;;
 	--cfgdir=*) src_cfg_dir="${1#--cfgdir=}/" ;;
-	--) break ;;
+	--) shift; break ;;
 	--help|*)
 		echo -e "usage:\n $0\n" \
 			"    [[--octree|--trisoup] [--raht|--pred-lift] | --all]\n" \
