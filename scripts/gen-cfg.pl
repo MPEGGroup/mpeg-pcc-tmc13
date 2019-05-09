@@ -160,7 +160,7 @@ if ($batch_template) {
 	can_load(modules => {'Template' => undef})
 		|| die $Module::Load::Conditional::ERROR;
 
-	my $output = basename($batch_template,'.tt');
+	my $output = "$prefix/" . basename($batch_template,'.tt');
 
 	my $vars = {
 		jobs => \@jobs,
