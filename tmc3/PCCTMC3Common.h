@@ -803,26 +803,15 @@ buildPredictorsFast(
     }
     const int32_t endIndex = indexes.size();
 
-    if (retained.empty()) {
-      for (int32_t i = startIndex; i < endIndex; ++i) {
-        const int32_t index = indexes[i];
-        const int32_t pointIndex = packedVoxel[index].index;
-        indexes[i] = pointIndex;
-        auto& predictor = predictors[--predIndex];
-        assert(predIndex >= 0);
-        pointIndexToPredictorIndex[pointIndex] = predIndex;
-        predictor.init(PCC_UNDEFINED_INDEX);
-      }
-      break;
-    } else {
-      computeNearestNeighbors(
-        pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
-        numberOfNearestNeighborsInPrediction, indexes, predictors,
-        pointIndexToPredictorIndex, predIndex, bBoxes,
-        intraLodPredictionEnabled);
-    }
+    computeNearestNeighbors(
+      pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
+      numberOfNearestNeighborsInPrediction, indexes, predictors,
+      pointIndexToPredictorIndex, predIndex, bBoxes,
+      intraLodPredictionEnabled);
 
-    numberOfPointsPerLevelOfDetail.push_back(retained.size());
+    if (!retained.empty()) {
+      numberOfPointsPerLevelOfDetail.push_back(retained.size());
+    }
     input.resize(0);
     std::swap(retained, input);
   }
