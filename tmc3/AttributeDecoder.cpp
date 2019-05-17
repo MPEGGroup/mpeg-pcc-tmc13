@@ -234,6 +234,8 @@ AttributeDecoder::computeReflectancePredictionWeights(
   PCCResidualsDecoder& decoder)
 {
   predictor.computeWeights();
+  int64_t maxDiff = 0;
+
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
@@ -247,11 +249,11 @@ AttributeDecoder::computeReflectancePredictionWeights(
         maxValue = reflectanceNeighbor;
       }
     }
-    const int64_t maxDiff = maxValue - minValue;
-    if (maxDiff > aps.adaptive_prediction_threshold) {
-      predictor.predMode =
-        decoder.decodePredMode(aps.max_num_direct_predictors);
-    }
+    maxDiff = maxValue - minValue;
+  }
+
+  if (maxDiff >= aps.adaptive_prediction_threshold) {
+    predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
   }
 }
 
@@ -314,6 +316,8 @@ AttributeDecoder::computeColorPredictionWeights(
   PCCResidualsDecoder& decoder)
 {
   predictor.computeWeights();
+  int64_t maxDiff = 0;
+
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
@@ -329,13 +333,13 @@ AttributeDecoder::computeColorPredictionWeights(
         }
       }
     }
-    const int64_t maxDiff = (std::max)(
+    maxDiff = (std::max)(
       maxValue[2] - minValue[2],
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
-    if (maxDiff > aps.adaptive_prediction_threshold) {
-      predictor.predMode =
-        decoder.decodePredMode(aps.max_num_direct_predictors);
-    }
+  }
+
+  if (maxDiff >= aps.adaptive_prediction_threshold) {
+    predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
   }
 }
 

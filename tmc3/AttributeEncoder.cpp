@@ -407,7 +407,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
   const int64_t qs)
 {
   predictor.computeWeights();
-  predictor.maxDiff = -1;
+  predictor.maxDiff = 0;
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
@@ -423,7 +423,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
     }
     const int64_t maxDiff = maxValue - minValue;
     predictor.maxDiff = maxDiff;
-    if (maxDiff > aps.adaptive_prediction_threshold) {
+    if (maxDiff >= aps.adaptive_prediction_threshold) {
       uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
 
@@ -530,7 +530,7 @@ AttributeEncoder::encodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    if (predictor.maxDiff > aps.adaptive_prediction_threshold) {
+    if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }
@@ -585,7 +585,7 @@ AttributeEncoder::computeColorPredictionWeights(
   const int64_t qs2)
 {
   predictor.computeWeights();
-  predictor.maxDiff = -1;
+  predictor.maxDiff = 0;
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
@@ -606,7 +606,7 @@ AttributeEncoder::computeColorPredictionWeights(
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
     predictor.maxDiff = maxDiff;
 
-    if (maxDiff > aps.adaptive_prediction_threshold) {
+    if (maxDiff >= aps.adaptive_prediction_threshold) {
       Vec3<uint8_t> attrValue =
         pointCloud.getColor(indexesLOD[predictorIndex]);
 
@@ -734,7 +734,7 @@ AttributeEncoder::encodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = predictors[predictorIndex];
-    if (predictor.maxDiff > aps.adaptive_prediction_threshold) {
+    if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }
