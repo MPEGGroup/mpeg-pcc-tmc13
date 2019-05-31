@@ -56,6 +56,8 @@ public:
     const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    int geom_num_points,
+    int minGeomNodeSizeLog2,
     const PayloadBuffer&,
     PCCPointSet3& pointCloud);
 
@@ -66,6 +68,8 @@ protected:
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const std::vector<Quantizers>& quantLayers,
+    int geom_num_points,
+    int minGeomNodeSizeLog2,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 
@@ -73,6 +77,8 @@ protected:
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const std::vector<Quantizers>& quantLayers,
+    int geom_num_points,
+    int minGeomNodeSizeLog2,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 

@@ -371,6 +371,7 @@ public:
       frameidx.resize(size);
     }
   }
+
   void reserve(const size_t size)
   {
     positions.reserve(size);
@@ -390,6 +391,23 @@ public:
     colors.clear();
     reflectances.clear();
     frameidx.clear();
+  }
+
+  size_t removeDuplicatePointInQuantizedPoint(int minGeomNodeSizeLog2)
+  {
+    for (int i = 0; i < positions.size(); i++) {
+      Vec3<double> newPoint = positions[i];
+      if (minGeomNodeSizeLog2 > 0) {
+        uint32_t mask = ((uint32_t)-1) << minGeomNodeSizeLog2;
+        positions[i].x() = ((int32_t)(positions[i].x()) & mask);
+        positions[i].y() = ((int32_t)(positions[i].y()) & mask);
+        positions[i].z() = ((int32_t)(positions[i].z()) & mask);
+      }
+    }
+    positions.erase(
+      std::unique(positions.begin(), positions.end()), positions.end());
+
+    return positions.size();
   }
 
   void append(const PCCPointSet3& src)

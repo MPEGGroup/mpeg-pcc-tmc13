@@ -95,8 +95,9 @@ decodeGeometryTrisoup(
   EntropyDecoder* arithmeticDecoder)
 {
   // trisoup uses octree coding until reaching the triangulation level.
+  // todo(df): pass trisoup node size rather than 0?
   pcc::ringbuf<PCCOctree3Node> nodes;
-  decodeGeometryOctree(gps, gbh, pointCloud, arithmeticDecoder, &nodes);
+  decodeGeometryOctree(gps, gbh, 0, pointCloud, arithmeticDecoder, &nodes);
 
   int blockWidth = 1 << gps.trisoup_node_size_log2;
 

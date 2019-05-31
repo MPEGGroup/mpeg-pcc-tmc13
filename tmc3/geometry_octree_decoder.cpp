@@ -406,6 +406,7 @@ void
 decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
+  int minNodeSizeLog2,
   PCCPointSet3& pointCloud,
   EntropyDecoder* arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
@@ -458,6 +459,10 @@ decodeGeometryOctree(
 
       // allow partial tree encoding using trisoup
       if (nodeSizeLog2 == gps.trisoup_node_size_log2)
+        break;
+
+      // allow partial tree decoding
+      if (nodeSizeLog2 == minNodeSizeLog2)
         break;
     }
 
@@ -579,6 +584,10 @@ decodeGeometryOctree(
     }
   }
 
+  if (minNodeSizeLog2 > 0) {
+    pointCloud.resize(processedPointCount);
+  }
+
   // return partial coding result
   if (nodesRemaining) {
     *nodesRemaining = std::move(fifo);
@@ -594,7 +603,35 @@ decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   EntropyDecoder* arithmeticDecoder)
 {
-  decodeGeometryOctree(gps, gbh, pointCloud, arithmeticDecoder, nullptr);
+  decodeGeometryOctree(gps, gbh, 0, pointCloud, arithmeticDecoder, nullptr);
+}
+
+//-------------------------------------------------------------------------
+
+void
+decodeGeometryOctreeScalable(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int minGeomNodeSizeLog2,
+  PCCPointSet3& pointCloud,
+  EntropyDecoder* arithmeticDecoder)
+{
+  pcc::ringbuf<PCCOctree3Node> nodes;
+  decodeGeometryOctree(
+    gps, gbh, minGeomNodeSizeLog2, pointCloud, arithmeticDecoder, &nodes);
+
+  if (minGeomNodeSizeLog2 > 0) {
+    size_t size =
+      pointCloud.removeDuplicatePointInQuantizedPoint(minGeomNodeSizeLog2);
+
+    pointCloud.resize(size + nodes.size());
+    size_t processedPointCount = size;
+
+    for (auto node0 : nodes) {
+      const Vec3<double> point(node0.pos[0], node0.pos[1], node0.pos[2]);
+      pointCloud[processedPointCount++] = point;
+    }
+  }
 }
 
 //============================================================================

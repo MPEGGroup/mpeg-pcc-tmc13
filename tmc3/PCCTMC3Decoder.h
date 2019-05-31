@@ -48,14 +48,18 @@ namespace pcc {
 //============================================================================
 
 struct DecoderParams {
-  // Do not delete this structure -- it is for passing options to the decoder.
+  // For partial decoding (aka, scalable bitstreams), the number of octree
+  // layers to skip during the decode process (attribute coding must take
+  // this into account)
+  int minGeomNodeSizeLog2;
 };
 
 //============================================================================
 
 class PCCTMC3Decoder3 {
 public:
-  PCCTMC3Decoder3() { init(); }
+  PCCTMC3Decoder3(const DecoderParams& params) : _params(params) { init(); }
+
   PCCTMC3Decoder3(const PCCTMC3Decoder3&) = default;
   PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = default;
   ~PCCTMC3Decoder3() = default;
@@ -63,7 +67,6 @@ public:
   void init();
 
   int decompress(
-    const DecoderParams& params,
     const PayloadBuffer* buf,
     std::function<void(const PCCPointSet3&)> onOutputCloud);
 
@@ -88,6 +91,9 @@ public:
   //==========================================================================
 
 private:
+  // Decoder specific parameters
+  DecoderParams _params;
+
   // Current identifier of payloads with the same geometry
   int _sliceId;
 
@@ -109,6 +115,8 @@ private:
   // The active SPS
   const SequenceParameterSet* _sps;
   const GeometryParameterSet* _gps;
+
+  GeometryBrickHeader _gbh;
 };
 
 //============================================================================

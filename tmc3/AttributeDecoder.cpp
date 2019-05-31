@@ -179,6 +179,8 @@ AttributeDecoder::decode(
   const SequenceParameterSet& sps,
   const AttributeDescription& attr_desc,
   const AttributeParameterSet& attr_aps,
+  int geom_num_points,
+  int minGeomNodeSizeLog2,
   const PayloadBuffer& payload,
   PCCPointSet3& pointCloud)
 {
@@ -204,7 +206,8 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kLiftingTransform:
       decodeReflectancesLift(
-        attr_desc, attr_aps, quantLayers, decoder, pointCloud);
+        attr_desc, attr_aps, quantLayers, geom_num_points, minGeomNodeSizeLog2,
+        decoder, pointCloud);
       break;
     }
   } else if (attr_desc.attr_num_dimensions == 3) {
@@ -218,7 +221,9 @@ AttributeDecoder::decode(
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      decodeColorsLift(attr_desc, attr_aps, quantLayers, decoder, pointCloud);
+      decodeColorsLift(
+        attr_desc, attr_aps, quantLayers, geom_num_points, minGeomNodeSizeLog2,
+        decoder, pointCloud);
       break;
     }
   } else {
@@ -281,9 +286,10 @@ AttributeDecoder::decodeReflectancesPred(
 
   buildPredictorsFast(
     pointCloud, aps.lod_decimation_enabled_flag,
-    aps.intra_lod_prediction_enabled_flag, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
+    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
+    indexesLOD);
 
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
@@ -372,9 +378,10 @@ AttributeDecoder::decodeColorsPred(
 
   buildPredictorsFast(
     pointCloud, aps.lod_decimation_enabled_flag,
-    aps.intra_lod_prediction_enabled_flag, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
+    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
+    indexesLOD);
 
   uint32_t values[3];
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
@@ -552,6 +559,8 @@ AttributeDecoder::decodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const std::vector<Quantizers>& quantLayers,
+  int geom_num_points,
+  int minGeomNodeSizeLog2,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -560,24 +569,41 @@ AttributeDecoder::decodeColorsLift(
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
 
+  if (minGeomNodeSizeLog2 > 0)
+    assert(aps.scalable_lifting_enabled_flag);
+
   buildPredictorsFast(
     pointCloud, aps.lod_decimation_enabled_flag,
-    aps.intra_lod_prediction_enabled_flag, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
+    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+    aps.search_range, aps.search_range, minGeomNodeSizeLog2, predictors,
+    numberOfPointsPerLOD, indexesLOD);
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     predictors[predictorIndex].computeWeights();
   }
   std::vector<uint64_t> weights;
-  PCCComputeQuantizationWeights(predictors, weights);
+  if (!aps.scalable_lifting_enabled_flag) {
+    PCCComputeQuantizationWeights(predictors, weights);
+  } else {
+    computeQuantizationWeightsScalable(
+      predictors, numberOfPointsPerLOD, geom_num_points, minGeomNodeSizeLog2,
+      weights);
+  }
+
   const size_t lodCount = numberOfPointsPerLOD.size();
   std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
 
+  // NB: when partially decoding, the truncated unary limit for zero_run
+  // must be the original value.  geom_num_points may be the case.  However,
+  // the encoder does lie sometimes, and there are actually more points.
+  int zeroCntLimit = std::max(geom_num_points, int(pointCount));
+
   // decompress
-  int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
+  std::cout << zero_cnt << '\n';
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -592,7 +618,8 @@ AttributeDecoder::decodeColorsLift(
       zero_cnt--;
     } else {
       decoder.decode(values);
-      zero_cnt = decoder.decodeZeroCnt(pointCount);
+      zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
+  std::cout << zero_cnt << '\n';
     }
 
     const int64_t quantWeight = weights[predictorIndex];
@@ -634,6 +661,8 @@ AttributeDecoder::decodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const std::vector<Quantizers>& quantLayers,
+  int geom_num_points,
+  int minGeomNodeSizeLog2,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -642,11 +671,15 @@ AttributeDecoder::decodeReflectancesLift(
   std::vector<uint32_t> numberOfPointsPerLOD;
   std::vector<uint32_t> indexesLOD;
 
+  if (minGeomNodeSizeLog2 > 0)
+    assert(aps.scalable_lifting_enabled_flag);
+
   buildPredictorsFast(
     pointCloud, aps.lod_decimation_enabled_flag,
-    aps.intra_lod_prediction_enabled_flag, aps.dist2, aps.num_detail_levels,
-    aps.num_pred_nearest_neighbours, aps.search_range, aps.search_range,
-    predictors, numberOfPointsPerLOD, indexesLOD);
+    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
+    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
+    aps.search_range, aps.search_range, minGeomNodeSizeLog2, predictors,
+    numberOfPointsPerLOD, indexesLOD);
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -654,13 +687,25 @@ AttributeDecoder::decodeReflectancesLift(
   }
 
   std::vector<uint64_t> weights;
-  PCCComputeQuantizationWeights(predictors, weights);
+  if (!aps.scalable_lifting_enabled_flag) {
+    PCCComputeQuantizationWeights(predictors, weights);
+  } else {
+    computeQuantizationWeightsScalable(
+      predictors, numberOfPointsPerLOD, geom_num_points, minGeomNodeSizeLog2,
+      weights);
+  }
+
   const size_t lodCount = numberOfPointsPerLOD.size();
   std::vector<int64_t> reflectances;
   reflectances.resize(pointCount);
 
+  // NB: when partially decoding, the truncated unary limit for zero_run
+  // must be the original value.  geom_num_points may be the case.  However,
+  // the encoder does lie sometimes, and there are actually more points.
+  int zeroCntLimit = std::max(geom_num_points, int(pointCount));
+
   // decompress
-  int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -674,7 +719,7 @@ AttributeDecoder::decodeReflectancesLift(
       zero_cnt--;
     } else {
       detail = decoder.decode();
-      zero_cnt = decoder.decodeZeroCnt(pointCount);
+      zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
     }
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];

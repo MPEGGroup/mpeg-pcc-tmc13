@@ -431,6 +431,47 @@ PCCComputeQuantizationWeights(
 
 //---------------------------------------------------------------------------
 
+inline void
+computeQuantizationWeightsScalable(
+  const std::vector<PCCPredictor>& predictors,
+  const std::vector<uint32_t>& numberOfPointsPerLOD,
+  size_t geom_num_points,
+  int32_t minGeomNodeSizeLog2,
+  std::vector<uint64_t>& quantizationWeights)
+{
+  const size_t pointCount = predictors.size();
+  quantizationWeights.resize(pointCount);
+  for (size_t i = 0; i < pointCount; ++i) {
+    quantizationWeights[i] = (1 << kFixedPointWeightShift);
+  }
+
+  const size_t lodCount = numberOfPointsPerLOD.size();
+  for (size_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
+    const size_t startIndex =
+      (lodIndex == 0) ? 0 : numberOfPointsPerLOD[lodIndex - 1];
+    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
+
+    const size_t predictorCount = endIndex - startIndex;
+    for (size_t index = 0; index < predictorCount; ++index) {
+      const size_t predictorIndex = index + startIndex;
+      const double currentQuantWeight = (geom_num_points / predictorCount);
+
+      if (!minGeomNodeSizeLog2 && (lodIndex == lodCount - 1)) {
+        quantizationWeights[predictorIndex] = (1 << kFixedPointWeightShift);
+      } else {
+        quantizationWeights[predictorIndex] =
+          currentQuantWeight * (1 << kFixedPointWeightShift);
+      }
+    }
+  }
+
+  for (auto& w : quantizationWeights) {
+    w = isqrt(w);
+  }
+}
+
+//---------------------------------------------------------------------------
+
 inline uint32_t
 FindNeighborWithinDistance(
   const PCCPointSet3& pointCloud,
@@ -459,6 +500,80 @@ FindNeighborWithinDistance(
 
 //---------------------------------------------------------------------------
 
+inline bool
+checkDistance(
+  const Vec3<double>& point,
+  const Vec3<double>& refpoint,
+  int32_t nodeSizeLog2)
+{
+  uint32_t mask = uint32_t(-1) << nodeSizeLog2;
+
+  int32_t minX = (int32_t(refpoint.x()) & mask) * 2 - 1;
+  int32_t minY = (int32_t(refpoint.y()) & mask) * 2 - 1;
+  int32_t minZ = (int32_t(refpoint.z()) & mask) * 2 - 1;
+
+  int32_t maxX = minX + (2 << nodeSizeLog2);
+  int32_t maxY = minY + (2 << nodeSizeLog2);
+  int32_t maxZ = minZ + (2 << nodeSizeLog2);
+
+  int32_t x = int32_t(point.x()) * 2;
+  int32_t y = int32_t(point.y()) * 2;
+  int32_t z = int32_t(point.z()) * 2;
+
+  return minX < x && maxX > x && minY < y && maxY > y && minZ < z && maxZ > z;
+}
+
+//---------------------------------------------------------------------------
+
+inline uint32_t
+findNeighborWithinVoxel(
+  const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  int32_t index,
+  int32_t octreeNodeSizeLog2,
+  int32_t searchRange,
+  std::vector<uint32_t>& retained)
+{
+  const auto& point = pointCloud[packedVoxel[index].index];
+  int32_t retainedSize = retained.size();
+  int32_t j = retainedSize - 1;
+  int32_t k = 0;
+  while (j >= 0 && ++k < searchRange) {
+    int32_t index1 = retained[j];
+    int32_t pointIndex1 = packedVoxel[index1].index;
+    const auto& point1 = pointCloud[pointIndex1];
+
+    if (checkDistance(point, point1, octreeNodeSizeLog2))
+      return index1;
+    --j;
+  }
+  return PCC_UNDEFINED_INDEX;
+}
+
+//---------------------------------------------------------------------------
+
+inline Vec3<double>
+clacIntermediatePosition(
+  bool enabled, int32_t nodeSizeLog2, const Vec3<double>& point)
+{
+  if (!enabled || !nodeSizeLog2)
+    return point;
+
+  uint32_t mask = (uint32_t(-1)) << nodeSizeLog2;
+  int32_t centerX = (int32_t(point.x()) & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerY = (int32_t(point.y()) & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerZ = (int32_t(point.z()) & mask) + (1 << (nodeSizeLog2 - 1));
+
+  Vec3<double> newPoint = point;
+  newPoint.x() = centerX;
+  newPoint.y() = centerY;
+  newPoint.z() = centerZ;
+
+  return newPoint;
+}
+
+//---------------------------------------------------------------------------
+
 inline int
 indexTieBreaker(int a, int b)
 {
@@ -476,22 +591,27 @@ computeNearestNeighbors(
   const int32_t endIndex,
   const int32_t searchRange,
   const int32_t numberOfNearestNeighborsInPrediction,
+  const bool intraLodPredictionEnabled,
+  const bool scalableEnableFlag,
+  const int32_t nodeSizeLog2,
   std::vector<uint32_t>& indexes,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  std::vector<Box3<double>>& bBoxes,
-  const bool intraLodPredictionEnabled)
+  std::vector<Box3<double>>& bBoxes)
 {
   const int32_t retainedSize = retained.size();
   const int32_t bucketSize = 8;
   bBoxes.resize((retainedSize + bucketSize - 1) / bucketSize);
   for (int32_t i = 0, b = 0; i < retainedSize; ++b) {
     auto& bBox = bBoxes[b];
-    bBox.min = bBox.max = pointCloud[packedVoxel[retained[i++]].index];
+    bBox.min = bBox.max = clacIntermediatePosition(
+      scalableEnableFlag, nodeSizeLog2,
+      pointCloud[packedVoxel[retained[i++]].index]);
     for (int32_t k = 1; k < bucketSize && i < retainedSize; ++k, ++i) {
       const int32_t pointIndex = packedVoxel[retained[i]].index;
-      const auto& point = pointCloud[pointIndex];
+      const auto point = clacIntermediatePosition(
+        scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex]);
       for (int32_t p = 0; p < 3; ++p) {
         bBox.min[p] = std::min(bBox.min[p], point[p]);
         bBox.max[p] = std::max(bBox.max[p], point[p]);
@@ -523,7 +643,8 @@ computeNearestNeighbors(
     const int32_t index = indexes[i];
     const int64_t mortonCode = packedVoxel[index].mortonCode;
     const int32_t pointIndex = packedVoxel[index].index;
-    const auto& point = pointCloud[pointIndex];
+    const auto point = clacIntermediatePosition(
+      scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex]);
     indexes[i] = pointIndex;
     while (j < retainedSize - 1
            && mortonCode >= packedVoxel[retained[j]].mortonCode)
@@ -542,10 +663,17 @@ computeNearestNeighbors(
 
     for (int32_t k = k0; k < k1; ++k) {
       const int32_t pointIndex1 = packedVoxel[retained[k]].index;
-      const auto& point1 = pointCloud[pointIndex1];
+      const auto point1 = clacIntermediatePosition(
+        scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex1]);
+
+      double norm2 = (point - point1).getNorm2();
+      if (nodeSizeLog2 > 0 && point == point1) {
+        norm2 = double(1 << (nodeSizeLog2 - 1));
+        norm2 = norm2 * norm2;
+      }
       predictor.insertNeighbor(
-        pointIndex1, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction, indexTieBreaker(k, j));
+        pointIndex1, norm2, numberOfNearestNeighborsInPrediction,
+        indexTieBreaker(k, j));
     }
 
     for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr; ++s0) {
@@ -563,10 +691,17 @@ computeNearestNeighbors(
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
           for (int32_t k = k0; k < k1; ++k) {
             const int32_t pointIndex1 = packedVoxel[retained[k]].index;
-            const auto& point1 = pointCloud[pointIndex1];
+            const auto point1 = clacIntermediatePosition(
+              scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex1]);
+
+            double norm2 = (point - point1).getNorm2();
+            if (nodeSizeLog2 > 0 && point == point1) {
+              norm2 = (double)(1 << (nodeSizeLog2 - 1));
+              norm2 = norm2 * norm2;
+            }
             predictor.insertNeighbor(
-              pointIndex1, (point - point1).getNorm2(),
-              numberOfNearestNeighborsInPrediction, indexTieBreaker(k, j));
+              pointIndex1, norm2, numberOfNearestNeighborsInPrediction,
+              indexTieBreaker(k, j));
           }
         }
       }
@@ -654,6 +789,46 @@ subsampleByDistance(
 //---------------------------------------------------------------------------
 
 inline void
+subsampleByOctree(
+  const PCCPointSet3& pointCloud,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& input,
+  int32_t octreeNodeSizeLog2,
+  std::vector<uint32_t>& retained,
+  std::vector<uint32_t>& indexes)
+{
+  int32_t nodeSizeLog2OfUpperLayer = octreeNodeSizeLog2 + 1;
+  int32_t searchRange = 1;
+
+  if (input.size() == 1) {
+    indexes.push_back(input[0]);
+  } else {
+    for (const auto index : input) {
+      if (retained.empty()) {
+        retained.push_back(index);
+        continue;
+      }
+      const auto& point = pointCloud[packedVoxel[index].index];
+      const auto& retainedPoint =
+        pointCloud[packedVoxel[retained.back()].index];
+
+      if (
+        checkDistance(point, retainedPoint, nodeSizeLog2OfUpperLayer)
+        || findNeighborWithinVoxel(
+             pointCloud, packedVoxel, index, nodeSizeLog2OfUpperLayer,
+             searchRange, retained)
+          != PCC_UNDEFINED_INDEX) {
+        indexes.push_back(index);
+      } else {
+        retained.push_back(index);
+      }
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
 subsampleByDecimation(
   const std::vector<uint32_t>& input,
   std::vector<uint32_t>& retained,
@@ -674,19 +849,25 @@ subsampleByDecimation(
 inline void
 subsample(
   bool useDecimation,
+  bool useScalableLifting,
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& input,
   const double radius2,
+  const int32_t octreeNodeSizeLog2,
   const int32_t searchRange,
   std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  if (useDecimation)
+  if (useScalableLifting) {
+    subsampleByOctree(
+      pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes);
+  } else if (useDecimation) {
     subsampleByDecimation(input, retained, indexes);
-  else
+  } else {
     subsampleByDistance(
       pointCloud, packedVoxel, input, radius2, searchRange, retained, indexes);
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -735,12 +916,14 @@ inline void
 buildPredictorsFast(
   const PCCPointSet3& pointCloud,
   bool lod_decimation_enabled_flag,
+  bool scalable_lifting_enabled_flag,
   bool intraLodPredictionEnabled,
   const std::vector<int64_t>& dist2,
   const int32_t levelOfDetailCount,
   const int32_t numberOfNearestNeighborsInPrediction,
   const int32_t searchRange1,
   const int32_t searchRange2,
+  int32_t minGeomNodeSizeLog2,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
   std::vector<uint32_t>& indexes)
@@ -767,10 +950,11 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.reserve(21);
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
+  // NB: when partial decoding is enabled, LoDs correspond to octree levels
   std::vector<Box3<double>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
-  for (uint32_t lodIndex = 0; !input.empty() && lodIndex <= levelOfDetailCount;
-       ++lodIndex) {
+  for (auto lodIndex = minGeomNodeSizeLog2;
+       !input.empty() && lodIndex <= levelOfDetailCount; ++lodIndex) {
     const int32_t startIndex = indexes.size();
     if (lodIndex == levelOfDetailCount) {
       for (const auto index : input) {
@@ -779,16 +963,17 @@ buildPredictorsFast(
     } else {
       const double radius2 = dist2[lodIndex];
       subsample(
-        lod_decimation_enabled_flag, pointCloud, packedVoxel, input, radius2,
-        searchRange1, retained, indexes);
+        lod_decimation_enabled_flag, scalable_lifting_enabled_flag, pointCloud,
+        packedVoxel, input, radius2, lodIndex, searchRange1, retained,
+        indexes);
     }
     const int32_t endIndex = indexes.size();
 
     computeNearestNeighbors(
       pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
-      numberOfNearestNeighborsInPrediction, indexes, predictors,
-      pointIndexToPredictorIndex, predIndex, bBoxes,
-      intraLodPredictionEnabled);
+      numberOfNearestNeighborsInPrediction, intraLodPredictionEnabled,
+      scalable_lifting_enabled_flag, lodIndex, indexes, predictors,
+      pointIndexToPredictorIndex, predIndex, bBoxes);
 
     if (!retained.empty()) {
       numberOfPointsPerLevelOfDetail.push_back(retained.size());

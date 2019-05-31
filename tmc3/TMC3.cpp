@@ -296,8 +296,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "scale factor to be applied to reflectance "
     "pre encoding / post reconstruction")
 
-  // NB: if adding decoder options, uncomment the Decoder section marker
-  // (po::Section("Decoder"))
+  (po::Section("Decoder"))
+
+  ("skipOctreeLayers",
+    params.decoder.minGeomNodeSizeLog2, 0,
+    " 0   : Full decode. \n"
+    " N>0 : Skip the bottom N layers in decoding process.\n"
+    " skipLayerNum indicates the number of skipped lod layers from leaf lod.")
 
   (po::Section("Encoder"))
 
@@ -459,6 +464,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("intraLodPredictionEnabled",
     params_attr.aps.intra_lod_prediction_enabled_flag, false,
     "Permits referring to points in same LoD")
+
+  ("aps_scalable_enable_flag",
+    params_attr.aps.scalable_lifting_enabled_flag, false,
+    "Enable scalable attritube coding")
 
   ("qp",
     params_attr.aps.init_qp, 4,
@@ -701,6 +710,22 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                     << ".numberOfNearestNeighborsInPrediction must be <= "
                     << kAttributePredictionMaxNeighbourCount << "\n";
       }
+      if (attr_aps.scalable_lifting_enabled_flag) {
+        if (attr_aps.attr_encoding != AttributeEncoding::kLiftingTransform) {
+          err.error() << it.first << "AttributeEncoding must be "
+                      << (int)AttributeEncoding::kLiftingTransform << "\n";
+        }
+
+        if (attr_aps.lod_decimation_enabled_flag) {
+          err.error() << it.first
+                      << ".lod_decimation_enabled_flag must be = 0 \n";
+        }
+
+        if (params.encoder.gps.trisoup_node_size_log2 > 0) {
+          err.error() << it.first
+                      << "trisoup_node_size_log2 must be disabled \n";
+        }
+      }
     }
 
     if (attr_aps.init_qp < 4)
@@ -848,7 +873,7 @@ Decompress(Parameters& params, Stopwatch& clock)
   clock.start();
 
   PayloadBuffer buf;
-  PCCTMC3Decoder3 decoder;
+  PCCTMC3Decoder3 decoder(params.decoder);
 
   while (true) {
     PayloadBuffer* buf_ptr = &buf;
@@ -858,8 +883,8 @@ Decompress(Parameters& params, Stopwatch& clock)
     if (!fin)
       buf_ptr = nullptr;
 
-    int ret = decoder.decompress(
-      params.decoder, buf_ptr, [&](const PCCPointSet3& decodedPointCloud) {
+    int ret =
+      decoder.decompress(buf_ptr, [&](const PCCPointSet3& decodedPointCloud) {
         PCCPointSet3 pointCloud(decodedPointCloud);
 
         if (params.colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {

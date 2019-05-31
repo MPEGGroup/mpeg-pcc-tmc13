@@ -294,6 +294,10 @@ write(const AttributeParameterSet& aps)
     bs.writeUe(aps.raht_depth);
   }
 
+  if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
+    bs.write(aps.scalable_lifting_enabled_flag);
+  }
+
   bool aps_extension_flag = false;
   bs.write(aps_extension_flag);
   bs.byteAlign();
@@ -342,6 +346,11 @@ parseAps(const PayloadBuffer& buf)
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.read(&aps.raht_prediction_enabled_flag);
     bs.readUe(&aps.raht_depth);
+  }
+
+  aps.scalable_lifting_enabled_flag = false;
+  if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
+    bs.readUn(1, &aps.scalable_lifting_enabled_flag);
   }
 
   bool aps_extension_flag = bs.read();

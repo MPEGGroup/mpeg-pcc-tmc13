@@ -271,6 +271,9 @@ struct AttributeParameterSet {
   //--- raht parameters
   bool raht_prediction_enabled_flag;
   int raht_depth;
+
+  //--- lifting parameters
+  bool scalable_lifting_enabled_flag;
 };
 
 //============================================================================

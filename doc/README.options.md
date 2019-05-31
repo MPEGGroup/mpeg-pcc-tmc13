@@ -72,8 +72,11 @@ conversion process is lossless.
 
 Decoder-specific options
 ========================
-There are no decoder specific options at this time.
 
+### `--minGeomNodeSizeLog2=INT-VALUE`
+The option indicates the number of skipped lod layers from leaf lod.
+If aps.scalable_enable_flag is 1, the option is valid.
+Otherwise, the option is ignored.
 
 Encoder-specific options
 ========================
@@ -286,6 +289,11 @@ Controls the level-of-detail generation method:
 ### `--intraLodPredictionEnabled=0|1`
 Part of LoD attribute coding.  Permits (1) points to be predicted from
 previously reconstructed points within the same LoD.
+
+### `--aps_scalable_enabled_flag=0|1`
+Enable spatially scalable attribute encoding.
+The option is only valid when `transformType=2`, `lodDecimation=0`,
+and `trisoup_node_size_log2=0`.
 
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.

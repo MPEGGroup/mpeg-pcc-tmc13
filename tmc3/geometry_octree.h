@@ -107,6 +107,7 @@ void encodeGeometryOctree(
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
+  int minNodeSizeLog2,
   PCCPointSet3& pointCloud,
   EntropyDecoder* arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);

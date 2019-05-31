@@ -65,7 +65,6 @@ PCCTMC3Decoder3::init()
 
 int
 PCCTMC3Decoder3::decompress(
-  const DecoderParams& params,
   const PayloadBuffer* buf,
   std::function<void(const PCCPointSet3&)> onOutputCloud)
 {
@@ -182,9 +181,9 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   clock_user.start();
 
   int gbhSize;
-  GeometryBrickHeader gbh = parseGbh(*_gps, buf, &gbhSize);
-  _sliceId = gbh.geom_slice_id;
-  _sliceOrigin = gbh.geomBoxOrigin;
+  _gbh = parseGbh(*_gps, buf, &gbhSize);
+  _sliceId = _gbh.geom_slice_id;
+  _sliceOrigin = _gbh.geomBoxOrigin;
 
   EntropyDecoder arithmeticDecoder;
   arithmeticDecoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
@@ -192,10 +191,18 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   arithmeticDecoder.start();
 
   if (_gps->trisoup_node_size_log2 == 0) {
-    _currentPointCloud.resize(gbh.geom_num_points);
-    decodeGeometryOctree(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
+    _currentPointCloud.resize(_gbh.geom_num_points);
+
+    if (!_params.minGeomNodeSizeLog2) {
+      decodeGeometryOctree(
+        *_gps, _gbh, _currentPointCloud, &arithmeticDecoder);
+    } else {
+      decodeGeometryOctreeScalable(
+        *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
+        &arithmeticDecoder);
+    }
   } else {
-    decodeGeometryTrisoup(*_gps, gbh, _currentPointCloud, &arithmeticDecoder);
+    decodeGeometryTrisoup(*_gps, _gbh, _currentPointCloud, &arithmeticDecoder);
   }
 
   arithmeticDecoder.stop();
@@ -239,7 +246,9 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   clock_user.start();
-  attrDecoder.decode(*_sps, attr_sps, attr_aps, buf, _currentPointCloud);
+  attrDecoder.decode(
+    *_sps, attr_sps, attr_aps, _gbh.geom_num_points,
+    _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
   clock_user.stop();
 
   std::cout << label << "s bitstream size " << buf.size() << " B\n";

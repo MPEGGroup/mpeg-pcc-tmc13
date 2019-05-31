@@ -55,6 +55,13 @@ void decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   EntropyDecoder* arithmeticDecoder);
 
+void decodeGeometryOctreeScalable(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int minGeomNodeSizeLog2,
+  PCCPointSet3& pointCloud,
+  EntropyDecoder* arithmeticDecoder);
+
 //----------------------------------------------------------------------------
 
 void encodeGeometryTrisoup(
