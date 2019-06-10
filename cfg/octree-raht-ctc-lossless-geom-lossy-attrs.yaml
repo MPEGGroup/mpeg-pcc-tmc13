@@ -16,12 +16,16 @@ categories:
      - intra_pred_max_node_size_log2: 6
      - positionQuantizationScale: 1
 
-     # default qtbt with cat3-frame exception
+     # default qtbt and planar with cat3-frame exception
      - max_num_implicit_qtbt_before_ot: 4
      - min_implicit_qtbt_size_log2: 0
+     - planarEnabled: 1
+     - planarModeIdcmUse: 0
      -
        - !conditional '"${group}" eq "cat3-frame"'
        - max_num_implicit_qtbt_before_ot: 0
+       - planarEnabled: 0
+       - planarModeIdcmUse: 127
 
      ####
      # attribute coding (common options -- relies on option ordering)

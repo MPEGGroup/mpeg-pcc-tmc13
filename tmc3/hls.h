@@ -280,6 +280,13 @@ struct GeometryParameterSet {
 
   // minimum size in log2 of implicit qtbt for geometry coding.
   int min_implicit_qtbt_size_log2;
+
+  // Controls the use of planar mode
+  bool geom_planar_mode_enabled_flag;
+  int geom_planar_threshold0;
+  int geom_planar_threshold1;
+  int geom_planar_threshold2;
+  int geom_planar_idcm_threshold;
 };
 
 //============================================================================

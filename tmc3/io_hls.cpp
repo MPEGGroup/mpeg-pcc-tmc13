@@ -212,6 +212,15 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
   bs.write(gps.bitwise_occupancy_coding_flag);
   bs.write(gps.adjacent_child_contextualization_enabled_flag);
+
+  bs.write(gps.geom_planar_mode_enabled_flag);
+  bs.writeUe(gps.geom_planar_idcm_threshold);
+  if (gps.geom_planar_mode_enabled_flag) {
+    bs.writeUe(gps.geom_planar_threshold0);
+    bs.writeUe(gps.geom_planar_threshold1);
+    bs.writeUe(gps.geom_planar_threshold2);
+  }
+
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
@@ -256,6 +265,15 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
   bs.read(&gps.bitwise_occupancy_coding_flag);
   bs.read(&gps.adjacent_child_contextualization_enabled_flag);
+
+  bs.read(&gps.geom_planar_mode_enabled_flag);
+  bs.readUe(&gps.geom_planar_idcm_threshold);
+  if (gps.geom_planar_mode_enabled_flag) {
+    bs.readUe(&gps.geom_planar_threshold0);
+    bs.readUe(&gps.geom_planar_threshold1);
+    bs.readUe(&gps.geom_planar_threshold2);
+  }
+
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);

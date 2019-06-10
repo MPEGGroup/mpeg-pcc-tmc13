@@ -48,8 +48,12 @@ namespace pcc {
 // neighbour configuration @neighPattern.
 //
 uint8_t
-mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern)
+mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern, int planarMaskZ)
 {
+  if (planarMaskZ && !(planarMaskZ & 1)) {
+    occupancy = kOccMapMirrorXY[occupancy];
+  }
+
   switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
   case 1: occupancy = kOccMapRotateZ090[occupancy]; break;
   case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
@@ -79,7 +83,8 @@ mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern)
 // neighbour configuration @neighPattern.
 //
 uint8_t
-mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
+mapGeometryOccupancyInv(
+  uint8_t occupancy, uint8_t neighPattern, int planarMaskZ)
 {
   switch (kOccMapRotateXIdFromPattern[neighPattern]) {
   case 1: occupancy = kOccMapRotateX270[occupancy]; break;
@@ -100,6 +105,10 @@ mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
   case 1: occupancy = kOccMapRotateZ270[occupancy]; break;
   case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
   case 3: occupancy = kOccMapRotateZ090[occupancy]; break;
+  }
+
+  if (planarMaskZ && !(planarMaskZ & 1)) {
+    occupancy = kOccMapMirrorXY[occupancy];
   }
 
   return occupancy;
@@ -218,6 +227,231 @@ CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
   fill(begin(map->b5), end(map->b5), 127);
   fill(begin(map->b6), end(map->b6), 127);
   fill(begin(map->b7), end(map->b7), 127);
+}
+
+//============================================================================
+// determine if a 222 block is planar
+
+void
+isPlanarNode(
+  PCCPointSet3& pointCloud,
+  PCCOctree3Node& node0,
+  const Vec3<int>& nodeSizeLog2Minus1,
+  uint8_t& planarMode,
+  uint8_t& planePosBits,
+  bool planarEligible[3])
+{
+  planarMode = 0;
+  planePosBits = 0;
+
+  bool occupX[2] = {false, false};
+  bool occupY[2] = {false, false};
+  bool occupZ[2] = {false, false};
+
+  bool notPlanar[3] = {!planarEligible[0], !planarEligible[1],
+                       !planarEligible[2]};
+
+  // find occupancy N xyz-planes
+  for (int k = node0.start; k < node0.end; k++) {
+    if (!notPlanar[0]) {
+      uint32_t px = pointCloud[k][0];
+      px = (px & (1 << nodeSizeLog2Minus1[0])) >> nodeSizeLog2Minus1[0];
+      occupX[px] = true;
+      if (occupX[1 - px])
+        notPlanar[0] = true;
+    }
+
+    if (!notPlanar[1]) {
+      uint32_t py = pointCloud[k][1];
+      py = (py & (1 << nodeSizeLog2Minus1[1])) >> nodeSizeLog2Minus1[1];
+      occupY[py] = true;
+      if (occupY[1 - py])
+        notPlanar[1] = true;
+    }
+
+    if (!notPlanar[2]) {
+      uint32_t pz = pointCloud[k][2];
+      pz = (pz & (1 << nodeSizeLog2Minus1[2])) >> nodeSizeLog2Minus1[2];
+      occupZ[pz] = true;
+      if (occupZ[1 - pz])
+        notPlanar[2] = true;
+    }
+  }
+
+  // determine planar
+  if (!(occupX[0] && occupX[1])) {
+    planarMode |= 1;
+    planePosBits |= occupX[1] ? 1 : 0;
+  }
+
+  if (!(occupY[0] && occupY[1])) {
+    planarMode |= 2;
+    planePosBits |= occupY[1] ? 2 : 0;
+  }
+
+  if (!(occupZ[0] && occupZ[1])) {
+    planarMode |= 4;
+    planePosBits |= occupZ[1] ? 4 : 0;
+  }
+}
+
+//============================================================================
+// intitialize planes for planar pred
+
+void
+planarInitPlanes(
+  const int kNumPlanarPlanes, int depth, int* planes3x3, int* planes[9])
+{
+  const int kPlanarInit[9] = {-2,    -1000, -1000, -1000, -2,
+                              -1000, -1000, -1000, -2};
+
+  int shift = 0;
+  const int planeSize = kNumPlanarPlanes << depth;
+
+  for (int idxP = 0; idxP < 9; idxP++) {
+    int* plane = planes3x3 + shift;
+    shift += planeSize;
+    planes[idxP] = plane;
+    int v = kPlanarInit[idxP];
+
+    for (int p = 0; p < planeSize; p++) {
+      plane[p] = v;
+    }
+  }
+}
+
+//============================================================================
+// update the plane rate depending on the occupancy
+
+void
+updateplanarRate(
+  int planarRate[3], int occupancy, int& localDensity, int numSiblings)
+{
+  bool isPlanarX = !((occupancy & 0xf0) && (occupancy & 0x0f));
+  bool isPlanarY = !((occupancy & 0xcc) && (occupancy & 0x33));
+  bool isPlanarZ = !((occupancy & 0x55) && (occupancy & 0xaa));
+
+  planarRate[0] = (255 * planarRate[0] + (isPlanarX ? 256 * 8 : 0) + 128) >> 8;
+  planarRate[1] = (255 * planarRate[1] + (isPlanarY ? 256 * 8 : 0) + 128) >> 8;
+  planarRate[2] = (255 * planarRate[2] + (isPlanarZ ? 256 * 8 : 0) + 128) >> 8;
+
+  localDensity = (255 * localDensity + 1024 * numSiblings) >> 8;
+}
+
+//============================================================================
+// planar eligbility
+
+void
+eligilityPlanar(
+  bool planarEligible[3],
+  int planarRate[3],
+  const int threshold[3],
+  int localDensity)
+{
+  planarEligible[0] = false;
+  planarEligible[1] = false;
+  planarEligible[2] = false;
+  if (localDensity >= 3 * 1024) {
+    return;
+  }
+
+  if (planarRate[0] >= planarRate[1] && planarRate[0] >= planarRate[2]) {
+    // planar x dominates
+    planarEligible[0] = planarRate[0] >= threshold[0];
+    if (planarRate[1] >= planarRate[2]) {
+      planarEligible[1] = planarRate[1] >= threshold[1];
+      planarEligible[2] = planarRate[2] >= threshold[2];
+    } else {
+      planarEligible[2] = planarRate[2] >= threshold[1];
+      planarEligible[1] = planarRate[1] >= threshold[2];
+    }
+  } else if (
+    planarRate[1] >= planarRate[0] && planarRate[1] >= planarRate[2]) {
+    // planar y dominates
+    planarEligible[1] = planarRate[1] >= threshold[0];
+    if (planarRate[0] >= planarRate[2]) {
+      planarEligible[0] = planarRate[0] >= threshold[1];
+      planarEligible[2] = planarRate[2] >= threshold[2];
+    } else {
+      planarEligible[2] = planarRate[2] >= threshold[1];
+      planarEligible[0] = planarRate[0] >= threshold[2];
+    }
+  } else if (
+    planarRate[2] >= planarRate[0] && planarRate[2] >= planarRate[1]) {
+    // planar z dominates
+    planarEligible[2] = planarRate[2] >= threshold[0];
+    if (planarRate[0] >= planarRate[1]) {
+      planarEligible[0] = planarRate[0] >= threshold[1];
+      planarEligible[1] = planarRate[1] >= threshold[2];
+    } else {
+      planarEligible[1] = planarRate[1] >= threshold[1];
+      planarEligible[0] = planarRate[0] >= threshold[2];
+    }
+  }
+}
+
+//============================================================================
+// directional mask depending on the planarity
+
+int
+maskPlanarX(PCCOctree3Node& node0, bool implicitSkip)
+{
+  if (implicitSkip)
+    return 0xf0;
+
+  if ((node0.planarMode & 1) == 0)
+    return 0;
+
+  return (node0.planePosBits & 1) ? 0x0f : 0xf0;
+}
+
+//----------------------------------------------------------------------------
+
+int
+maskPlanarY(PCCOctree3Node& node0, bool implicitSkip)
+{
+  if (implicitSkip)
+    return 0xcc;
+
+  if ((node0.planarMode & 2) == 0)
+    return 0;
+
+  return (node0.planePosBits & 2) ? 0x33 : 0xcc;
+}
+
+//----------------------------------------------------------------------------
+
+int
+maskPlanarZ(PCCOctree3Node& node0, bool implicitSkip)
+{
+  // QTBT does not split in this direction
+  //   => infer the mask low for occupancy bit coding
+  if (implicitSkip)
+    return 0xaa;
+
+  if ((node0.planarMode & 4) == 0)
+    return 0;
+
+  return (node0.planePosBits & 4) ? 0x55 : 0xaa;
+}
+
+//----------------------------------------------------------------------------
+
+// three direction mask
+void
+maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip)
+{
+  static const uint8_t kPossibleMask[3] = {6, 5, 3};
+  for (int k = 0; k <= 2; k++)
+    if (occupancySkip & (4 >> k)) {
+      node0.planarPossible = node0.planarPossible | (1 << k);
+      node0.planePosBits = node0.planePosBits & kPossibleMask[k];
+      node0.planarMode = node0.planarMode | (1 << k);
+    }
+
+  mask[0] = maskPlanarX(node0, occupancySkip & 4);
+  mask[1] = maskPlanarY(node0, occupancySkip & 2);
+  mask[2] = maskPlanarZ(node0, occupancySkip & 1);
 }
 
 //============================================================================

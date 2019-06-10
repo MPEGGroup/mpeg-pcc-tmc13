@@ -57,6 +57,45 @@ public:
   void beginOctreeLevel();
 
   int encodePositionLeafNumPoints(int count);
+  int encodePlanarMode(
+    PCCOctree3Node& node0,
+    int plane,
+    int posxyz,
+    int dist,
+    int neighb,
+    int& h,
+    int planeId);
+
+  void determinePlanarMode(
+    int index,
+    const int kNumPlanarPlanes,
+    PCCOctree3Node& child,
+    uint8_t planarMode,
+    uint8_t planePosBits,
+    int* plane1,
+    int* plane2,
+    int* plane3,
+    int coord1,
+    int coord2,
+    int coord3,
+    uint8_t neighPattern,
+    int pos,
+    int planarProb[3],
+    int planarRate[3]);
+
+  void determinePlanarMode(
+    PCCPointSet3& pointCloud,
+    bool planarEligible[3],
+    const Vec3<int>& childSizeLog2,
+    const int kNumPlanarPlanes,
+    PCCOctree3Node& child,
+    int* planes[9],
+    uint8_t neighPattern,
+    int x,
+    int y,
+    int z,
+    int planarProb[3],
+    int planarRate[3]);
 
   void encodeOccupancyNeighZ(
     int mappedOccupancy,
@@ -65,7 +104,15 @@ public:
     int mappedOccAdjGt0,
     int mappedOccAdjGt1,
     int mappedOccAdjUnocc,
-    int occupancySkip);
+    int mappedPlanarMaskX,
+    int mappedFixedMaskX0,
+    bool planarPossibleX,
+    int mappedPlanarMaskY,
+    int mappedFixedMaskY0,
+    bool planarPossibleY,
+    int mappedPlanarMaskZ,
+    int mappedFixedMaskZ0,
+    bool planarPossibleZ);
 
   void encodeOccupancyNeighNZ(
     int neighPattern,
@@ -75,7 +122,15 @@ public:
     int mappedOccAdjGt0,
     int mappedOccAdjGt1,
     int mappedOccAdjUnocc,
-    int occupancySkip);
+    int mappedPlanarMaskX,
+    int mappedFixedMaskX0,
+    bool planarPossibleX,
+    int mappedPlanarMaskY,
+    int mappedFixedMaskY0,
+    bool planarPossibleY,
+    int mappedPlanarMaskZ,
+    int mappedFixedMaskZ0,
+    bool planarPossibleZ);
 
   void encodeOccupancyBitwise(
     int neighPattern,
@@ -85,7 +140,15 @@ public:
     int mappedOccAdjGt0,
     int mappedOccAdjGt1,
     int mappedOccAdjUnocc,
-    int occupancySkip);
+    int mappedPlanarMaskX,
+    int mappedFixedMaskX0,
+    bool planarPossibleX,
+    int mappedPlanarMaskY,
+    int mappedFixedMaskY0,
+    bool planarPossibleY,
+    int mappedPlanarMaskZ,
+    int mappedFixedMaskZ0,
+    bool planarPossibleZ);
 
   void encodeOccupancyBytewise(int neighPattern, int mappedOccupancy);
 
@@ -97,10 +160,17 @@ public:
     int occupancyAdjGt0,
     int occupancyAdjGt1,
     int occupancyAdjUnocc,
-    int occupancySkip);
+    int planarMaskX,
+    int planarMaskY,
+    int planarMaskZ,
+    bool planarPossibleX,
+    bool planarPossibleY,
+    bool planarPossibleZ);
 
   void encodePointPosition(
-    const Vec3<int>& nodeSizeLog2, const Vec3<uint32_t>& pos);
+    const Vec3<int>& nodeSizeLog2,
+    const Vec3<uint32_t>& pos,
+    uint8_t planarMode);
 
   void encodeQpOffset(int dqp);
 
@@ -123,10 +193,16 @@ private:
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsEq1;
+  AdaptiveBitModel _ctxSameZ;
 
   AdaptiveBitModel _ctxQpOffsetIsZero;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
+
+  // for planar mode xyz
+  AdaptiveBitModel _ctxPlanarMode[3][2][2];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][2][6][2];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
@@ -178,6 +254,175 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
   return count;
 }
 
+//============================================================================
+
+int
+GeometryOctreeEncoder::encodePlanarMode(
+  PCCOctree3Node& node0,
+  int plane,
+  int posxyz,
+  int dist,
+  int neighb,
+  int& h,
+  int planeId)
+{
+  const int mask0 = (1 << planeId);
+  const int mask1[3] = {6, 5, 3};
+
+  bool isPlanar = node0.planarMode & mask0;
+  int planeBit = (node0.planePosBits & mask0) == 0 ? 0 : 1;
+
+  int discreteDist = (dist <= 2 ? 0 : 1);
+  _arithmeticEncoder->encode(
+    isPlanar, _ctxPlanarMode[planeId][neighb][discreteDist]);
+
+  if (!isPlanar) {
+    node0.planarPossible &= mask1[planeId];
+    return -1;
+  }
+
+  // encode the plane index
+  if (plane < 0) {
+    _arithmeticEncoder->encode(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
+    h = approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
+  } else {
+    discreteDist += (dist <= 16 ? 0 : 1);
+    int lastIndexPlane2d = plane + (discreteDist << 1);
+    _arithmeticEncoder->encode(
+      planeBit,
+      _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+    h = approxSymbolProbability(
+      planeBit,
+      _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+  }
+  return planeBit;
+}
+
+//============================================================================
+// determine Planar mode for one direction
+
+void
+GeometryOctreeEncoder::determinePlanarMode(
+  int planeId,
+  const int kNumPlanarPlanes,
+  PCCOctree3Node& child,
+  uint8_t planarMode,
+  uint8_t planePosBits,
+  int* plane1,
+  int* plane2,
+  int* plane3,
+  int coord1,
+  int coord2,
+  int coord3,
+  uint8_t neighPattern,
+  int pos,
+  int planarProb[3],
+  int planarRate[3])
+{
+  const int kPlanarChildThreshold = 63;
+  const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
+  const int planeSelector = 1 << planeId;
+
+  child.planarMode |= planarMode & planeSelector;
+  child.planePosBits |= planePosBits & planeSelector;
+
+  const int shift = coord3 * kNumPlanarPlanes;
+  int* localPlane1 = plane1 + shift;
+  int* localPlane2 = plane2 + shift;
+  int* localPlane3 = plane3 + shift;
+
+  int minDist = std::abs(coord1 - localPlane1[kNumPlanarPlanes - 1])
+    + std::abs(coord2 - localPlane2[kNumPlanarPlanes - 1]);
+  int idxMinDist = kNumPlanarPlanes - 1;
+
+  for (int idxP = 0; idxP < kNumPlanarPlanes - 1; idxP++) {
+    int dist0 = std::abs(coord1 - localPlane1[idxP])
+      + std::abs(coord2 - localPlane2[idxP]);
+    if (dist0 < minDist) {
+      idxMinDist = idxP;
+      minDist = dist0;
+    }
+  }
+
+  // push closest point front
+  localPlane1[kNumPlanarPlanes - 1] = localPlane1[idxMinDist];
+  localPlane2[kNumPlanarPlanes - 1] = localPlane2[idxMinDist];
+  localPlane3[kNumPlanarPlanes - 1] = localPlane3[idxMinDist];
+
+  int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+  int planeBit = encodePlanarMode(
+    child, localPlane3[kNumPlanarPlanes - 1], pos, minDist, adjNeigh,
+    planarProb[planeId], planeId);
+
+  bool isPlanar = (child.planarMode & planeSelector)
+    && planarProb[planeId] > kPlanarChildThreshold;
+
+  planarRate[planeId] =
+    (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
+
+  for (int idxP = 0; idxP < kNumPlanarPlanes - 1;
+       idxP++, localPlane1++, localPlane2++, localPlane3++) {
+    *localPlane1 = *(localPlane1 + 1);
+    *localPlane2 = *(localPlane2 + 1);
+    *localPlane3 = *(localPlane3 + 1);
+  }
+
+  *localPlane1 = coord1;
+  *localPlane2 = coord2;
+  *localPlane3 = planeBit;
+}
+
+//============================================================================
+// determine Planar mode for all directions
+
+void
+GeometryOctreeEncoder::determinePlanarMode(
+  PCCPointSet3& pointCloud,
+  bool planarEligible[3],
+  const Vec3<int>& childSizeLog2,
+  const int kNumPlanarPlanes,
+  PCCOctree3Node& child,
+  int* planes[9],
+  uint8_t neighPattern,
+  int x,
+  int y,
+  int z,
+  int planarProb[3],
+  int planarRate[3])
+{
+  // planarity
+  uint8_t planarMode, planePosBits;
+  isPlanarNode(
+    pointCloud, child, childSizeLog2 - 1, planarMode, planePosBits,
+    planarEligible);
+
+  int xx = child.pos[0];
+  int yy = child.pos[1];
+  int zz = child.pos[2];
+
+  // planar x
+  if (planarEligible[0]) {
+    determinePlanarMode(
+      0, kNumPlanarPlanes, child, planarMode, planePosBits, planes[1],
+      planes[2], planes[0], yy, zz, xx, neighPattern, x, planarProb,
+      planarRate);
+  }
+  // planar y
+  if (planarEligible[1]) {
+    determinePlanarMode(
+      1, kNumPlanarPlanes, child, planarMode, planePosBits, planes[3],
+      planes[5], planes[4], xx, zz, yy, neighPattern, y, planarProb,
+      planarRate);
+  }
+  // planar z
+  if (planarEligible[2]) {
+    determinePlanarMode(
+      2, kNumPlanarPlanes, child, planarMode, planePosBits, planes[6],
+      planes[7], planes[8], xx, yy, zz, neighPattern, z, planarProb,
+      planarRate);
+  }
+}
+
 //-------------------------------------------------------------------------
 // encode occupancy bits (neighPattern10 == 0 case)
 
@@ -189,33 +434,49 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1,
   int mappedOccAdjUnocc,
-  int occupancySkip)
+  int mappedPlanarMaskX,
+  int mappedFixedMaskX0,
+  bool planarPossibleX,
+  int mappedPlanarMaskY,
+  int mappedFixedMaskY0,
+  bool planarPossibleY,
+  int mappedPlanarMaskZ,
+  int mappedFixedMaskZ0,
+  bool planarPossibleZ)
 {
-  int minOccupied = 2;
   int numOccupiedAcc = 0;
-  int numCoded = 0;
-  const int maxOccupied = numMaxOccupided[occupancySkip];
+
+  int maxPerPlaneX = 4 - (mappedPlanarMaskX ? 2 : 1);
+  int maxPerPlaneY = 4 - (mappedPlanarMaskY ? 2 : 1);
+  int maxPerPlaneZ = 4 - (mappedPlanarMaskZ ? 2 : 1);
+  bool sure_planarityX = mappedPlanarMaskX || !planarPossibleX;
+  bool sure_planarityY = mappedPlanarMaskY || !planarPossibleY;
+  bool sure_planarityZ = mappedPlanarMaskZ || !planarPossibleZ;
+
+  int maskedOccupancy =
+    mappedPlanarMaskX | mappedPlanarMaskY | mappedPlanarMaskZ;
+
+  int coded0X[2] = {0, 0};
+  int coded0Y[2] = {0, 0};
+  int coded0Z[2] = {0, 0};
+  if (maskedOccupancy) {
+    for (int i = 0; i < 8; i++) {
+      if ((maskedOccupancy >> i) & 1) {
+        coded0X[(mappedFixedMaskX0 >> i) & 1]++;
+        coded0Y[(mappedFixedMaskY0 >> i) & 1]++;
+        coded0Z[(mappedFixedMaskZ0 >> i) & 1]++;
+      }
+    }
+  }
 
   for (int i = 0; i < 8; i++) {
-    if (occupancySkip != 0) {
-      if (
-        (occupancySkip & 1) && (kOccBitCodingOrder[i] & 1))  // skip when z = 1
-        continue;
-      if (
-        (occupancySkip & 2) && (kOccBitCodingOrder[i] & 2))  // skip when y = 1
-        continue;
-      if (
-        (occupancySkip & 4) && (kOccBitCodingOrder[i] & 4))  // skip when x = 1
-        continue;
-    }
+    int bitIdx = kOccBitCodingOrder[i];
+    if ((maskedOccupancy >> bitIdx) & 1)
+      continue;
 
-    int bit = (mappedOccupancy >> kOccBitCodingOrder[i]) & 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjUnocc = (mappedOccAdjUnocc >> kOccBitCodingOrder[i]) & 1;
-
+    int bitAdjGt0 = (mappedOccAdjGt0 >> bitIdx) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> bitIdx) & 1;
+    int bitAdjUnocc = (mappedOccAdjUnocc >> bitIdx) & 1;
     int numAdj = bitAdjGt0 + bitAdjGt1;
     int idxAdj = bitAdjUnocc + 2 * numAdj;
     if (i > 4) {
@@ -223,18 +484,43 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(
       idxAdj = kCtxIdxAdjReduc567[idxAdj];
     }
 
-    int ctxIdxMapIdx = 3 * idxAdj + bitIsPredicted + bitPrediction;
-    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
-
-    int idx = numOccupiedAcc;
-    int ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
+    int ctxIdxMapIdx = idxAdj;
+    if (!maskedOccupancy) {
+      int bitIsPredicted = (mappedOccIsPredicted >> bitIdx) & 1;
+      int bitPrediction = (mappedOccPrediction >> bitIdx) & 1;
+      ctxIdxMapIdx = 3 * idxAdj + bitIsPredicted + bitPrediction;
+    }
 
     // NB: There must be at least minOccupied child nodes
     //  -- avoid coding the occupancyBit if it is implied.
-    if (numOccupiedAcc > minOccupied + numCoded - maxOccupied) {
+    int mask0X = (mappedFixedMaskX0 >> bitIdx) & 1;
+    bool bitIsOneX = (sure_planarityX && coded0X[mask0X] >= maxPerPlaneX)
+      || (coded0X[0] + coded0X[1] >= 6);
+
+    int mask0Y = (mappedFixedMaskY0 >> bitIdx) & 1;
+    bool bitIsOneY = (sure_planarityY && coded0Y[mask0Y] >= maxPerPlaneY)
+      || (coded0Y[0] + coded0Y[1] >= 6);
+
+    int mask0Z = (mappedFixedMaskZ0 >> bitIdx) & 1;
+    bool bitIsOneZ = (sure_planarityZ && coded0Z[mask0Z] >= maxPerPlaneZ)
+      || (coded0Z[0] + coded0Z[1] >= 6);
+
+    // masking for planar is here
+    int bit = (mappedOccupancy >> bitIdx) & 1;
+    if (!(bitIsOneX || bitIsOneY || bitIsOneZ)) {
+      int ctxIdx;
+      auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
+      ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][numOccupiedAcc]);
+
       _arithmeticEncoder->encode(bit, _ctxOccupancy[ctxIdx]);
+
+      if (!bit) {
+        coded0X[mask0X]++;
+        coded0Y[mask0Y]++;
+        coded0Z[mask0Z]++;
+      }
     }
-    numCoded++;
+
     numOccupiedAcc += bit;
   }
 }
@@ -251,7 +537,15 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1,
   int mappedOccAdjUnocc,
-  int occupancySkip)
+  int mappedPlanarMaskX,
+  int mappedFixedMaskX0,
+  bool planarPossibleX,
+  int mappedPlanarMaskY,
+  int mappedFixedMaskY0,
+  bool planarPossibleY,
+  int mappedPlanarMaskZ,
+  int mappedFixedMaskZ0,
+  bool planarPossibleZ)
 {
   // code occupancy using the neighbour configuration context
   // with reduction from 64 states to 9 (or 6).
@@ -266,26 +560,31 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
 
   uint32_t partialOccupancy = 0;
 
-  const uint8_t* map = kNeighPatternInvMap[neighPattern];
-  const int maxOccupied = numMaxOccupided[occupancySkip];
-  int numCoded = 0;
+  bool sure_planarityX = mappedPlanarMaskX || !planarPossibleX;
+  bool sure_planarityY = mappedPlanarMaskY || !planarPossibleY;
+  bool sure_planarityZ = mappedPlanarMaskZ || !planarPossibleZ;
+
+  int maskedOccupancy =
+    mappedPlanarMaskX | mappedPlanarMaskY | mappedPlanarMaskZ;
+
+  int coded0X[2] = {0, 0};
+  int coded0Y[2] = {0, 0};
+  int coded0Z[2] = {0, 0};
+  if (maskedOccupancy) {
+    for (int i = 0; i < 8; i++) {
+      if ((maskedOccupancy >> i) & 1) {
+        coded0X[(mappedFixedMaskX0 >> i) & 1]++;
+        coded0Y[(mappedFixedMaskY0 >> i) & 1]++;
+        coded0Z[(mappedFixedMaskZ0 >> i) & 1]++;
+      }
+    }
+  }
 
   // NB: it is impossible for pattern to be 0 (handled in Z case).
   for (int i = 0; i < 8; i++) {
-    if (occupancySkip != 0) {
-      if (
-        (occupancySkip & 1)
-        && (map[kOccBitCodingOrder[i]] & 1))  // skip when z = 1
-        continue;
-      if (
-        (occupancySkip & 2)
-        && (map[kOccBitCodingOrder[i]] & 2))  // skip when y = 1
-        continue;
-      if (
-        (occupancySkip & 4)
-        && (map[kOccBitCodingOrder[i]] & 4))  // skip when x = 1
-        continue;
-    }
+    int bitIdx = kOccBitCodingOrder[i];
+    if ((maskedOccupancy >> bitIdx) & 1)
+      continue;
 
     int idx;
     if (i < 4) {
@@ -301,12 +600,9 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
       break;
     }
 
-    int bit = (mappedOccupancy >> kOccBitCodingOrder[i]) & 1;
-    int bitIsPredicted = (mappedOccIsPredicted >> kOccBitCodingOrder[i]) & 1;
-    int bitPrediction = (mappedOccPrediction >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjGt0 = (mappedOccAdjGt0 >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjGt1 = (mappedOccAdjGt1 >> kOccBitCodingOrder[i]) & 1;
-    int bitAdjUnocc = (mappedOccAdjUnocc >> kOccBitCodingOrder[i]) & 1;
+    int bitAdjGt0 = (mappedOccAdjGt0 >> bitIdx) & 1;
+    int bitAdjGt1 = (mappedOccAdjGt1 >> bitIdx) & 1;
+    int bitAdjUnocc = (mappedOccAdjUnocc >> bitIdx) & 1;
 
     int numAdj = bitAdjGt0 + bitAdjGt1;
     int idxAdj = bitAdjUnocc + 2 * numAdj;
@@ -315,19 +611,41 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
       idxAdj = kCtxIdxAdjReduc567[idxAdj];
     }
 
-    int ctxIdxMapIdx = 3 * idxAdj + bitIsPredicted + bitPrediction;
-    auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
-
-    int ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
+    int ctxIdxMapIdx = bitAdjGt0 + bitAdjGt1;
+    if (!maskedOccupancy) {  // planar
+      int bitIsPredicted = (mappedOccIsPredicted >> bitIdx) & 1;
+      int bitPrediction = (mappedOccPrediction >> bitIdx) & 1;
+      ctxIdxMapIdx = 3 * idxAdj + bitIsPredicted + bitPrediction;
+    }
 
     // NB: if firt 7 bits are 0, then the last is implicitly 1.
-    if (numCoded < maxOccupied - 1 || partialOccupancy) {
+    // masking for planar is here
+    int mask0X = (mappedFixedMaskX0 >> bitIdx) & 1;
+    bool bitIsOneX = (sure_planarityX && coded0X[mask0X] >= 3)
+      || (coded0X[0] + coded0X[1] >= 7);
+
+    int mask0Y = (mappedFixedMaskY0 >> bitIdx) & 1;
+    bool bitIsOneY = (sure_planarityY && coded0Y[mask0Y] >= 3)
+      || (coded0Y[0] + coded0Y[1] >= 7);
+
+    int mask0Z = (mappedFixedMaskZ0 >> bitIdx) & 1;
+    bool bitIsOneZ = (sure_planarityZ && coded0Z[mask0Z] >= 3)
+      || (coded0Z[0] + coded0Z[1] >= 7);
+
+    int bit = (mappedOccupancy >> bitIdx) & 1;
+    if (!(bitIsOneX || bitIsOneY || bitIsOneZ)) {
+      auto& ctxIdxMap = _ctxIdxMaps[ctxIdxMapIdx];
+      int ctxIdx = ctxIdxMap.evolve(bit, &ctxIdxMap[i][idx]);
       _arithmeticEncoder->encode(bit, _ctxOccupancy[ctxIdx]);
+
+      if (!bit) {
+        coded0X[mask0X]++;
+        coded0Y[mask0Y]++;
+        coded0Z[mask0Z]++;
+      }
     }
-    numCoded++;
+
     partialOccupancy |= bit << i;
-    if (numCoded == maxOccupied)
-      break;
   }
 }
 
@@ -342,18 +660,31 @@ GeometryOctreeEncoder::encodeOccupancyBitwise(
   int mappedOccAdjGt0,
   int mappedOccAdjGt1,
   int mappedOccAdjUnocc,
-  int occupancySkip)
+  int mappedPlanarMaskX,
+  int mappedFixedMaskX0,
+  bool planarPossibleX,
+  int mappedPlanarMaskY,
+  int mappedFixedMaskY0,
+  bool planarPossibleY,
+  int mappedPlanarMaskZ,
+  int mappedFixedMaskZ0,
+  bool planarPossibleZ)
+
 {
   if (neighPattern == 0) {
     encodeOccupancyNeighZ(
       mappedOccupancy, mappedOccIsPredicted, mappedOccPrediction,
-      mappedOccAdjGt0, mappedOccAdjGt1, mappedOccAdjUnocc, occupancySkip);
+      mappedOccAdjGt0, mappedOccAdjGt1, mappedOccAdjUnocc, mappedPlanarMaskX,
+      mappedFixedMaskX0, planarPossibleX, mappedPlanarMaskY, mappedFixedMaskY0,
+      planarPossibleY, mappedPlanarMaskZ, mappedFixedMaskZ0, planarPossibleZ);
     return;
   }
 
   encodeOccupancyNeighNZ(
     neighPattern, mappedOccupancy, mappedOccIsPredicted, mappedOccPrediction,
-    mappedOccAdjGt0, mappedOccAdjGt1, mappedOccAdjUnocc, occupancySkip);
+    mappedOccAdjGt0, mappedOccAdjGt1, mappedOccAdjUnocc, mappedPlanarMaskX,
+    mappedFixedMaskX0, planarPossibleX, mappedPlanarMaskY, mappedFixedMaskY0,
+    planarPossibleY, mappedPlanarMaskZ, mappedFixedMaskZ0, planarPossibleZ);
 }
 
 //-------------------------------------------------------------------------
@@ -382,35 +713,81 @@ GeometryOctreeEncoder::encodeOccupancy(
   int occupancyAdjGt0,
   int occupancyAdjGt1,
   int occupancyAdjUnocc,
-  int occupancySkip)
+  int planarMaskX,
+  int planarMaskY,
+  int planarMaskZ,
+  bool planarPossibleX,
+  bool planarPossibleY,
+  bool planarPossibleZ)
 {
+  // 3 planars => single child and we know its position
+  if (planarMaskX && planarMaskY && planarMaskZ)
+    return;
+
   if (neighPattern == 0) {
     bool singleChild = !popcntGt1(occupancy);
-    _arithmeticEncoder->encode(singleChild, _ctxSingleChild);
+    if (planarPossibleX && planarPossibleY && planarPossibleZ) {
+      _arithmeticEncoder->encode(singleChild, _ctxSingleChild);
+    }
 
     if (singleChild) {
       // no siblings => encode index = (z,y,x) not 8bit pattern
-      if (!(occupancySkip & 1))
+      // if mask is not zero, then planar, then child z known from plane index
+      if (!planarMaskZ)
         _arithmeticEncoder->encode(!!(occupancy & 0xaa), _ctxEquiProb);  // z
-      if (!(occupancySkip & 2))
+
+      if (!planarMaskY)
         _arithmeticEncoder->encode(!!(occupancy & 0xcc), _ctxEquiProb);  // y
-      if (!(occupancySkip & 4))
+
+      if (!planarMaskX)
         _arithmeticEncoder->encode(!!(occupancy & 0xf0), _ctxEquiProb);  // x
+
       return;
     }
   }
 
-  uint32_t mapOcc = mapGeometryOccupancy(occupancy, neighPattern);
-  uint32_t mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
-  uint32_t mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
-  uint32_t mapAdjGt0 = mapGeometryOccupancy(occupancyAdjGt0, neighPattern);
-  uint32_t mapAdjGt1 = mapGeometryOccupancy(occupancyAdjGt1, neighPattern);
-  uint32_t mapAdjUnocc = mapGeometryOccupancy(occupancyAdjUnocc, neighPattern);
+  // at least two child nodes occupied and two planars => we know the occupancy
+  if (neighPattern == 0) {
+    if (planarMaskX && planarMaskY)
+      return;
+    if (planarMaskY && planarMaskZ)
+      return;
+    if (planarMaskX && planarMaskZ)
+      return;
+  }
+
+  uint32_t mapOcc = mapGeometryOccupancy(occupancy, neighPattern, planarMaskZ);
+  uint32_t mapOccIsP =
+    mapGeometryOccupancy(occupancyIsPred, neighPattern, planarMaskZ);
+  uint32_t mapOccP =
+    mapGeometryOccupancy(occupancyPred, neighPattern, planarMaskZ);
+  uint32_t mapAdjGt0 =
+    mapGeometryOccupancy(occupancyAdjGt0, neighPattern, planarMaskZ);
+  uint32_t mapAdjGt1 =
+    mapGeometryOccupancy(occupancyAdjGt1, neighPattern, planarMaskZ);
+  uint32_t mapAdjUnocc =
+    mapGeometryOccupancy(occupancyAdjUnocc, neighPattern, planarMaskZ);
+
+  uint32_t mapPlanarMaskX =
+    mapGeometryOccupancy(planarMaskX, neighPattern, planarMaskZ);
+  uint32_t mapPlanarMaskY =
+    mapGeometryOccupancy(planarMaskY, neighPattern, planarMaskZ);
+  uint32_t mapPlanarMaskZ =
+    mapGeometryOccupancy(planarMaskZ, neighPattern, planarMaskZ);
+
+  uint32_t mapFixedMaskX0 =
+    mapGeometryOccupancy(0xf0, neighPattern, planarMaskZ);
+  uint32_t mapFixedMaskY0 =
+    mapGeometryOccupancy(0xcc, neighPattern, planarMaskZ);
+  uint32_t mapFixedMaskZ0 =
+    mapGeometryOccupancy(0xaa, neighPattern, planarMaskZ);
 
   if (_useBitwiseOccupancyCoder)
     encodeOccupancyBitwise(
       neighPattern, mapOcc, mapOccIsP, mapOccP, mapAdjGt0, mapAdjGt1,
-      mapAdjUnocc, occupancySkip);
+      mapAdjUnocc, mapPlanarMaskX, mapFixedMaskX0, planarPossibleX,
+      mapPlanarMaskY, mapFixedMaskY0, planarPossibleY, mapPlanarMaskZ,
+      mapFixedMaskZ0, planarPossibleZ);
   else
     encodeOccupancyBytewise(neighPattern, mapOcc);
 }
@@ -419,12 +796,18 @@ GeometryOctreeEncoder::encodeOccupancy(
 // Encode a position of a point in a given volume.
 void
 GeometryOctreeEncoder::encodePointPosition(
-  const Vec3<int>& nodeSizeLog2, const Vec3<uint32_t>& pos)
+  const Vec3<int>& nodeSizeLog2, const Vec3<uint32_t>& pos, uint8_t planarMode)
 {
   for (int k = 0; k < 3; k++) {
     if (nodeSizeLog2[k] <= 0)
       continue;
-    for (int mask = 1 << (nodeSizeLog2[k] - 1); mask; mask >>= 1) {
+    int mask = 1 << (nodeSizeLog2[k] - 1);
+
+    if (!(planarMode & (1 << k)))
+      _arithmeticEncoder->encode(!!(pos[k] & mask), _ctxEquiProb);
+    mask >>= 1;
+
+    for (; mask; mask >>= 1) {
       _arithmeticEncoder->encode(!!(pos[k] & mask), _ctxEquiProb);
     }
   }
@@ -576,7 +959,8 @@ GeometryOctreeEncoder::encodeDirectPosition(
       Vec3<uint32_t>{uint32_t(pointCloud[idx][0]),
                      uint32_t(pointCloud[idx][1]),
                      uint32_t(pointCloud[idx][2])}
-        >> shiftBits);
+        >> shiftBits,
+      node.planarMode);
   }
 
   return true;
@@ -609,6 +993,7 @@ encodeGeometryOctree(
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
   node00.qp = 4;
+  node00.planarMode = 0;
 
   // map of pointCloud idx to DM idx, used to reorder the points
   // after coding.
@@ -642,6 +1027,31 @@ encodeGeometryOctree(
   Vec3<int> pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
   int occupancySkip = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
   int atlasShift = 7;
+
+  // implicit qtbt for child node
+  Vec3<int> grandchildSizeLog2 = implicitQtBtDecision(
+    childSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+  int childOccupancySkip = nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
+
+  // planar mode initialazation
+  const int idcmThreshold = gps.geom_planar_idcm_threshold * 127 * 127;
+  const int kNumPlanarPlanes = 4;
+  std::vector<int> planes3x3;
+  int* planes[9];
+  int planarDepth = 1;
+
+  if (gps.geom_planar_mode_enabled_flag) {
+    const int maxPlaneSize = kNumPlanarPlanes << nodeMaxDimLog2;
+    planarDepth = nodeMaxDimLog2;
+    planes3x3.resize(maxPlaneSize * 9);
+    planarInitPlanes(kNumPlanarPlanes, planarDepth, planes3x3.data(), planes);
+  }
+
+  int planarRate[3] = {128 * 8, 128 * 8, 128 * 8};
+  int localDensity = 1024 * 4;
+  const int planarRateThreshold[3] = {gps.geom_planar_threshold0 << 4,
+                                      gps.geom_planar_threshold1 << 4,
+                                      gps.geom_planar_threshold2 << 4};
 
   // this counter represents fifo.end() - fifoCurrLvlEnd().
   // ie, the number of nodes added to the next level of the tree
@@ -699,10 +1109,29 @@ encodeGeometryOctree(
       childSizeLog2 = implicitQtBtDecision(
         nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
 
+      // implicit qtbt for grand-child nodes
+      int minSizeImplicitQtbt2 = minSizeImplicitQtbt;
+      if (
+        childSizeLog2[0] == childSizeLog2[1]
+        && childSizeLog2[1] == childSizeLog2[2])
+        minSizeImplicitQtbt2 = 0;
+
+      grandchildSizeLog2 = implicitQtBtDecision(
+        childSizeLog2,
+        maxNumImplicitQtbtBeforeOt ? maxNumImplicitQtbtBeforeOt - 1 : 0,
+        minSizeImplicitQtbt2);
+
+      childOccupancySkip = nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
       pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
 
       nodeMaxDimLog2--;
       encoder.beginOctreeLevel();
+      if (gps.geom_planar_mode_enabled_flag) {
+        planarDepth = gbh.geomMaxNodeSizeLog2(gps)
+          - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
+        planarInitPlanes(
+          kNumPlanarPlanes, planarDepth, planes3x3.data(), planes);
+      }
 
       // allow partial tree encoding using trisoup
       if (nodeMaxDimLog2 == gps.trisoup_node_size_log2)
@@ -809,10 +1238,19 @@ encodeGeometryOctree(
       // encode child occupancy map
       assert(occupancy > 0);
       assert(occupancySkip != 7);
+
+      // planar mode for current node
+      // mask to be used for the occupancy coding
+      // (bit =1 => occupancy bit not coded due to not belonging to the plane)
+      int planarMask[3] = {0, 0, 0};
+      maskPlanar(node0, planarMask, occupancySkip);
+
       encoder.encodeOccupancy(
         node0.neighPattern, occupancy, occupancyIsPredicted,
         occupancyPrediction, occupancyAdjacencyGt0, occupancyAdjacencyGt1,
-        occupancyAdjacencyUnocc, occupancySkip);
+        occupancyAdjacencyUnocc, planarMask[0], planarMask[1], planarMask[2],
+        node0.planarPossible & 1, node0.planarPossible & 2,
+        node0.planarPossible & 4);
     }
 
     // Leaf nodes are immediately coded.  No further splitting occurs.
@@ -856,6 +1294,22 @@ encodeGeometryOctree(
     //  - directly code point positions if IDCM allowed and selected
     //  - otherwise, insert split children into fifo while updating neighbour state
     int childPointsStartIdx = node0.start;
+
+    // planar eligibility
+    bool planarEligible[3] = {false, false, false};
+    if (gps.geom_planar_mode_enabled_flag) {
+      // update the plane rate depending on the occupancy and local density
+      updateplanarRate(planarRate, occupancy, localDensity, numSiblings);
+      eligilityPlanar(
+        planarEligible, planarRate, planarRateThreshold, localDensity);
+      if (childOccupancySkip & 4)
+        planarEligible[0] = false;
+      if (childOccupancySkip & 2)
+        planarEligible[1] = false;
+      if (childOccupancySkip & 1)
+        planarEligible[2] = false;
+    }
+
     for (int i = 0; i < 8; i++) {
       if (!childCounts[i]) {
         // child is empty: skip
@@ -882,7 +1336,18 @@ encodeGeometryOctree(
       child.numSiblingsPlus1 = numSiblings;
       child.siblingOccupancy = occupancy;
 
-      bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
+      // determine planarity if eligible
+      int planarProb[3] = {127, 127, 127};
+      if (
+        gps.geom_planar_mode_enabled_flag
+        && (planarEligible[0] || planarEligible[1] || planarEligible[2]))
+        encoder.determinePlanarMode(
+          pointCloud, planarEligible, childSizeLog2, kNumPlanarPlanes, child,
+          planes, node0.neighPattern, x, y, z, planarProb, planarRate);
+
+      // IDCM
+      bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
+        && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
         bool directModeUsed = encoder.encodeDirectPosition(

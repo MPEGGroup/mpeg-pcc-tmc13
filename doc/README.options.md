@@ -284,6 +284,26 @@ its occupancy.  The prediction mode is enabled for octree nodes smaller
 than or equal to the configured size.  A value of 0 disables intra
 occupancy prediction.
 
+### `--planarEnabled=0|1`
+Controls the use of planar coding mode for geometry occupancy.
+
+### `--planarModeIdcmUse=0--127`
+Controls the frequency of IDCM eligibility.  A value of zero prevents
+IDCM being eligible for use, while the value 127 does not further
+constrain IDCM use.
+
+### `--planarModeThreshold0=0--127`
+Controls the eligibility threshold of the first planar mode based upon
+local child node density.
+
+### `--planarModeThreshold1=0--127`
+Controls the eligibility threshold of the second planar mode based upon
+local child node density.
+
+### `--planarModeThreshold2=0--127`
+Controls the eligibility threshold of the third planar mode based upon
+local child node density.
+
 ### `--ctxOccupancyReductionFactor=INT-VALUE`
 Adjusts the number of contexts used in bit-wise occupancy coding.
 The total number of contexts used is 256 >> *VALUE*.

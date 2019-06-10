@@ -37,6 +37,7 @@
 
 #include "dependencies/schroedinger/schroarith.h"
 
+#include <algorithm>
 #include <assert.h>
 #include <stdlib.h>
 #include <memory>
@@ -56,6 +57,16 @@ namespace dirac {
       probability = 0x8000;
     }
   };
+
+  //--------------------------------------------------------------------------
+  // The approximate (7 bit) probability of a symbol being 1 or 0 according
+  // to a context model.
+
+  inline int approxSymbolProbability(int bit, SchroContext& model)
+  {
+    int p = std::max(1, model.probability >> 9);
+    return bit ? 128 - p : p;
+  }
 
   //==========================================================================
 

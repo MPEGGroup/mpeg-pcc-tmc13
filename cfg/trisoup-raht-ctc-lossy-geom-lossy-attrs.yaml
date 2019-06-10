@@ -13,6 +13,8 @@ categories:
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - inferredDirectCodingMode: 0
+     - planarEnabled: 1
+     - planarModeIdcmUse: 0
      - positionQuantizationScale: '$eval{ 1 / (1 << ( ${src-geometry-precision} - ${test-depth} )) }'
      - trisoup_node_size_log2:
          r01: 4

@@ -546,6 +546,30 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.intra_pred_max_node_size_log2, 0,
     "octree nodesizes eligible for occupancy intra prediction")
 
+  ("planarEnabled",
+    params.encoder.gps.geom_planar_mode_enabled_flag, true,
+    "Use planar mode for geometry coding")
+
+  ("planarModeThreshold0",
+    params.encoder.gps.geom_planar_threshold0, 77,
+    "Activation threshold (0-127) of first planar mode. "
+    "Lower values imply more use of the first planar mode")
+
+  ("planarModeThreshold1",
+    params.encoder.gps.geom_planar_threshold1, 99,
+    "Activation threshold (0-127) of second planar mode. "
+    "Lower values imply more use of the first planar mode")
+
+  ("planarModeThreshold2",
+    params.encoder.gps.geom_planar_threshold2, 113,
+    "Activation threshold (0-127) of third planar mode. "
+    "Lower values imply more use of the third planar mode")
+
+   ("planarModeIdcmUse",
+    params.encoder.gps.geom_planar_idcm_threshold, 0,
+    "Degree (0-127) of IDCM activation when planar mode is enabled.\n"
+    "  0 => never, 127 => always")
+
   ("ctxOccupancyReductionFactor",
      params.encoder.gps.geom_occupancy_ctx_reduction_factor, 3,
      "Adjusts the number of contexts used in occupancy coding")
@@ -763,6 +787,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     params.encoder.gps.geom_unique_points_flag = true;
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;
+  }
+
+  // Planar coding mode is not available for bytewise coding
+  if (!params.encoder.gps.bitwise_occupancy_coding_flag) {
+    if (params.encoder.gps.geom_planar_mode_enabled_flag)
+      err.warn() << "Bytewise geometry coding does not support planar mode\n";
+    params.encoder.gps.geom_planar_mode_enabled_flag = false;
   }
 
   // support disabling attribute coding (simplifies configuration)

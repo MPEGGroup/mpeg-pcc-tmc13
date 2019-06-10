@@ -80,12 +80,18 @@ struct PCCOctree3Node {
 
   // The qp used for geometry quantisation
   int qp;
+
+  // planar; first bit for x, second bit for y, third bit for z
+  uint8_t planarPossible = 7;
+  uint8_t planePosBits = 0;
+  uint8_t planarMode = 0;
 };
 
 //---------------------------------------------------------------------------
-
-uint8_t mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern);
-uint8_t mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern);
+uint8_t
+mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern, int planarMaskZ);
+uint8_t mapGeometryOccupancyInv(
+  uint8_t occupancy, uint8_t neighPattern, int planarMaskZ);
 
 void updateGeometryNeighState(
   bool siblingRestriction,
@@ -299,6 +305,33 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
   }
   return indicator;
 }
+
+//---------------------------------------------------------------------------
+
+// determine if a 222 block is planar
+void isPlanarNode(
+  PCCPointSet3& pointCloud,
+  PCCOctree3Node& node0,
+  const Vec3<int>& sizeLog2,
+  uint8_t& planarMode,
+  uint8_t& planePosBits,
+  bool planarEligible[3]);
+
+void planarInitPlanes(
+  const int kNumPlanarPlanes, int depth, int* planes3x3, int* planes[9]);
+void updateplanarRate(
+  int planarRate[3], int occupancy, int& localDensity, int numSiblings);
+void eligilityPlanar(
+  bool planarEligible[3],
+  int plane_rate[3],
+  const int threshold[3],
+  int localDensity);
+
+int maskPlanarX(PCCOctree3Node& node0, bool activatable);
+int maskPlanarY(PCCOctree3Node& node0, bool activatable);
+int maskPlanarZ(PCCOctree3Node& node0, bool activatable);
+
+void maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip);
 
 //---------------------------------------------------------------------------
 
