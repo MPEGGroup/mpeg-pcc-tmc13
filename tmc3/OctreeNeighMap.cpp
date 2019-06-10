@@ -44,6 +44,7 @@ namespace pcc {
 void
 updateGeometryOccupancyAtlas(
   const Vec3<uint32_t>& currentPosition,
+  const int atlasShift,
   const pcc::ringbuf<PCCOctree3Node>& fifo,
   const pcc::ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,
@@ -51,6 +52,10 @@ updateGeometryOccupancyAtlas(
 {
   const uint32_t mask = (1 << occupancyAtlas->cubeSizeLog2()) - 1;
   const int shift = occupancyAtlas->cubeSizeLog2();
+  const int shiftX = (atlasShift & 4 ? 1 : 0);
+  const int shiftY = (atlasShift & 2 ? 1 : 0);
+  const int shiftZ = (atlasShift & 1 ? 1 : 0);
+
   const auto currentOrigin = currentPosition >> shift;
 
   // only refresh the atlas if the current position lies outside the
@@ -65,10 +70,9 @@ updateGeometryOccupancyAtlas(
   for (auto it = fifo.begin(); it != fifoCurrLvlEnd; ++it) {
     if (currentOrigin != it->pos >> shift)
       break;
-
-    const uint32_t x = it->pos[0] & mask;
-    const uint32_t y = it->pos[1] & mask;
-    const uint32_t z = it->pos[2] & mask;
+    const uint32_t x = (it->pos[0] & mask) >> shiftX;
+    const uint32_t y = (it->pos[1] & mask) >> shiftY;
+    const uint32_t z = (it->pos[2] & mask) >> shiftZ;
     occupancyAtlas->setByte(x, y, z, it->siblingOccupancy);
   }
 }
@@ -138,6 +142,7 @@ GeometryNeighPattern
 makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<uint32_t>& position,
+  const int atlasShift,
   const MortonMap3D& occupancyAtlas)
 {
   const int mask = occupancyAtlas.cubeSize() - 1;
@@ -146,22 +151,57 @@ makeGeometryNeighPattern(
   const int32_t y = position[1] & mask;
   const int32_t z = position[2] & mask;
   uint8_t neighPattern;
-  if (
-    x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
-    && z < cubeSizeMinusOne) {
-    neighPattern = occupancyAtlas.get(x + 1, y, z);
-    neighPattern |= occupancyAtlas.get(x - 1, y, z) << 1;
-    neighPattern |= occupancyAtlas.get(x, y - 1, z) << 2;
-    neighPattern |= occupancyAtlas.get(x, y + 1, z) << 3;
-    neighPattern |= occupancyAtlas.get(x, y, z - 1) << 4;
-    neighPattern |= occupancyAtlas.get(x, y, z + 1) << 5;
+  if (atlasShift == 0) {
+    if (
+      x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+      && z < cubeSizeMinusOne) {
+      neighPattern = occupancyAtlas.get(x + 1, y, z);
+      neighPattern |= occupancyAtlas.get(x - 1, y, z) << 1;
+      neighPattern |= occupancyAtlas.get(x, y - 1, z) << 2;
+      neighPattern |= occupancyAtlas.get(x, y + 1, z) << 3;
+      neighPattern |= occupancyAtlas.get(x, y, z - 1) << 4;
+      neighPattern |= occupancyAtlas.get(x, y, z + 1) << 5;
+    } else {
+      neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z);
+      neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z) << 1;
+      neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z) << 2;
+      neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z) << 3;
+      neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1) << 4;
+      neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1) << 5;
+    }
   } else {
-    neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z);
-    neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z) << 1;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z) << 2;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z) << 3;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1) << 4;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1) << 5;
+    const int shiftX = (atlasShift & 4 ? 1 : 0);
+    const int shiftY = (atlasShift & 2 ? 1 : 0);
+    const int shiftZ = (atlasShift & 1 ? 1 : 0);
+
+    if (
+      x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+      && z < cubeSizeMinusOne) {
+      neighPattern = occupancyAtlas.get(x + 1, y, z, shiftX, shiftY, shiftZ);
+      neighPattern |= occupancyAtlas.get(x - 1, y, z, shiftX, shiftY, shiftZ)
+        << 1;
+      neighPattern |= occupancyAtlas.get(x, y - 1, z, shiftX, shiftY, shiftZ)
+        << 2;
+      neighPattern |= occupancyAtlas.get(x, y + 1, z, shiftX, shiftY, shiftZ)
+        << 3;
+      neighPattern |= occupancyAtlas.get(x, y, z - 1, shiftX, shiftY, shiftZ)
+        << 4;
+      neighPattern |= occupancyAtlas.get(x, y, z + 1, shiftX, shiftY, shiftZ)
+        << 5;
+    } else {
+      neighPattern =
+        occupancyAtlas.getWithCheck(x + 1, y, z, shiftX, shiftY, shiftZ);
+      neighPattern |=
+        occupancyAtlas.getWithCheck(x - 1, y, z, shiftX, shiftY, shiftZ) << 1;
+      neighPattern |=
+        occupancyAtlas.getWithCheck(x, y - 1, z, shiftX, shiftY, shiftZ) << 2;
+      neighPattern |=
+        occupancyAtlas.getWithCheck(x, y + 1, z, shiftX, shiftY, shiftZ) << 3;
+      neighPattern |=
+        occupancyAtlas.getWithCheck(x, y, z - 1, shiftX, shiftY, shiftZ) << 4;
+      neighPattern |=
+        occupancyAtlas.getWithCheck(x, y, z + 1, shiftX, shiftY, shiftZ) << 5;
+    }
   }
 
   // Above, the neighbour pattern corresponds directly to the six same

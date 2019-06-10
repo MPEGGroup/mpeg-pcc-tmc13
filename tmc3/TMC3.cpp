@@ -506,6 +506,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   (po::Section("Geometry"))
 
+  ("implicitQtBtEnabled",
+    params.encoder.gps.implicit_qtbt_enabled_flag, true,
+    "Enables non-cubic geometry bounding box")
+
+  ("max_num_implicit_qtbt_before_ot",
+    params.encoder.gps.max_num_implicit_qtbt_before_ot, 4,
+    "Max number of implicit qtbt before ot")
+
+  ("min_implicit_qtbt_size_log2",
+    params.encoder.gps.min_implicit_qtbt_size_log2, 0,
+    "Minimum size of implicit qtbt")
+
   // tools
   ("bitwiseOccupancyCoding",
     params.encoder.gps.bitwise_occupancy_coding_flag, true,

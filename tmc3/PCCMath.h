@@ -46,6 +46,8 @@
 #include "PCCMisc.h"
 #include "tables.h"
 
+#include <algorithm>
+
 namespace pcc {
 /// Vector dim 3
 template<typename T>

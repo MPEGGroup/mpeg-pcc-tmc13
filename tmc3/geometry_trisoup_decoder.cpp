@@ -127,7 +127,7 @@ decodeGeometryTrisoup(
   }
 
   // Compute refinedVertices.
-  int32_t maxval = (1 << gbh.geom_max_node_size_log2) - 1;
+  int32_t maxval = (1 << gbh.geomMaxNodeSizeLog2(gps)) - 1;
   decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
 }
 

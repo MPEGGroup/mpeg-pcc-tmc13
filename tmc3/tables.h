@@ -38,6 +38,8 @@
 #include <cstdint>
 
 namespace pcc {
+extern const uint8_t kNeighPatternInvMap[64][8];
+extern const int numMaxOccupided[8];
 
 // Symmetry reduction of 64 neighbour pattern to 10
 extern const uint8_t kNeighPattern64to9[64];

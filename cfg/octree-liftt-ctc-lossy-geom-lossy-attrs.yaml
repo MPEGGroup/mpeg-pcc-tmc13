@@ -21,6 +21,13 @@ categories:
          r05: '$eval{ $rp = 1; $gp = ${src-geometry-precision}; $p_min = max(gp - 9, 7); $start = min(1, $gp - ($p_min + 6)); $step = max(1, (min($gp - 1, $p_min + 7) - $p_min) / 5); $y = $start + round($rp * $step); $div = 1 << (abs($y) + 1); ((1 - 2*signbit($y)) % $div) / $div }'
          r06: '$eval{ $rp = 0; $gp = ${src-geometry-precision}; $p_min = max(gp - 9, 7); $start = min(1, $gp - ($p_min + 6)); $step = max(1, (min($gp - 1, $p_min + 7) - $p_min) / 5); $y = $start + round($rp * $step); $div = 1 << (abs($y) + 1); ((1 - 2*signbit($y)) % $div) / $div }'
 
+     # default qtbt with cat3-frame exception
+     - max_num_implicit_qtbt_before_ot: 4
+     - min_implicit_qtbt_size_log2: 0
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - max_num_implicit_qtbt_before_ot: 0
+
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - skip attribute coding if dist2 parameters are not defined

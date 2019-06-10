@@ -40,6 +40,7 @@
 
 #include <iomanip>
 #include <iterator>
+#include <algorithm>
 
 namespace pcc {
 
@@ -206,6 +207,7 @@ write(const GeometryParameterSet& gps)
       bs.writeUe(gps.gps_geom_box_log2_scale);
   }
   bs.write(gps.geom_unique_points_flag);
+  bs.write(gps.implicit_qtbt_enabled_flag);
   bs.write(gps.neighbour_context_restriction_flag);
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
   bs.write(gps.bitwise_occupancy_coding_flag);
@@ -217,6 +219,12 @@ write(const GeometryParameterSet& gps)
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
     bs.writeUe(gps.geom_base_qp);
+
+  if (gps.implicit_qtbt_enabled_flag)
+    if (!gps.trisoup_node_size_log2) {
+      bs.writeUe(gps.max_num_implicit_qtbt_before_ot);
+      bs.writeUe(gps.min_implicit_qtbt_size_log2);
+    }
 
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
@@ -243,6 +251,7 @@ parseGps(const PayloadBuffer& buf)
       bs.readUe(&gps.gps_geom_box_log2_scale);
   }
   bs.read(&gps.geom_unique_points_flag);
+  bs.read(&gps.implicit_qtbt_enabled_flag);
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
   bs.read(&gps.bitwise_occupancy_coding_flag);
@@ -255,6 +264,14 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
     bs.readUe(&gps.geom_base_qp);
+
+  gps.max_num_implicit_qtbt_before_ot = 0;
+  gps.min_implicit_qtbt_size_log2 = 0;
+  if (gps.implicit_qtbt_enabled_flag)
+    if (gps.trisoup_node_size_log2 == 0) {
+      bs.readUe(&gps.max_num_implicit_qtbt_before_ot);
+      bs.readUe(&gps.min_implicit_qtbt_size_log2);
+    }
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
@@ -426,7 +443,22 @@ write(
     bs.writeUe(geom_box_origin_z);
   }
 
-  bs.writeUe(gbh.geom_max_node_size_log2);
+  if (!gps.implicit_qtbt_enabled_flag) {
+    bs.writeUe(gbh.geom_max_node_size_log2);
+  } else {
+    auto& geom_max_node_size_log2_x = gbh.geom_max_node_size_log2_xyz[0];
+
+    int geom_max_node_size_log2_delta_y =
+      gbh.geom_max_node_size_log2_xyz[1] - gbh.geom_max_node_size_log2_xyz[0];
+
+    int geom_max_node_size_log2_delta_z =
+      gbh.geom_max_node_size_log2_xyz[2] - gbh.geom_max_node_size_log2_xyz[1];
+
+    bs.writeUe(geom_max_node_size_log2_x);
+    bs.writeSe(geom_max_node_size_log2_delta_y);
+    bs.writeSe(geom_max_node_size_log2_delta_z);
+  }
+
   bs.writeUe(gbh.geom_num_points);
   bs.byteAlign();
 }
@@ -473,7 +505,26 @@ parseGbh(
     gbh.geomBoxOrigin.z() = geom_box_origin_z << geomBoxLog2Scale;
   }
 
-  bs.readUe(&gbh.geom_max_node_size_log2);
+  if (!gps.implicit_qtbt_enabled_flag) {
+    bs.readUe(&gbh.geom_max_node_size_log2);
+  } else {
+    int geom_max_node_size_log2_x;
+    int geom_max_node_size_log2_delta_y;
+    int geom_max_node_size_log2_delta_z;
+
+    bs.readUe(&geom_max_node_size_log2_x);
+    bs.readSe(&geom_max_node_size_log2_delta_y);
+    bs.readSe(&geom_max_node_size_log2_delta_z);
+
+    gbh.geom_max_node_size_log2_xyz[0] = geom_max_node_size_log2_x;
+
+    gbh.geom_max_node_size_log2_xyz[1] =
+      geom_max_node_size_log2_delta_y + gbh.geom_max_node_size_log2_xyz[0];
+
+    gbh.geom_max_node_size_log2_xyz[2] =
+      geom_max_node_size_log2_delta_z + gbh.geom_max_node_size_log2_xyz[1];
+  }
+
   bs.readUe(&gbh.geom_num_points);
   bs.byteAlign();
 

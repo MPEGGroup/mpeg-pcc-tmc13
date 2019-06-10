@@ -270,6 +270,16 @@ struct GeometryParameterSet {
 
   // intial qp for geometry scaling
   int geom_base_qp;
+
+  // Enables/disables non-cubic geometry nodes
+  bool implicit_qtbt_enabled_flag;
+
+  // maximum number of implicit qtbt before performing octree partition
+  // for geometry coding.
+  int max_num_implicit_qtbt_before_ot;
+
+  // minimum size in log2 of implicit qtbt for geometry coding.
+  int min_implicit_qtbt_size_log2;
 };
 
 //============================================================================
@@ -286,7 +296,24 @@ struct GeometryBrickHeader {
 
   // todo(df): minus1?
   int geom_max_node_size_log2;
+  Vec3<int> geom_max_node_size_log2_xyz;
   int geom_num_points;
+
+  int geomMaxNodeSizeLog2(const GeometryParameterSet& gps) const
+  {
+    if (gps.implicit_qtbt_enabled_flag)
+      return std::max({geom_max_node_size_log2_xyz[0],
+                       geom_max_node_size_log2_xyz[1],
+                       geom_max_node_size_log2_xyz[2]});
+    return geom_max_node_size_log2;
+  }
+
+  Vec3<int> geomMaxNodeSizeLog2Xyz(const GeometryParameterSet& gps) const
+  {
+    if (gps.implicit_qtbt_enabled_flag)
+      return geom_max_node_size_log2_xyz;
+    return geom_max_node_size_log2;
+  }
 
   // qp offset for geometry scaling (if enabled)
   int geom_slice_qp_offset;

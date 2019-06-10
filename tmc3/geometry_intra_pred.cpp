@@ -63,6 +63,7 @@ void
 predictGeometryOccupancyIntra(
   const MortonMap3D& occupancyAtlas,
   Vec3<uint32_t> pos,
+  const int atlasShift,
   int* occupancyIsPredicted,
   int* occupancyPrediction)
 {
@@ -75,27 +76,56 @@ predictGeometryOccupancyIntra(
   int numOccupied = 0;
 
   const int8_t* p = &LUT_dist[0][0];
+  if (atlasShift == 0) {
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dz = -1; dz <= 1; dz++) {
+          if (dz == 0 && dy == 0 && dx == 0)
+            continue;
 
-  for (int dx = -1; dx <= 1; dx++) {
-    for (int dy = -1; dy <= 1; dy++) {
-      for (int dz = -1; dz <= 1; dz++) {
-        if (dz == 0 && dy == 0 && dx == 0)
-          continue;
+          // todo(df): remove unnecessary checks
+          bool occupied = occupancyAtlas.getWithCheck(x + dx, y + dy, z + dz);
 
-        // todo(df): remove unnecessary checks
-        bool occupied = occupancyAtlas.getWithCheck(x + dx, y + dy, z + dz);
-
-        if (occupied) {
-          for (int i = 0; i < 8; i++)
-            score[i] += LUT1[p[i]];
-          numOccupied++;
-        } else {
-          for (int i = 0; i < 8; i++)
-            score[i] += LUT0[p[i]];
+          if (occupied) {
+            for (int i = 0; i < 8; i++)
+              score[i] += LUT1[p[i]];
+            numOccupied++;
+          } else {
+            for (int i = 0; i < 8; i++)
+              score[i] += LUT0[p[i]];
+          }
+          // next pattern
+          p += 8;
         }
+      }
+    }
+  } else {
+    const int shiftX = (atlasShift & 4 ? 1 : 0);
+    const int shiftY = (atlasShift & 2 ? 1 : 0);
+    const int shiftZ = (atlasShift & 1 ? 1 : 0);
 
-        // next pattern
-        p += 8;
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dz = -1; dz <= 1; dz++) {
+          if (dz == 0 && dy == 0 && dx == 0)
+            continue;
+
+          // todo(df): remove unnecessary checks
+          bool occupied = occupancyAtlas.getWithCheck(
+            x + dx, y + dy, z + dz, shiftX, shiftY, shiftZ);
+
+          if (occupied) {
+            for (int i = 0; i < 8; i++)
+              score[i] += LUT1[p[i]];
+            numOccupied++;
+          } else {
+            for (int i = 0; i < 8; i++)
+              score[i] += LUT0[p[i]];
+          }
+
+          // next pattern
+          p += 8;
+        }
       }
     }
   }

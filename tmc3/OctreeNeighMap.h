@@ -62,7 +62,7 @@ public:
     const uint32_t halfCubeSizeLog2 = cubeSizeLog2 ? cubeSizeLog2 - 1 : 0;
     _cubeSizeLog2 = cubeSizeLog2;
     _cubeSize = 1 << cubeSizeLog2;
-    _bufferSizeInBytes = 1 << (3 * halfCubeSizeLog2);
+    _bufferSizeInBytes = 1 << (3 * cubeSizeLog2);
     _buffer.reset(new uint8_t[_bufferSizeInBytes]);
     _childOccupancy.reset(new uint8_t[_bufferSizeInBytes << 3]);
     _updates.reserve(1 << 16);
@@ -98,12 +98,44 @@ public:
     }
   }
 
+  uint32_t get(
+    const int32_t x,
+    const int32_t y,
+    const int32_t z,
+    const int shiftX,
+    const int shiftY,
+    const int shiftZ) const
+  {
+    assert(
+      x >= 0 && y >= 0 && z >= 0 && x < _cubeSize && y < _cubeSize
+      && z < _cubeSize);
+    return (_buffer[getByteIndex(x >> shiftX, y >> shiftY, z >> shiftZ)]
+            >> getBitIndex(shiftX ? x : 0, shiftY ? y : 0, shiftZ ? z : 0))
+      & 1;
+  }
+
+  uint32_t getWithCheck(
+    const int32_t x,
+    const int32_t y,
+    const int32_t z,
+    const int shiftX,
+    const int shiftY,
+    const int shiftZ) const
+  {
+    if (
+      x < 0 || x >= _cubeSize || y < 0 || y >= _cubeSize || z < 0
+      || z >= _cubeSize) {
+      return false;
+    }
+    return get(x, y, z, shiftX, shiftY, shiftZ);
+  }
+
   uint32_t get(const int32_t x, const int32_t y, const int32_t z) const
   {
     assert(
       x >= 0 && y >= 0 && z >= 0 && x < _cubeSize && y < _cubeSize
       && z < _cubeSize);
-    return (_buffer[getByteIndex(x, y, z)] >> getBitIndex(x, y, z)) & 1;
+    return _buffer[getByteIndex(x, y, z)] & 1;
   }
 
   uint32_t
@@ -119,13 +151,12 @@ public:
 
   void setChildOcc(int32_t x, int32_t y, int32_t z, uint8_t childOccupancy)
   {
-    _childOccupancy[getByteIndex(x << 1, y << 1, z << 1)] = childOccupancy;
+    _childOccupancy[getByteIndex(x, y, z)] = childOccupancy;
   }
 
   uint8_t getChildOcc(int32_t x, int32_t y, int32_t z) const
   {
-    uint8_t childOccupancy =
-      _childOccupancy[getByteIndex(x << 1, y << 1, z << 1)];
+    uint8_t childOccupancy = _childOccupancy[getByteIndex(x, y, z)];
     return childOccupancy;
   }
 
@@ -138,8 +169,7 @@ private:
   uint32_t
   getByteIndex(const int32_t x, const int32_t y, const int32_t z) const
   {
-    return kMortonCode256X[x >> 1] | kMortonCode256Y[y >> 1]
-      | kMortonCode256Z[z >> 1];
+    return kMortonCode256X[x] | kMortonCode256Y[y] | kMortonCode256Z[z];
   }
 
   int _cubeSize = 0;
@@ -177,12 +207,14 @@ struct GeometryNeighPattern {
 GeometryNeighPattern makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<uint32_t>& currentPosition,
+  const int atlasShift,
   const MortonMap3D& occupancyAtlas);
 
 // populate (if necessary) the occupancy atlas with occupancy information
 // from @fifo.
 void updateGeometryOccupancyAtlas(
   const Vec3<uint32_t>& position,
+  const int atlasShift,
   const ringbuf<PCCOctree3Node>& fifo,
   const ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,

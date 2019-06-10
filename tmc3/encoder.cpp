@@ -451,13 +451,6 @@ void
 PCCTMC3Encoder3::encodeGeometryBrick(
   const EncoderParams* params, PayloadBuffer* buf)
 {
-  // todo(df): confirm minimum of 1 isn't needed
-  int32_t maxBB =
-    std::max({1, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
-
-  // the current node dimension (log2) encompasing maxBB
-  int nodeSizeLog2 = ceillog2(maxBB + 1);
-
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
@@ -465,7 +458,19 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_log2_scale = 0;
-  gbh.geom_max_node_size_log2 = nodeSizeLog2;
+
+  if (!_gps->implicit_qtbt_enabled_flag) {
+    // todo(df): confirm minimum of 1 isn't needed
+    int32_t maxBB =
+      std::max({1, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
+    gbh.geom_max_node_size_log2 = ceillog2(maxBB + 1);
+  } else {
+    // different node dimension for xyz, for the purpose of implicit qtbt
+    gbh.geom_max_node_size_log2_xyz[0] = ceillog2(_sliceBoxWhd[0] + 1);
+    gbh.geom_max_node_size_log2_xyz[1] = ceillog2(_sliceBoxWhd[1] + 1);
+    gbh.geom_max_node_size_log2_xyz[2] = ceillog2(_sliceBoxWhd[2] + 1);
+  }
+
   gbh.geom_num_points = int(pointCloud.getPointCount());
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_enabled_flag =

@@ -115,6 +115,18 @@ void decodeGeometryOctree(
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 //---------------------------------------------------------------------------
+// Determine if a node is a leaf node based on size.
+// A node with all dimension = 0 is a leaf node.
+// NB: some dimensions may be less than zero if coding of that dimension
+// has already terminated.
+
+inline bool
+isLeafNode(const Vec3<int>& sizeLog2)
+{
+  return sizeLog2[0] <= 0 && sizeLog2[1] <= 0 && sizeLog2[2] <= 0;
+}
+
+//---------------------------------------------------------------------------
 // Determine if direct coding is permitted.
 // If tool is enabled:
 //   - Block must not be near the bottom of the tree
@@ -202,6 +214,90 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
     *ctxIdx -= kCtxMapOctreeOccupancyDelta[*ctxIdx >> 4];
 
   return retval;
+}
+
+//---------------------------------------------------------------------------
+
+inline Vec3<int>
+implicitQtBtDecision(
+  Vec3<int> nodeSizeLog2,
+  int maxNumImplicitQtbtBeforeOt,
+  int minDepthImplicitQtbt)
+{
+  int nodeMinDimLog2 =
+    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+
+  if (maxNumImplicitQtbtBeforeOt || nodeMinDimLog2 == minDepthImplicitQtbt) {
+    // implicit qt bt
+    int nodeMaxDimLog2 =
+      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+    for (int k = 0; k < 3; k++) {
+      if (nodeSizeLog2[k] == nodeMaxDimLog2)
+        nodeSizeLog2[k]--;
+    }
+  } else  // octree partition
+    nodeSizeLog2 = nodeSizeLog2 - 1;
+
+  return nodeSizeLog2;
+}
+
+//---------------------------------------------------------------------------
+
+inline void
+updateImplicitQtBtParameters(
+  const Vec3<int>& nodeSizeLog2,
+  int trisoup_node_size_log2,
+  int* maxNumImplicitQtbtBeforeOt,
+  int* minSizeImplicitQtbt)
+{
+  int nodeMinDimLog2 =
+    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int nodeMaxDimLog2 =
+    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+
+  // max number of implicit qtbt before ot is bounded by difference between
+  // max and min node size
+  if (*maxNumImplicitQtbtBeforeOt > (nodeMaxDimLog2 - nodeMinDimLog2))
+    *maxNumImplicitQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
+  // min depth of implicit qtbt is bounded by min node size
+  if (*minSizeImplicitQtbt > nodeMinDimLog2)
+    *minSizeImplicitQtbt = nodeMinDimLog2;
+  // if all dimensions have same size, min depth of implicit qtbt should be 0
+  if (nodeMaxDimLog2 == nodeMinDimLog2) {
+    *minSizeImplicitQtbt = 0;
+  }
+
+  // if trisoup is enabled, perform qtbt first before ot
+  if (trisoup_node_size_log2 != 0) {
+    *maxNumImplicitQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
+    *minSizeImplicitQtbt = 0;
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline Vec3<int>
+qtBtChildSize(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
+{
+  Vec3<int> bitpos = 0;
+  for (int k = 0; k < 3; k++) {
+    if (childSizeLog2[k] != nodeSizeLog2[k])
+      bitpos[k] = 1 << childSizeLog2[k];
+  }
+  return bitpos;
+}
+
+//---------------------------------------------------------------------------
+
+inline int
+nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
+{
+  int indicator = 0;
+  for (int k = 0; k < 3; k++) {
+    indicator <<= 1;
+    indicator |= nodeSizeLog2[k] == childSizeLog2[k];
+  }
+  return indicator;
 }
 
 //---------------------------------------------------------------------------

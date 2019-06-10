@@ -235,6 +235,18 @@ A non-normative encoder process determines the QP offset based upon
 the local density of the octree.  A value of -1 disables signalling
 of per-node QP offsets.
 
+### `implicitQtBtEnabled=0|1`
+Enables non-cubic geometry tree coding.  When enabled, the geometry
+tree may have a cuboid bounding box.  Internal tree nodes are
+implicitly determined to be octree, quadtree or binary tree nodes.
+
+### `max_num_implicit_qtbt_before_ot=INT-VALUE`
+Limits the maximal number of implicit quadtree and binary tree
+partitions used before the first octree partition.
+
+### `min_implicit_qtbt_size_log2=INT-VALUE`
+Specifies the minimum size of implicit quadtree and binary tree partitions
+
 ### `--bitwiseOccupancyCoding=0|1`
 In octree geometry coding, there are both byte-wise and bit-wise tools to
 encode the occupancy data.  This option selects between the two methods.
