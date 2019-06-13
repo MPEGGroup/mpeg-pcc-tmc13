@@ -45,22 +45,9 @@
 #include "PCCPointSet.h"
 #include "PCCPointSetProcessing.h"
 #include "hls.h"
+#include "partitioning.h"
 
 namespace pcc {
-
-//============================================================================
-
-enum class PartitionMethod
-{
-  // Don't partition input
-  kNone = 0,
-
-  // Partition according to uniform geometry
-  kUniformGeom = 2,
-
-  // Partition according to the depth of octree
-  kOctreeUniform = 3,
-};
 
 //============================================================================
 
@@ -88,14 +75,8 @@ struct EncoderParams {
   // Filename for saving recoloured point cloud.
   std::string postRecolorPath;
 
-  // Method for partitioning the input cloud
-  PartitionMethod partitionMethod;
-
-  // Number of slices used by PartitionMethod::kUniformGeom
-  int partitionNumUniformGeom;
-
-  // Depth of octree used by PartitionMethod::kOctreeUniform
-  int partitionOctreeDepth;
+  // Parameters that control partitioning
+  PartitionParams partition;
 
   // attribute recolouring parameters
   RecolourParams recolour;
@@ -118,6 +99,7 @@ public:
 
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
+    const PCCPointSet3& originPartCloud,
     EncoderParams* params,
     std::function<void(const PayloadBuffer&)> outputFn,
     PCCPointSet3* reconstructedCloud = nullptr);
@@ -129,7 +111,12 @@ private:
 
   void encodeGeometryBrick(PayloadBuffer* buf);
 
-  void quantization(const PCCPointSet3& inputPointCloud);
+  PCCPointSet3 quantization(const PCCPointSet3& inputPointCloud);
+
+  void getSrcPartition(
+    const PCCPointSet3& inputPointCloud,
+    PCCPointSet3& srcPartition,
+    std::vector<int32_t> indexes);
 
 private:
   PCCPointSet3 pointCloud;
@@ -150,6 +137,9 @@ private:
 
   // Identifies the current tile
   int _tileId;
+
+  // Map quantized points to the original input points
+  std::multimap<Vec3<double>, int32_t> quantizedToOrigin;
 };
 
 //============================================================================

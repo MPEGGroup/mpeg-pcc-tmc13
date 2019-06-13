@@ -39,6 +39,8 @@
 #include <cstddef>
 #include <set>
 #include <vector>
+#include <utility>
+#include <map>
 
 #include "KDTreeVectorOfVectorsAdaptor.h"
 #include "PCCPointSet.h"
@@ -80,10 +82,12 @@ quantizePositionsUniq(
   const Vec3<int> offset,
   const Box3<int> clamp,
   const PCCPointSet3& src,
-  PCCPointSet3* dst)
+  PCCPointSet3* dst,
+  std::multimap<Vec3<double>, int32_t>& doubleQuantizedToOrigin)
 {
   // Determine the set of unique quantised points
 
+  std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
   std::set<Vec3<int32_t>> uniquePoints;
   int numSrcPoints = src.getPointCount();
   for (int i = 0; i < numSrcPoints; ++i) {
@@ -96,6 +100,7 @@ quantizePositionsUniq(
     }
 
     uniquePoints.insert(quantizedPoint);
+    intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
   }
 
   // Populate output point cloud
@@ -105,12 +110,18 @@ quantizePositionsUniq(
     dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
   }
   dst->resize(uniquePoints.size());
+  doubleQuantizedToOrigin.clear();
 
   int idx = 0;
   for (const auto& point : uniquePoints) {
     auto& dstPoint = (*dst)[idx++];
     for (int k = 0; k < 3; ++k)
       dstPoint[k] = double(point[k]);
+    std::multimap<Vec3<int32_t>, int32_t>::iterator pos;
+    for (pos = intQuantizedToOrigin.lower_bound(point);
+         pos != intQuantizedToOrigin.upper_bound(point); ++pos) {
+      doubleQuantizedToOrigin.insert(std::make_pair(dstPoint, pos->second));
+    }
   }
 }
 

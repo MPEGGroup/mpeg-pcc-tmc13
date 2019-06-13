@@ -168,8 +168,8 @@ operator<<(std::ostream& out, const PartitionMethod& val)
 {
   switch (val) {
   case PartitionMethod::kNone: out << "0 (None)"; break;
-  case PartitionMethod::kUniformGeom: out << "0 (UniformGeom)"; break;
-  case PartitionMethod::kOctreeUniform: out << "0 (UniformOctree)"; break;
+  case PartitionMethod::kUniformGeom: out << "2 (UniformGeom)"; break;
+  case PartitionMethod::kOctreeUniform: out << "3 (UniformOctree)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -323,22 +323,28 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enables removal of duplicated points")
 
   ("partitionMethod",
-    params.encoder.partitionMethod, PartitionMethod::kNone,
+    params.encoder.partition.method, PartitionMethod::kUniformGeom,
     "Method used to partition input point cloud into slices/tiles:\n"
     "  0: none\n"
     "  1: none (deprecated)\n"
     "  2: n Uniform-Geometry partition bins along the longest edge\n"
     "  3: Uniform Geometry partition at n octree depth")
 
-  ("partitionNumUniformGeom",
-    params.encoder.partitionNumUniformGeom, 0,
-    "Number of bins for partitionMethod=2:\n"
-    "  0: slice partition with adaptive-defined bins\n"
-    "  >=1: slice partition with user-defined bins\n")
-
   ("partitionOctreeDepth",
-    params.encoder.partitionOctreeDepth, 2,
-    "Depth of octree partition for partitionMethod=3")
+    params.encoder.partition.octreeDepth, 1,
+    "Depth of octree partition for partitionMethod=4")
+
+  ("sliceMaxPoints",
+    params.encoder.partition.sliceMaxPoints, 1100000,
+    "Maximum number of points per slice")
+
+  ("sliceMinPoints",
+    params.encoder.partition.sliceMinPoints, 550000,
+    "Minimum number of points per slice (soft limit)")
+
+  ("tileSize",
+    params.encoder.partition.tileSize, 0,
+    "Partition input into cubic tiles of given size")
 
   ("cabac_bypass_stream_enabled_flag",
     params.encoder.sps.cabac_bypass_stream_enabled_flag, false,
@@ -631,6 +637,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   }
 
   // sanity checks
+
+  if (
+    params.encoder.partition.sliceMaxPoints
+    < params.encoder.partition.sliceMinPoints)
+    err.error()
+      << "sliceMaxPoints must be greater than or equal to sliceMinPoints\n";
 
   if (params.encoder.gps.intra_pred_max_node_size_log2)
     if (!params.encoder.gps.neighbour_avail_boundary_log2)

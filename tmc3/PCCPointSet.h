@@ -428,6 +428,7 @@ public:
       std::swap(getReflectance(index1), getReflectance(index2));
     }
   }
+
   Box3<double> computeBoundingBox() const
   {
     Box3<double> bbox = {std::numeric_limits<double>::max(),
@@ -446,6 +447,34 @@ public:
     }
     return bbox;
   }
+
+  //--------------------------------------------------------------------------
+  // Determine the bounding box of the set of points given by the indicies
+  // given by iterating over [begin, end)
+
+  template<typename ForwardIt>
+  Box3<double> computeBoundingBox(ForwardIt begin, ForwardIt end) const
+  {
+    Box3<double> bbox = {std::numeric_limits<double>::max(),
+                         std::numeric_limits<double>::lowest()};
+
+    for (auto it = begin; it != end; ++it) {
+      int i = *it;
+      const Vec3<double>& pt = (*this)[i];
+      for (int k = 0; k < 3; ++k) {
+        if (pt[k] > bbox.max[k]) {
+          bbox.max[k] = pt[k];
+        }
+        if (pt[k] < bbox.min[k]) {
+          bbox.min[k] = pt[k];
+        }
+      }
+    }
+    return bbox;
+  }
+
+  //--------------------------------------------------------------------------
+
   static bool compareSeparators(char aChar, const char* const sep)
   {
     int i = 0;

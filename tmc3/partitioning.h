@@ -46,6 +46,39 @@ namespace pcc {
 
 //============================================================================
 
+enum class PartitionMethod
+{
+  // Don't partition input
+  kNone = 0,
+
+  // Partition according to uniform geometry
+  kUniformGeom = 2,
+
+  // Partition according to the depth of octree
+  kOctreeUniform = 3,
+};
+
+//============================================================================
+
+struct PartitionParams {
+  // Method for partitioning a point cloud
+  PartitionMethod method;
+
+  // Depth of octree used in partitioning
+  int octreeDepth;
+
+  // Maximum number of points per slice
+  int sliceMaxPoints;
+
+  // Minimum number of points per slice
+  int sliceMinPoints;
+
+  // Baseline tile width. (0 => disabled)
+  int tileSize;
+};
+
+//============================================================================
+
 struct Partition {
   // The *_slice_id to encode this partition with
   int sliceId;
@@ -72,10 +105,19 @@ struct PartitionSet {
 
 //============================================================================
 
-PartitionSet
-partitionByUniformGeom(const PCCPointSet3& cloud, int numPartitions);
+std::vector<Partition> partitionByUniformGeom(
+  const PartitionParams& params, const PCCPointSet3& cloud, int tileID);
 
-PartitionSet partitionByOctreeDepth(const PCCPointSet3& cloud, int depOctree);
+std::vector<Partition> partitionByOctreeDepth(
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  int tileID,
+  bool splitByDepth = false);
+
+//============================================================================
+
+std::vector<std::vector<int32_t>>
+tilePartition(const PartitionParams& params, const PCCPointSet3& cloud);
 
 //============================================================================
 
