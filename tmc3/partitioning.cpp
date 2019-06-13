@@ -305,6 +305,199 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud)
   return tilePartition;
 }
 
+//=============================================================================
+
+Vec3<int>
+minOrigin(const Vec3<int> a, const Vec3<int> b)
+{
+  Vec3<int> newOrigin;
+  for (int i = 0; i < 3; i++) {
+    newOrigin[i] = (a[i] < b[i]) ? a[i] : b[i];
+  }
+  return newOrigin;
+}
+
+//----------------------------------------------------------------------------
+// get the axis of the longest edge
+
+int
+maxEdgeAxis(const PCCPointSet3& cloud, std::vector<int32_t>& sliceIndexes)
+{
+  int maxEdge = 0;
+  int maxAxis = 0;
+  for (int i = 0; i < 3; i++) {
+    int maxpoint, minpoint;
+    maxpoint = minpoint = cloud[sliceIndexes[0]][i];
+
+    for (int k = 1; k < sliceIndexes.size(); k++) {
+      if (cloud[sliceIndexes[k]][i] < minpoint)
+        minpoint = cloud[sliceIndexes[k]][i];
+      else if (cloud[sliceIndexes[k]][i] > maxpoint)
+        maxpoint = cloud[sliceIndexes[k]][i];
+    }
+
+    if (maxEdge < (maxpoint - minpoint)) {
+      maxEdge = maxpoint - minpoint;
+      maxAxis = i;
+    }
+  }
+
+  return maxAxis;
+}
+
+//============================================================================
+// evenly split slice into several partitions no larger than maxPoints
+
+std::vector<Partition>::iterator
+splitSlice(
+  const PCCPointSet3& cloud,
+  std::vector<Partition>& slices,
+  std::vector<Partition>::iterator toBeSplit,
+  int maxPoints)
+{
+  auto& sliceA = (*toBeSplit);
+  auto& AIndexes = sliceA.pointIndexes;
+
+  // Split along the longest edge at the median point
+  int splitAxis = maxEdgeAxis(cloud, AIndexes);
+  std::stable_sort(
+    AIndexes.begin(), AIndexes.end(), [&](int32_t a, int32_t b) {
+      return cloud[a][splitAxis] < cloud[b][splitAxis];
+    });
+
+  int numSplit = std::ceil((double)AIndexes.size() / (double)maxPoints);
+  int splitsize = AIndexes.size() / numSplit;
+  std::vector<Partition> splitPartitions;
+  splitPartitions.resize(numSplit);
+
+  // The 2nd to the penultimate partitions
+  for (int i = 1; i < numSplit - 1; i++) {
+    splitPartitions[i].sliceId = sliceA.sliceId + i;
+    splitPartitions[i].tileId = sliceA.tileId;
+    splitPartitions[i].origin = Vec3<int>{0};
+
+    auto& Indexes = splitPartitions[i].pointIndexes;
+    Indexes.insert(
+      Indexes.begin(), AIndexes.begin() + i * splitsize,
+      AIndexes.begin() + (i + 1) * splitsize);
+  }
+  // The last split partition
+  auto& Indexes = splitPartitions[numSplit - 1].pointIndexes;
+  Indexes.insert(
+    Indexes.begin(), AIndexes.begin() + (numSplit - 1) * splitsize,
+    AIndexes.end());
+
+  AIndexes.erase(AIndexes.begin() + splitsize, AIndexes.end());
+
+  toBeSplit = slices.insert(
+    toBeSplit + 1, splitPartitions.begin() + 1, splitPartitions.end());
+
+  return toBeSplit + (numSplit - 1);
+}
+
+//----------------------------------------------------------------------------
+// combine the two slices into one
+
+std::vector<Partition>::iterator
+mergeSlice(
+  std::vector<Partition>& slices,
+  std::vector<Partition>::iterator a,
+  std::vector<Partition>::iterator b)
+{
+  auto& AIndexes = (*a).pointIndexes;
+  auto& BIndexes = (*b).pointIndexes;
+
+  AIndexes.insert(AIndexes.end(), BIndexes.begin(), BIndexes.end());
+  (*a).origin = minOrigin((*a).origin, (*b).origin);
+
+  return slices.erase(b);
+}
+
+//=============================================================================
+// first split slices still having too many points(more than maxPoints)
+// then merge slices with too few points(less than minPoints)
+
+void
+refineSlices(
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  std::vector<Partition>& slices)
+{
+  int maxPoints = params.sliceMaxPoints;
+  int minPoints = params.sliceMinPoints;
+
+  std::vector<Partition>::iterator it = slices.begin();
+  while (it != slices.end()) {
+    if ((*it).pointIndexes.size() > maxPoints) {
+      it = splitSlice(cloud, slices, it, maxPoints);
+    } else {
+      it++;
+    }
+  }
+
+  it = slices.begin();
+  while (it != slices.end() && slices.size() > 1) {
+    if ((*it).pointIndexes.size() < minPoints) {
+      std::vector<Partition>::iterator toBeMerge;
+      bool isFront = 0;
+
+      // - a slice could only merge with the one before or after it
+      // - the first/last slice could only merge with the next/front one
+      // - let mergerfront = point number of slice after merging with the front one
+      //   mergenext = point number of slice after merging with the subsquent one
+      // - if both mergefront and mergenext < maxPoints, choose the larger one;
+      // - if one of them < maxPoints and another > maxPoints,
+      //     choose the small one to meet the requirement
+      // - if both mergefront and mergenext > maxPoints, choose the larger one
+      //     and do one more split after merge. We deem the slice after split
+      //     as acceptable whether they are larger than minPoints or not
+      // NB: if the merger slice is still smaller than minPoints,
+      //     go on merging the same slice
+      if (it == slices.begin()) {
+        assert(it + 1 != slices.end());
+        toBeMerge = it + 1;
+        isFront = 0;
+      } else if (it == slices.end() - 1) {
+        assert(it - 1 != slices.end());
+        toBeMerge = it - 1;
+        isFront = 1;
+      } else {
+        int mergefront =
+          (*it).pointIndexes.size() + (*(it - 1)).pointIndexes.size();
+        int mergenext =
+          (*it).pointIndexes.size() + (*(it + 1)).pointIndexes.size();
+
+        if (
+          (mergefront > maxPoints && mergenext > maxPoints)
+          || (mergefront < maxPoints && mergenext < maxPoints)) {
+          toBeMerge = mergefront > mergenext ? (it - 1) : (it + 1);
+          isFront = mergefront > mergenext ? 1 : 0;
+        } else {
+          toBeMerge = mergefront < mergenext ? (it - 1) : (it + 1);
+          isFront = mergefront < mergenext ? 1 : 0;
+        }
+      }
+
+      it = isFront ? mergeSlice(slices, toBeMerge, it)
+                   : mergeSlice(slices, it, toBeMerge);
+
+      if ((*(it - 1)).pointIndexes.size() > maxPoints)
+        it = splitSlice(cloud, slices, it - 1, maxPoints);
+      else if ((*(it - 1)).pointIndexes.size() < minPoints)
+        it--;
+
+    } else {
+      it++;
+    }
+  }
+
+  for (int i = 0; i < slices.size(); i++) {
+    auto& slice = slices[i];
+    slice.sliceId = i;
+    slice.tileId = -1;
+  }
+}
+
 //============================================================================
 
 }  // namespace pcc

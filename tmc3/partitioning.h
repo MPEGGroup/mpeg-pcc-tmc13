@@ -121,4 +121,11 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud);
 
 //============================================================================
 
+void refineSlices(
+  const PartitionParams& params,
+  const PCCPointSet3& inputPointCloud,
+  std::vector<Partition>& slices);
+
+//============================================================================
+
 }  // namespace pcc
