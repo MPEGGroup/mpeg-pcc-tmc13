@@ -36,6 +36,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include "constants.h"
 
@@ -107,6 +108,13 @@ typedef std::array<Quantizer, 2> Quantizers;
 // Derive quantisation step sizes for each component given attribute
 
 Quantizers deriveQuantizers(
+  const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh,
+  int qpLayer);
+
+//============================================================================
+
+std::vector<Quantizers> deriveQuantizerLayers(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 //============================================================================

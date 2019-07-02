@@ -67,42 +67,42 @@ protected:
   void encodeReflectancesLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& quant,
+    const std::vector<Quantizers>& quantLayers,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 

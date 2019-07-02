@@ -54,7 +54,9 @@ Quantizer::Quantizer(int qp)
 
 Quantizers
 deriveQuantizers(
-  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+  const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh,
+  int qpLayer)
 {
   int sliceQpLuma = attr_aps.init_qp;
   int sliceQpChroma = attr_aps.init_qp + attr_aps.aps_chroma_qp_offset;
@@ -72,7 +74,36 @@ deriveQuantizers(
     sliceQpChroma += fixedPointQpOffset;
   }
 
+  if (abh.attr_layer_qp_present_flag()) {
+    sliceQpLuma += abh.attr_layer_qp_delta_luma[qpLayer];
+    sliceQpChroma += abh.attr_layer_qp_delta_chroma[qpLayer];
+    sliceQpLuma = std::max(sliceQpLuma, 4);
+    sliceQpChroma = std::max(sliceQpChroma, 4);
+  }
+
   return {Quantizer{sliceQpLuma}, Quantizer{sliceQpChroma}};
+}
+
+//============================================================================
+
+std::vector<Quantizers>
+deriveQuantizerLayers(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+{
+  std::vector<Quantizers> layers;
+
+  layers.push_back(deriveQuantizers(attr_aps, abh, 0));
+
+  if (abh.attr_layer_qp_present_flag()) {
+    int numLayers = attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
+      ? attr_aps.raht_depth + 1
+      : attr_aps.num_detail_levels + 1;
+    for (int layer = 1; layer < numLayers; layer++) {
+      layers.push_back(deriveQuantizers(attr_aps, abh, layer));
+    }
+  }
+
+  return layers;
 }
 
 //============================================================================

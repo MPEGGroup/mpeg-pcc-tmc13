@@ -514,7 +514,7 @@ template<bool isEncoder>
 void
 uraht_process(
   bool raht_prediction_enabled_flag,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   int numPoints,
   int numAttrs,
   int64_t* positions,
@@ -577,6 +577,9 @@ uraht_process(
   std::vector<UrahtNode> weightsParent;
   weightsParent.reserve(numPoints);
 
+  // quant layer selection
+  auto quantLayerIt = quantLayers.begin();
+
   // descend tree
   weightsLf.resize(1);
   attrsLf.resize(numAttrs);
@@ -602,6 +605,11 @@ uraht_process(
     bool inheritDc = !isFirst;
     bool enablePrediction = inheritDc && raht_prediction_enabled_flag;
     isFirst = 0;
+
+    // select quantiser according to transform layer
+    const auto& quant = *quantLayerIt;
+    if (std::next(quantLayerIt) != quantLayers.end())
+      quantLayerIt++;
 
     // prepare reconstruction buffers
     //  previous reconstruction -> attrRecParent
@@ -774,6 +782,8 @@ uraht_process(
   std::swap(attrRec, attrRecParent);
   auto attrRecParentIt = attrRecParent.cbegin();
   auto attrsHfIt = attrsHf.cbegin();
+  const auto& quant = quantLayers.back();
+
   for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
     int weight = weightsLf[i].weight;
     // unique points have weight = 1
@@ -874,7 +884,7 @@ uraht_process(
 void
 regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -882,8 +892,8 @@ regionAdaptiveHierarchicalTransform(
   int* coefficients)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, quant, voxelCount, attribCount, mortonCode,
-    attributes, coefficients);
+    raht_prediction_enabled_flag, quantLayers, voxelCount, attribCount,
+    mortonCode, attributes, coefficients);
 }
 
 //============================================================================
@@ -906,7 +916,7 @@ regionAdaptiveHierarchicalTransform(
 void
 regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -914,8 +924,8 @@ regionAdaptiveHierarchicalInverseTransform(
   int* coefficients)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, quant, voxelCount, attribCount, mortonCode,
-    attributes, coefficients);
+    raht_prediction_enabled_flag, quantLayers, voxelCount, attribCount,
+    mortonCode, attributes, coefficients);
 }
 
 //============================================================================

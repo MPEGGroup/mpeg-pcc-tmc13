@@ -462,6 +462,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.aps_slice_qp_deltas_present_flag, false,
     "Enable signalling of per-slice QP values")
 
+  ("qpLayerOffsetsLuma",
+  	params_attr.encoder.abh.attr_layer_qp_delta_luma, {},
+	  "Attribute's per layer luma QP offsets")
+
+  ("qpLayerOffsetsChroma",
+	  params_attr.encoder.abh.attr_layer_qp_delta_chroma, {},
+	  "Attribute's per layer chroma QP offsets")
+
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.
   (po::Section("Recolouring"))
@@ -559,10 +567,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   for (const auto& it : params.encoder.attributeIdxMap) {
     auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     auto& attr_aps = params.encoder.aps[it.second];
+    auto& attr_enc = params.encoder.attr[it.second];
 
     // Avoid wasting bits signalling chroma quant step size for reflectance
     if (it.first == "reflectance") {
       attr_aps.aps_chroma_qp_offset = 0;
+      attr_enc.abh.attr_layer_qp_delta_chroma.clear();
     }
 
     bool isLifting =
@@ -626,6 +636,16 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   for (const auto& it : params.encoder.attributeIdxMap) {
     const auto& attr_sps = params.encoder.sps.attributeSets[it.second];
     const auto& attr_aps = params.encoder.aps[it.second];
+    auto& attr_enc = params.encoder.attr[it.second];
+
+    if (it.first == "color") {
+      if (
+        attr_enc.abh.attr_layer_qp_delta_luma.size()
+        != attr_enc.abh.attr_layer_qp_delta_chroma.size()) {
+        err.error() << it.first
+                    << ".qpLayerOffsetsLuma length != .qpLayerOffsetsChroma\n";
+      }
+    }
 
     bool isLifting =
       attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform

@@ -199,6 +199,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
     auto& attr_sps = params->sps.attributeSets[it.second];
+    auto& attr_aps = params->aps[it.second];
+    auto& attr_enc = params->attr[it.second];
     attr_sps.attr_instance_id = it.second;
 
     attr_sps.cicp_colour_primaries_idx = 2;
@@ -214,6 +216,21 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     if (it.first == "reflectance") {
       attr_sps.attr_num_dimensions = 1;
       attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
+    }
+
+    // the encoder options may not specify sufficient offsets for the number
+    // of layers used by the sytax: extend with last value as appropriate
+    if (!attr_enc.abh.attr_layer_qp_delta_luma.empty()) {
+      int numLayers =
+        attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
+        ? attr_aps.raht_depth + 1
+        : attr_aps.num_detail_levels + 1;
+
+      attr_enc.abh.attr_layer_qp_delta_luma.resize(
+        numLayers, attr_enc.abh.attr_layer_qp_delta_luma.back());
+
+      attr_enc.abh.attr_layer_qp_delta_chroma.resize(
+        numLayers, attr_enc.abh.attr_layer_qp_delta_chroma.back());
     }
   }
 }
@@ -285,6 +302,7 @@ PCCTMC3Encoder3::compressPartition(
     int attrIdx = it.second;
     const auto& attr_sps = _sps->attributeSets[attrIdx];
     const auto& attr_aps = *_aps[attrIdx];
+    const auto& attr_enc = params->attr[attrIdx];
     const auto& label = attr_sps.attributeLabel;
 
     PayloadBuffer payload(PayloadType::kAttributeBrick);
@@ -299,6 +317,9 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_geom_slice_id = _sliceId;
     abh.attr_qp_delta_luma = 0;
     abh.attr_qp_delta_chroma = 0;
+    abh.attr_layer_qp_delta_luma = attr_enc.abh.attr_layer_qp_delta_luma;
+    abh.attr_layer_qp_delta_chroma = attr_enc.abh.attr_layer_qp_delta_chroma;
+
     write(attr_aps, abh, &payload);
 
     AttributeEncoder attrEncoder;

@@ -443,6 +443,19 @@ write(
     bs.writeSe(abh.attr_qp_delta_chroma);
   }
 
+  bool attr_layer_qp_present_flag = !abh.attr_layer_qp_delta_luma.empty();
+  bs.write(attr_layer_qp_present_flag);
+  if (attr_layer_qp_present_flag) {
+    int numLayers = aps.attr_encoding == AttributeEncoding::kRAHTransform
+      ? aps.raht_depth + 1
+      : aps.num_detail_levels + 1;
+
+    for (int i = 0; i < numLayers; i++) {
+      bs.writeSe(abh.attr_layer_qp_delta_luma[i]);
+      bs.writeSe(abh.attr_layer_qp_delta_chroma[i]);
+    }
+  }
+
   bs.byteAlign();
 }
 
@@ -482,6 +495,21 @@ parseAbh(
   if (aps.aps_slice_qp_deltas_present_flag) {
     bs.readSe(&abh.attr_qp_delta_luma);
     bs.readSe(&abh.attr_qp_delta_chroma);
+  }
+
+  bool attr_layer_qp_present_flag;
+  bs.read(&attr_layer_qp_present_flag);
+  if (attr_layer_qp_present_flag) {
+    int numLayers = aps.attr_encoding == AttributeEncoding::kRAHTransform
+      ? aps.raht_depth + 1
+      : aps.num_detail_levels + 1;
+
+    abh.attr_layer_qp_delta_luma.resize(numLayers);
+    abh.attr_layer_qp_delta_chroma.resize(numLayers);
+    for (int i = 0; i < numLayers; i++) {
+      bs.readSe(&abh.attr_layer_qp_delta_luma[i]);
+      bs.readSe(&abh.attr_layer_qp_delta_chroma[i]);
+    }
   }
 
   bs.byteAlign();

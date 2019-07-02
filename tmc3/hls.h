@@ -277,6 +277,14 @@ struct AttributeBrickHeader {
   int attr_geom_slice_id;
   int attr_qp_delta_luma;
   int attr_qp_delta_chroma;
+
+  std::vector<int> attr_layer_qp_delta_luma;
+  std::vector<int> attr_layer_qp_delta_chroma;
+
+  bool attr_layer_qp_present_flag() const
+  {
+    return !attr_layer_qp_delta_luma.empty();
+  }
 };
 
 //============================================================================

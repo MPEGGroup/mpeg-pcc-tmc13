@@ -181,7 +181,8 @@ AttributeDecoder::decode(
 {
   int abhSize;
   AttributeBrickHeader abh = parseAbh(attr_aps, payload, &abhSize);
-  Quantizers quant = deriveQuantizers(attr_aps, abh);
+
+  std::vector<Quantizers> quantLayers = deriveQuantizerLayers(attr_aps, abh);
 
   PCCResidualsDecoder decoder;
   decoder.start(payload.data() + abhSize, payload.size() - abhSize);
@@ -189,29 +190,32 @@ AttributeDecoder::decode(
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeReflectancesRaht(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeReflectancesRaht(
+        attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeReflectancesPred(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeReflectancesPred(
+        attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      decodeReflectancesLift(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeReflectancesLift(
+        attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
     }
   } else if (attr_desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeColorsRaht(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeColorsRaht(attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeColorsPred(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeColorsPred(attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      decodeColorsLift(attr_desc, attr_aps, quant, decoder, pointCloud);
+      decodeColorsLift(attr_desc, attr_aps, quantLayers, decoder, pointCloud);
       break;
     }
   } else {
@@ -263,7 +267,7 @@ void
 AttributeDecoder::decodeReflectancesPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -280,9 +284,15 @@ AttributeDecoder::decodeReflectancesPred(
 
   const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+    }
+    auto& quant = quantLayers[quantLayer];
     auto& predictor = predictors[predictorIndex];
+
     computeReflectancePredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
@@ -348,7 +358,7 @@ void
 AttributeDecoder::decodeColorsPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -365,9 +375,15 @@ AttributeDecoder::decodeColorsPred(
 
   uint32_t values[3];
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+    }
+    auto& quant = quantLayers[quantLayer];
     auto& predictor = predictors[predictorIndex];
+
     computeColorPredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
     if (zero_cnt > 0) {
@@ -405,7 +421,7 @@ void
 AttributeDecoder::decodeReflectancesRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -441,7 +457,7 @@ AttributeDecoder::decodeReflectancesRaht(
   int* attributes = new int[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, quant, mortonCode, attributes,
+    aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
     attribCount, voxelCount, coefficients);
 
   const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
@@ -465,7 +481,7 @@ void
 AttributeDecoder::decodeColorsRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -505,7 +521,7 @@ AttributeDecoder::decodeColorsRaht(
   int* attributes = new int[attribCount * voxelCount];
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, quant, mortonCode, attributes,
+    aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
     attribCount, voxelCount, coefficients);
 
   const int clipMax = (1 << desc.attr_bitdepth) - 1;
@@ -532,7 +548,7 @@ void
 AttributeDecoder::decodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -556,10 +572,17 @@ AttributeDecoder::decodeColorsLift(
   const size_t lodCount = numberOfPointsPerLOD.size();
   std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
+
   // decompress
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+    }
+    auto& quant = quantLayers[quantLayer];
+
     uint32_t values[3];
     if (zero_cnt > 0) {
       values[0] = values[1] = values[2] = 0;
@@ -607,7 +630,7 @@ void
 AttributeDecoder::decodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const Quantizers& quant,
+  const std::vector<Quantizers>& quantLayers,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
 {
@@ -635,8 +658,14 @@ AttributeDecoder::decodeReflectancesLift(
 
   // decompress
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
+  int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+    }
+    auto& quant = quantLayers[quantLayer];
+
     int64_t detail = 0;
     if (zero_cnt > 0) {
       zero_cnt--;

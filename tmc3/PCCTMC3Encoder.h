@@ -64,7 +64,10 @@ enum class PartitionMethod
 
 //============================================================================
 
-struct EncoderAttributeParams {};
+struct EncoderAttributeParams {
+  // NB: this only makes sense for setting configurable parameters
+  AttributeBrickHeader abh;
+};
 
 //----------------------------------------------------------------------------
 
