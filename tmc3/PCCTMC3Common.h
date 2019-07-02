@@ -791,7 +791,6 @@ buildPredictorsFast(
        ++lodIndex) {
     const int32_t startIndex = indexes.size();
     if (lodIndex == levelOfDetailCount) {
-      std::reverse(input.begin(), input.end());
       for (const auto index : input) {
         indexes.push_back(index);
       }
@@ -848,15 +847,16 @@ buildPredictorsFastNoLod(
   for (int32_t i = 0; i < pointCount; ++i) {
     const int32_t index = indexes[i];
     const auto& point = pointCloud[index];
-    auto& predictor = predictors[i];
+    auto& predictor = predictors[pointCount - 1 - i];
     predictor.init();
-    const int32_t k0 = std::max(0, i - searchRange);
-    const int32_t k1 = i - 1;
-    for (int32_t k = k1; k >= k0; --k) {
+    const int32_t k0 = std::min(pointCount - 1, i + searchRange);
+    const int32_t k1 = i + 1;
+    for (int32_t k = k1; k <= k0; ++k) {
       const int32_t index1 = indexes[k];
       const auto& point1 = pointCloud[index1];
       predictor.insertNeighbor(
-        k, (point - point1).getNorm2(), numberOfNearestNeighborsInPrediction);
+        pointCount - 1 - k, (point - point1).getNorm2(),
+        numberOfNearestNeighborsInPrediction);
     }
     assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
     if (predictor.neighborCount < 2) {
@@ -866,6 +866,7 @@ buildPredictorsFastNoLod(
       predictor.neighbors[0].weight = 1;
     }
   }
+  std::reverse(indexes.begin(), indexes.end());
 }
 
 //---------------------------------------------------------------------------
