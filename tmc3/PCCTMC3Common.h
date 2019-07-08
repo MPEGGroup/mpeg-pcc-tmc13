@@ -837,53 +837,6 @@ buildPredictorsFast(
 
 //---------------------------------------------------------------------------
 
-inline void
-buildPredictorsFastNoLod(
-  const PCCPointSet3& pointCloud,
-  const int32_t numberOfNearestNeighborsInPrediction,
-  const int32_t searchRange,
-  std::vector<PCCPredictor>& predictors,
-  std::vector<uint32_t>& indexes)
-{
-  const int32_t pointCount = int32_t(pointCloud.getPointCount());
-  assert(pointCount);
-
-  indexes.resize(pointCount);
-  // re-order points
-  std::vector<MortonCodeWithIndex> packedVoxel;
-  computeMortonCodes(pointCloud, packedVoxel);
-  for (int32_t i = 0; i < pointCount; ++i) {
-    indexes[i] = packedVoxel[i].index;
-  }
-
-  predictors.resize(pointCount);
-  for (int32_t i = 0; i < pointCount; ++i) {
-    const int32_t index = indexes[i];
-    const auto& point = pointCloud[index];
-    auto& predictor = predictors[pointCount - 1 - i];
-    predictor.init();
-    const int32_t k0 = std::min(pointCount - 1, i + searchRange);
-    const int32_t k1 = i + 1;
-    for (int32_t k = k1; k <= k0; ++k) {
-      const int32_t index1 = indexes[k];
-      const auto& point1 = pointCloud[index1];
-      predictor.insertNeighbor(
-        pointCount - 1 - k, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction, indexTieBreaker(k, i));
-    }
-    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
-    if (predictor.neighborCount < 2) {
-      predictor.neighbors[0].weight = 1;
-    } else if (predictor.neighbors[0].weight == 0) {
-      predictor.neighborCount = 1;
-      predictor.neighbors[0].weight = 1;
-    }
-  }
-  std::reverse(indexes.begin(), indexes.end());
-}
-
-//---------------------------------------------------------------------------
-
 }  // namespace pcc
 
 #endif /* PCCTMC3Common_h */
