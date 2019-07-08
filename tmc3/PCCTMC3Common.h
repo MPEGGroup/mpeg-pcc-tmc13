@@ -88,9 +88,10 @@ struct MortonCodeWithIndex {
 struct PCCNeighborInfo {
   uint64_t weight;
   uint32_t predictorIndex;
+  uint32_t insertIndex;
   bool operator<(const PCCNeighborInfo& rhs) const
   {
-    return (weight == rhs.weight) ? predictorIndex < rhs.predictorIndex
+    return (weight == rhs.weight) ? insertIndex < rhs.insertIndex
                                   : weight < rhs.weight;
   }
 };
@@ -210,7 +211,8 @@ struct PCCPredictor {
   void insertNeighbor(
     const uint32_t reference,
     const uint64_t weight,
-    const uint32_t maxNeighborCount)
+    const uint32_t maxNeighborCount,
+    const uint32_t insertIndex)
   {
     bool sort = false;
     assert(
@@ -220,6 +222,7 @@ struct PCCPredictor {
       PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
       neighborInfo.weight = weight;
       neighborInfo.predictorIndex = reference;
+      neighborInfo.insertIndex = insertIndex;
       ++neighborCount;
       sort = true;
     } else {
@@ -227,6 +230,7 @@ struct PCCPredictor {
       if (weight < neighborInfo.weight) {
         neighborInfo.weight = weight;
         neighborInfo.predictorIndex = reference;
+        neighborInfo.insertIndex = insertIndex;
         sort = true;
       }
     }
@@ -486,6 +490,14 @@ FindNeighborWithinDistance(
 
 //---------------------------------------------------------------------------
 
+inline int
+indexTieBreaker(int a, int b)
+{
+  return a > b ? ((a - b) << 1) - 1 : ((b - a) << 1);
+}
+
+//---------------------------------------------------------------------------
+
 inline void
 computeNearestNeighbors(
   const PCCPointSet3& pointCloud,
@@ -565,7 +577,7 @@ computeNearestNeighbors(
       const auto& point1 = pointCloud[pointIndex1];
       predictor.insertNeighbor(
         pointIndex1, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction);
+        numberOfNearestNeighborsInPrediction, indexTieBreaker(k, j));
     }
 
     for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr; ++s0) {
@@ -586,7 +598,7 @@ computeNearestNeighbors(
             const auto& point1 = pointCloud[pointIndex1];
             predictor.insertNeighbor(
               pointIndex1, (point - point1).getNorm2(),
-              numberOfNearestNeighborsInPrediction);
+              numberOfNearestNeighborsInPrediction, indexTieBreaker(k, j));
           }
         }
       }
@@ -604,7 +616,8 @@ computeNearestNeighbors(
         const auto& point1 = pointCloud[pointIndex1];
         predictor.insertNeighbor(
           pointIndex1, (point - point1).getNorm2(),
-          numberOfNearestNeighborsInPrediction);
+          numberOfNearestNeighborsInPrediction,
+          indexTieBreaker(startIndex + k, j));
       }
 
       for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr;
@@ -625,7 +638,8 @@ computeNearestNeighbors(
             const auto& point1 = pointCloud[pointIndex1];
             predictor.insertNeighbor(
               pointIndex1, (point - point1).getNorm2(),
-              numberOfNearestNeighborsInPrediction);
+              numberOfNearestNeighborsInPrediction,
+              indexTieBreaker(startIndex + k, j));
           }
         }
       }
@@ -836,13 +850,12 @@ buildPredictorsFastNoLod(
 
   indexes.resize(pointCount);
   // re-order points
-  {
-    std::vector<MortonCodeWithIndex> packedVoxel;
-    computeMortonCodes(pointCloud, packedVoxel);
-    for (int32_t i = 0; i < pointCount; ++i) {
-      indexes[i] = packedVoxel[i].index;
-    }
+  std::vector<MortonCodeWithIndex> packedVoxel;
+  computeMortonCodes(pointCloud, packedVoxel);
+  for (int32_t i = 0; i < pointCount; ++i) {
+    indexes[i] = packedVoxel[i].index;
   }
+
   predictors.resize(pointCount);
   for (int32_t i = 0; i < pointCount; ++i) {
     const int32_t index = indexes[i];
@@ -856,7 +869,7 @@ buildPredictorsFastNoLod(
       const auto& point1 = pointCloud[index1];
       predictor.insertNeighbor(
         pointCount - 1 - k, (point - point1).getNorm2(),
-        numberOfNearestNeighborsInPrediction);
+        numberOfNearestNeighborsInPrediction, indexTieBreaker(k, i));
     }
     assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
     if (predictor.neighborCount < 2) {
