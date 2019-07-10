@@ -106,7 +106,10 @@ struct PartitionSet {
 //============================================================================
 
 std::vector<Partition> partitionByUniformGeom(
-  const PartitionParams& params, const PCCPointSet3& cloud, int tileID);
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  int tileID,
+  int paritionBoundaryLog2);
 
 std::vector<Partition> partitionByOctreeDepth(
   const PartitionParams& params,

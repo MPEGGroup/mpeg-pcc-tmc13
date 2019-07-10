@@ -101,7 +101,10 @@ shortestAxis(const Box3<T>& curBox)
 
 std::vector<Partition>
 partitionByUniformGeom(
-  const PartitionParams& params, const PCCPointSet3& cloud, int tileID)
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  int tileID,
+  int partitionBoundaryLog2)
 {
   std::vector<Partition> slices;
 
@@ -115,6 +118,13 @@ partitionByUniformGeom(
 
   int sliceNum = minEdge ? (maxEdge / minEdge) : 1;
   int sliceSize = minEdge ? minEdge : maxEdge;
+
+  // In order to avoid issues with trisoup, don't partition points within
+  // a trisoup node, otherwise there will be issues fitting triangles.
+  int partitionBoundary = 1 << partitionBoundaryLog2;
+  if (sliceSize % partitionBoundary) {
+    sliceSize = (1 + sliceSize / partitionBoundary) * partitionBoundary;
+  }
 
   while (1) {
     slices.clear();

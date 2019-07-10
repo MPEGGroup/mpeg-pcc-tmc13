@@ -182,7 +182,8 @@ PCCTMC3Encoder3::compress(
       case PartitionMethod::kNone: return 1;
 
       case PartitionMethod::kUniformGeom:
-        curSlices = partitionByUniformGeom(params->partition, tileCloud, t);
+        curSlices = partitionByUniformGeom(
+          params->partition, tileCloud, t, _gps->trisoup_node_size_log2);
         break;
 
       case PartitionMethod::kOctreeUniform:
