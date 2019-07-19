@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use Digest::MD5;
 use File::Path qw(make_path);
