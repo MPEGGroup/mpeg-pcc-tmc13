@@ -282,3 +282,57 @@ Only applies when `attribute=colour`.
 
 ### `--aps_slice_qp_deltas_present_flag=0|1`
 Enables signalling of per-slice QP values.
+
+
+Attribute recolouring (encoder only)
+------------------------------------
+
+The following options configure the recolouring module, used when resampling
+a point cloud, or if the geometry coding process invents new points.
+
+### `--searchRange=INT-VALUE`
+Attribute space search range for optimal attribute transfer.
+
+### `--numNeighboursFwd=INT-VALUE`
+Number of source points used at the neighborhood of a target point to create
+the forward points list.
+
+### `--numNeighboursBwd=INT-VALUE`
+Number of target points used at the neighborhood of a source point to create
+the backward points list.
+
+### `--useDistWeightedAvgFwd=0|1`
+Use distance-weighted average for forward list.
+
+### `--useDistWeightedAvgBwd=0|1`
+Use distance-weighted average for backward list.
+
+### `--skipAvgIfIdenticalSourcePointPresentFwd=0|1`
+Do not use forward points list if an identical source point exists.
+
+### `--skipAvgIfIdenticalSourcePointPresentBwd=0|1`
+Do not use backward points list if an identical source point exists.
+
+### `--distOffsetFwd=REAL-VALUE`
+Distance offset to avoid infinite weight when distance between a forward
+list point and the target is zero.
+
+### `--distOffsetBwd=REAL-VALUE`
+Distance offset to avoid infinite weight when distance between a backward
+list point and target is zero.
+
+### `--maxGeometryDist2Fwd=REAL-VALUE`
+Maximum allowed squared distance of a source point from target to get into
+the forward list.
+
+### `--maxGeometryDist2Bwd=REAL-VALUE`
+Maximum allowed squared distance of a source point from target to get into
+the backward list.
+
+### `--maxAttributeDist2Fwd=REAL-VALUE`
+Maximum allowed squared attribute value difference of a source point for
+inclusion in the forward list.
+
+### `--maxAttributeDist2Bwd=REAL-VALUE`
+Maximum allowed squared attribute value difference of a source point for
+inclusion in the backward list.

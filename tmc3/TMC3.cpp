@@ -458,6 +458,63 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("aps_slice_qp_deltas_present_flag",
     params_attr.aps.aps_slice_qp_deltas_present_flag, false,
     "Enable signalling of per-slice QP values")
+
+  // This section is just dedicated to attribute recolouring (encoder only).
+  // parameters are common to all attributes.
+  (po::Section("Recolouring"))
+
+  ("recolourSearchRange",
+    params.encoder.recolour.searchRange, 8,
+    "")
+
+  ("recolourNumNeighboursFwd",
+    params.encoder.recolour.numNeighboursFwd, 8,
+    "")
+
+  ("recolourNumNeighboursBwd",
+    params.encoder.recolour.numNeighboursBwd, 1,
+    "")
+
+  ("recolourUseDistWeightedAvgFwd",
+    params.encoder.recolour.useDistWeightedAvgFwd, true,
+    "")
+
+  ("recolourUseDistWeightedAvgBwd",
+    params.encoder.recolour.useDistWeightedAvgBwd, true,
+    "")
+
+  ("recolourSkipAvgIfIdenticalSourcePointPresentFwd",
+    params.encoder.recolour.skipAvgIfIdenticalSourcePointPresentFwd, true,
+    "")
+
+  ("recolourSkipAvgIfIdenticalSourcePointPresentBwd",
+    params.encoder.recolour.skipAvgIfIdenticalSourcePointPresentBwd, false,
+    "")
+
+  ("recolourDistOffsetFwd",
+    params.encoder.recolour.distOffsetFwd, 4.,
+    "")
+
+  ("recolourDistOffsetBwd",
+    params.encoder.recolour.distOffsetBwd, 4.,
+    "")
+
+  ("recolourMaxGeometryDist2Fwd",
+    params.encoder.recolour.maxGeometryDist2Fwd, 1000.,
+    "")
+
+  ("recolourMaxGeometryDist2Bwd",
+    params.encoder.recolour.maxGeometryDist2Bwd, 1000.,
+    "")
+
+  ("recolourMaxAttributeDist2Fwd",
+    params.encoder.recolour.maxAttributeDist2Fwd, 1000.,
+    "")
+
+  ("recolourMaxAttributeDist2Bwd",
+    params.encoder.recolour.maxAttributeDist2Bwd, 1000.,
+    "")
+
   ;
   /* clang-format on */
 
@@ -641,6 +698,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   } else {
     po::dumpCfg(cout, opts, "Encoder", 4);
     po::dumpCfg(cout, opts, "Geometry", 4);
+    po::dumpCfg(cout, opts, "Recolouring", 4);
 
     for (const auto& it : params.encoder.attributeIdxMap) {
       // NB: when dumping the config, opts references params_attr

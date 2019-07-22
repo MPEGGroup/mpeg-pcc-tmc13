@@ -266,7 +266,7 @@ PCCTMC3Encoder3::compressPartition(
 
   if (recolourNeeded) {
     recolour(
-      inputPointCloud, _sps->seq_source_geom_scale_factor,
+      params->recolour, inputPointCloud, _sps->seq_source_geom_scale_factor,
       _sps->seq_bounding_box_xyz0, _sliceOrigin, &pointCloud);
   }
 

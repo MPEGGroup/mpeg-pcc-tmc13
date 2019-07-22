@@ -46,6 +46,26 @@
 namespace pcc {
 
 //============================================================================
+
+struct RecolourParams {
+  double distOffsetFwd;
+  double distOffsetBwd;
+  double maxGeometryDist2Fwd;
+  double maxGeometryDist2Bwd;
+  double maxAttributeDist2Fwd;
+  double maxAttributeDist2Bwd;
+
+  int searchRange;
+  int numNeighboursFwd;
+  int numNeighboursBwd;
+
+  bool useDistWeightedAvgFwd;
+  bool useDistWeightedAvgBwd;
+  bool skipAvgIfIdenticalSourcePointPresentFwd;
+  bool skipAvgIfIdenticalSourcePointPresentBwd;
+};
+
+//============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
 // Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.
@@ -166,21 +186,28 @@ clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 
 //============================================================================
 // Determine colour attribute values from a reference/source point cloud.
-// Each point in @target is coloured by:
+// For each point of the target p_t:
+//  - Find the N_1 (1 < N_1) nearest neighbours in source to p_t and create
+//    a set of points denoted by Ψ_1.
+//  - Find the set of source points that p_t belongs to their set of N_2
+//    nearest neighbours. Denote this set of points by Ψ_2.
+//  - Compute the distance-weighted average of points in Ψ_1 and Ψ_2 by:
+//        \bar{Ψ}_k = ∑_{q∈Ψ_k} c(q)/Δ(q,p_t)
+//                    ----------------------- ,
+//                    ∑_{q∈Ψ_k} 1/Δ(q,p_t)
 //
-//  - first projecting the attribute values of each point in @source to
-//    the corresponding nearest neighbour in @target.  In case multiple
-//    source points map to a single target point, the mean value is used.
-//
-//  - for any remaining uncoloured points, finding the corresponding nearest
-//    neighbour in @source.
+// where Δ(a,b) denotes the Euclidian distance between the points a and b,
+// and c(q) denotes the colour of point q.  Compute the average (or the
+// weighted average with the number of points of each set as the weights)
+// of \bar{Ψ}̅_1 and \bar{Ψ}̅_2 and transfer it to p_t.
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
 inline bool
-PCCTransfertColors(
+recolourColour(
+  const RecolourParams& params,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
   Vec3<double> targetToSourceOffset,
@@ -193,6 +220,7 @@ PCCTransfertColors(
   if (!pointCountSource || !pointCountTarget || !source.hasColors()) {
     return false;
   }
+
   KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeTarget(
     3, target, 10);
   KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(
@@ -200,55 +228,319 @@ PCCTransfertColors(
 
   target.addColors();
   std::vector<Vec3<uint8_t>> refinedColors1;
-  std::vector<std::vector<Vec3<uint8_t>>> refinedColors2;
   refinedColors1.resize(pointCountTarget);
-  refinedColors2.resize(pointCountTarget);
-  const size_t num_results = 1;
-  std::vector<size_t> indices(num_results);
-  std::vector<double> sqrDist(num_results);
-  nanoflann::KNNResultSet<double> resultSet(num_results);
 
+  double maxGeometryDist2Fwd = params.maxGeometryDist2Fwd < 512
+    ? params.maxGeometryDist2Fwd
+    : std::numeric_limits<double>::max();
+  double maxGeometryDist2Bwd = params.maxGeometryDist2Bwd < 512
+    ? params.maxGeometryDist2Bwd
+    : std::numeric_limits<double>::max();
+  double maxAttributeDist2Fwd = params.maxAttributeDist2Fwd < 512
+    ? params.maxAttributeDist2Fwd
+    : std::numeric_limits<double>::max();
+  double maxAttributeDist2Bwd = params.maxAttributeDist2Bwd < 512
+    ? params.maxAttributeDist2Bwd
+    : std::numeric_limits<double>::max();
+
+  // Forward direction
+  const int num_resultsFwd = params.numNeighboursFwd;
+  nanoflann::KNNResultSet<double> resultSetFwd(num_resultsFwd);
+  std::vector<size_t> indicesFwd(num_resultsFwd);
+  std::vector<double> sqrDistFwd(num_resultsFwd);
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    resultSet.init(&indices[0], &sqrDist[0]);
+    resultSetFwd.init(&indicesFwd[0], &sqrDistFwd[0]);
 
     Vec3<double> posInSrc =
       target[index] * targetToSourceScaleFactor + targetToSourceOffset;
 
     kdtreeSource.index->findNeighbors(
-      resultSet, &posInSrc[0], nanoflann::SearchParams(10));
-    refinedColors1[index] = source.getColor(indices[0]);
+      resultSetFwd, &posInSrc[0], nanoflann::SearchParams(10));
+
+    while (1) {
+      if (indicesFwd.size() == 1)
+        break;
+
+      if (sqrDistFwd[int(resultSetFwd.size()) - 1] <= maxGeometryDist2Fwd)
+        break;
+
+      sqrDistFwd.pop_back();
+      indicesFwd.pop_back();
+    }
+
+    bool isDone = false;
+    if (params.skipAvgIfIdenticalSourcePointPresentFwd) {
+      if (sqrDistFwd[0] < 0.0001) {
+        refinedColors1[index] = source.getColor(indicesFwd[0]);
+        isDone = true;
+      }
+    }
+
+    if (isDone)
+      continue;
+
+    int nNN = indicesFwd.size();
+    while (nNN > 0 && !isDone) {
+      if (nNN == 1) {
+        refinedColors1[index] = source.getColor(indicesFwd[0]);
+        isDone = true;
+        break;
+      }
+
+      std::vector<Vec3<uint8_t>> colors;
+      colors.resize(0);
+      colors.resize(nNN);
+      for (int i = 0; i < nNN; ++i) {
+        for (int k = 0; k < 3; ++k) {
+          colors[i][k] = double(source.getColor(indicesFwd[i])[k]);
+        }
+      }
+      double maxAttributeDist2 = std::numeric_limits<double>::min();
+      for (int i = 0; i < nNN; ++i) {
+        for (int j = 0; j < nNN; ++j) {
+          const double dist2 = (colors[i] - colors[j]).getNorm2();
+          if (dist2 > maxAttributeDist2) {
+            maxAttributeDist2 = dist2;
+          }
+        }
+      }
+      if (maxAttributeDist2 > maxAttributeDist2Fwd) {
+        --nNN;
+      } else {
+        Vec3<double> refinedColor(0.0);
+        if (params.useDistWeightedAvgFwd) {
+          double sumWeights{0.0};
+          for (int i = 0; i < nNN; ++i) {
+            const double weight = 1 / (sqrDistFwd[i] + params.distOffsetFwd);
+            for (int k = 0; k < 3; ++k) {
+              refinedColor[k] += source.getColor(indicesFwd[i])[k] * weight;
+            }
+            sumWeights += weight;
+          }
+          refinedColor /= sumWeights;
+        } else {
+          for (int i = 0; i < nNN; ++i) {
+            for (int k = 0; k < 3; ++k) {
+              refinedColor[k] += source.getColor(indicesFwd[i])[k];
+            }
+          }
+          refinedColor /= nNN;
+        }
+        for (int k = 0; k < 3; ++k) {
+          refinedColors1[index][k] =
+            uint8_t(PCCClip(round(refinedColor[k]), 0.0, 255.0));
+        }
+        isDone = true;
+      }
+    }
   }
+
+  // Backward direction
+  const size_t num_resultsBwd = params.numNeighboursBwd;
+  std::vector<size_t> indicesBwd(num_resultsBwd);
+  std::vector<double> sqrDistBwd(num_resultsBwd);
+  nanoflann::KNNResultSet<double> resultSetBwd(num_resultsBwd);
+
+  struct DistColor {
+    double dist;
+    Vec3<uint8_t> color;
+  };
+  std::vector<std::vector<DistColor>> refinedColorsDists2;
+  refinedColorsDists2.resize(pointCountTarget);
 
   for (size_t index = 0; index < pointCountSource; ++index) {
     const Vec3<uint8_t> color = source.getColor(index);
-    resultSet.init(&indices[0], &sqrDist[0]);
+    resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
       (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
 
     kdtreeTarget.index->findNeighbors(
-      resultSet, &posInTgt[0], nanoflann::SearchParams(10));
-    refinedColors2[indices[0]].push_back(color);
+      resultSetBwd, &posInTgt[0], nanoflann::SearchParams(10));
+
+    for (int i = 0; i < num_resultsBwd; ++i) {
+      if (sqrDistBwd[i] <= maxGeometryDist2Bwd) {
+        refinedColorsDists2[indicesBwd[i]].push_back(
+          DistColor{sqrDistBwd[i], color});
+      }
+    }
+  }
+
+  for (size_t index = 0; index < pointCountTarget; ++index) {
+    std::sort(
+      refinedColorsDists2[index].begin(), refinedColorsDists2[index].end(),
+      [](DistColor& dc1, DistColor& dc2) { return dc1.dist < dc2.dist; });
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
     const Vec3<uint8_t> color1 = refinedColors1[index];
-    const std::vector<Vec3<uint8_t>>& colors2 = refinedColors2[index];
-    if (colors2.empty()) {
+    auto& colorsDists2 = refinedColorsDists2[index];
+    if (colorsDists2.empty()) {
       target.setColor(index, color1);
-    } else {
-      Vec3<double> centroid2(0.0);
-      for (const auto& color2 : colors2) {
-        for (size_t k = 0; k < 3; ++k) {
-          centroid2[k] += color2[k];
+      continue;
+    }
+
+    bool isDone = false;
+    const Vec3<double> centroid1(color1[0], color1[1], color1[2]);
+    Vec3<double> centroid2(0.0);
+    if (params.skipAvgIfIdenticalSourcePointPresentBwd) {
+      if (colorsDists2[0].dist < 0.0001) {
+        auto temp = colorsDists2[0];
+        colorsDists2.clear();
+        colorsDists2.push_back(temp);
+        for (int k = 0; k < 3; ++k) {
+          centroid2[k] = colorsDists2[0].color[k];
+        }
+        isDone = true;
+      }
+    }
+
+    if (!isDone) {
+      int nNN = colorsDists2.size();
+      while (nNN > 0 && !isDone) {
+        nNN = colorsDists2.size();
+        if (nNN == 1) {
+          auto temp = colorsDists2[0];
+          colorsDists2.clear();
+          colorsDists2.push_back(temp);
+          for (int k = 0; k < 3; ++k) {
+            centroid2[k] = colorsDists2[0].color[k];
+          }
+          isDone = true;
+        }
+        if (!isDone) {
+          std::vector<Vec3<double>> colors;
+          colors.resize(0);
+          colors.resize(nNN);
+          for (int i = 0; i < nNN; ++i) {
+            for (int k = 0; k < 3; ++k) {
+              colors[i][k] = double(colorsDists2[i].color[k]);
+            }
+          }
+          double maxAttributeDist2 = std::numeric_limits<double>::min();
+          for (int i = 0; i < nNN; ++i) {
+            for (int j = 0; j < nNN; ++j) {
+              const double dist2 = (colors[i] - colors[j]).getNorm2();
+              if (dist2 > maxAttributeDist2) {
+                maxAttributeDist2 = dist2;
+              }
+            }
+          }
+          if (maxAttributeDist2 <= maxAttributeDist2Bwd) {
+            for (size_t k = 0; k < 3; ++k) {
+              centroid2[k] = 0;
+            }
+            if (params.useDistWeightedAvgBwd) {
+              double sumWeights{0.0};
+              for (int i = 0; i < colorsDists2.size(); ++i) {
+                const double weight =
+                  1 / (sqrt(colorsDists2[i].dist) + params.distOffsetBwd);
+                for (size_t k = 0; k < 3; ++k) {
+                  centroid2[k] += (colorsDists2[i].color[k] * weight);
+                }
+                sumWeights += weight;
+              }
+              centroid2 /= sumWeights;
+            } else {
+              for (auto& coldist : colorsDists2) {
+                for (int k = 0; k < 3; ++k) {
+                  centroid2[k] += coldist.color[k];
+                }
+              }
+              centroid2 /= colorsDists2.size();
+            }
+            isDone = true;
+          } else {
+            colorsDists2.pop_back();
+          }
         }
       }
-      centroid2 /= colors2.size();
-      Vec3<uint8_t> color0;
+    }
+    double H = double(colorsDists2.size());
+    double D2 = 0.0;
+    for (const auto color2dist : colorsDists2) {
+      auto color2 = color2dist.color;
       for (size_t k = 0; k < 3; ++k) {
-        color0[k] = uint8_t(PCCClip(round(centroid2[k]), 0.0, 255.0));
+        const double d2 = centroid2[k] - color2[k];
+        D2 += d2 * d2;
       }
-      target.setColor(index, color0);
+    }
+    const double r = double(pointCountTarget) / double(pointCountSource);
+    const double delta2 = (centroid2 - centroid1).getNorm2();
+    const double eps = 0.000001;
+
+    const bool fixWeight = 1;  // m42538
+    if (!(fixWeight || delta2 > eps)) {
+      // centroid2 == centroid1
+      target.setColor(index, color1);
+    } else {
+      // centroid2 != centroid1
+      double w = 0.0;
+
+      if (!fixWeight) {
+        const double alpha = D2 / delta2;
+        const double a = H * r - 1.0;
+        const double c = alpha * r - 1.0;
+        if (fabs(a) < eps) {
+          w = -0.5 * c;
+        } else {
+          const double delta = 1.0 - a * c;
+          if (delta >= 0.0) {
+            w = (-1.0 + sqrt(delta)) / a;
+          }
+        }
+      }
+      const double oneMinusW = 1.0 - w;
+      Vec3<double> color0;
+      for (size_t k = 0; k < 3; ++k) {
+        color0[k] = PCCClip(
+          round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, 255.0);
+      }
+      const double rSource = 1.0 / double(pointCountSource);
+      const double rTarget = 1.0 / double(pointCountTarget);
+      const double maxValue = std::numeric_limits<uint8_t>::max();
+      double minError = std::numeric_limits<double>::max();
+      Vec3<double> bestColor(color0);
+      Vec3<double> color;
+      for (int32_t s1 = -params.searchRange; s1 <= params.searchRange; ++s1) {
+        color[0] = PCCClip(color0[0] + s1, 0.0, maxValue);
+        for (int32_t s2 = -params.searchRange; s2 <= params.searchRange;
+             ++s2) {
+          color[1] = PCCClip(color0[1] + s2, 0.0, maxValue);
+          for (int32_t s3 = -params.searchRange; s3 <= params.searchRange;
+               ++s3) {
+            color[2] = PCCClip(color0[2] + s3, 0.0, maxValue);
+
+            double e1 = 0.0;
+            for (size_t k = 0; k < 3; ++k) {
+              const double d = color[k] - color1[k];
+              e1 += d * d;
+            }
+            e1 *= rTarget;
+
+            double e2 = 0.0;
+            for (const auto color2dist : colorsDists2) {
+              auto color2 = color2dist.color;
+              for (size_t k = 0; k < 3; ++k) {
+                const double d = color[k] - color2[k];
+                e2 += d * d;
+              }
+            }
+            e2 *= rSource;
+
+            const double error = std::max(e1, e2);
+            if (error < minError) {
+              minError = error;
+              bestColor = color;
+            }
+          }
+        }
+      }
+      target.setColor(
+        index,
+        Vec3<uint8_t>(
+          uint8_t(bestColor[0]), uint8_t(bestColor[1]),
+          uint8_t(bestColor[2])));
     }
   }
   return true;
@@ -256,21 +548,28 @@ PCCTransfertColors(
 
 //============================================================================
 // Determine reflectance attribute values from a reference/source point cloud.
-// Each point in @target is coloured by:
+// For each point of the target p_t:
+//  - Find the N_1 (1 < N_1) nearest neighbours in source to p_t and create
+//    a set of points denoted by Ψ_1.
+//  - Find the set of source points that p_t belongs to their set of N_2
+//    nearest neighbours. Denote this set of points by Ψ_2.
+//  - Compute the distance-weighted average of points in Ψ_1 and Ψ_2 by:
+//        \bar{Ψ}_k = ∑_{q∈Ψ_k} c(q)/Δ(q,p_t)
+//                    ----------------------- ,
+//                    ∑_{q∈Ψ_k} 1/Δ(q,p_t)
 //
-//  - first projecting the attribute values of each point in @source to
-//    the corresponding nearest neighbour in @target.  In case multiple
-//    source points map to a single target point, the mean value is used.
-//
-//  - for any remaining uncoloured points, finding the corresponding nearest
-//    neighbour in @source.
+// where Δ(a,b) denotes the Euclidian distance between the points a and b,
+// and c(q) denotes the colour of point q.  Compute the average (or the
+// weighted average with the number of points of each set as the weights)
+// of \bar{Ψ}̅_1 and \bar{Ψ}̅_2 and transfer it to p_t.
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
 inline bool
-PCCTransfertReflectances(
+recolourReflectance(
+  const RecolourParams& cfg,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
   Vec3<double> targetToSourceOffset,
@@ -287,54 +586,281 @@ PCCTransfertReflectances(
     3, target, 10);
   KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(
     3, source, 10);
-
   target.addReflectances();
-  std::vector<uint16_t> refined1;
-  std::vector<std::vector<uint16_t>> refined2;
-  refined1.resize(pointCountTarget);
-  refined2.resize(pointCountTarget);
-  const size_t num_results = 1;
-  std::vector<size_t> indices(num_results);
-  std::vector<double> sqrDist(num_results);
-  nanoflann::KNNResultSet<double> resultSet(num_results);
+  std::vector<uint16_t> refinedReflectances1;
+  refinedReflectances1.resize(pointCountTarget);
 
+  double maxGeometryDist2Fwd = (cfg.maxGeometryDist2Fwd < 512)
+    ? cfg.maxGeometryDist2Fwd
+    : std::numeric_limits<double>::max();
+  double maxGeometryDist2Bwd = (cfg.maxGeometryDist2Bwd < 512)
+    ? cfg.maxGeometryDist2Bwd
+    : std::numeric_limits<double>::max();
+  double maxAttributeDist2Fwd = (cfg.maxAttributeDist2Fwd < 512)
+    ? cfg.maxAttributeDist2Fwd
+    : std::numeric_limits<double>::max();
+  double maxAttributeDist2Bwd = (cfg.maxAttributeDist2Bwd < 512)
+    ? cfg.maxAttributeDist2Bwd
+    : std::numeric_limits<double>::max();
+
+  // Forward direction
+  const int num_resultsFwd = cfg.numNeighboursFwd;
+  nanoflann::KNNResultSet<double> resultSetFwd(num_resultsFwd);
+  std::vector<size_t> indicesFwd(num_resultsFwd);
+  std::vector<double> sqrDistFwd(num_resultsFwd);
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    resultSet.init(&indices[0], &sqrDist[0]);
+    resultSetFwd.init(&indicesFwd[0], &sqrDistFwd[0]);
 
     Vec3<double> posInSrc =
       target[index] * targetToSourceScaleFactor + targetToSourceOffset;
 
     kdtreeSource.index->findNeighbors(
-      resultSet, &posInSrc[0], nanoflann::SearchParams(10));
-    refined1[index] = source.getReflectance(indices[0]);
+      resultSetFwd, &posInSrc[0], nanoflann::SearchParams(10));
+
+    while (1) {
+      if (indicesFwd.size() == 1)
+        break;
+
+      if (sqrDistFwd[int(resultSetFwd.size()) - 1] <= maxGeometryDist2Fwd)
+        break;
+
+      sqrDistFwd.pop_back();
+      indicesFwd.pop_back();
+    }
+
+    bool isDone = false;
+    if (cfg.skipAvgIfIdenticalSourcePointPresentFwd) {
+      if (sqrDistFwd[0] < 0.0001) {
+        refinedReflectances1[index] = source.getReflectance(indicesFwd[0]);
+        isDone = true;
+      }
+    }
+
+    if (isDone)
+      continue;
+
+    int nNN = indicesFwd.size();
+    while (nNN > 0 && !isDone) {
+      if (nNN == 1) {
+        refinedReflectances1[index] = source.getReflectance(indicesFwd[0]);
+        isDone = true;
+        continue;
+      }
+
+      std::vector<uint16_t> reflectances;
+      reflectances.resize(0);
+      reflectances.resize(nNN);
+      for (int i = 0; i < nNN; ++i) {
+        reflectances[i] = double(source.getReflectance(indicesFwd[i]));
+      }
+      double maxAttributeDist2 = std::numeric_limits<double>::min();
+      for (int i = 0; i < nNN; ++i) {
+        for (int j = 0; j < nNN; ++j) {
+          const double dist2 = pow(reflectances[i] - reflectances[j], 2);
+          if (dist2 > maxAttributeDist2)
+            maxAttributeDist2 = dist2;
+        }
+      }
+      if (maxAttributeDist2 > maxAttributeDist2Fwd) {
+        --nNN;
+      } else {
+        double refinedReflectance = 0.0;
+        if (cfg.useDistWeightedAvgFwd) {
+          double sumWeights{0.0};
+          for (int i = 0; i < nNN; ++i) {
+            const double weight = 1 / (sqrDistFwd[i] + cfg.distOffsetFwd);
+            refinedReflectance +=
+              source.getReflectance(indicesFwd[i]) * weight;
+            sumWeights += weight;
+          }
+          refinedReflectance /= sumWeights;
+        } else {
+          for (int i = 0; i < nNN; ++i)
+            refinedReflectance += source.getReflectance(indicesFwd[i]);
+          refinedReflectance /= nNN;
+        }
+        refinedReflectances1[index] =
+          uint8_t(PCCClip(round(refinedReflectance), 0.0, 255.0));
+        isDone = true;
+      }
+    }
   }
+
+  // Backward direction
+  const size_t num_resultsBwd = cfg.numNeighboursBwd;
+  std::vector<size_t> indicesBwd(num_resultsBwd);
+  std::vector<double> sqrDistBwd(num_resultsBwd);
+  nanoflann::KNNResultSet<double> resultSetBwd(num_resultsBwd);
+
+  struct DistReflectance {
+    double dist;
+    uint16_t reflectance;
+  };
+  std::vector<std::vector<DistReflectance>> refinedReflectancesDists2;
+  refinedReflectancesDists2.resize(pointCountTarget);
 
   for (size_t index = 0; index < pointCountSource; ++index) {
     const uint16_t reflectance = source.getReflectance(index);
-    resultSet.init(&indices[0], &sqrDist[0]);
+    resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
       (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
 
     kdtreeTarget.index->findNeighbors(
-      resultSet, &posInTgt[0], nanoflann::SearchParams(10));
-    refined2[indices[0]].push_back(reflectance);
+      resultSetBwd, &posInTgt[0], nanoflann::SearchParams(10));
+
+    for (int i = 0; i < num_resultsBwd; ++i) {
+      if (sqrDistBwd[i] <= maxGeometryDist2Bwd) {
+        refinedReflectancesDists2[indicesBwd[i]].push_back(
+          DistReflectance{sqrDistBwd[i], reflectance});
+      }
+    }
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    const uint16_t reflectance1 = refined1[index];
-    const std::vector<uint16_t>& reflectances2 = refined2[index];
-    if (reflectances2.empty()) {
+    std::sort(
+      refinedReflectancesDists2[index].begin(),
+      refinedReflectancesDists2[index].end(),
+      [](DistReflectance& dc1, DistReflectance& dc2) {
+        return dc1.dist < dc2.dist;
+      });
+  }
+
+  for (size_t index = 0; index < pointCountTarget; ++index) {
+    const uint16_t reflectance1 = refinedReflectances1[index];
+    auto& reflectancesDists2 = refinedReflectancesDists2[index];
+    if (reflectancesDists2.empty()) {
+      target.setReflectance(index, reflectance1);
+      continue;
+    }
+
+    bool isDone = false;
+    const double centroid1 = reflectance1;
+    double centroid2 = 0.0;
+    if (cfg.skipAvgIfIdenticalSourcePointPresentBwd) {
+      if (reflectancesDists2[0].dist < 0.0001) {
+        auto temp = reflectancesDists2[0];
+        reflectancesDists2.clear();
+        reflectancesDists2.push_back(temp);
+        centroid2 = reflectancesDists2[0].reflectance;
+        isDone = true;
+      }
+    }
+    if (!isDone) {
+      int nNN = reflectancesDists2.size();
+      while (nNN > 0 && !isDone) {
+        nNN = reflectancesDists2.size();
+        if (nNN == 1) {
+          auto temp = reflectancesDists2[0];
+          reflectancesDists2.clear();
+          reflectancesDists2.push_back(temp);
+          centroid2 = reflectancesDists2[0].reflectance;
+          isDone = true;
+        }
+        if (!isDone) {
+          std::vector<double> reflectances;
+          reflectances.resize(0);
+          reflectances.resize(nNN);
+          for (int i = 0; i < nNN; ++i) {
+            reflectances[i] = double(reflectancesDists2[i].reflectance);
+          }
+          double maxAttributeDist2 = std::numeric_limits<double>::min();
+          for (int i = 0; i < nNN; ++i) {
+            for (int j = 0; j < nNN; ++j) {
+              const double dist2 = pow(reflectances[i] - reflectances[j], 2);
+              if (dist2 > maxAttributeDist2) {
+                maxAttributeDist2 = dist2;
+              }
+            }
+          }
+          if (maxAttributeDist2 <= maxAttributeDist2Bwd) {
+            centroid2 = 0;
+            if (cfg.useDistWeightedAvgBwd) {
+              double sumWeights{0.0};
+              for (int i = 0; i < reflectancesDists2.size(); ++i) {
+                const double weight =
+                  1 / (sqrt(reflectancesDists2[i].dist) + cfg.distOffsetBwd);
+                centroid2 += (reflectancesDists2[i].reflectance * weight);
+                sumWeights += weight;
+              }
+              centroid2 /= sumWeights;
+            } else {
+              for (auto& refdist : reflectancesDists2) {
+                centroid2 += refdist.reflectance;
+              }
+              centroid2 /= reflectancesDists2.size();
+            }
+            isDone = true;
+          } else {
+            reflectancesDists2.pop_back();
+          }
+        }
+      }
+    }
+    double H = double(reflectancesDists2.size());
+    double D2 = 0.0;
+    for (const auto reflectance2dist : reflectancesDists2) {
+      auto reflectance2 = reflectance2dist.reflectance;
+      const double d2 = centroid2 - reflectance2;
+      D2 += d2 * d2;
+    }
+    const double r = double(pointCountTarget) / double(pointCountSource);
+    const double delta2 = pow(centroid2 - centroid1, 2);
+    const double eps = 0.000001;
+
+    const bool fixWeight = 1;  // m42538
+    if (!(fixWeight || delta2 > eps)) {
+      // centroid2 == centroid1
       target.setReflectance(index, reflectance1);
     } else {
-      double centroid2 = 0.0;
-      for (const auto reflectance2 : reflectances2) {
-        centroid2 += reflectance2;
+      // centroid2 != centroid1
+      double w = 0.0;
+
+      if (!fixWeight) {
+        const double alpha = D2 / delta2;
+        const double a = H * r - 1.0;
+        const double c = alpha * r - 1.0;
+        if (fabs(a) < eps) {
+          w = -0.5 * c;
+        } else {
+          const double delta = 1.0 - a * c;
+          if (delta >= 0.0) {
+            w = (-1.0 + sqrt(delta)) / a;
+          }
+        }
       }
-      centroid2 = PCCClip(
-        std::round(centroid2 / reflectances2.size()), 0.0,
-        double(std::numeric_limits<uint16_t>::max()));
-      target.setReflectance(index, uint16_t(centroid2));
+      const double oneMinusW = 1.0 - w;
+      double reflectance0;
+      reflectance0 =
+        PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, 255.0);
+      const double rSource = 1.0 / double(pointCountSource);
+      const double rTarget = 1.0 / double(pointCountTarget);
+      const double maxValue = std::numeric_limits<uint8_t>::max();
+      double minError = std::numeric_limits<double>::max();
+      double bestReflectance = reflectance0;
+      double reflectance;
+      for (int32_t s1 = -cfg.searchRange; s1 <= cfg.searchRange; ++s1) {
+        reflectance = PCCClip(reflectance0 + s1, 0.0, maxValue);
+        double e1 = 0.0;
+        const double d = reflectance - reflectance1;
+        e1 += d * d;
+        e1 *= rTarget;
+
+        double e2 = 0.0;
+        for (const auto reflectance2dist : reflectancesDists2) {
+          auto reflectance2 = reflectance2dist.reflectance;
+          const double d = reflectance - reflectance2;
+          e2 += d * d;
+        }
+        e2 *= rSource;
+
+        const double error = std::max(e1, e2);
+        if (error < minError) {
+          minError = error;
+          bestReflectance = reflectance;
+        }
+      }
+      target.setReflectance(index, uint16_t(bestReflectance));
     }
   }
   return true;
@@ -350,6 +876,7 @@ PCCTransfertReflectances(
 
 inline int
 recolour(
+  const RecolourParams& cfg,
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
   Vec3<int> targetToSourceOffset,
@@ -362,8 +889,8 @@ recolour(
       targetToSourceOffset[k] + double(offset[k]) / sourceToTargetScaleFactor;
 
   if (source.hasColors()) {
-    bool ok = PCCTransfertColors(
-      source, sourceToTargetScaleFactor, combinedOffset, *target);
+    bool ok = recolourColour(
+      cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer colors!" << std::endl;
@@ -372,8 +899,8 @@ recolour(
   }
 
   if (source.hasReflectances()) {
-    bool ok = PCCTransfertReflectances(
-      source, sourceToTargetScaleFactor, combinedOffset, *target);
+    bool ok = recolourReflectance(
+      cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer reflectance!" << std::endl;

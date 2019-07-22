@@ -43,6 +43,7 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "PCCPointSetProcessing.h"
 #include "hls.h"
 
 namespace pcc {
@@ -85,6 +86,9 @@ struct EncoderParams {
 
   // Depth of octree used by PartitionMethod::kOctreeUniform
   int partitionOctreeDepth;
+
+  // attribute recolouring parameters
+  RecolourParams recolour;
 };
 
 //============================================================================
