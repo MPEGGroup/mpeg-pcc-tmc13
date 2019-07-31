@@ -297,8 +297,9 @@ AttributeDecoder::decodeReflectancesPred(
     }
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, indexesLOD);
-    const int64_t delta =
-      PCCInverseQuantization(UIntToInt(attValue0), qs, true);
+    const int64_t delta = divExp2RoundHalfUp(
+      PCCInverseQuantization(UIntToInt(attValue0), qs),
+      kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     reflectance = uint16_t(
       PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
@@ -385,16 +386,18 @@ AttributeDecoder::decodeColorsPred(
     const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
     const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta =
-      PCCInverseQuantization(UIntToInt(values[0]), qs, true);
+    const int64_t delta = divExp2RoundHalfUp(
+      PCCInverseQuantization(UIntToInt(values[0]), qs),
+      kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
     color[0] =
       uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
     for (size_t k = 1; k < 3; ++k) {
       const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta =
-        PCCInverseQuantization(UIntToInt(values[k]), qs2, true);
+      const int64_t delta = divExp2RoundHalfUp(
+        PCCInverseQuantization(UIntToInt(values[k]), qs2),
+        kFixedPointAttributeShift);
       const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
       color[k] =
         uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));

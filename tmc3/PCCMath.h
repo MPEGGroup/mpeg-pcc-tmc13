@@ -394,6 +394,20 @@ PCCClip(const int64_t& n, const int64_t& lower, const int64_t& upper)
 }
 
 //---------------------------------------------------------------------------
+// Integer division of @x by 2^shift, rounding intermediate half values
+// to +Inf.
+
+inline int64_t
+divExp2RoundHalfUp(int64_t x, int shift)
+{
+  if (!shift)
+    return x;
+
+  int64_t half = 1 << (shift - 1);
+  return (x + half) >> shift;
+}
+
+//---------------------------------------------------------------------------
 // Integer division of @scalar by 2^shift, rounding intermediate half values
 // away from zero.
 

@@ -718,14 +718,16 @@ uraht_process(
           if (isEncoder) {
             auto coeff = transformBuf[k][idx].round();
             assert(coeff <= INT_MAX && coeff >= INT_MIN);
-            *coeffBufItK[k]++ = coeff =
-              PCCQuantization(coeff, quantStepSize, true);
-            transformPredBuf[k][idx] +=
-              PCCInverseQuantization(coeff, quantStepSize, true);
+            *coeffBufItK[k]++ = coeff = PCCQuantization(
+              coeff << kFixedPointAttributeShift, quantStepSize);
+            transformPredBuf[k][idx] += divExp2RoundHalfUp(
+              PCCInverseQuantization(coeff, quantStepSize),
+              kFixedPointAttributeShift);
           } else {
             int64_t coeff = *coeffBufItK[k]++;
-            transformPredBuf[k][idx] +=
-              PCCInverseQuantization(coeff, quantStepSize, true);
+            transformPredBuf[k][idx] += divExp2RoundHalfUp(
+              PCCInverseQuantization(coeff, quantStepSize),
+              kFixedPointAttributeShift);
           }
         }
       });
@@ -820,11 +822,15 @@ uraht_process(
           auto coeff = transformBuf[1].round();
           assert(coeff <= INT_MAX && coeff >= INT_MIN);
           *coeffBufItK[k]++ = coeff =
-            PCCQuantization(coeff, quantStepSize, true);
-          transformBuf[1] = PCCInverseQuantization(coeff, quantStepSize, true);
+            PCCQuantization(coeff << kFixedPointAttributeShift, quantStepSize);
+          transformBuf[1] = divExp2RoundHalfUp(
+            PCCInverseQuantization(coeff, quantStepSize),
+            kFixedPointAttributeShift);
         } else {
           int64_t coeff = *coeffBufItK[k]++;
-          transformBuf[1] = PCCInverseQuantization(coeff, quantStepSize, true);
+          transformBuf[1] = divExp2RoundHalfUp(
+            PCCInverseQuantization(coeff, quantStepSize),
+            kFixedPointAttributeShift);
         }
 
         // inherit the DC value
