@@ -64,6 +64,10 @@ enum class PartitionMethod
 
 //============================================================================
 
+struct EncoderAttributeParams {};
+
+//----------------------------------------------------------------------------
+
 struct EncoderParams {
   SequenceParameterSet sps;
   GeometryParameterSet gps;
@@ -71,6 +75,9 @@ struct EncoderParams {
   // NB: information about attributes is split between the SPS and the APS.
   //  => The SPS enumerates the attributes, the APS controls coding params.
   std::vector<AttributeParameterSet> aps;
+
+  // Encoder specific parameters for attributes
+  std::vector<EncoderAttributeParams> attr;
 
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;

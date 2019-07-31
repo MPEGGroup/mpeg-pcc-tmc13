@@ -204,6 +204,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   struct {
     AttributeDescription desc;
     AttributeParameterSet aps;
+    EncoderAttributeParams encoder;
   } params_attr;
 
   bool print_help = false;
@@ -227,12 +228,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       if (it.second) {
         params.encoder.sps.attributeSets.push_back(params_attr.desc);
         params.encoder.aps.push_back(params_attr.aps);
+        params.encoder.attr.push_back(params_attr.encoder);
         return;
       }
 
       // update existing entry
       params.encoder.sps.attributeSets[it.first->second] = params_attr.desc;
       params.encoder.aps[it.first->second] = params_attr.aps;
+      params.encoder.attr[it.first->second] = params_attr.encoder;
     };
 
   /* clang-format off */
@@ -704,6 +707,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       // NB: when dumping the config, opts references params_attr
       params_attr.desc = params.encoder.sps.attributeSets[it.second];
       params_attr.aps = params.encoder.aps[it.second];
+      params_attr.encoder = params.encoder.attr[it.second];
       cout << "    " << it.first << "\n";
       po::dumpCfg(cout, opts, "Attributes", 8);
     }
