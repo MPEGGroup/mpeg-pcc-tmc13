@@ -37,6 +37,8 @@
 
 #include <array>
 
+#include "constants.h"
+
 namespace pcc {
 
 struct AttributeParameterSet;
@@ -64,6 +66,9 @@ public:
 private:
   // Quantisation step size
   int _stepSize;
+
+  // Reciprocal stepsize for forward quantisation optimisation
+  int _stepSizeRecip;
 };
 
 //---------------------------------------------------------------------------
@@ -71,12 +76,18 @@ private:
 inline int64_t
 Quantizer::quantize(int64_t x) const
 {
-  const int64_t shift = _stepSize / 3;
+  // Forward quantisation avoids division by using the multiplicative inverse
+  // with 14 fractional bits.
+  int64_t fracBits = 14 + kFixedPointAttributeShift;
+
+  // NB, the folowing offsets quantizes with a different deadzone to the
+  // reconstruction function.
+  int64_t offset = (1ll << fracBits) / 3;
 
   if (x >= 0) {
-    return (x + shift) / _stepSize;
+    return (x * _stepSizeRecip + offset) >> fracBits;
   }
-  return -((shift - x) / _stepSize);
+  return -((offset - x * _stepSizeRecip) >> fracBits);
 }
 
 //---------------------------------------------------------------------------

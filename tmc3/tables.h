@@ -102,6 +102,12 @@ extern const uint32_t kMortonCode256Z[256];
 
 //============================================================================
 
+// Base quantisation step sizes
 extern const int16_t kQpStep[6];
+
+// Reciprocal step size to avoid division during quantisation
+extern const int32_t kQpStepRecip[6];
+
+//============================================================================
 
 } /* namespace pcc */

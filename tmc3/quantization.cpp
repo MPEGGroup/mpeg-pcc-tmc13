@@ -47,6 +47,7 @@ Quantizer::Quantizer(int qp)
 {
   int qpShift = qp / 6;
   _stepSize = kQpStep[qp % 6] << qpShift;
+  _stepSizeRecip = kQpStepRecip[qp % 6] >> qpShift;
 }
 
 //============================================================================
