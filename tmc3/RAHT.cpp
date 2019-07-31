@@ -514,7 +514,7 @@ template<bool isEncoder>
 void
 uraht_process(
   bool raht_prediction_enabled_flag,
-  const Quantizers& qstep,
+  const Quantizers& quant,
   int numPoints,
   int numAttrs,
   int64_t* positions,
@@ -714,20 +714,18 @@ uraht_process(
         // The RAHT transform
         for (int k = 0; k < numAttrs; k++) {
           // todo: hoist to preallocated array
-          auto quantStepSize = qstep[std::min(k, int(qstep.size()) - 1)];
+          auto& q = quant[std::min(k, int(quant.size()) - 1)];
           if (isEncoder) {
             auto coeff = transformBuf[k][idx].round();
             assert(coeff <= INT_MAX && coeff >= INT_MIN);
-            *coeffBufItK[k]++ = coeff = PCCQuantization(
-              coeff << kFixedPointAttributeShift, quantStepSize);
-            transformPredBuf[k][idx] += divExp2RoundHalfUp(
-              PCCInverseQuantization(coeff, quantStepSize),
-              kFixedPointAttributeShift);
+            *coeffBufItK[k]++ = coeff =
+              q.quantize(coeff << kFixedPointAttributeShift);
+            transformPredBuf[k][idx] +=
+              divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
           } else {
             int64_t coeff = *coeffBufItK[k]++;
-            transformPredBuf[k][idx] += divExp2RoundHalfUp(
-              PCCInverseQuantization(coeff, quantStepSize),
-              kFixedPointAttributeShift);
+            transformPredBuf[k][idx] +=
+              divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
           }
         }
       });
@@ -802,7 +800,7 @@ uraht_process(
       sqrtWeight.val = isqrt(uint64_t(w) << (2 * FixedPoint::kFracBits));
 
       for (int k = 0; k < numAttrs; k++) {
-        auto quantStepSize = qstep[std::min(k, int(qstep.size()) - 1)];
+        auto q = quant[std::min(k, int(quant.size()) - 1)];
 
         FixedPoint transformBuf[2];
         if (isEncoder) {
@@ -822,15 +820,13 @@ uraht_process(
           auto coeff = transformBuf[1].round();
           assert(coeff <= INT_MAX && coeff >= INT_MIN);
           *coeffBufItK[k]++ = coeff =
-            PCCQuantization(coeff << kFixedPointAttributeShift, quantStepSize);
-          transformBuf[1] = divExp2RoundHalfUp(
-            PCCInverseQuantization(coeff, quantStepSize),
-            kFixedPointAttributeShift);
+            q.quantize(coeff << kFixedPointAttributeShift);
+          transformBuf[1] =
+            divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
         } else {
           int64_t coeff = *coeffBufItK[k]++;
-          transformBuf[1] = divExp2RoundHalfUp(
-            PCCInverseQuantization(coeff, quantStepSize),
-            kFixedPointAttributeShift);
+          transformBuf[1] =
+            divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
         }
 
         // inherit the DC value
@@ -878,7 +874,7 @@ uraht_process(
 void
 regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& qstep,
+  const Quantizers& quant,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -886,7 +882,7 @@ regionAdaptiveHierarchicalTransform(
   int* coefficients)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, qstep, voxelCount, attribCount, mortonCode,
+    raht_prediction_enabled_flag, quant, voxelCount, attribCount, mortonCode,
     attributes, coefficients);
 }
 
@@ -910,7 +906,7 @@ regionAdaptiveHierarchicalTransform(
 void
 regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& qstep,
+  const Quantizers& quant,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -918,7 +914,7 @@ regionAdaptiveHierarchicalInverseTransform(
   int* coefficients)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, qstep, voxelCount, attribCount, mortonCode,
+    raht_prediction_enabled_flag, quant, voxelCount, attribCount, mortonCode,
     attributes, coefficients);
 }
 

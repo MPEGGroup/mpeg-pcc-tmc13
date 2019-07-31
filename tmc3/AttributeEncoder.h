@@ -67,50 +67,49 @@ protected:
   void encodeReflectancesLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeReflectancesTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   void encodeColorsTransformRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const Quantizers& qstep,
+    const Quantizers& quant,
     PCCPointSet3& pointCloud,
     PCCResidualsEncoder& encoder);
 
   static Vec3<int64_t> computeColorResiduals(
     const Vec3<uint8_t> color,
     const Vec3<uint8_t> predictedColor,
-    const int64_t qs,
-    const int64_t qs2);
+    const Quantizers& quant);
 
   static void computeColorPredictionWeights(
     const AttributeParameterSet& aps,
@@ -120,13 +119,12 @@ protected:
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
-    const int64_t qs,
-    const int64_t qs2);
+    const Quantizers& quant);
 
   static int64_t computeReflectanceResidual(
     const uint64_t reflectance,
     const uint64_t predictedReflectance,
-    const int64_t qs);
+    const Quantizer& quant);
 
   static void computeReflectancePredictionWeights(
     const AttributeParameterSet& aps,
@@ -136,7 +134,7 @@ protected:
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
-    const int64_t qs);
+    const Quantizer& quant);
 };
 
 //============================================================================

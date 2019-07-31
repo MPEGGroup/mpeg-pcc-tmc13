@@ -35,6 +35,7 @@
 
 #include "quantization.h"
 
+#include "constants.h"
 #include "hls.h"
 #include "tables.h"
 
@@ -42,8 +43,16 @@ namespace pcc {
 
 //============================================================================
 
+Quantizer::Quantizer(int qp)
+{
+  int qpShift = qp / 6;
+  _stepSize = kQpStep[qp % 6] << qpShift;
+}
+
+//============================================================================
+
 Quantizers
-deriveQuantSteps(
+deriveQuantizers(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
 {
   int sliceQpLuma = attr_aps.init_qp;
@@ -54,11 +63,15 @@ deriveQuantSteps(
     sliceQpChroma += abh.attr_qp_delta_chroma;
   }
 
-  int qpShiftLuma = sliceQpLuma / 6;
-  int qpShiftChroma = sliceQpChroma / 6;
+  // the lifting transform has extra fractional bits that equate to
+  // increasing the QP.
+  if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
+    int fixedPointQpOffset = (kFixedPointWeightShift / 2) * 6;
+    sliceQpLuma += fixedPointQpOffset;
+    sliceQpChroma += fixedPointQpOffset;
+  }
 
-  return {kQpStep[sliceQpLuma % 6] << qpShiftLuma,
-          kQpStep[sliceQpChroma % 6] << qpShiftChroma};
+  return {Quantizer{sliceQpLuma}, Quantizer{sliceQpChroma}};
 }
 
 //============================================================================

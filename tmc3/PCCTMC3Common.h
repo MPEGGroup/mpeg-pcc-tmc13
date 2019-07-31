@@ -245,31 +245,6 @@ struct PCCPredictor {
 
 //---------------------------------------------------------------------------
 
-inline int64_t
-PCCQuantization(const int64_t value, const int64_t qs)
-{
-  const int64_t shift = (qs / 3);
-  if (!qs) {
-    return value;
-  }
-
-  if (value >= 0) {
-    return (value + shift) / qs;
-  }
-  return -((shift - value) / qs);
-}
-
-inline int64_t
-PCCInverseQuantization(const int64_t value, const int64_t qs)
-{
-  if (!qs)
-    return value;
-
-  return value * qs;
-}
-
-//---------------------------------------------------------------------------
-
 inline void
 PCCLiftPredict(
   const std::vector<PCCPredictor>& predictors,

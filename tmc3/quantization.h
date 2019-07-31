@@ -43,14 +43,59 @@ struct AttributeParameterSet;
 struct AttributeBrickHeader;
 
 //============================================================================
+// Quantisation methods
+
+class Quantizer {
+public:
+  // Derives step sizes from qp
+  Quantizer(int qp);
+  Quantizer(const Quantizer&) = default;
+  Quantizer& operator=(const Quantizer&) = default;
+
+  // The quantizer's step size
+  int stepSize() const { return _stepSize; }
+
+  // Quantise a value
+  int64_t quantize(int64_t x) const;
+
+  // Scale (inverse quantise) a quantised value
+  int64_t scale(int64_t x) const;
+
+private:
+  // Quantisation step size
+  int _stepSize;
+};
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+Quantizer::quantize(int64_t x) const
+{
+  const int64_t shift = _stepSize / 3;
+
+  if (x >= 0) {
+    return (x + shift) / _stepSize;
+  }
+  return -((shift - x) / _stepSize);
+}
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+Quantizer::scale(int64_t x) const
+{
+  return x * _stepSize;
+}
+
+//============================================================================
 // Encapslation of multi-component attribute quantizer values.
 
-typedef std::array<int, 2> Quantizers;
+typedef std::array<Quantizer, 2> Quantizers;
 
 //============================================================================
 // Derive quantisation step sizes for each component given attribute
 
-Quantizers deriveQuantSteps(
+Quantizers deriveQuantizers(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 //============================================================================

@@ -44,7 +44,7 @@ namespace pcc {
 
 void regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& qstep,
+  const Quantizers& quant,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -53,7 +53,7 @@ void regionAdaptiveHierarchicalTransform(
 
 void regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
-  const Quantizers& qstep,
+  const Quantizers& quant,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
