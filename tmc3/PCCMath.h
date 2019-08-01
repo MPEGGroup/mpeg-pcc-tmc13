@@ -359,11 +359,11 @@ PCCApproximatelyEqual(
 
 //---------------------------------------------------------------------------
 
-inline uint64_t
+inline int64_t
 mortonAddr(const int32_t x, const int32_t y, const int32_t z)
 {
   assert(x >= 0 && y >= 0 && z >= 0);
-  uint64_t answer = kMortonCode256X[(x >> 16) & 0xFF]
+  int64_t answer = kMortonCode256X[(x >> 16) & 0xFF]
     | kMortonCode256Y[(y >> 16) & 0xFF] | kMortonCode256Z[(z >> 16) & 0xFF];
   answer = answer << 24 | kMortonCode256X[(x >> 8) & 0xFF]
     | kMortonCode256Y[(y >> 8) & 0xFF] | kMortonCode256Z[(z >> 8) & 0xFF];
@@ -376,7 +376,7 @@ mortonAddr(const int32_t x, const int32_t y, const int32_t z)
 // Convert a vector position (divided by 2^depth) to morton order address.
 
 template<typename T>
-uint64_t
+int64_t
 mortonAddr(const Vec3<T>& vec, int depth)
 {
   int x = int(vec.x()) >> depth;

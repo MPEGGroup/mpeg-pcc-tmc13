@@ -430,7 +430,7 @@ AttributeDecoder::decodeReflectancesRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  uint64_t* mortonCode = new uint64_t[voxelCount];
+  int64_t* mortonCode = new int64_t[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
@@ -495,7 +495,7 @@ AttributeDecoder::decodeColorsRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  uint64_t* mortonCode = new uint64_t[voxelCount];
+  int64_t* mortonCode = new int64_t[voxelCount];
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }

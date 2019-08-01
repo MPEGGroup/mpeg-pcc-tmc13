@@ -179,10 +179,10 @@ uint32_t isqrt(uint64_t x);
 //---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
-inline uint64_t
-morton3dAxisDec(uint64_t val, int axis)
+inline int64_t
+morton3dAxisDec(int64_t val, int axis)
 {
-  const uint64_t mask0 = 0x9249249249249249llu << axis;
+  const int64_t mask0 = 0x9249249249249249llu << axis;
   return ((val & mask0) - 1 & mask0) | (val & ~mask0);
 }
 

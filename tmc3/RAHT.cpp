@@ -138,7 +138,7 @@ rahtFixedPointInverseRotation(
 void
 regionAdaptiveHierarchicalTransform(
   FixedPoint quantStepSizeLuma,
-  uint64_t* mortonCode,
+  int64_t* mortonCode,
   FixedPoint* attributes,
   uint64_t* weight,
   int* binaryLayer,
@@ -153,7 +153,7 @@ regionAdaptiveHierarchicalTransform(
 
   FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
   uint64_t* weightTransformed = new uint64_t[voxelCount];
-  uint64_t* mortonCodeTransformed = new uint64_t[voxelCount];
+  int64_t* mortonCodeTransformed = new int64_t[voxelCount];
 
   d = 0;
   while (N > 1 || d % 2) {
@@ -239,7 +239,7 @@ regionAdaptiveHierarchicalTransform(
 void
 regionAdaptiveHierarchicalInverseTransform(
   FixedPoint quantStepSizeLuma,
-  uint64_t* mortonCode,
+  int64_t* mortonCode,
   FixedPoint* attributes,
   uint64_t* weight,
   const int attribCount,
@@ -253,21 +253,21 @@ regionAdaptiveHierarchicalInverseTransform(
 
   FixedPoint* attributesTransformed = new FixedPoint[voxelCount * attribCount];
   uint64_t* weightTransformed = new uint64_t[voxelCount];
-  uint64_t* mortonCodeTransformed = new uint64_t[voxelCount];
+  int64_t* mortonCodeTransformed = new int64_t[voxelCount];
 
-  uint64_t** mortonCodeBuffer;
+  int64_t** mortonCodeBuffer;
   uint64_t** weightBuffer;
   size_t* M_buffer;
   {
     size_t depth = 0;
-    uint64_t maxMortonCode = mortonCode[voxelCount - 1];
+    int64_t maxMortonCode = mortonCode[voxelCount - 1];
 
     while (maxMortonCode--) {
       depth++;
       maxMortonCode >>= 1;
     }
 
-    mortonCodeBuffer = new uint64_t*[depth + 1];
+    mortonCodeBuffer = new int64_t*[depth + 1];
     weightBuffer = new uint64_t*[depth + 1];
     M_buffer = new size_t[depth + 1];
   }
@@ -295,7 +295,7 @@ regionAdaptiveHierarchicalInverseTransform(
   // Re-obtain weights at the decoder by partially executing the encoder
   d = 0;
   while (N > 1) {
-    uint64_t* _mortonCode = new uint64_t[M];
+    int64_t* _mortonCode = new int64_t[M];
     uint64_t* _weight = new uint64_t[M];
 
     M_buffer[d] = M;

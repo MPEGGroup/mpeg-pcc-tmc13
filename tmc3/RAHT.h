@@ -43,7 +43,7 @@ namespace pcc {
 
 void regionAdaptiveHierarchicalTransform(
   FixedPoint quantStepSizeLuma,
-  uint64_t* mortonCode,
+  int64_t* mortonCode,
   FixedPoint* attributes,
   uint64_t* weight,
   int* binaryLayer,
@@ -53,7 +53,7 @@ void regionAdaptiveHierarchicalTransform(
 
 void regionAdaptiveHierarchicalInverseTransform(
   FixedPoint quantStepSizeLuma,
-  uint64_t* mortonCode,
+  int64_t* mortonCode,
   FixedPoint* attributes,
   uint64_t* weight,
   const int attribCount,

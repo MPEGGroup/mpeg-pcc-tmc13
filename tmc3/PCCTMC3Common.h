@@ -72,7 +72,7 @@ struct WeightWithIndex {
 //---------------------------------------------------------------------------
 
 struct MortonCodeWithIndex {
-  uint64_t mortonCode;
+  int64_t mortonCode;
   int32_t index;
   bool operator<(const MortonCodeWithIndex& rhs) const
   {
@@ -540,7 +540,7 @@ computeNearestNeighbors(
 
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     const int32_t index = indexes[i];
-    const uint64_t mortonCode = packedVoxel[index].mortonCode;
+    const int64_t mortonCode = packedVoxel[index].mortonCode;
     const int32_t pointIndex = packedVoxel[index].index;
     const auto& point = pointCloud[pointIndex];
     indexes[i] = pointIndex;

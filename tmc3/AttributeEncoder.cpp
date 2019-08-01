@@ -781,7 +781,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Allocate arrays.
-  uint64_t* mortonCode = new uint64_t[voxelCount];
+  int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 1;
   FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
   int* integerizedAttributes = new int[attribCount * voxelCount];
@@ -865,7 +865,7 @@ AttributeEncoder::encodeColorsTransformRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Allocate arrays.
-  uint64_t* mortonCode = new uint64_t[voxelCount];
+  int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 3;
   FixedPoint* attributes = new FixedPoint[attribCount * voxelCount];
   int* integerizedAttributes = new int[attribCount * voxelCount];

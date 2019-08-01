@@ -122,7 +122,7 @@ updateGeometryNeighState(
   uint8_t neighPattern,
   uint8_t parentOccupancy)
 {
-  uint64_t midx;
+  int64_t midx;
   if (!siblingRestriction) {
     midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
   }
@@ -179,7 +179,7 @@ updateGeometryNeighState(
 
     auto found = std::lower_bound(
       posStart, posEnd, mortonIdxNeigh,
-      [](const PCCOctree3Node& node, uint64_t mortonIdx) {
+      [](const PCCOctree3Node& node, int64_t mortonIdx) {
         return node.mortonIdx < mortonIdx;
       });
 
