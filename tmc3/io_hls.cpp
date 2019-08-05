@@ -286,6 +286,7 @@ write(const AttributeParameterSet& aps)
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+    bs.write(aps.raht_prediction_enabled_flag);
     bs.writeUe(aps.raht_depth);
   }
 
@@ -335,6 +336,7 @@ parseAps(const PayloadBuffer& buf)
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+    bs.read(&aps.raht_prediction_enabled_flag);
     bs.readUe(&aps.raht_depth);
   }
 

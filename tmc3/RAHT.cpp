@@ -191,6 +191,159 @@ expandLevel(
 }
 
 //============================================================================
+// Search for neighbour with @value in the ordered list [first, last).
+//
+// If distance is positive, search [from, from+distance].
+// If distance is negative, search [from-distance, from].
+
+template<typename It, typename T, typename T2, typename Cmp>
+It
+findNeighbour(It first, It last, It from, T value, T2 distance, Cmp compare)
+{
+  It start = first;
+  It end = last;
+
+  if (distance >= 0) {
+    start = from;
+    if ((distance + 1) < std::distance(from, last))
+      end = std::next(from, distance + 1);
+  } else {
+    end = from;
+    if ((-distance) < std::distance(first, from))
+      start = std::prev(from, -distance);
+  }
+
+  auto found = std::lower_bound(start, end, value, compare);
+  if (found == end)
+    return last;
+  return found;
+}
+
+//============================================================================
+// Find the neighbours of the node indicated by @t between @first and @last.
+// The position weight of each found neighbour is stored in two arrays.
+
+template<typename It>
+void
+findNeighbours(
+  It first,
+  It last,
+  It it,
+  int level,
+  uint8_t occupancy,
+  int parentNeighIdx[19],
+  int parentNeighWeights[19])
+{
+  static const uint8_t neighMasks[19] = {255, 15, 240, 51, 204, 85,  170,
+                                         3,   12, 5,   10, 48,  192, 80,
+                                         160, 17, 34,  68, 136};
+
+  // current position (discard extra precision)
+  int64_t cur_pos = it->pos >> level;
+
+  // the position of the parent, offset by (-1,-1,-1)
+  int64_t base_pos = morton3dAdd(cur_pos, -1ll);
+
+  // these neighbour offsets are relative to base_pos
+  static const uint8_t neighOffset[19] = {0,  3,  35, 5,  21, 6, 14, 1,  17, 2,
+                                          10, 33, 49, 34, 42, 4, 12, 20, 28};
+
+  // special case for the direct parent (no need to search);
+  parentNeighIdx[0] = std::distance(first, it);
+  parentNeighWeights[0] = it->weight;
+
+  for (int i = 1; i < 19; i++) {
+    // Only look for neighbours that have an effect
+    if (!(occupancy & neighMasks[i])) {
+      parentNeighIdx[i] = -1;
+      continue;
+    }
+
+    // compute neighbour address to look for
+    // the delta between it and the current position is
+    int64_t neigh_pos = morton3dAdd(base_pos, neighOffset[i]);
+    int64_t delta = neigh_pos - cur_pos;
+
+    // find neighbour
+    auto found = findNeighbour(
+      first, last, it, neigh_pos, delta,
+      [=](decltype(*it)& candidate, int64_t neigh_pos) {
+        return (candidate.pos >> level) < neigh_pos;
+      });
+
+    if (found == last) {
+      parentNeighIdx[i] = -1;
+      continue;
+    }
+
+    if ((found->pos >> level) != neigh_pos) {
+      parentNeighIdx[i] = -1;
+      continue;
+    }
+
+    parentNeighIdx[i] = std::distance(first, found);
+    parentNeighWeights[i] = found->weight;
+  }
+}
+
+//============================================================================
+// Generate the spatial prediction of a block.
+
+template<typename It>
+void
+intraDcPred(
+  int numAttrs,
+  const int neighIdx[19],
+  const int neighWeights[19],
+  int occupancy,
+  It first,
+  FixedPoint predBuf[][8])
+{
+  static const uint8_t predMasks[19] = {255, 15, 240, 51, 204, 85,  170,
+                                        3,   12, 5,   10, 48,  192, 80,
+                                        160, 17, 34,  68, 136};
+
+  static const FixedPoint predWeight[19] = {3.8, 2,   2,   2,   2,   2,   2,
+                                            0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7,
+                                            0.7, 0.7, 0.7, 0.7, 0.7};
+
+  FixedPoint weightSum[8] = {};
+  std::fill_n(&predBuf[0][0], 8 * numAttrs, FixedPoint(0));
+
+  for (int i = 0; i < 19; i++) {
+    if (neighIdx[i] == -1)
+      continue;
+
+    // apply weighted neighbour value to masked positions
+    auto neighValueIt = std::next(first, numAttrs * neighIdx[i]);
+    FixedPoint neighValue[3];
+    for (int k = 0; k < numAttrs; k++) {
+      neighValue[k] = *neighValueIt++;
+      neighValue[k] *= predWeight[i];
+    }
+
+    uint8_t mask = predMasks[i] & occupancy;
+    for (int j = 0; j < 8; j++) {
+      if (!(mask & (1 << j)))
+        continue;
+
+      weightSum[j] += predWeight[i];
+      for (int k = 0; k < numAttrs; k++)
+        predBuf[k][j] += neighValue[k];
+    }
+  }
+
+  // normalise
+  for (int i = 0; i < 8; i++) {
+    if (!(occupancy & (1 << i)))
+      continue;
+
+    for (int k = 0; k < numAttrs; k++)
+      predBuf[k][i] /= weightSum[i];
+  }
+}
+
+//============================================================================
 // Encapsulation of a RAHT transform stage.
 
 class RahtKernel {
@@ -360,6 +513,7 @@ isSibling(int64_t pos0, int64_t pos1, int level)
 template<bool isEncoder>
 void
 uraht_process(
+  bool raht_prediction_enabled_flag,
   const Quantizers& qstep,
   int numPoints,
   int numAttrs,
@@ -446,6 +600,7 @@ uraht_process(
     //  -> first level = all coeffs
     //  -> otherwise = ac coeffs only
     bool inheritDc = !isFirst;
+    bool enablePrediction = inheritDc && raht_prediction_enabled_flag;
     isFirst = 0;
 
     // prepare reconstruction buffers
@@ -483,6 +638,25 @@ uraht_process(
 
       mkWeightTree(weights);
 
+      // Inter-level prediction:
+      //  - Find the parent neighbours of the current node
+      //  - Generate prediction for all attributes into transformPredBuf
+      //  - Subtract transformed coefficients from forward transform
+      //  - The transformPredBuf is then used for reconstruction
+      if (enablePrediction) {
+        // indexes of the neighbouring parents
+        int parentNeighIdx[19];
+        int parentNeighWeights[19];
+
+        findNeighbours(
+          weightsParent.cbegin(), weightsParent.cend(), weightsParentIt,
+          level + 3, occupancy, parentNeighIdx, parentNeighWeights);
+
+        intraDcPred(
+          numAttrs, parentNeighIdx, parentNeighWeights, occupancy,
+          attrRecParent.begin(), transformPredBuf);
+      }
+
       int parentWeight = 0;
       if (inheritDc) {
         parentWeight = weightsParentIt->weight;
@@ -503,12 +677,23 @@ uraht_process(
           for (int k = 0; k < numAttrs; k++)
             transformBuf[k][childIdx] /= sqrtWeight;
         }
+
+        // Predicted attribute values
+        if (enablePrediction) {
+          for (int k = 0; k < numAttrs; k++)
+            transformPredBuf[k][childIdx] *= sqrtWeight;
+        }
       }
 
       // forward transform:
-      //  - encoder: transform both attribute sums
-      if (isEncoder)
+      //  - encoder: transform both attribute sums and prediction
+      //  - decoder: just transform prediction
+      if (isEncoder && enablePrediction)
+        fwdTransformBlock222<RahtKernel>(2 * numAttrs, transformBuf, weights);
+      else if (isEncoder)
         fwdTransformBlock222<RahtKernel>(numAttrs, transformBuf, weights);
+      else if (enablePrediction)
+        fwdTransformBlock222<RahtKernel>(numAttrs, transformPredBuf, weights);
 
       // per-coefficient operations:
       //  - subtract transform domain prediction (encoder)
@@ -518,6 +703,13 @@ uraht_process(
         // skip the DC coefficient unless at the root of the tree
         if (inheritDc && !idx)
           return;
+
+        // subtract transformed prediction (skipping DC)
+        if (isEncoder && enablePrediction) {
+          for (int k = 0; k < numAttrs; k++) {
+            transformBuf[k][idx] -= transformPredBuf[k][idx];
+          }
+        }
 
         // The RAHT transform
         for (int k = 0; k < numAttrs; k++) {
@@ -679,6 +871,7 @@ uraht_process(
  */
 void
 regionAdaptiveHierarchicalTransform(
+  bool raht_prediction_enabled_flag,
   const Quantizers& qstep,
   int64_t* mortonCode,
   int* attributes,
@@ -687,7 +880,8 @@ regionAdaptiveHierarchicalTransform(
   int* coefficients)
 {
   uraht_process<true>(
-    qstep, voxelCount, attribCount, mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, qstep, voxelCount, attribCount, mortonCode,
+    attributes, coefficients);
 }
 
 //============================================================================
@@ -709,6 +903,7 @@ regionAdaptiveHierarchicalTransform(
  */
 void
 regionAdaptiveHierarchicalInverseTransform(
+  bool raht_prediction_enabled_flag,
   const Quantizers& qstep,
   int64_t* mortonCode,
   int* attributes,
@@ -717,7 +912,8 @@ regionAdaptiveHierarchicalInverseTransform(
   int* coefficients)
 {
   uraht_process<false>(
-    qstep, voxelCount, attribCount, mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, qstep, voxelCount, attribCount, mortonCode,
+    attributes, coefficients);
 }
 
 //============================================================================

@@ -265,6 +265,7 @@ struct AttributeParameterSet {
   bool aps_slice_qp_deltas_present_flag;
 
   //--- raht parameters
+  bool raht_prediction_enabled_flag;
   int raht_depth;
 };
 

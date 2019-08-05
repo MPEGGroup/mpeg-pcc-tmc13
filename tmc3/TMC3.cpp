@@ -405,6 +405,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Number of bits for morton representation of an RAHT co-ordinate"
     "component")
 
+  ("rahtPredictionEnabled",
+    params_attr.aps.raht_prediction_enabled_flag, true,
+    "Controls the use of transform-domain prediction")
+
   ("numberOfNearestNeighborsInPrediction",
     params_attr.aps.num_pred_nearest_neighbours, 3,
     "Attribute's maximum number of nearest neighbors to be used for prediction")

@@ -233,6 +233,11 @@ Coding method to use for the current attribute:
 Number of bits for Morton representation of RAHT co-ordinate
 components.
 
+### `--rahtPredictionEnabled=0|1`
+Controls the use of transform domain prediction of RAHT coefficients
+from spatially upsampling the DC values of neighbouring parent nodes
+in the transform tree.
+
 ### `--numberOfNearestNeighboursInPrediction=INT-VALUE`
 Attribute's maximum number of nearest neighbours to be used for
 prediction.
