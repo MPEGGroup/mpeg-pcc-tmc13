@@ -400,11 +400,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
     "  2: Hierarichical neighbourhood prediction as lifting transform")
 
-  ("rahtLeafDecimationDepth",
-    params_attr.aps.raht_binary_level_threshold, 3,
-    "Sets coefficients to zero in the bottom n levels of RAHT tree. "
-    "Used for chroma-subsampling in attribute=color only.")
-
   ("rahtDepth",
     params_attr.aps.raht_depth, 21,
     "Number of bits for morton representation of an RAHT co-ordinate"

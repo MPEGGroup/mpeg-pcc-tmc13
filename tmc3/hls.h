@@ -266,7 +266,6 @@ struct AttributeParameterSet {
 
   //--- raht parameters
   int raht_depth;
-  int raht_binary_level_threshold;
 };
 
 //============================================================================

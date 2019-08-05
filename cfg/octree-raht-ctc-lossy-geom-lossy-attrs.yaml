@@ -35,7 +35,6 @@ categories:
      # attribute coding -- reflectance
      -
        - !conditional '${has_refl}'
-       - rahtLeafDecimationDepth: 0
        - qp:
            r01: 52
            r02: 46
@@ -50,7 +49,6 @@ categories:
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - rahtLeafDecimationDepth: 0
        - qp:
            r01: 52
            r02: 46

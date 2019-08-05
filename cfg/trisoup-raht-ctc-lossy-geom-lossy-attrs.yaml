@@ -32,7 +32,6 @@ categories:
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - rahtLeafDecimationDepth: 0
        - qp:
            r01: 52
            r02: 46

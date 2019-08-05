@@ -288,7 +288,6 @@ write(const AttributeParameterSet& aps)
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.writeUe(aps.raht_depth);
-    bs.writeUe(aps.raht_binary_level_threshold);
   }
 
   bool aps_extension_flag = false;
@@ -339,7 +338,6 @@ parseAps(const PayloadBuffer& buf)
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.readUe(&aps.raht_depth);
-    bs.readUe(&aps.raht_binary_level_threshold);
   }
 
   bool aps_extension_flag = bs.read();

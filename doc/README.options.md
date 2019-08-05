@@ -229,11 +229,6 @@ Coding method to use for the current attribute:
   | 1     | Region Adaptive Hierarchical Transform (RAHT)              |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
 
-### `--rahtLeafDecimationDepth=INT-VALUE`
-Sets coefficients to zero in the bottom n levels of the RAHT tree.
-This option provides a means to perform chroma-subsampling.  Applies
-when `attribute=colour` only.
-
 ### `--rahtDepth=INT-VALUE`
 Number of bits for Morton representation of RAHT co-ordinate
 components.
