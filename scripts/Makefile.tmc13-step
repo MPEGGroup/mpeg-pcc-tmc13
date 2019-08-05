@@ -85,7 +85,7 @@ $(if $(wildcard $1),$(shell
 	IFS=":$$IFS"; \
 	while read ARG VAL; do \
 		[[ $$ARG =~ ^" "*# ]] && continue ; \
-		echo $(if $2,$2,--)$$ARG $$VAL; done < "$1"))
+		echo $(if $2,$2,--)$$ARG$${VAL:+=}$$VAL; done < "$1"))
 endef
 
 ##
@@ -218,7 +218,7 @@ decoder.cfg: ;
 # generate pc_error report
 #  -- NB, pc_error dies if the -n sequence doesn't contain normals
 #     in such a case retry without -n and forgoe the d2 error.
-PCERROR_FLAGS := -c -l $(call read_cfg,$(call vpath,pcerror.cfg))
+PCERROR_FLAGS := --color --lidar $(call read_cfg,$(call vpath,pcerror.cfg))
 
 %.bin.decoded.pc_error: $(if $(WITH_ERRDEP),$(PCERROR))
 %.bin.decoded.pc_error: %.bin.decoded.ply pcerror.cfg
