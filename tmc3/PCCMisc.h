@@ -51,6 +51,10 @@
 #  define DEPRECATED __attribute__((deprecated))
 #endif
 
+#if _MSC_VER && !defined(__attribute__)
+#  define __attribute__(...)
+#endif
+
 namespace pcc {
 const uint32_t PCC_UNDEFINED_INDEX = -1;
 
