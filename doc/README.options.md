@@ -214,6 +214,22 @@ Controls the entropy coding method used for equi-probable (bypass) bins:
 Geometry coding
 ---------------
 
+### `--positionQuantisationEnabled=0|1`
+Enables in-loop quantisation and reconstruction of geometry positions.
+
+NB: All in-loop quantisation is independent (and happens after) any
+position scaling due to `positionQuantizationScale`.
+
+### `--positionBaseQp=INT-VALUE`
+The quantisation parameter used to quantise geometry positions.  The
+effective QP may be varied according to `positionQuantisationOctreeDepth`.
+A QP equal to 4 results in a scale factor of 1.
+
+### `--positionQuantisationOctreeDepth=INT-VALUE`
+The depth in the octree at which per-node QP offsets are signalled.
+A non-normative encoder process determines the QP offset based upon
+the local density of the octree.
+
 ### `--bitwiseOccupancyCoding=0|1`
 In octree geometry coding, there are both byte-wise and bit-wise tools to
 encode the occupancy data.  This option selects between the two methods.

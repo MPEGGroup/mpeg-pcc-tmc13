@@ -61,6 +61,7 @@ struct EncoderAttributeParams {
 struct EncoderParams {
   SequenceParameterSet sps;
   GeometryParameterSet gps;
+  GeometryBrickHeader gbh;
 
   // NB: information about attributes is split between the SPS and the APS.
   //  => The SPS enumerates the attributes, the APS controls coding params.
@@ -108,7 +109,7 @@ public:
 private:
   void appendReconstructedPoints(PCCPointSet3* reconstructedCloud);
 
-  void encodeGeometryBrick(PayloadBuffer* buf);
+  void encodeGeometryBrick(const EncoderParams*, PayloadBuffer* buf);
 
   PCCPointSet3 quantization(const PCCPointSet3& inputPointCloud);
 

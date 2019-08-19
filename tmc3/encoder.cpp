@@ -352,7 +352,7 @@ PCCTMC3Encoder3::compressPartition(
     pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
     clock_user.start();
 
-    encodeGeometryBrick(&payload);
+    encodeGeometryBrick(params, &payload);
 
     clock_user.stop();
 
@@ -444,7 +444,8 @@ PCCTMC3Encoder3::compressPartition(
 //----------------------------------------------------------------------------
 
 void
-PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
+PCCTMC3Encoder3::encodeGeometryBrick(
+  const EncoderParams* params, PayloadBuffer* buf)
 {
   // todo(df): confirm minimum of 1 isn't needed
   int32_t maxBB =
@@ -462,6 +463,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());
+  gbh.geom_octree_qp_offset_enabled_flag = _gps->geom_scaling_enabled_flag;
+  gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   write(*_sps, *_gps, gbh, buf);
 
   // todo(df): remove estimate when arithmetic codec is replaced

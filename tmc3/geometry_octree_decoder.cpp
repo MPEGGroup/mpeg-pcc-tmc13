@@ -41,6 +41,7 @@
 #include "geometry_intra_pred.h"
 #include "io_hls.h"
 #include "tables.h"
+#include "quantization.h"
 
 namespace pcc {
 
@@ -90,6 +91,8 @@ public:
 
   Vec3<uint32_t> decodePointPosition(int nodeSizeLog2);
 
+  int decodeQpOffset();
+
   template<class OutputIt>
   int decodeDirectPosition(
     int nodeSizeLog2, const PCCOctree3Node& node, OutputIt outputPoints);
@@ -107,6 +110,9 @@ private:
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsEq1;
+  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetSign;
+  AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
@@ -372,6 +378,20 @@ GeometryOctreeDecoder::decodePointPosition(int nodeSizeLog2)
   return delta;
 }
 
+int
+GeometryOctreeDecoder::decodeQpOffset()
+{
+  int dqp = 0;
+  if (!_arithmeticDecoder->decode(_ctxQpOffsetIsZero)) {
+    int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
+    dqp =
+      _arithmeticDecoder->decodeExpGolomb(0, _ctxEquiProb, _ctxQpOffsetAbsEgl)
+      + 1;
+    dqp = dqp_sign ? dqp : -dqp;
+  }
+  return dqp;
+}
+
 //-------------------------------------------------------------------------
 // Direct coding of position of points in node (early tree termination).
 // Decoded points are written to @outputPoints
@@ -391,10 +411,14 @@ GeometryOctreeDecoder::decodeDirectPosition(
   if (_arithmeticDecoder->decode(_ctxNumIdcmPointsEq1))
     numPoints++;
 
+  QuantizerGeom quantizer(node.qp);
   for (int i = 0; i < numPoints; i++) {
     // convert node-relative position to world position
-    Vec3<uint32_t> pos = node.pos + decodePointPosition(nodeSizeLog2);
-    *(outputPoints++) = {double(pos[0]), double(pos[1]), double(pos[2])};
+    Vec3<uint32_t> pos = decodePointPosition(nodeSizeLog2);
+    *(outputPoints++) = {
+      double(quantizer.scale(node.pos_quant[0] + pos[0]) + node.pos_base[0]),
+      double(quantizer.scale(node.pos_quant[1] + pos[1]) + node.pos_base[1]),
+      double(quantizer.scale(node.pos_quant[2] + pos[2]) + node.pos_base[2])};
   }
 
   return numPoints;
@@ -430,6 +454,7 @@ decodeGeometryOctree(
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
+  node00.qp = 4;
 
   size_t processedPointCount = 0;
   std::vector<uint32_t> values;
@@ -446,6 +471,10 @@ decodeGeometryOctree(
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
+
+  int numLvlsUntilQpOffset = -1;
+  if (gbh.geom_octree_qp_offset_enabled_flag)
+    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {
@@ -464,9 +493,21 @@ decodeGeometryOctree(
       // allow partial tree decoding
       if (nodeSizeLog2 == minNodeSizeLog2)
         break;
+
+      numLvlsUntilQpOffset--;
     }
 
     PCCOctree3Node& node0 = fifo.front();
+
+    if (numLvlsUntilQpOffset == 0) {
+      node0.qp = decoder.decodeQpOffset() + gps.geom_base_qp;
+      node0.pos_base = node0.pos;
+      node0.pos_quant = {0, 0, 0};
+    }
+
+    int shiftBits = (node0.qp - 4) / 6;
+    int effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
+    int effectiveChildSizeLog2 = effectiveNodeSizeLog2 - 1;
 
     int occupancyAdjacencyGt0 = 0;
     int occupancyAdjacencyGt1 = 0;
@@ -491,16 +532,18 @@ decodeGeometryOctree(
     int occupancyPrediction = 0;
 
     // generate intra prediction
-    if (nodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
+    if (effectiveNodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
       predictGeometryOccupancyIntra(
         occupancyAtlas, node0.pos, nodeSizeLog2, &occupancyIsPredicted,
         &occupancyPrediction);
     }
 
-    // decode occupancy pattern
-    uint8_t occupancy = decoder.decodeOccupancy(
-      node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
-      occupancyAdjacencyGt0, occupancyAdjacencyGt1, occupancyAdjacencyUnocc);
+    uint8_t occupancy = 1;
+    if (effectiveNodeSizeLog2 > 0) {
+      occupancy = decoder.decodeOccupancy(
+        node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
+        occupancyAdjacencyGt0, occupancyAdjacencyGt1, occupancyAdjacencyUnocc);
+    }
 
     assert(occupancy > 0);
 
@@ -529,17 +572,18 @@ decodeGeometryOctree(
 
       // point counts for leaf nodes are coded immediately upon
       // encountering the leaf node.
-      if (childSizeLog2 == 0) {
+      if (effectiveChildSizeLog2 <= 0) {
         int numPoints = 1;
 
         if (!gps.geom_unique_points_flag) {
           numPoints = decoder.decodePositionLeafNumPoints();
         }
 
+        QuantizerGeom quantizer(node0.qp);
         const Vec3<double> point(
-          node0.pos[0] + (x << childSizeLog2),
-          node0.pos[1] + (y << childSizeLog2),
-          node0.pos[2] + (z << childSizeLog2));
+          quantizer.scale(node0.pos_quant[0] + x) + node0.pos_base[0],
+          quantizer.scale(node0.pos_quant[1] + y) + node0.pos_base[1],
+          quantizer.scale(node0.pos_quant[2] + z) + node0.pos_base[2]);
 
         for (int i = 0; i < numPoints; ++i)
           pointCloud[processedPointCount++] = point;
@@ -552,6 +596,12 @@ decodeGeometryOctree(
       fifo.emplace_back();
       auto& child = fifo.back();
 
+      child.qp = node0.qp;
+      child.pos_quant[0] = node0.pos_quant[0] + (x << effectiveChildSizeLog2);
+      child.pos_quant[1] = node0.pos_quant[1] + (y << effectiveChildSizeLog2);
+      child.pos_quant[2] = node0.pos_quant[2] + (z << effectiveChildSizeLog2);
+      child.pos_base = node0.pos_base;
+
       child.pos[0] = node0.pos[0] + (x << childSizeLog2);
       child.pos[1] = node0.pos[1] + (y << childSizeLog2);
       child.pos[2] = node0.pos[2] + (z << childSizeLog2);
@@ -559,9 +609,10 @@ decodeGeometryOctree(
       child.siblingOccupancy = occupancy;
 
       bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
-      if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
+      if (isDirectModeEligible(
+            idcmEnabled, effectiveNodeSizeLog2, node0, child)) {
         int numPoints = decoder.decodeDirectPosition(
-          childSizeLog2, child, &pointCloud[processedPointCount]);
+          effectiveChildSizeLog2, child, &pointCloud[processedPointCount]);
         processedPointCount += numPoints;
 
         if (numPoints > 0) {
@@ -584,11 +635,13 @@ decodeGeometryOctree(
     }
   }
 
-  if (minNodeSizeLog2 > 0) {
-    pointCloud.resize(processedPointCount);
-  }
+  // NB: the point cloud needs to be resized if partially decoded
+  // OR: if geometry quantisation has changed the number of points
+  // todo(df): this breaks the current definition of geom_num_points
+  pointCloud.resize(processedPointCount);
 
   // return partial coding result
+  // todo(df): node.pos is still in quantised form -- this is probably wrong
   if (nodesRemaining) {
     *nodesRemaining = std::move(fifo);
   }

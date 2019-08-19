@@ -147,4 +147,64 @@ QpRegionOffset deriveQpRegions(
 QpSet deriveQpSet(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
+//============================================================================
+// Quantisation methods for geometry
+
+class QuantizerGeom {
+public:
+  // Derives step sizes from qp
+  QuantizerGeom(int qp)
+  {
+    int qpShift = qp / 6;
+    _stepSize = kQpStep[qp % 6] << qpShift;
+    _stepSizeRecip = kQpStepRecip[qp % 6] >> qpShift;
+  }
+
+  QuantizerGeom(const QuantizerGeom&) = default;
+  QuantizerGeom& operator=(const QuantizerGeom&) = default;
+
+  // The quantizer's step size
+  int stepSize() const { return _stepSize; }
+
+  // Quantise a value
+  int64_t quantize(int64_t x) const;
+
+  // Scale (inverse quantise) a quantised value
+  int64_t scale(int64_t x) const;
+
+private:
+  // Quantisation step size
+  int _stepSize;
+
+  // Reciprocal stepsize for forward quantisation optimisation
+  int _stepSizeRecip;
+
+  static const int _shift = 20;
+  static const int64_t _offset = 1 << (_shift - 1);
+
+  static const int32_t kQpStep[6];
+  static const int32_t kQpStepRecip[6];
+};
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+QuantizerGeom::quantize(int64_t x) const
+{
+  if (x >= 0) {
+    return (x * _stepSizeRecip + _offset) >> _shift;
+  }
+  return -((_offset - x * _stepSizeRecip) >> _shift);
+}
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+QuantizerGeom::scale(int64_t x) const
+{
+  return (x * _stepSize + _offset) >> _shift;
+}
+
+//============================================================================
+
 }  // namespace pcc

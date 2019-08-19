@@ -41,6 +41,9 @@
 #include "geometry_intra_pred.h"
 #include "io_hls.h"
 #include "tables.h"
+#include "quantization.h"
+
+#include <set>
 
 namespace pcc {
 
@@ -94,6 +97,8 @@ public:
 
   void encodePointPosition(int nodeSizeLog2, const Vec3<uint32_t>& pos);
 
+  void encodeQpOffset(int dqp);
+
   bool encodeDirectPosition(
     int nodeSizeLog2,
     const PCCOctree3Node& node,
@@ -112,6 +117,10 @@ private:
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsEq1;
+
+  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetSign;
+  AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
@@ -373,6 +382,108 @@ GeometryOctreeEncoder::encodePointPosition(
 
 //-------------------------------------------------------------------------
 // Direct coding of position of points in node (early tree termination).
+void
+GeometryOctreeEncoder::encodeQpOffset(int dqp)
+{
+  _arithmeticEncoder->encode(dqp == 0, _ctxQpOffsetIsZero);
+  if (dqp == 0) {
+    return;
+  }
+  _arithmeticEncoder->encode(dqp > 0, _ctxQpOffsetSign);
+  _arithmeticEncoder->encodeExpGolomb(
+    abs(dqp) - 1, 0, _ctxEquiProb, _ctxQpOffsetAbsEgl);
+}
+
+//-------------------------------------------------------------------------
+
+template<typename It>
+void
+calculateNodeQps(int baseQp, It nodesBegin, It nodesEnd)
+{
+  // determine delta qp for each node based on the point density
+  int lowQp = baseQp - 4 >= 4 ? baseQp - 4 : 4;
+  int mediumQp = baseQp;
+  int highQp = baseQp + 6;
+  std::vector<int> numPointsInNode;
+  std::vector<double> cum_prob;
+  int32_t numPointsInLvl = 0;
+  for (auto it = nodesBegin; it != nodesEnd; ++it) {
+    numPointsInNode.push_back(it->end - it->start);
+    numPointsInLvl += it->end - it->start;
+  }
+  std::sort(numPointsInNode.begin(), numPointsInNode.end());
+  double cc = 0;
+  for (auto num : numPointsInNode) {
+    cc += num;
+    cum_prob.push_back(cc / numPointsInLvl);
+  }
+  int th1 = -1, th2 = -1;
+  for (int i = 0; i < cum_prob.size(); i++) {
+    if (th1 == -1 && cum_prob[i] > 0.05) {
+      th1 = numPointsInNode[i];
+    } else if (th2 == -1 && cum_prob[i] > 0.6)
+      th2 = numPointsInNode[i];
+  }
+  for (auto it = nodesBegin; it != nodesEnd; ++it) {
+    if (it->end - it->start < th1) {
+      it->qp = highQp;
+    } else if (it->end - it->start < th2)
+      it->qp = mediumQp;
+    else
+      it->qp = lowQp;
+  }
+}
+
+//-------------------------------------------------------------------------
+
+void
+geometryQuantization(
+  PCCPointSet3& pointCloud, PCCOctree3Node& node, int nodeSizeLog2)
+{
+  QuantizerGeom quantizer = QuantizerGeom(node.qp);
+  int qpShift = (node.qp - 4) / 6;
+  Vec3<uint32_t> start_pos = node.pos;
+  Vec3<uint32_t> start_pos_quant = 0;
+  Vec3<uint32_t> end_pos_quant = (1 << nodeSizeLog2) >> qpShift;
+  for (int i = node.start; i < node.end; i++) {
+    Vec3<double> reconPoint, quantizedPoint;
+    for (int k = 0; k < 3; k++) {
+      int64_t k_pos = pointCloud[i][k] - start_pos[k];
+
+      k_pos = quantizer.quantize(k_pos);
+      k_pos = PCCClip(k_pos, start_pos_quant[k], end_pos_quant[k] - 1);
+      pointCloud[i][k] = k_pos;
+      reconPoint[k] = quantizer.scale(k_pos) + start_pos[k];
+    }
+    pointCloud.setPositionReconstructed(i, reconPoint);
+  }
+}
+
+//-------------------------------------------------------------------------
+
+void
+checkDuplicatePoints(
+  PCCPointSet3& pointCloud,
+  PCCOctree3Node& node,
+  std::vector<int>& pointIdxToDmIdx)
+{
+  auto first = PCCPointSet3::iterator(&pointCloud, node.start);
+  auto last = PCCPointSet3::iterator(&pointCloud, node.end);
+
+  std::set<Vec3<double>> uniquePointsSet;
+  for (auto i = first; i != last;) {
+    if (uniquePointsSet.find(**i) == uniquePointsSet.end()) {
+      uniquePointsSet.insert(**i);
+      i++;
+    } else {
+      std::iter_swap(i, last - 1);
+      last--;
+      pointIdxToDmIdx[--node.end] = -2;  // mark as duplicate
+    }
+  }
+}
+
+//-------------------------------------------------------------------------
 
 bool
 GeometryOctreeEncoder::encodeDirectPosition(
@@ -388,12 +499,11 @@ GeometryOctreeEncoder::encodeDirectPosition(
   _arithmeticEncoder->encode(numPoints > 1, _ctxNumIdcmPointsEq1);
 
   for (auto idx = node.start; idx < node.end; idx++) {
-    // determine the point position relative to box edge
     encodePointPosition(
       nodeSizeLog2,
-      Vec3<uint32_t>{int(pointCloud[idx][0]) - node.pos[0],
-                     int(pointCloud[idx][1]) - node.pos[1],
-                     int(pointCloud[idx][2]) - node.pos[2]});
+      Vec3<uint32_t>{uint32_t(pointCloud[idx][0]),
+                     uint32_t(pointCloud[idx][1]),
+                     uint32_t(pointCloud[idx][2])});
   }
 
   return true;
@@ -425,6 +535,7 @@ encodeGeometryOctree(
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
+  node00.qp = 4;
 
   // map of pointCloud idx to DM idx, used to reorder the points
   // after coding.
@@ -450,6 +561,17 @@ encodeGeometryOctree(
   }
   Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
 
+  int numLvlsUntilQpOffset = -1;
+  if (gbh.geom_octree_qp_offset_enabled_flag)
+    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
+
+  // applied to the root node, just set the node qp
+  if (numLvlsUntilQpOffset == 0)
+    node00.qp = gps.geom_base_qp;
+
+  if (gbh.geom_octree_qp_offset_enabled_flag)
+    pointCloud.copyPositions();
+
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {
       // transition to the next level
@@ -463,24 +585,49 @@ encodeGeometryOctree(
       // allow partial tree encoding using trisoup
       if (nodeSizeLog2 == gps.trisoup_node_size_log2)
         break;
+
+      // determing a per node QP at the appropriate level
+      // NB: this has no effect here if geom_octree_qp_offset_depth=0
+      if (--numLvlsUntilQpOffset == 0)
+        calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
     }
 
     PCCOctree3Node& node0 = fifo.front();
+
+    // encode delta qp for each octree block
+    if (numLvlsUntilQpOffset == 0)
+      encoder.encodeQpOffset(node0.qp - gps.geom_base_qp);
+
+    int shiftBits = (node0.qp - 4) / 6;
+    int effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
+    int effectiveChildSizeLog2 = effectiveNodeSizeLog2 - 1;
+    if (numLvlsUntilQpOffset == 0) {
+      geometryQuantization(pointCloud, node0, nodeSizeLog2);
+      if (gps.geom_unique_points_flag)
+        checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
+    }
 
     // split the current node into 8 children
     //  - perform an 8-way counting sort of the current node's points
     //  - (later) map to child nodes
     int childSizeLog2 = nodeSizeLog2 - 1;
     std::array<int, 8> childCounts = {};
-    countingSort(
-      PCCPointSet3::iterator(&pointCloud, node0.start),
-      PCCPointSet3::iterator(&pointCloud, node0.end), childCounts,
-      [=](const PCCPointSet3::Proxy& proxy) {
-        const auto& point = *proxy;
-        int bitpos = 1 << childSizeLog2;
-        return !!(int(point[2]) & bitpos) | (!!(int(point[1]) & bitpos) << 1)
-          | (!!(int(point[0]) & bitpos) << 2);
-      });
+    if (effectiveChildSizeLog2 < 0) {
+      // quantization step size is larger than the node,
+      // all points end up in the first child.
+      childCounts[0] = node0.end - node0.start;
+    } else {
+      countingSort(
+        PCCPointSet3::iterator(&pointCloud, node0.start),
+        PCCPointSet3::iterator(&pointCloud, node0.end), childCounts,
+        [=](const PCCPointSet3::Proxy& proxy) {
+          const auto& point = *proxy;
+          int bitpos = (1 << childSizeLog2) >> shiftBits;
+
+          return !!(int(point[2]) & bitpos) | (!!(int(point[1]) & bitpos) << 1)
+            | (!!(int(point[0]) & bitpos) << 2);
+        });
+    }
 
     // generate the bitmap of child occupancy and count
     // the number of occupied children in node0.
@@ -516,7 +663,7 @@ encodeGeometryOctree(
     int occupancyPrediction = 0;
 
     // generate intra prediction
-    if (nodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
+    if (effectiveNodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
       predictGeometryOccupancyIntra(
         occupancyAtlas, node0.pos, nodeSizeLog2, &occupancyIsPredicted,
         &occupancyPrediction);
@@ -529,19 +676,32 @@ encodeGeometryOctree(
     }
 
     // encode child occupancy map
-    assert(occupancy > 0);
-    encoder.encodeOccupancy(
-      node0.neighPattern, occupancy, occupancyIsPredicted, occupancyPrediction,
-      occupancyAdjacencyGt0, occupancyAdjacencyGt1, occupancyAdjacencyUnocc);
+    if (effectiveNodeSizeLog2 > 0) {
+      assert(occupancy > 0);
+      encoder.encodeOccupancy(
+        node0.neighPattern, occupancy, occupancyIsPredicted,
+        occupancyPrediction, occupancyAdjacencyGt0, occupancyAdjacencyGt1,
+        occupancyAdjacencyUnocc);
+    }
 
-    // when nodeSizeLog2 == 1, children are indivisible (ie leaf nodes)
-    // and are immediately coded.  No further splitting occurs.
-    if (nodeSizeLog2 == 1) {
+    // effectivenodesize may be < 1 when points are quantized
+    // when the effecive nodeSizeLog2 == 1, children are indivisible (ie
+    // leaf nodes) and are immediately coded.  No further splitting occurs.
+    if (effectiveNodeSizeLog2 <= 1) {
+      int childStart = node0.start;
+
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {
           // child is empty: skip
           continue;
         }
+
+        int childEnd = childStart + childCounts[i];
+        for (auto idx = childStart; idx < childEnd; idx++)
+          pointIdxToDmIdx[idx] = nextDmIdx++;
+
+        processedPointCount += childCounts[i];
+        childStart = childEnd;
 
         // if the bitstream is configured to represent unique points,
         // no point count is sent.
@@ -577,6 +737,7 @@ encodeGeometryOctree(
       int y = !!(i & 2);
       int z = !!(i & 1);
 
+      child.qp = node0.qp;
       child.pos[0] = node0.pos[0] + (x << childSizeLog2);
       child.pos[1] = node0.pos[1] + (y << childSizeLog2);
       child.pos[2] = node0.pos[2] + (z << childSizeLog2);
@@ -588,14 +749,16 @@ encodeGeometryOctree(
       child.siblingOccupancy = occupancy;
 
       bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
-      if (isDirectModeEligible(idcmEnabled, nodeSizeLog2, node0, child)) {
-        bool directModeUsed =
-          encoder.encodeDirectPosition(childSizeLog2, child, pointCloud);
+      if (isDirectModeEligible(
+            idcmEnabled, effectiveNodeSizeLog2, node0, child)) {
+        bool directModeUsed = encoder.encodeDirectPosition(
+          effectiveChildSizeLog2, child, pointCloud);
 
         if (directModeUsed) {
           // point reordering to match decoder's order
           for (auto idx = child.start; idx < child.end; idx++)
             pointIdxToDmIdx[idx] = nextDmIdx++;
+          processedPointCount += child.end - child.start;
 
           // NB: by definition, this is the only child node present
           assert(child.numSiblingsPlus1 == 1);
@@ -619,7 +782,14 @@ encodeGeometryOctree(
     }
   }
 
+  // inverse quantise the point cloud
+  // NB: this is done here to handle the partial tree coding case
+  if (gbh.geom_octree_qp_offset_enabled_flag)
+    for (int i = 0; i < pointCloud.getPointCount(); i++)
+      pointCloud[i] = pointCloud.getPositionReconstructed(i);
+
   // return partial coding result
+  // todo(df): node.pos is still in quantised form -- this is probably wrong
   if (nodesRemaining) {
     *nodesRemaining = std::move(fifo);
     return;
@@ -640,6 +810,8 @@ encodeGeometryOctree(
     int dstIdx = pointIdxToDmIdx[i];
     if (dstIdx == -1) {
       dstIdx = outIdx++;
+    } else if (dstIdx == -2) {  // ignore duplicated points
+      continue;
     }
 
     pointCloud2[dstIdx] = pointCloud[i];
@@ -648,7 +820,7 @@ encodeGeometryOctree(
     if (pointCloud.hasReflectances())
       pointCloud2.setReflectance(dstIdx, pointCloud.getReflectance(i));
   }
-
+  pointCloud2.resize(outIdx);
   swap(pointCloud, pointCloud2);
 }
 

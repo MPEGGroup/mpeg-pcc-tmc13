@@ -214,6 +214,9 @@ write(const GeometryParameterSet& gps)
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
   bs.writeUe(gps.trisoup_node_size_log2);
+  bs.write(gps.geom_scaling_enabled_flag);
+  if (gps.geom_scaling_enabled_flag)
+    bs.writeUe(gps.geom_base_qp);
 
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
@@ -248,6 +251,10 @@ parseGps(const PayloadBuffer& buf)
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);
   bs.readUe(&gps.trisoup_node_size_log2);
+
+  bs.read(&gps.geom_scaling_enabled_flag);
+  if (gps.geom_scaling_enabled_flag)
+    bs.readUe(&gps.geom_base_qp);
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
@@ -398,6 +405,13 @@ write(
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
 
+  if (gps.geom_scaling_enabled_flag) {
+    bs.write(gbh.geom_octree_qp_offset_enabled_flag);
+    if (gbh.geom_octree_qp_offset_enabled_flag) {
+      bs.writeUe(gbh.geom_octree_qp_offset_depth);
+    }
+  }
+
   if (gps.geom_box_present_flag) {
     int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
     int geom_box_origin_x = gbh.geomBoxOrigin.x() >> geomBoxLog2Scale;
@@ -433,6 +447,13 @@ parseGbh(
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
+
+  gbh.geom_octree_qp_offset_enabled_flag = false;
+  if (gps.geom_scaling_enabled_flag) {
+    bs.read(&gbh.geom_octree_qp_offset_enabled_flag);
+    if (gbh.geom_octree_qp_offset_enabled_flag)
+      bs.readUe(&gbh.geom_octree_qp_offset_depth);
+  }
 
   if (gps.geom_box_present_flag) {
     if (gps.geom_box_log2_scale_present_flag)

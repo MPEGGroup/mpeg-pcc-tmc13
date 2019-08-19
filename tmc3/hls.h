@@ -264,6 +264,12 @@ struct GeometryParameterSet {
   // size of triangle nodes (reconstructed surface) in trisoup geometry.
   // a value of zero disables the feature
   int trisoup_node_size_log2;
+
+  // controls the ability to perform in-loop geometry scaling
+  bool geom_scaling_enabled_flag;
+
+  // intial qp for geometry scaling
+  int geom_base_qp;
 };
 
 //============================================================================
@@ -281,6 +287,12 @@ struct GeometryBrickHeader {
   // todo(df): minus1?
   int geom_max_node_size_log2;
   int geom_num_points;
+
+  // enables signalling of qp offsets within the octree
+  bool geom_octree_qp_offset_enabled_flag;
+
+  // octree depth at which qp offsets whould be signalled
+  int geom_octree_qp_offset_depth;
 
   int geomBoxLog2Scale(const GeometryParameterSet& gps) const
   {

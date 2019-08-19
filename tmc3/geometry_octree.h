@@ -77,6 +77,10 @@ struct PCCOctree3Node {
 
   // The occupancy map used describing the current node and its siblings.
   uint8_t siblingOccupancy;
+
+  int qp;
+  Vec3<uint32_t> pos_quant;
+  Vec3<uint32_t> pos_base;
 };
 
 //---------------------------------------------------------------------------

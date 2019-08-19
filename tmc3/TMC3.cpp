@@ -543,6 +543,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Size of nodes for surface triangulation.\n"
     "  0: disabled\n")
 
+  ("positionQuantisationEnabled",
+    params.encoder.gps.geom_scaling_enabled_flag, false,
+    "Enable in-loop quantisation of positions")
+
+  ("positionBaseQp",
+    params.encoder.gps.geom_base_qp, 4,
+    "Base QP used in position quantisation")
+
+  ("positionQuantisationOctreeDepth",
+    params.encoder.gbh.geom_octree_qp_offset_depth, 3,
+    "Octree depth used for signalling position QP offsets\n")
+
   (po::Section("Attributes"))
 
   // attribute processing
