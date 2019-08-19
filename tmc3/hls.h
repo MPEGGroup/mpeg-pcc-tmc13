@@ -288,6 +288,9 @@ struct GeometryBrickHeader {
   int geom_max_node_size_log2;
   int geom_num_points;
 
+  // qp offset for geometry scaling (if enabled)
+  int geom_slice_qp_offset;
+
   // enables signalling of qp offsets within the octree
   bool geom_octree_qp_offset_enabled_flag;
 

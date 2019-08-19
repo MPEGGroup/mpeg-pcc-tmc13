@@ -406,6 +406,7 @@ write(
   bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
 
   if (gps.geom_scaling_enabled_flag) {
+    bs.writeSe(gbh.geom_slice_qp_offset);
     bs.write(gbh.geom_octree_qp_offset_enabled_flag);
     if (gbh.geom_octree_qp_offset_enabled_flag) {
       bs.writeUe(gbh.geom_octree_qp_offset_depth);
@@ -450,6 +451,7 @@ parseGbh(
 
   gbh.geom_octree_qp_offset_enabled_flag = false;
   if (gps.geom_scaling_enabled_flag) {
+    bs.readSe(&gbh.geom_slice_qp_offset);
     bs.read(&gbh.geom_octree_qp_offset_enabled_flag);
     if (gbh.geom_octree_qp_offset_enabled_flag)
       bs.readUe(&gbh.geom_octree_qp_offset_depth);

@@ -222,13 +222,18 @@ position scaling due to `positionQuantizationScale`.
 
 ### `--positionBaseQp=INT-VALUE`
 The quantisation parameter used to quantise geometry positions.  The
-effective QP may be varied according to `positionQuantisationOctreeDepth`.
+effective QP may be varied according to `positionSliceQpOffset` and
+`positionQuantisationOctreeDepth`.
 A QP equal to 4 results in a scale factor of 1.
+
+### `--positionSliceQpOffset=INT-VALUE`
+A per-slice offset to be applied to `positionBaseQp`.
 
 ### `--positionQuantisationOctreeDepth=INT-VALUE`
 The depth in the octree at which per-node QP offsets are signalled.
 A non-normative encoder process determines the QP offset based upon
-the local density of the octree.
+the local density of the octree.  A value of -1 disables signalling
+of per-node QP offsets.
 
 ### `--bitwiseOccupancyCoding=0|1`
 In octree geometry coding, there are both byte-wise and bit-wise tools to

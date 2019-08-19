@@ -561,15 +561,20 @@ encodeGeometryOctree(
   }
   Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
 
-  int numLvlsUntilQpOffset = -1;
-  if (gbh.geom_octree_qp_offset_enabled_flag)
-    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
+  int numLvlsUntilQuantization = -1;
+  if (gps.geom_scaling_enabled_flag) {
+    numLvlsUntilQuantization = 0;
+    if (gbh.geom_octree_qp_offset_enabled_flag)
+      numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth;
+  }
+
+  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
 
   // applied to the root node, just set the node qp
-  if (numLvlsUntilQpOffset == 0)
-    node00.qp = gps.geom_base_qp;
+  if (numLvlsUntilQuantization == 0)
+    node00.qp = sliceQp;
 
-  if (gbh.geom_octree_qp_offset_enabled_flag)
+  if (gps.geom_scaling_enabled_flag)
     pointCloud.copyPositions();
 
   for (; !fifo.empty(); fifo.pop_front()) {
@@ -588,20 +593,21 @@ encodeGeometryOctree(
 
       // determing a per node QP at the appropriate level
       // NB: this has no effect here if geom_octree_qp_offset_depth=0
-      if (--numLvlsUntilQpOffset == 0)
+      if (--numLvlsUntilQuantization == 0)
         calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
     }
 
     PCCOctree3Node& node0 = fifo.front();
 
     // encode delta qp for each octree block
-    if (numLvlsUntilQpOffset == 0)
-      encoder.encodeQpOffset(node0.qp - gps.geom_base_qp);
+    if (
+      numLvlsUntilQuantization == 0 && gbh.geom_octree_qp_offset_enabled_flag)
+      encoder.encodeQpOffset(node0.qp - sliceQp);
 
     int shiftBits = (node0.qp - 4) / 6;
     int effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     int effectiveChildSizeLog2 = effectiveNodeSizeLog2 - 1;
-    if (numLvlsUntilQpOffset == 0) {
+    if (numLvlsUntilQuantization == 0) {
       geometryQuantization(pointCloud, node0, nodeSizeLog2);
       if (gps.geom_unique_points_flag)
         checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
@@ -784,7 +790,7 @@ encodeGeometryOctree(
 
   // inverse quantise the point cloud
   // NB: this is done here to handle the partial tree coding case
-  if (gbh.geom_octree_qp_offset_enabled_flag)
+  if (gps.geom_scaling_enabled_flag)
     for (int i = 0; i < pointCloud.getPointCount(); i++)
       pointCloud[i] = pointCloud.getPositionReconstructed(i);
 

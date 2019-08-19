@@ -551,9 +551,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_base_qp, 4,
     "Base QP used in position quantisation")
 
+  ("positionSliceQpOffset",
+    params.encoder.gbh.geom_slice_qp_offset, 0,
+    "Per-slice QP offset used in position quantisation")
+
   ("positionQuantisationOctreeDepth",
-    params.encoder.gbh.geom_octree_qp_offset_depth, 3,
-    "Octree depth used for signalling position QP offsets\n")
+    params.encoder.gbh.geom_octree_qp_offset_depth, -1,
+    "Octree depth used for signalling position QP offsets (-1 => disabled)")
 
   (po::Section("Attributes"))
 
