@@ -473,12 +473,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable signalling of per-slice QP values")
 
   ("qpLayerOffsetsLuma",
-  	params_attr.encoder.abh.attr_layer_qp_delta_luma, {},
-	  "Attribute's per layer luma QP offsets")
+    params_attr.encoder.abh.attr_layer_qp_delta_luma, {},
+      "Attribute's per layer luma QP offsets")
 
   ("qpLayerOffsetsChroma",
-	  params_attr.encoder.abh.attr_layer_qp_delta_chroma, {},
-	  "Attribute's per layer chroma QP offsets")
+      params_attr.encoder.abh.attr_layer_qp_delta_chroma, {},
+      "Attribute's per layer chroma QP offsets")
 
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.

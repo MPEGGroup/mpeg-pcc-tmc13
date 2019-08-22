@@ -121,7 +121,7 @@ disabled and a pre-filtering process is used to remove co-located points.
 This option instructs the encoder to ignore all options relating to
 attribute coding, as if they had never been configured.
 
-### `--partitionMethod=0`
+### `--partitionMethod=0|2|3`
 Selects the partitioning method to map points to tiles and slices:
 
   | Value | Description                             |
@@ -141,6 +141,18 @@ Sets the depth of the octree for slice generation using
 
 The input point cloud is decomposed using an octree with the configured
 depth.  Each occupied leaf of the octree represents a single slice.
+
+### `--sliceMaxPoints=INT-VALUE`
+Upper limit to the number of in each slice.  Slices are split until
+this contraint is satisfied.
+
+### `--sliceMinPoints=INT-VALUE`
+Minimum number of points in each slice.  This soft limit is used to
+merge small slices together.
+
+### `--tileSize=INT-VALUE`
+Tile dimension to use when performing initial partitioning.  A value of zero
+disables tile partitioning.
 
 ### `--cabac_bypass_stream_enabled_flag=0|1`
 Controls the entropy coding method used for equi-probable (bypass) bins:
@@ -292,6 +304,14 @@ Only applies when `attribute=colour`.
 ### `--aps_slice_qp_deltas_present_flag=0|1`
 Enables signalling of per-slice QP values.
 
+### `--qpLayerOffsetsLuma=INT-VALUE-LIST`
+Attribute's per layer luma QP offsets.  A layer is corresponds to a
+level-of-detail or RAHT transform block.
+
+### `--qpLayerOffsetsChroma=INT-VALUE-LIST`
+Attribute's per layer chroma QP offsets.  A layer is corresponds to a
+level-of-detail or RAHT transform block.
+Only applies when `attribute=colour`.
 
 Attribute recolouring (encoder only)
 ------------------------------------
@@ -299,49 +319,49 @@ Attribute recolouring (encoder only)
 The following options configure the recolouring module, used when resampling
 a point cloud, or if the geometry coding process invents new points.
 
-### `--searchRange=INT-VALUE`
+### `--recolourSearchRange=INT-VALUE`
 Attribute space search range for optimal attribute transfer.
 
-### `--numNeighboursFwd=INT-VALUE`
+### `--recolourNumNeighboursFwd=INT-VALUE`
 Number of source points used at the neighborhood of a target point to create
 the forward points list.
 
-### `--numNeighboursBwd=INT-VALUE`
+### `--recolourNumNeighboursBwd=INT-VALUE`
 Number of target points used at the neighborhood of a source point to create
 the backward points list.
 
-### `--useDistWeightedAvgFwd=0|1`
+### `--recolourUseDistWeightedAvgFwd=0|1`
 Use distance-weighted average for forward list.
 
-### `--useDistWeightedAvgBwd=0|1`
+### `--recolourUseDistWeightedAvgBwd=0|1`
 Use distance-weighted average for backward list.
 
-### `--skipAvgIfIdenticalSourcePointPresentFwd=0|1`
+### `--recolourSkipAvgIfIdenticalSourcePointPresentFwd=0|1`
 Do not use forward points list if an identical source point exists.
 
-### `--skipAvgIfIdenticalSourcePointPresentBwd=0|1`
+### `--recolourSkipAvgIfIdenticalSourcePointPresentBwd=0|1`
 Do not use backward points list if an identical source point exists.
 
-### `--distOffsetFwd=REAL-VALUE`
+### `--recolourDistOffsetFwd=REAL-VALUE`
 Distance offset to avoid infinite weight when distance between a forward
 list point and the target is zero.
 
-### `--distOffsetBwd=REAL-VALUE`
+### `--recolourDistOffsetBwd=REAL-VALUE`
 Distance offset to avoid infinite weight when distance between a backward
 list point and target is zero.
 
-### `--maxGeometryDist2Fwd=REAL-VALUE`
+### `--recolourMaxGeometryDist2Fwd=REAL-VALUE`
 Maximum allowed squared distance of a source point from target to get into
 the forward list.
 
-### `--maxGeometryDist2Bwd=REAL-VALUE`
+### `--recolourMaxGeometryDist2Bwd=REAL-VALUE`
 Maximum allowed squared distance of a source point from target to get into
 the backward list.
 
-### `--maxAttributeDist2Fwd=REAL-VALUE`
+### `--recolourMaxAttributeDist2Fwd=REAL-VALUE`
 Maximum allowed squared attribute value difference of a source point for
 inclusion in the forward list.
 
-### `--maxAttributeDist2Bwd=REAL-VALUE`
+### `--recolourMaxAttributeDist2Bwd=REAL-VALUE`
 Maximum allowed squared attribute value difference of a source point for
 inclusion in the backward list.
