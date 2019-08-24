@@ -175,6 +175,7 @@ public:
   void encodeQpOffset(int dqp);
 
   bool encodeDirectPosition(
+    bool geom_unique_points_flag,
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
     const PCCOctree3Node& node,
@@ -190,9 +191,10 @@ private:
   StaticBitModel _ctxEquiProb;
   AdaptiveBitModel _ctxSingleChild;
   AdaptiveBitModel _ctxSinglePointPerBlock;
+  AdaptiveBitModel _ctxSingleIdcmDupPoint;
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
-  AdaptiveBitModel _ctxNumIdcmPointsEq1;
+  AdaptiveBitModel _ctxNumIdcmPointsGt1;
   AdaptiveBitModel _ctxSameZ;
 
   AdaptiveBitModel _ctxQpOffsetIsZero;
@@ -939,21 +941,48 @@ checkDuplicatePoints(
 
 bool
 GeometryOctreeEncoder::encodeDirectPosition(
+  bool geom_unique_points_flag,
   const Vec3<int>& nodeSizeLog2,
   int shiftBits,
   const PCCOctree3Node& node,
   const PCCPointSet3& pointCloud)
 {
   int numPoints = node.end - node.start;
-  if (numPoints > MAX_NUM_DM_LEAF_POINTS) {
+  // Check for duplicated points only if there are less than 10.
+  // NB: this limit is rather arbitrary
+  if (numPoints > 10) {
     _arithmeticEncoder->encode(0, _ctxBlockSkipTh);
     return false;
   }
 
-  _arithmeticEncoder->encode(1, _ctxBlockSkipTh);
-  _arithmeticEncoder->encode(numPoints > 1, _ctxNumIdcmPointsEq1);
+  bool allPointsAreEqual = numPoints > 1 && !geom_unique_points_flag;
+  for (auto idx = node.start + 1; allPointsAreEqual && idx < node.end; idx++) {
+    allPointsAreEqual &= pointCloud[node.start] == pointCloud[idx];
+  }
 
-  for (auto idx = node.start; idx < node.end; idx++) {
+  if (!allPointsAreEqual) {
+    if (numPoints > MAX_NUM_DM_LEAF_POINTS) {
+      _arithmeticEncoder->encode(0, _ctxBlockSkipTh);
+      return false;
+    }
+    _arithmeticEncoder->encode(1, _ctxBlockSkipTh);
+    _arithmeticEncoder->encode(numPoints > 1, _ctxNumIdcmPointsGt1);
+    if (!geom_unique_points_flag && numPoints == 1)
+      _arithmeticEncoder->encode(numPoints == 1, _ctxSinglePointPerBlock);
+  } else {
+    _arithmeticEncoder->encode(1, _ctxBlockSkipTh);
+    _arithmeticEncoder->encode(0, _ctxNumIdcmPointsGt1);
+    _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
+    _arithmeticEncoder->encode(numPoints == 2, _ctxSingleIdcmDupPoint);
+    if (numPoints > 2)
+      _arithmeticEncoder->encodeExpGolomb(
+        numPoints - 3, 0, _ctxEquiProb, _ctxPointCountPerBlock);
+
+    // only one actual psoition to code
+    numPoints = 1;
+  }
+
+  for (auto idx = node.start; idx < node.start + numPoints; idx++)
     encodePointPosition(
       nodeSizeLog2,
       Vec3<uint32_t>{uint32_t(pointCloud[idx][0]),
@@ -961,7 +990,6 @@ GeometryOctreeEncoder::encodeDirectPosition(
                      uint32_t(pointCloud[idx][2])}
         >> shiftBits,
       node.planarMode);
-  }
 
   return true;
 }
@@ -1351,7 +1379,8 @@ encodeGeometryOctree(
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
         bool directModeUsed = encoder.encodeDirectPosition(
-          effectiveChildSizeLog2, shiftBits, child, pointCloud);
+          gps.geom_unique_points_flag, effectiveChildSizeLog2, shiftBits,
+          child, pointCloud);
 
         if (directModeUsed) {
           // inverse quantise any quantised positions

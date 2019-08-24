@@ -165,6 +165,7 @@ public:
 
   template<class OutputIt>
   int decodeDirectPosition(
+    bool geom_unique_points_flag,
     const Vec3<int>& nodeSizeLog2,
     const PCCOctree3Node& node,
     OutputIt outputPoints);
@@ -179,9 +180,10 @@ private:
   StaticBitModel _ctxEquiProb;
   AdaptiveBitModel _ctxSingleChild;
   AdaptiveBitModel _ctxSinglePointPerBlock;
+  AdaptiveBitModel _ctxSingleIdcmDupPoint;
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
-  AdaptiveBitModel _ctxNumIdcmPointsEq1;
+  AdaptiveBitModel _ctxNumIdcmPointsGt1;
   AdaptiveBitModel _ctxQpOffsetIsZero;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
@@ -850,6 +852,7 @@ GeometryOctreeDecoder::decodeQpOffset()
 template<class OutputIt>
 int
 GeometryOctreeDecoder::decodeDirectPosition(
+  bool geom_unique_points_flag,
   const Vec3<int>& nodeSizeLog2,
   const PCCOctree3Node& node,
   OutputIt outputPoints)
@@ -860,14 +863,31 @@ GeometryOctreeDecoder::decodeDirectPosition(
   }
 
   int numPoints = 1;
-  if (_arithmeticDecoder->decode(_ctxNumIdcmPointsEq1))
-    numPoints++;
+  bool numPointsGt1 = _arithmeticDecoder->decode(_ctxNumIdcmPointsGt1);
+  numPoints += numPointsGt1;
 
+  int numDuplicatePoints = 0;
+  if (!geom_unique_points_flag && !numPointsGt1) {
+    numDuplicatePoints = !_arithmeticDecoder->decode(_ctxSinglePointPerBlock);
+    if (numDuplicatePoints) {
+      bool singleDup = _arithmeticDecoder->decode(_ctxSingleIdcmDupPoint);
+      if (!singleDup)
+        numDuplicatePoints += 1
+          + _arithmeticDecoder->decodeExpGolomb(
+              0, _ctxEquiProb, _ctxPointCountPerBlock);
+    }
+  }
+
+  Vec3<uint32_t> pos;
   for (int i = 0; i < numPoints; i++)
-    *(outputPoints++) =
+    *(outputPoints++) = pos =
       decodePointPosition(nodeSizeLog2, node.planarMode, node.planePosBits);
 
-  return numPoints;
+  // todo(df): currently the output buffer holds two points ...
+  for (int i = 0; i < std::min(1, numDuplicatePoints); i++)
+    *(outputPoints++) = pos;
+
+  return numPoints + numDuplicatePoints;
 }
 
 //-------------------------------------------------------------------------
@@ -1228,10 +1248,10 @@ decodeGeometryOctree(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
         // todo(df): this should go away when output is integer
         Vec3<uint32_t> points[2]{};
-        int numPoints =
-          decoder.decodeDirectPosition(effectiveChildSizeLog2, child, points);
+        int numPoints = decoder.decodeDirectPosition(
+          gps.geom_unique_points_flag, effectiveChildSizeLog2, child, points);
 
-        for (int j = 0; j < numPoints; j++) {
+        for (int j = 0; j < std::min(2, numPoints); j++) {
           auto& point = points[j];
           for (int k = 0; k < 3; k++) {
             int shift = std::max(0, effectiveChildSizeLog2[k]);
@@ -1242,6 +1262,11 @@ decodeGeometryOctree(
           pointCloud[processedPointCount++] =
             Vec3<double>(point[0], point[1], point[2]);
         }
+
+        // todo(df): remove this when removing points array
+        for (int j = 2; j < numPoints; j++)
+          pointCloud[processedPointCount++] =
+            Vec3<double>(points[1][0], points[1][1], points[1][2]);
 
         if (numPoints > 0) {
           // node fully decoded, do not split: discard child
