@@ -227,7 +227,10 @@ struct PCCPredictor {
       sort = true;
     } else {
       PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCount - 1];
-      if (weight < neighborInfo.weight) {
+      if (
+        weight < neighborInfo.weight
+        || (weight == neighborInfo.weight
+            && insertIndex < neighborInfo.insertIndex)) {
         neighborInfo.weight = weight;
         neighborInfo.predictorIndex = reference;
         neighborInfo.insertIndex = insertIndex;
@@ -555,7 +558,7 @@ computeNearestNeighbors(
         if (
           predictor.neighborCount < numberOfNearestNeighborsInPrediction
           || bBoxes[bucketIndex1].getDist2(point)
-            < predictor.neighbors[index0].weight) {
+            <= predictor.neighbors[index0].weight) {
           const int32_t k0 = std::max(bucketIndex1 * bucketSize, j0);
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
           for (int32_t k = k0; k < k1; ++k) {
@@ -582,7 +585,7 @@ computeNearestNeighbors(
         predictor.insertNeighbor(
           pointIndex1, (point - point1).getNorm2(),
           numberOfNearestNeighborsInPrediction,
-          indexTieBreaker(startIndex + k, j));
+          startIndex + k - i + 2 * searchRange);
       }
 
       for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr;
@@ -594,7 +597,7 @@ computeNearestNeighbors(
         if (
           predictor.neighborCount < numberOfNearestNeighborsInPrediction
           || bBoxesI[bucketIndex1].getDist2(point)
-            < predictor.neighbors[index0].weight) {
+            <= predictor.neighbors[index0].weight) {
           const int32_t k0 = bucketIndex1 * bucketSize;
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
           for (int32_t k = k0; k < k1; ++k) {
@@ -604,7 +607,7 @@ computeNearestNeighbors(
             predictor.insertNeighbor(
               pointIndex1, (point - point1).getNorm2(),
               numberOfNearestNeighborsInPrediction,
-              indexTieBreaker(startIndex + k, j));
+              startIndex + k - i + 2 * searchRange);
           }
         }
       }
