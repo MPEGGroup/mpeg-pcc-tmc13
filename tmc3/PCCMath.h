@@ -332,6 +332,16 @@ struct Box3 {
 };
 
 //---------------------------------------------------------------------------
+// element-wise multiplication of two vectors
+
+template<typename T>
+Vec3<T>
+times(Vec3<T> lhs, const Vec3<T>& rhs)
+{
+  return Vec3<T>{lhs[0] * rhs[0], lhs[1] * rhs[1], lhs[2] * rhs[2]};
+}
+
+//---------------------------------------------------------------------------
 
 typedef DEPRECATED_MSVC Vec3<double> PCCVector3D DEPRECATED;
 typedef DEPRECATED_MSVC Vec3<double> PCCPoint3D DEPRECATED;

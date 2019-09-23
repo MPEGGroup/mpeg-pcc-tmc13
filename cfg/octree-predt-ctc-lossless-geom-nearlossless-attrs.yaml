@@ -35,6 +35,7 @@ categories:
      -
        - !conditional '"${group}" =~ m{^cat3}'
        - levelOfDetailCount: 0
+       - lod_neigh_bias: ${seq_lod_bias}
      - positionQuantizationScaleAdjustsDist2: 1
      - dist2: ${seq_dist2}
      - intraLodPredictionEnabled: 1

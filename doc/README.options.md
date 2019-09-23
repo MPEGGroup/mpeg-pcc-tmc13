@@ -348,6 +348,11 @@ Attribute's number of levels of detail.
 Attribute's list of squared distances, or initial value for automatic
 derivation.
 
+### `--lod_neigh_bias=INT-VALUE-LIST`
+A set of three bias factors corresponding to the first, second and third
+geometry axes used to weight nearest neighbours during the LoD generation
+and weighting processes.  The value `1,1,1` implies no bias.
+
 ### `--qp=INT-VALUE`
 Attribute's luma quantization parameter.
 

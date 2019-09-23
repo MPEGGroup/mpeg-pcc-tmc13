@@ -278,6 +278,9 @@ write(const AttributeParameterSet& aps)
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.num_detail_levels);
+    bs.writeUe(aps.lod_neigh_bias.x());
+    bs.writeUe(aps.lod_neigh_bias.y());
+    bs.writeUe(aps.lod_neigh_bias.z());
 
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
       bs.write(aps.scalable_lifting_enabled_flag);
@@ -333,6 +336,9 @@ parseAps(const PayloadBuffer& buf)
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.num_detail_levels);
+    bs.readUe(&aps.lod_neigh_bias.x());
+    bs.readUe(&aps.lod_neigh_bias.y());
+    bs.readUe(&aps.lod_neigh_bias.z());
 
     aps.scalable_lifting_enabled_flag = false;
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)

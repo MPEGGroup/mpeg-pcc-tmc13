@@ -36,6 +36,7 @@ categories:
      -
        - !conditional '"${group}" =~ m{^cat3}'
        - lodDecimation: 1
+       - lod_neigh_bias: ${seq_lod_bias}
 
      ##
      # attribute coding -- reflectance

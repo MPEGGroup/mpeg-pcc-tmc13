@@ -279,6 +279,7 @@ struct AttributeParameterSet {
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
   int search_range;
+  Vec3<double> lod_neigh_bias;
   bool intra_lod_prediction_enabled_flag;
 
   // NB: derived from num_detail_levels_minus1

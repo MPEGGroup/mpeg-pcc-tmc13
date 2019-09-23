@@ -666,7 +666,7 @@ computeNearestNeighbors(
         aps.scalable_lifting_enabled_flag, nodeSizeLog2,
         pointCloud[pointIndex1]);
 
-      double norm2 = (point - point1).getNorm2();
+      double norm2 = times(point - point1, aps.lod_neigh_bias).getNorm2();
       if (nodeSizeLog2 > 0 && point == point1) {
         norm2 = double(1 << (nodeSizeLog2 - 1));
         norm2 = norm2 * norm2;
@@ -696,7 +696,8 @@ computeNearestNeighbors(
               aps.scalable_lifting_enabled_flag, nodeSizeLog2,
               pointCloud[pointIndex1]);
 
-            double norm2 = (point - point1).getNorm2();
+            double norm2 =
+              times(point - point1, aps.lod_neigh_bias).getNorm2();
             if (nodeSizeLog2 > 0 && point == point1) {
               norm2 = (double)(1 << (nodeSizeLog2 - 1));
               norm2 = norm2 * norm2;
@@ -720,7 +721,7 @@ computeNearestNeighbors(
         const int32_t pointIndex1 = packedVoxel[indexes[startIndex + k]].index;
         const auto& point1 = pointCloud[pointIndex1];
         predictor.insertNeighbor(
-          pointIndex1, (point - point1).getNorm2(),
+          pointIndex1, times(point - point1, aps.lod_neigh_bias).getNorm2(),
           aps.num_pred_nearest_neighbours,
           startIndex + k - i + 2 * aps.search_range);
       }
@@ -742,7 +743,8 @@ computeNearestNeighbors(
               packedVoxel[indexes[startIndex + k]].index;
             const auto& point1 = pointCloud[pointIndex1];
             predictor.insertNeighbor(
-              pointIndex1, (point - point1).getNorm2(),
+              pointIndex1,
+              times(point - point1, aps.lod_neigh_bias).getNorm2(),
               aps.num_pred_nearest_neighbours,
               startIndex + k - i + 2 * aps.search_range);
           }

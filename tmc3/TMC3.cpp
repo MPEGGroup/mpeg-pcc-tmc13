@@ -556,6 +556,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.search_range, 128,
     "Range for nearest neighbor search")
 
+  ("lod_neigh_bias",
+    params_attr.aps.lod_neigh_bias, {1, 1, 1},
+    "Attribute's intra prediction weight for Z axis")
+
   ("lodDecimation",
     params_attr.aps.lod_decimation_enabled_flag, false,
     "Controls LoD generation method:\n"
