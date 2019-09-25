@@ -254,7 +254,7 @@ AttributeDecoder::computeReflectancePredictionWeights(
     int64_t minValue = 0;
     int64_t maxValue = 0;
     for (int i = 0; i < predictor.neighborCount; ++i) {
-      const uint16_t reflectanceNeighbor = pointCloud.getReflectance(
+      const attr_t reflectanceNeighbor = pointCloud.getReflectance(
         indexes[predictor.neighbors[i].predictorIndex]);
       if (i == 0 || reflectanceNeighbor < minValue) {
         minValue = reflectanceNeighbor;
@@ -303,7 +303,7 @@ AttributeDecoder::decodeReflectancesPred(
     computeReflectancePredictionWeights(
       aps, pointCloud, indexesLOD, predictor, decoder);
     const uint32_t pointIndex = indexesLOD[predictorIndex];
-    uint16_t& reflectance = pointCloud.getReflectance(pointIndex);
+    attr_t& reflectance = pointCloud.getReflectance(pointIndex);
     uint32_t attValue0 = 0;
     if (zero_cnt > 0) {
       zero_cnt--;
@@ -316,8 +316,8 @@ AttributeDecoder::decodeReflectancesPred(
     const int64_t delta = divExp2RoundHalfUp(
       quant[0].scale(UIntToInt(attValue0)), kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-    reflectance = uint16_t(
-      PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
+    reflectance =
+      attr_t(PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
   }
 }
 
@@ -338,7 +338,7 @@ AttributeDecoder::computeColorPredictionWeights(
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
     for (int i = 0; i < predictor.neighborCount; ++i) {
-      const Vec3<uint8_t> colorNeighbor =
+      const Vec3<attr_t> colorNeighbor =
         pointCloud.getColor(indexes[predictor.neighbors[i].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         if (i == 0 || colorNeighbor[k] < minValue[k]) {
@@ -398,8 +398,8 @@ AttributeDecoder::decodeColorsPred(
       zero_cnt = decoder.decodeZeroCnt(pointCount);
     }
     const uint32_t pointIndex = indexesLOD[predictorIndex];
-    Vec3<uint8_t>& color = pointCloud.getColor(pointIndex);
-    const Vec3<uint8_t> predictedColor =
+    Vec3<attr_t>& color = pointCloud.getColor(pointIndex);
+    const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
 
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
@@ -409,7 +409,7 @@ AttributeDecoder::decodeColorsPred(
       const int64_t residual = divExp2RoundHalfUp(
         q.scale(UIntToInt(values[k])), kFixedPointAttributeShift);
       const int64_t recon = predictedColor[k] + residual + residual0;
-      color[k] = uint8_t(PCCClip(recon, int64_t(0), clipMax));
+      color[k] = attr_t(PCCClip(recon, int64_t(0), clipMax));
 
       if (!k && aps.inter_component_prediction_enabled_flag)
         residual0 = residual;
@@ -466,8 +466,8 @@ AttributeDecoder::decodeReflectancesRaht(
   const int64_t minReflectance = 0;
   for (int n = 0; n < voxelCount; n++) {
     int64_t val = attributes[attribCount * n];
-    const uint16_t reflectance =
-      (uint16_t)PCCClip(val, minReflectance, maxReflectance);
+    const attr_t reflectance =
+      attr_t(PCCClip(val, minReflectance, maxReflectance));
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
   }
 
@@ -531,10 +531,10 @@ AttributeDecoder::decodeColorsRaht(
     const int r = attributes[attribCount * n];
     const int g = attributes[attribCount * n + 1];
     const int b = attributes[attribCount * n + 2];
-    Vec3<uint8_t> color;
-    color[0] = uint8_t(PCCClip(r, 0, clipMax));
-    color[1] = uint8_t(PCCClip(g, 0, clipMax));
-    color[2] = uint8_t(PCCClip(b, 0, clipMax));
+    Vec3<attr_t> color;
+    color[0] = attr_t(PCCClip(r, 0, clipMax));
+    color[1] = attr_t(PCCClip(g, 0, clipMax));
+    color[2] = attr_t(PCCClip(b, 0, clipMax));
     pointCloud.setColor(packedVoxel[n].index, color);
   }
 
@@ -635,9 +635,9 @@ AttributeDecoder::decodeColorsLift(
   for (size_t f = 0; f < pointCount; ++f) {
     const auto color0 =
       divExp2RoundHalfInf(colors[f], kFixedPointAttributeShift);
-    Vec3<uint8_t> color;
+    Vec3<attr_t> color;
     for (size_t d = 0; d < 3; ++d) {
-      color[d] = uint8_t(PCCClip(color0[d], int64_t(0), clipMax));
+      color[d] = attr_t(PCCClip(color0[d], int64_t(0), clipMax));
     }
     pointCloud.setColor(indexesLOD[f], color);
   }
@@ -727,7 +727,7 @@ AttributeDecoder::decodeReflectancesLift(
     const auto refl =
       divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
     pointCloud.setReflectance(
-      indexesLOD[f], uint16_t(PCCClip(refl, int64_t(0), maxReflectance)));
+      indexesLOD[f], attr_t(PCCClip(refl, int64_t(0), maxReflectance)));
   }
 }
 

@@ -38,6 +38,7 @@
 #include <map>
 
 #include "PCCPointSet.h"
+#include "hls.h"
 
 namespace pcc {
 
@@ -121,6 +122,7 @@ void clampVolume(Box3<double> bbox, PCCPointSet3* cloud);
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
 bool recolourColour(
+  const AttributeDescription& desc,
   const RecolourParams& params,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
@@ -149,6 +151,7 @@ bool recolourColour(
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
 bool recolourReflectance(
+  const AttributeDescription& desc,
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
@@ -164,6 +167,7 @@ bool recolourReflectance(
 //     (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor - offset
 
 int recolour(
+  const AttributeDescription& desc,
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,

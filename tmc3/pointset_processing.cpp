@@ -36,6 +36,7 @@
 #include "pointset_processing.h"
 
 #include "colourspace.h"
+#include "hls.h"
 #include "KDTreeVectorOfVectorsAdaptor.h"
 
 #include <cstddef>
@@ -197,6 +198,7 @@ clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 
 bool
 recolourColour(
+  const AttributeDescription& attrDesc,
   const RecolourParams& params,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
@@ -217,8 +219,10 @@ recolourColour(
     3, source, 10);
 
   target.addColors();
-  std::vector<Vec3<uint8_t>> refinedColors1;
+  std::vector<Vec3<attr_t>> refinedColors1;
   refinedColors1.resize(pointCountTarget);
+
+  double clipMax = (1 << attrDesc.attr_bitdepth) - 1;
 
   double maxGeometryDist2Fwd = params.maxGeometryDist2Fwd < 512
     ? params.maxGeometryDist2Fwd
@@ -277,7 +281,7 @@ recolourColour(
         break;
       }
 
-      std::vector<Vec3<uint8_t>> colors;
+      std::vector<Vec3<attr_t>> colors;
       colors.resize(0);
       colors.resize(nNN);
       for (int i = 0; i < nNN; ++i) {
@@ -318,7 +322,7 @@ recolourColour(
         }
         for (int k = 0; k < 3; ++k) {
           refinedColors1[index][k] =
-            uint8_t(PCCClip(round(refinedColor[k]), 0.0, 255.0));
+            attr_t(PCCClip(round(refinedColor[k]), 0.0, clipMax));
         }
         isDone = true;
       }
@@ -333,13 +337,13 @@ recolourColour(
 
   struct DistColor {
     double dist;
-    Vec3<uint8_t> color;
+    Vec3<attr_t> color;
   };
   std::vector<std::vector<DistColor>> refinedColorsDists2;
   refinedColorsDists2.resize(pointCountTarget);
 
   for (size_t index = 0; index < pointCountSource; ++index) {
-    const Vec3<uint8_t> color = source.getColor(index);
+    const Vec3<attr_t> color = source.getColor(index);
     resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
@@ -363,7 +367,7 @@ recolourColour(
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    const Vec3<uint8_t> color1 = refinedColors1[index];
+    const Vec3<attr_t> color1 = refinedColors1[index];
     auto& colorsDists2 = refinedColorsDists2[index];
     if (colorsDists2.empty()) {
       target.setColor(index, color1);
@@ -484,22 +488,21 @@ recolourColour(
       Vec3<double> color0;
       for (size_t k = 0; k < 3; ++k) {
         color0[k] = PCCClip(
-          round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, 255.0);
+          round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, clipMax);
       }
       const double rSource = 1.0 / double(pointCountSource);
       const double rTarget = 1.0 / double(pointCountTarget);
-      const double maxValue = std::numeric_limits<uint8_t>::max();
       double minError = std::numeric_limits<double>::max();
       Vec3<double> bestColor(color0);
       Vec3<double> color;
       for (int32_t s1 = -params.searchRange; s1 <= params.searchRange; ++s1) {
-        color[0] = PCCClip(color0[0] + s1, 0.0, maxValue);
+        color[0] = PCCClip(color0[0] + s1, 0.0, clipMax);
         for (int32_t s2 = -params.searchRange; s2 <= params.searchRange;
              ++s2) {
-          color[1] = PCCClip(color0[1] + s2, 0.0, maxValue);
+          color[1] = PCCClip(color0[1] + s2, 0.0, clipMax);
           for (int32_t s3 = -params.searchRange; s3 <= params.searchRange;
                ++s3) {
-            color[2] = PCCClip(color0[2] + s3, 0.0, maxValue);
+            color[2] = PCCClip(color0[2] + s3, 0.0, clipMax);
 
             double e1 = 0.0;
             for (size_t k = 0; k < 3; ++k) {
@@ -528,9 +531,8 @@ recolourColour(
       }
       target.setColor(
         index,
-        Vec3<uint8_t>(
-          uint8_t(bestColor[0]), uint8_t(bestColor[1]),
-          uint8_t(bestColor[2])));
+        Vec3<attr_t>(
+          attr_t(bestColor[0]), attr_t(bestColor[1]), attr_t(bestColor[2])));
     }
   }
   return true;
@@ -559,6 +561,7 @@ recolourColour(
 
 bool
 recolourReflectance(
+  const AttributeDescription& attrDesc,
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
@@ -577,8 +580,10 @@ recolourReflectance(
   KDTreeVectorOfVectorsAdaptor<PCCPointSet3, double> kdtreeSource(
     3, source, 10);
   target.addReflectances();
-  std::vector<uint16_t> refinedReflectances1;
+  std::vector<attr_t> refinedReflectances1;
   refinedReflectances1.resize(pointCountTarget);
+
+  double clipMax = (1 << attrDesc.attr_bitdepth) - 1;
 
   double maxGeometryDist2Fwd = (cfg.maxGeometryDist2Fwd < 512)
     ? cfg.maxGeometryDist2Fwd
@@ -637,7 +642,7 @@ recolourReflectance(
         continue;
       }
 
-      std::vector<uint16_t> reflectances;
+      std::vector<attr_t> reflectances;
       reflectances.resize(0);
       reflectances.resize(nNN);
       for (int i = 0; i < nNN; ++i) {
@@ -670,7 +675,7 @@ recolourReflectance(
           refinedReflectance /= nNN;
         }
         refinedReflectances1[index] =
-          uint8_t(PCCClip(round(refinedReflectance), 0.0, 255.0));
+          attr_t(PCCClip(round(refinedReflectance), 0.0, clipMax));
         isDone = true;
       }
     }
@@ -684,13 +689,13 @@ recolourReflectance(
 
   struct DistReflectance {
     double dist;
-    uint16_t reflectance;
+    attr_t reflectance;
   };
   std::vector<std::vector<DistReflectance>> refinedReflectancesDists2;
   refinedReflectancesDists2.resize(pointCountTarget);
 
   for (size_t index = 0; index < pointCountSource; ++index) {
-    const uint16_t reflectance = source.getReflectance(index);
+    const attr_t reflectance = source.getReflectance(index);
     resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
@@ -717,7 +722,7 @@ recolourReflectance(
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
-    const uint16_t reflectance1 = refinedReflectances1[index];
+    const attr_t reflectance1 = refinedReflectances1[index];
     auto& reflectancesDists2 = refinedReflectancesDists2[index];
     if (reflectancesDists2.empty()) {
       target.setReflectance(index, reflectance1);
@@ -822,15 +827,14 @@ recolourReflectance(
       const double oneMinusW = 1.0 - w;
       double reflectance0;
       reflectance0 =
-        PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, 255.0);
+        PCCClip(round(w * centroid1 + oneMinusW * centroid2), 0.0, clipMax);
       const double rSource = 1.0 / double(pointCountSource);
       const double rTarget = 1.0 / double(pointCountTarget);
-      const double maxValue = std::numeric_limits<uint8_t>::max();
       double minError = std::numeric_limits<double>::max();
       double bestReflectance = reflectance0;
       double reflectance;
       for (int32_t s1 = -cfg.searchRange; s1 <= cfg.searchRange; ++s1) {
-        reflectance = PCCClip(reflectance0 + s1, 0.0, maxValue);
+        reflectance = PCCClip(reflectance0 + s1, 0.0, clipMax);
         double e1 = 0.0;
         const double d = reflectance - reflectance1;
         e1 += d * d;
@@ -850,14 +854,14 @@ recolourReflectance(
           bestReflectance = reflectance;
         }
       }
-      target.setReflectance(index, uint16_t(bestReflectance));
+      target.setReflectance(index, attr_t(bestReflectance));
     }
   }
   return true;
 }
 
 //============================================================================
-// Recolour attributes based on a source/reference point cloud.
+// Recolour an attribute based on a source/reference point cloud.
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
@@ -866,6 +870,7 @@ recolourReflectance(
 
 int
 recolour(
+  const AttributeDescription& desc,
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
@@ -878,9 +883,11 @@ recolour(
     combinedOffset[k] =
       targetToSourceOffset[k] + double(offset[k]) / sourceToTargetScaleFactor;
 
-  if (source.hasColors()) {
+  // todo(df): fix the incorrect assumption here that 3-component
+  // attributes are colour (and that single components are reflectance)
+  if (desc.attributeLabel == KnownAttributeLabel::kColour) {
     bool ok = recolourColour(
-      cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
+      desc, cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer colors!" << std::endl;
@@ -888,9 +895,9 @@ recolour(
     }
   }
 
-  if (source.hasReflectances()) {
+  if (desc.attributeLabel == KnownAttributeLabel::kReflectance) {
     bool ok = recolourReflectance(
-      cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
+      desc, cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer reflectance!" << std::endl;

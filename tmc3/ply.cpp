@@ -142,7 +142,7 @@ ply::write(
       const Vec3<double>& position = cloud[i];
       fout << position.x() << " " << position.y() << " " << position.z();
       if (cloud.hasColors()) {
-        const Vec3<uint8_t>& color = cloud.getColor(i);
+        const Vec3<attr_t>& color = cloud.getColor(i);
         fout << " " << static_cast<int>(color[0]) << " "
              << static_cast<int>(color[1]) << " "
              << static_cast<int>(color[2]);
@@ -164,11 +164,12 @@ ply::write(
       fout.write(
         reinterpret_cast<const char* const>(&position), sizeof(double) * 3);
       if (cloud.hasColors()) {
-        const Vec3<uint8_t>& color = cloud.getColor(i);
-        fout.write(reinterpret_cast<const char*>(&color), sizeof(uint8_t) * 3);
+        const Vec3<attr_t>& c = cloud.getColor(i);
+        Vec3<uint8_t> val8b{uint8_t(c[0]), uint8_t(c[1]), uint8_t(c[2])};
+        fout.write(reinterpret_cast<const char*>(&val8b), sizeof(uint8_t) * 3);
       }
       if (cloud.hasReflectances()) {
-        const uint16_t& reflectance = cloud.getReflectance(i);
+        const attr_t& reflectance = cloud.getReflectance(i);
         fout.write(
           reinterpret_cast<const char*>(&reflectance), sizeof(uint16_t));
       }
@@ -447,14 +448,17 @@ ply::read(
             position[2] = z;
           }
         } else if (a == indexR && attributeInfo.byteCount == 1) {
-          auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[2]), sizeof(uint8_t));
+          uint8_t val8b;
+          ifs.read(reinterpret_cast<char*>(&val8b), sizeof(uint8_t));
+          cloud.getColor(pointCounter)[2] = val8b;
         } else if (a == indexG && attributeInfo.byteCount == 1) {
-          auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[0]), sizeof(uint8_t));
+          uint8_t val8b;
+          ifs.read(reinterpret_cast<char*>(&val8b), sizeof(uint8_t));
+          cloud.getColor(pointCounter)[0] = val8b;
         } else if (a == indexB && attributeInfo.byteCount == 1) {
-          auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[1]), sizeof(uint8_t));
+          uint8_t val8b;
+          ifs.read(reinterpret_cast<char*>(&val8b), sizeof(uint8_t));
+          cloud.getColor(pointCounter)[1] = val8b;
         } else if (a == indexReflectance && attributeInfo.byteCount <= 2) {
           if (attributeInfo.byteCount == 1) {
             uint8_t reflectance;

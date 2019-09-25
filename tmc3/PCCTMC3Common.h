@@ -105,21 +105,21 @@ struct PCCPredictor {
   int8_t predMode;
   int64_t maxDiff;
 
-  Vec3<uint8_t> predictColor(
+  Vec3<attr_t> predictColor(
     const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const
   {
     Vec3<int64_t> predicted(0);
     if (predMode > neighborCount) {
       /* nop */
     } else if (predMode > 0) {
-      const Vec3<uint8_t> color =
+      const Vec3<attr_t> color =
         pointCloud.getColor(indexes[neighbors[predMode - 1].predictorIndex]);
       for (size_t k = 0; k < 3; ++k) {
         predicted[k] += color[k];
       }
     } else {
       for (size_t i = 0; i < neighborCount; ++i) {
-        const Vec3<uint8_t> color =
+        const Vec3<attr_t> color =
           pointCloud.getColor(indexes[neighbors[i].predictorIndex]);
         const uint32_t w = neighbors[i].weight;
         for (size_t k = 0; k < 3; ++k) {
@@ -131,7 +131,7 @@ struct PCCPredictor {
           divExp2RoundHalfInf(predicted[k], kFixedPointWeightShift);
       }
     }
-    return Vec3<uint8_t>(predicted[0], predicted[1], predicted[2]);
+    return Vec3<attr_t>(predicted[0], predicted[1], predicted[2]);
   }
 
   int64_t predictReflectance(

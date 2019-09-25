@@ -801,11 +801,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
       || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
 
-    if (it.first == "color") {
-      // todo(??): permit relaxing of the following constraint
-      if (attr_sps.attr_bitdepth > 8)
-        err.error() << it.first << ".bitdepth must be less than 9\n";
-    }
+    if (attr_sps.attr_bitdepth > 16)
+      err.error() << it.first << ".bitdepth must be less than 17\n";
 
     if (it.first == "reflectance") {
       if (attr_sps.attr_bitdepth > 16)

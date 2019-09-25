@@ -51,6 +51,13 @@
 #include "PCCMisc.h"
 
 namespace pcc {
+
+//============================================================================
+// The type used for internally representing attribute data
+typedef uint16_t attr_t;
+
+//============================================================================
+
 class PCCPointSet3 {
 public:
   typedef Vec3<double> PointType;
@@ -259,32 +266,32 @@ public:
     assert(index < positions.size());
     return positions[index];
   }
-  Vec3<uint8_t> getColor(const size_t index) const
+  Vec3<attr_t> getColor(const size_t index) const
   {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  Vec3<uint8_t>& getColor(const size_t index)
+  Vec3<attr_t>& getColor(const size_t index)
   {
     assert(index < colors.size() && withColors);
     return colors[index];
   }
-  void setColor(const size_t index, const Vec3<uint8_t> color)
+  void setColor(const size_t index, const Vec3<attr_t> color)
   {
     assert(index < colors.size() && withColors);
     colors[index] = color;
   }
-  uint16_t getReflectance(const size_t index) const
+  attr_t getReflectance(const size_t index) const
   {
     assert(index < reflectances.size() && withReflectances);
     return reflectances[index];
   }
-  uint16_t& getReflectance(const size_t index)
+  attr_t& getReflectance(const size_t index)
   {
     assert(index < reflectances.size() && withReflectances);
     return reflectances[index];
   }
-  void setReflectance(const size_t index, const uint16_t reflectance)
+  void setReflectance(const size_t index, const attr_t reflectance)
   {
     assert(index < reflectances.size() && withReflectances);
     reflectances[index] = reflectance;
@@ -495,8 +502,8 @@ public:
 
 private:
   std::vector<Vec3<double>> positions;
-  std::vector<Vec3<uint8_t>> colors;
-  std::vector<uint16_t> reflectances;
+  std::vector<Vec3<attr_t>> colors;
+  std::vector<attr_t> reflectances;
   std::vector<uint8_t> frameidx;
   bool withColors;
   bool withReflectances;

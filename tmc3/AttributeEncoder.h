@@ -108,8 +108,8 @@ protected:
     PCCResidualsEncoder& encoder);
 
   static Vec3<int64_t> computeColorResiduals(
-    const Vec3<uint8_t> color,
-    const Vec3<uint8_t> predictedColor,
+    const Vec3<attr_t> color,
+    const Vec3<attr_t> predictedColor,
     const Quantizers& quant);
 
   static void computeColorPredictionWeights(

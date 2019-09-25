@@ -387,9 +387,12 @@ PCCTMC3Encoder3::compressPartition(
 
   // NB: recolouring is required if points are added / removed
   if (_gps->geom_unique_points_flag || _gps->trisoup_node_size_log2 > 0) {
-    recolour(
-      params->recolour, originPartCloud, _sps->seq_source_geom_scale_factor,
-      _sps->seq_bounding_box_xyz0, _sliceOrigin, &pointCloud);
+    for (const auto& attr_sps : _sps->attributeSets) {
+      recolour(
+        attr_sps, params->recolour, originPartCloud,
+        _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
+        _sliceOrigin, &pointCloud);
+    }
   }
 
   // dump recoloured point cloud
