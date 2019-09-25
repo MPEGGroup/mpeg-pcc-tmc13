@@ -561,7 +561,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.desc.cicp_matrix_coefficients_idx, ColourMatrix::kBt709,
     "Matrix used in colourspace conversion\n"
     "  0: none (identity)\n"
-    "  1: ITU-T BT.709")
+    "  1: ITU-T BT.709\n"
+    "  8: YCgCo")
 
   ("transformType",
     params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
@@ -774,6 +775,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     // todo(df): this needs to be a command line argument
     //  -- but there are a few edge cases to handle
     attr_sps.attr_bitdepth_secondary = attr_sps.attr_bitdepth;
+
+    // Assume that YCgCo is actually YCgCoR for now
+    if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
+      attr_sps.attr_bitdepth_secondary++;
 
     bool isLifting =
       attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
@@ -1219,6 +1224,11 @@ convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
   switch (attrDesc->cicp_matrix_coefficients_idx) {
   case ColourMatrix::kBt709: convertYCbCrBt709ToGbr(cloud); break;
 
+  case ColourMatrix::kYCgCo:
+    // todo(df): select YCgCoR vs YCgCo
+    convertYCgCoRToGbr(attrDesc->attr_bitdepth, cloud);
+    break;
+
   default: break;
   }
 }
@@ -1234,6 +1244,11 @@ convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 
   switch (attrDesc->cicp_matrix_coefficients_idx) {
   case ColourMatrix::kBt709: convertGbrToYCbCrBt709(cloud); break;
+
+  case ColourMatrix::kYCgCo:
+    // todo(df): select YCgCoR vs YCgCo
+    convertGbrToYCgCoR(attrDesc->attr_bitdepth, cloud);
+    break;
 
   default: break;
   }

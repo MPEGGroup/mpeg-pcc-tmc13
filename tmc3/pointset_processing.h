@@ -180,6 +180,9 @@ int recolour(
 void convertGbrToYCbCrBt709(PCCPointSet3&);
 void convertYCbCrBt709ToGbr(PCCPointSet3&);
 
+void convertGbrToYCgCoR(int bitDepth, PCCPointSet3&);
+void convertYCgCoRToGbr(int bitDepth, PCCPointSet3&);
+
 //============================================================================
 
 }  // namespace pcc

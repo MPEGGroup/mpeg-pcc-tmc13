@@ -913,6 +913,28 @@ recolour(
 //============================================================================
 
 void
+convertGbrToYCgCoR(int bitDepth, PCCPointSet3& cloud)
+{
+  for (int i = 0; i < cloud.getPointCount(); i++) {
+    auto& val = cloud.getColor(i);
+    val = transformGbrToYCgCoR(bitDepth, val);
+  }
+}
+
+//============================================================================
+
+void
+convertYCgCoRToGbr(int bitDepth, PCCPointSet3& cloud)
+{
+  for (int i = 0; i < cloud.getPointCount(); i++) {
+    auto& val = cloud.getColor(i);
+    val = transformYCgCoRToGbr(bitDepth, val);
+  }
+}
+
+//============================================================================
+
+void
 convertGbrToYCbCrBt709(PCCPointSet3& cloud)
 {
   for (int i = 0; i < cloud.getPointCount(); i++) {

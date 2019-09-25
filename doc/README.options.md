@@ -302,10 +302,13 @@ decoder if supported.
   | 5     | No            | YCbCr ITU-R BT.601                        |
   | 6     | No            | YCbCr SMPTE 170M                          |
   | 7     | No            | YCbCr SMPTE 240M                          |
-  | 8     | No            | YCgCo / YCgCoR                            |
+  | 8     | Yes (YCgCoR)  | YCgCo / YCgCoR                            |
   | 9     | No            | YCbCr ITU-R BT.2020                       |
   | 10    | No            | YCbCr ITU-R BT.2020 (constant luminance)  |
   | 11    | No            | YDzDx SMPTE ST 2085                       |
+
+NB: the use of YCgCoR and `bitdepth=N` implies that the bitdepth of the
+chroma component bitdepth is N + 1.
 
 ### `--bitdepth=INT-VALUE`
 The bitdepth of the attribute data.  NB, this is not necessarily the

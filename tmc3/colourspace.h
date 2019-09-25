@@ -79,4 +79,50 @@ transformYCbCrBt709ToGbr(T<Tv>& ycbcr)
 
 //============================================================================
 
+template<template<typename> class T, typename Tv>
+T<Tv>
+transformGbrToYCgCoR(int bitDepth, T<Tv>& gbr)
+{
+  int g = gbr[0];
+  int b = gbr[1];
+  int r = gbr[2];
+
+  int co = r - b;
+  int t = b + (co >> 1);
+  int cg = g - t;
+  int y = t + (cg >> 1);
+
+  int offset = 1 << bitDepth;
+
+  // NB: YCgCoR needs extra 1-bit for chroma
+  return {Tv(y), Tv(cg + offset), Tv(co + offset)};
+}
+
+//============================================================================
+
+template<template<typename> class T, typename Tv>
+T<Tv>
+transformYCgCoRToGbr(int bitDepth, T<Tv>& ycgco)
+{
+  int offset = 1 << bitDepth;
+  int y0 = ycgco[0];
+  int cg = ycgco[1] - offset;
+  int co = ycgco[2] - offset;
+
+  int t = y0 - (cg >> 1);
+
+  int g = cg + t;
+  int b = t - (co >> 1);
+  int r = co + b;
+
+  int maxVal = (1 << bitDepth) - 1;
+  g = PCCClip(g, 0, maxVal);
+  b = PCCClip(b, 0, maxVal);
+  r = PCCClip(r, 0, maxVal);
+
+  return {Tv(g), Tv(b), Tv(r)};
+}
+
+//============================================================================
+
 }  // namespace pcc
