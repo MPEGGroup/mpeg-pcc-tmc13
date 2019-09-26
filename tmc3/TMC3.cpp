@@ -584,6 +584,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.intra_lod_prediction_enabled_flag, false,
     "Permits referring to points in same LoD")
 
+  ("interComponentPredictionEnabled",
+    params_attr.aps.inter_component_prediction_enabled_flag, false,
+    "Use primary attribute component to predict values of subsequent "
+    "components")
+
   ("aps_scalable_enable_flag",
     params_attr.aps.scalable_lifting_enabled_flag, false,
     "Enable scalable attritube coding")

@@ -699,6 +699,7 @@ AttributeEncoder::encodeColorsPred(
       predictor.predictColor(pointCloud, indexesLOD);
 
     Vec3<uint8_t> reconstructedColor;
+    int64_t residual0 = 0;
     for (int k = 0; k < 3; ++k) {
       const auto& q = quant[std::min(k, 1)];
       int64_t residual = color[k] - predictedColor[k];
@@ -706,6 +707,16 @@ AttributeEncoder::encodeColorsPred(
       int64_t residualQ = q.quantize(residual << kFixedPointAttributeShift);
       int64_t residualR =
         divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+
+      if (aps.inter_component_prediction_enabled_flag && k > 0) {
+        residual = residualR - residual0;
+        residualQ = q.quantize(residual << kFixedPointAttributeShift);
+        residualR = residual0
+          + divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+      }
+
+      if (k == 0)
+        residual0 = residualR;
 
       values[k] = uint32_t(IntToUInt(long(residualQ)));
 

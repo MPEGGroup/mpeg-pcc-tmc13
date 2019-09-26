@@ -43,6 +43,7 @@ categories:
        - positionQuantizationScaleAdjustsDist2: 1
        - dist2: ${seq_dist2}
        - intraLodPredictionEnabled: 1
+       - interComponentPredictionEnabled: 1
 
        ##
        # attribute coding -- reflectance

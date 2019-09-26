@@ -299,6 +299,7 @@ write(const AttributeParameterSet& aps)
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.writeUe(aps.adaptive_prediction_threshold);
     bs.write(aps.intra_lod_prediction_enabled_flag);
+    bs.write(aps.inter_component_prediction_enabled_flag);
     bs.writeUe(aps.max_num_direct_predictors);
   }
 
@@ -359,6 +360,7 @@ parseAps(const PayloadBuffer& buf)
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.adaptive_prediction_threshold);
     bs.read(&aps.intra_lod_prediction_enabled_flag);
+    bs.read(&aps.inter_component_prediction_enabled_flag);
     bs.readUe(&aps.max_num_direct_predictors);
   }
 

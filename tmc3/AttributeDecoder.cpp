@@ -403,12 +403,16 @@ AttributeDecoder::decodeColorsPred(
       predictor.predictColor(pointCloud, indexesLOD);
 
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
+    int64_t residual0 = 0;
     for (int k = 0; k < 3; ++k) {
       const auto& q = quant[std::min(k, 1)];
       const int64_t residual = divExp2RoundHalfUp(
         q.scale(UIntToInt(values[k])), kFixedPointAttributeShift);
-      const int64_t recon = predictedColor[k] + residual;
+      const int64_t recon = predictedColor[k] + residual + residual0;
       color[k] = uint8_t(PCCClip(recon, int64_t(0), clipMax));
+
+      if (!k && aps.inter_component_prediction_enabled_flag)
+        residual0 = residual;
     }
   }
 }

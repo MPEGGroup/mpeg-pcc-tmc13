@@ -317,6 +317,10 @@ Neighbouring attribute value difference that enables choice of
 single|multi predictors. Applies to transformType=2 only.
 A value of -1 is replaced by 2**(bitdepth-2).
 
+### `--interComponentPredictionEnabled=0|1`
+Controls the use of an in-loop inter-component prediction of attribute
+residuals.  Applies to `transformType=1` and `attribute=color` only.
+
 ### `--attributeSearchRange=INT-VALUE`
 Range for nearest neighbour search.
 
