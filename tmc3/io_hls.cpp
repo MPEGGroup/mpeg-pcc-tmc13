@@ -512,6 +512,16 @@ write(
     }
   }
 
+  bs.write(abh.attr_region_qp_present_flag);
+  if (abh.attr_region_qp_present_flag) {
+    bs.writeUe(abh.attr_region_qp_origin.x());
+    bs.writeUe(abh.attr_region_qp_origin.y());
+    bs.writeUe(abh.attr_region_qp_origin.z());
+    bs.writeUe(abh.attr_region_qp_whd.x());
+    bs.writeUe(abh.attr_region_qp_whd.y());
+    bs.writeUe(abh.attr_region_qp_whd.z());
+    bs.writeSe(abh.attr_region_qp_delta);
+  }
   bs.byteAlign();
 }
 
@@ -566,6 +576,17 @@ parseAbh(
       bs.readSe(&abh.attr_layer_qp_delta_luma[i]);
       bs.readSe(&abh.attr_layer_qp_delta_chroma[i]);
     }
+  }
+
+  bs.read(&abh.attr_region_qp_present_flag);
+  if (abh.attr_region_qp_present_flag) {
+    bs.readUe(&abh.attr_region_qp_origin.x());
+    bs.readUe(&abh.attr_region_qp_origin.y());
+    bs.readUe(&abh.attr_region_qp_origin.z());
+    bs.readUe(&abh.attr_region_qp_whd.x());
+    bs.readUe(&abh.attr_region_qp_whd.y());
+    bs.readUe(&abh.attr_region_qp_whd.z());
+    bs.readSe(&abh.attr_region_qp_delta);
   }
 
   bs.byteAlign();

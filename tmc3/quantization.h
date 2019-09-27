@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "constants.h"
+#include "PCCMath.h"
 
 namespace pcc {
 
@@ -103,20 +104,47 @@ Quantizer::scale(int64_t x) const
 // Encapslation of multi-component attribute quantizer values.
 
 typedef std::array<Quantizer, 2> Quantizers;
+typedef std::array<int, 2> Qps;
+typedef std::vector<Qps> QpLayers;
 
 //============================================================================
-// Derive quantisation step sizes for each component given attribute
 
-Quantizers deriveQuantizers(
+struct QpRegionOffset {
+  bool valid;
+  int qpOffset;
+  Box3<double> region;
+};
+
+//============================================================================
+
+struct QpSet {
+  QpLayers layers;
+  QpRegionOffset regionOffset;
+
+  // Lookup the quantizer for a point at a particular layer
+  Quantizers quantizers(const Vec3<double>& point, int qpLayer) const;
+
+  // Return the list of quantisers for all layers
+  std::vector<Quantizers> quantizerLayers() const;
+};
+
+//============================================================================
+// Determine the Qps for a particular layer in an attribute slice
+Qps deriveQps(
   const AttributeParameterSet& attr_aps,
   const AttributeBrickHeader& abh,
   int qpLayer);
 
-//============================================================================
-
-std::vector<Quantizers> deriveQuantizerLayers(
+// Determine the base layer QPs for an attribute slice
+QpLayers deriveLayerQps(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
-//============================================================================
+// Determine a list of Qp offsets per region
+QpRegionOffset deriveQpRegions(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
+
+// Determine the Qp configuration for an attribute slice
+QpSet deriveQpSet(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 }  // namespace pcc

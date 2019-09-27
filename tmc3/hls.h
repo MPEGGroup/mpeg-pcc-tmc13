@@ -343,6 +343,11 @@ struct AttributeBrickHeader {
   {
     return !attr_layer_qp_delta_luma.empty();
   }
+
+  Vec3<int> attr_region_qp_origin;
+  Vec3<int> attr_region_qp_whd;
+  int attr_region_qp_delta;
+  bool attr_region_qp_present_flag;
 };
 
 //============================================================================

@@ -45,6 +45,7 @@ namespace pcc {
 
 Quantizer::Quantizer(int qp)
 {
+  qp = std::max(qp, 4);
   int qpShift = qp / 6;
   _stepSize = kQpStep[qp % 6] << qpShift;
   _stepSizeRecip = kQpStepRecip[qp % 6] >> qpShift;
@@ -52,8 +53,8 @@ Quantizer::Quantizer(int qp)
 
 //============================================================================
 
-Quantizers
-deriveQuantizers(
+Qps
+deriveQps(
   const AttributeParameterSet& attr_aps,
   const AttributeBrickHeader& abh,
   int qpLayer)
@@ -77,33 +78,84 @@ deriveQuantizers(
   if (abh.attr_layer_qp_present_flag()) {
     sliceQpLuma += abh.attr_layer_qp_delta_luma[qpLayer];
     sliceQpChroma += abh.attr_layer_qp_delta_chroma[qpLayer];
-    sliceQpLuma = std::max(sliceQpLuma, 4);
-    sliceQpChroma = std::max(sliceQpChroma, 4);
   }
 
-  return {Quantizer{sliceQpLuma}, Quantizer{sliceQpChroma}};
+  return {sliceQpLuma, sliceQpChroma};
 }
 
 //============================================================================
 
-std::vector<Quantizers>
-deriveQuantizerLayers(
+QpLayers
+deriveLayerQps(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
 {
-  std::vector<Quantizers> layers;
+  QpLayers layers;
 
-  layers.push_back(deriveQuantizers(attr_aps, abh, 0));
+  layers.push_back(deriveQps(attr_aps, abh, 0));
 
   if (abh.attr_layer_qp_present_flag()) {
     int numLayers = attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
       ? attr_aps.raht_depth + 1
       : attr_aps.num_detail_levels + 1;
     for (int layer = 1; layer < numLayers; layer++) {
-      layers.push_back(deriveQuantizers(attr_aps, abh, layer));
+      layers.push_back(deriveQps(attr_aps, abh, layer));
     }
   }
 
   return layers;
+}
+
+//============================================================================
+
+QpRegionOffset
+deriveQpRegions(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+{
+  QpRegionOffset qpRegionOffset;
+  qpRegionOffset.valid = abh.attr_region_qp_present_flag;
+  if (qpRegionOffset.valid) {
+    qpRegionOffset.qpOffset = abh.attr_region_qp_delta;
+    for (int i = 0; i < 3; i++) {
+      qpRegionOffset.region.min[i] = abh.attr_region_qp_origin[i];
+      qpRegionOffset.region.max[i] =
+        abh.attr_region_qp_origin[i] + abh.attr_region_qp_whd[i];
+    }
+  }
+  return qpRegionOffset;
+}
+
+//============================================================================
+
+QpSet
+deriveQpSet(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+{
+  return {deriveLayerQps(attr_aps, abh), deriveQpRegions(attr_aps, abh)};
+}
+
+//============================================================================
+//for PredLift
+Quantizers
+QpSet::quantizers(const Vec3<double>& point, int qpLayer) const
+{
+  int qpRegionOffset = 0;
+  if (regionOffset.valid && regionOffset.region.contains(point)) {
+    qpRegionOffset = regionOffset.qpOffset;
+  }
+  return {Quantizer(layers[qpLayer][0] + qpRegionOffset),
+          Quantizer(layers[qpLayer][1] + qpRegionOffset)};
+}
+
+//============================================================================
+//for RAHT (which does not yet support region offsets)
+std::vector<Quantizers>
+QpSet::quantizerLayers() const
+{
+  std::vector<Quantizers> quantLayers;
+  for (int i = 0; i < layers.size(); i++) {
+    quantLayers.push_back({Quantizer(layers[i][0]), Quantizer(layers[i][1])});
+  }
+  return quantLayers;
 }
 
 //============================================================================

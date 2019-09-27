@@ -67,7 +67,7 @@ protected:
   void decodeReflectancesLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     int geom_num_points,
     int minGeomNodeSizeLog2,
     PCCResidualsDecoder& decoder,
@@ -76,7 +76,7 @@ protected:
   void decodeColorsLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     int geom_num_points,
     int minGeomNodeSizeLog2,
     PCCResidualsDecoder& decoder,
@@ -85,28 +85,28 @@ protected:
   void decodeReflectancesPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 
   void decodeColorsPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 
   void decodeReflectancesRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 
   void decodeColorsRaht(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const std::vector<Quantizers>& quantLayers,
+    const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 

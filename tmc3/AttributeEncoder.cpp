@@ -337,7 +337,7 @@ AttributeEncoder::encode(
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
-  std::vector<Quantizers> quantLayers = deriveQuantizerLayers(attr_aps, abh);
+  QpSet qpSet = deriveQpSet(attr_aps, abh);
 
   PCCResidualsEncoder encoder;
   encoder.start(sps, int(pointCloud.getPointCount()));
@@ -346,30 +346,29 @@ AttributeEncoder::encode(
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeReflectancesTransformRaht(
-        desc, attr_aps, quantLayers, pointCloud, encoder);
+        desc, attr_aps, qpSet, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      encodeReflectancesPred(desc, attr_aps, quantLayers, pointCloud, encoder);
+      encodeReflectancesPred(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      encodeReflectancesLift(desc, attr_aps, quantLayers, pointCloud, encoder);
+      encodeReflectancesLift(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
     }
   } else if (desc.attr_num_dimensions == 3) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      encodeColorsTransformRaht(
-        desc, attr_aps, quantLayers, pointCloud, encoder);
+      encodeColorsTransformRaht(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      encodeColorsPred(desc, attr_aps, quantLayers, pointCloud, encoder);
+      encodeColorsPred(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
 
     case AttributeEncoding::kLiftingTransform:
-      encodeColorsLift(desc, attr_aps, quantLayers, pointCloud, encoder);
+      encodeColorsLift(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
     }
   } else {
@@ -472,7 +471,7 @@ void
 AttributeEncoder::encodeReflectancesPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -496,16 +495,16 @@ AttributeEncoder::encodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
-      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+      quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    auto& quant = quantLayers[quantLayer];
+    const uint32_t pointIndex = indexesLOD[predictorIndex];
+    auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = predictors[predictorIndex];
 
     computeReflectancePredictionWeights(
       aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
       quant[0]);
 
-    const uint32_t pointIndex = indexesLOD[predictorIndex];
     const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
     const attr_t predictedReflectance =
       predictor.predictReflectance(pointCloud, indexesLOD);
@@ -658,7 +657,7 @@ void
 AttributeEncoder::encodeColorsPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -682,20 +681,19 @@ AttributeEncoder::encodeColorsPred(
   for (int i = 0; i < 3; i++) {
     residual[i].resize(pointCount);
   }
-
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
-      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+      quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    auto& quant = quantLayers[quantLayer];
+    const auto pointIndex = indexesLOD[predictorIndex];
+    auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = predictors[predictorIndex];
 
     computeColorPredictionWeights(
       aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
       quant);
-    const auto pointIndex = indexesLOD[predictorIndex];
     const Vec3<attr_t> color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
@@ -770,7 +768,7 @@ void
 AttributeEncoder::encodeReflectancesTransformRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -795,6 +793,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     attributes[attribCount * n] = reflectance;
   }
 
+  auto quantLayers = qpSet.quantizerLayers();
   // Transform.
   regionAdaptiveHierarchicalTransform(
     aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
@@ -838,7 +837,7 @@ void
 AttributeEncoder::encodeColorsTransformRaht(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -865,6 +864,7 @@ AttributeEncoder::encodeColorsTransformRaht(
     attributes[attribCount * n + 2] = color[2];
   }
 
+  auto quantLayers = qpSet.quantizerLayers();
   // Transform.
   regionAdaptiveHierarchicalTransform(
     aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
@@ -915,7 +915,7 @@ void
 AttributeEncoder::encodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -963,9 +963,10 @@ AttributeEncoder::encodeColorsLift(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
-      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+      quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    auto& quant = quantLayers[quantLayer];
+    const auto pointIndex = indexesLOD[predictorIndex];
+    auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
     const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
@@ -1023,7 +1024,7 @@ void
 AttributeEncoder::encodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const std::vector<Quantizers>& quantLayers,
+  const QpSet& qpSet,
   PCCPointSet3& pointCloud,
   PCCResidualsEncoder& encoder)
 {
@@ -1071,9 +1072,10 @@ AttributeEncoder::encodeReflectancesLift(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
-      quantLayer = std::min(int(quantLayers.size()) - 1, quantLayer + 1);
+      quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    auto& quant = quantLayers[quantLayer];
+    const auto pointIndex = indexesLOD[predictorIndex];
+    auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];

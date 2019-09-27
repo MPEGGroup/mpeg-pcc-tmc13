@@ -409,6 +409,11 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_layer_qp_delta_luma = attr_enc.abh.attr_layer_qp_delta_luma;
     abh.attr_layer_qp_delta_chroma = attr_enc.abh.attr_layer_qp_delta_chroma;
 
+    abh.attr_region_qp_present_flag = false;
+    abh.attr_region_qp_origin = Vec3<int>{0};
+    abh.attr_region_qp_whd = Vec3<int>{0};
+    abh.attr_region_qp_delta = 0;
+
     write(attr_aps, abh, &payload);
 
     AttributeEncoder attrEncoder;
