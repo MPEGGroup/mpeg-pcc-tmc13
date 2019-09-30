@@ -114,7 +114,7 @@ static const int16_t lut_interleaved[512] = {
 };
 
 void
-schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
+schro_arith_decode_init (SchroArith * arith, SchroRdFn read_fn, void * read_fn_priv)
 {
   int size;
 
@@ -125,21 +125,19 @@ schro_arith_decode_init (SchroArith * arith, SchroBuffer * buffer)
   arith->code = 0;
   arith->cntr = 16;
 
-  arith->buffer = buffer;
+  arith->read = read_fn;
+  arith->io_priv = read_fn_priv;
 
-  size = arith->buffer->length;
-  arith->dataptr = arith->buffer->data;
-  arith->code = ((size > 0) ? arith->dataptr[0] : 0xff) << 24;
-  arith->code |= ((size > 1) ? arith->dataptr[1] : 0xff) << 16;
-  arith->code |= ((size > 2) ? arith->dataptr[2] : 0xff) << 8;
-  arith->code |= ((size > 3) ? arith->dataptr[3] : 0xff);
-  arith->offset = 3;
+  arith->code = arith->read(arith->io_priv) << 24;
+  arith->code |= arith->read(arith->io_priv) << 16;
+  arith->code |= arith->read(arith->io_priv) << 8;
+  arith->code |= arith->read(arith->io_priv);
 
   memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
 }
 
 void
-schro_arith_encode_init (SchroArith * arith, SchroBuffer * buffer)
+schro_arith_encode_init (SchroArith * arith, SchroWrFn write_fn, void * write_fn_priv)
 {
   int i;
 
@@ -148,10 +146,10 @@ schro_arith_encode_init (SchroArith * arith, SchroBuffer * buffer)
   arith->range[1] = 0xffff;
   arith->range_size = arith->range[1] - arith->range[0];
   arith->code = 0;
+  arith->first_byte = 1;
 
-  arith->buffer = buffer;
-  arith->offset = 0;
-  arith->dataptr = arith->buffer->data;
+  arith->write = write_fn;
+  arith->io_priv = write_fn_priv;
 
   for (i = 0; i < 256; i++) {
     arith->lut[i] = lut[i];
@@ -162,9 +160,6 @@ schro_arith_encode_init (SchroArith * arith, SchroBuffer * buffer)
 void
 schro_arith_decode_flush (SchroArith * arith)
 {
-  if (arith->cntr < 8) {
-    arith->offset++;
-  }
 }
 
 void
@@ -193,28 +188,24 @@ schro_arith_flush (SchroArith * arith)
   }
 
   if (arith->range[0] >= (1 << 24)) {
-    arith->dataptr[arith->offset - 1]++;
+    arith->output_byte++;
+    arith->write(arith->output_byte, arith->io_priv);
     while (arith->carry) {
-      arith->dataptr[arith->offset] = 0x00;
+      arith->write(0x00, arith->io_priv);
       arith->carry--;
-      arith->offset++;
     }
   } else {
+    arith->write(arith->output_byte, arith->io_priv);
     while (arith->carry) {
-      arith->dataptr[arith->offset] = 0xff;
+      arith->write(0xff, arith->io_priv);
       arith->carry--;
-      arith->offset++;
     }
   }
 
-  arith->dataptr[arith->offset] = arith->range[0] >> 16;
-  arith->offset++;
-  arith->dataptr[arith->offset] = arith->range[0] >> 8;
-  arith->offset++;
-  if (extra_byte) {
-    arith->dataptr[arith->offset] = arith->range[0] >> 0;
-    arith->offset++;
-  }
+  arith->write(arith->range[0] >> 16, arith->io_priv);
+  arith->write(arith->range[0] >> 8, arith->io_priv);
+  if (extra_byte)
+    arith->write(arith->range[0], arith->io_priv);
 }
 
 /* wrappers */

@@ -10,21 +10,15 @@
 extern "C" {
 #endif
 
-/* This definition of SchroBuffer is simplified version of the
- * real version for the purpose of this integration test */
-typedef struct _SchroBuffer SchroBuffer;
-struct _SchroBuffer {
-	unsigned char *data;
-	unsigned int length;
-};
-
+typedef uint8_t (*SchroRdFn)(void *);
+typedef void (*SchroWrFn)(uint8_t byte, void *);
 
 typedef struct _SchroArith SchroArith;
 
 struct _SchroArith {
-  SchroBuffer *buffer;
-  uint8_t *dataptr;
-  uintptr_t offset;
+  SchroRdFn read;
+  SchroWrFn write;
+  void * io_priv;
 
   uint32_t range[2];
   uint32_t code;
@@ -32,11 +26,14 @@ struct _SchroArith {
   int cntr;
   int carry;
 
+  uint8_t first_byte;
+  uint8_t output_byte;
+
   uint16_t lut[512];
 };
 
-void schro_arith_decode_init (SchroArith *arith, SchroBuffer *buffer);
-void schro_arith_encode_init (SchroArith *arith, SchroBuffer *buffer);
+void schro_arith_decode_init (SchroArith *arith, SchroRdFn read_fn, void * priv);
+void schro_arith_encode_init (SchroArith *arith, SchroWrFn write_fn, void * priv);
 void schro_arith_flush (SchroArith *arith);
 void schro_arith_decode_flush (SchroArith *arith);
 
@@ -60,20 +57,8 @@ _schro_arith_decode_bit (SchroArith *arith, uint16_t *probability)
     code_minus_low <<= 1;
 
     if (!--arith->cntr) {
-      arith->offset++;
-      if (arith->offset < arith->buffer->length) {
-        code_minus_low |= arith->dataptr[arith->offset] << 8;
-      } else {
-        code_minus_low |= 0xff00;
-      }
-
-      arith->offset++;
-      if (arith->offset < arith->buffer->length) {
-        code_minus_low |= arith->dataptr[arith->offset];
-      } else {
-        code_minus_low |= 0xff;
-      }
-
+      code_minus_low |= arith->read(arith->io_priv) << 8;
+      code_minus_low |= arith->read(arith->io_priv);
       arith->cntr = 16;
     }
   }
@@ -128,21 +113,24 @@ _schro_arith_encode_bit (SchroArith *arith, uint16_t *probability, int value)
         arith->carry++;
       } else {
         if (arith->range[0] >= (1<<24)) {
-          arith->dataptr[arith->offset-1]++;
+          arith->output_byte++;
           while (arith->carry) {
-            arith->dataptr[arith->offset] = 0x00;
+            arith->write(arith->output_byte, arith->io_priv);
+            arith->output_byte = 0x00;
             arith->carry--;
-            arith->offset++;
           }
         } else {
           while (arith->carry) {
-            arith->dataptr[arith->offset] = 0xff;
+            arith->write(arith->output_byte, arith->io_priv);
+            arith->output_byte = 0xff;
             arith->carry--;
-            arith->offset++;
           }
         }
-        arith->dataptr[arith->offset] = arith->range[0] >> 16;
-        arith->offset++;
+        if (!arith->first_byte)
+          arith->write(arith->output_byte, arith->io_priv);
+        else
+          arith->first_byte = 0;
+        arith->output_byte = arith->range[0] >> 16;
       }
 
       arith->range[0] &= 0xffff;
