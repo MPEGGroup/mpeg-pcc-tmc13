@@ -36,10 +36,12 @@
 #pragma once
 
 #include "dependencies/schroedinger/schroarith.h"
+#include "entropychunk.h"
 
 #include <algorithm>
 #include <assert.h>
 #include <stdlib.h>
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -108,19 +110,13 @@ namespace dirac {
 
     void setBuffer(size_t size, uint8_t* buffer)
     {
-      aec_stream_len = 0;
-      buf_size = int(size);
-
+      _bufSize = size;
       if (buffer)
-        buf = buffer;
+        _buf = _bufWr = buffer;
       else {
         allocatedBuffer.reset(new uint8_t[size]);
-        buf = allocatedBuffer.get();
+        _buf = _bufWr = allocatedBuffer.get();
       }
-
-      // bypass data is written backwards, starting at the end of the buffer
-      bypassPtr = buf + size;
-      bypassCount = 8;
     }
 
     //------------------------------------------------------------------------
@@ -132,28 +128,33 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    void start() { schro_arith_encode_init(&impl, &writeByteCallback, this); }
+    void start()
+    {
+      if (!_cabac_bypass_stream_enabled_flag)
+        schro_arith_encode_init(&impl, &writeByteCallback, this);
+      else {
+        _chunkStream.reset(_bufWr, _bufSize);
+        schro_arith_encode_init(&impl, &writeChunkCallback, &_chunkStream);
+      }
+    }
 
     //------------------------------------------------------------------------
 
     size_t stop()
     {
       schro_arith_flush(&impl);
-      if (bypassCount != 8) {
-        bypassAccum <<= bypassCount;
-        *--bypassPtr = bypassAccum;
+
+      if (_cabac_bypass_stream_enabled_flag) {
+        _chunkStream.flush();
+        return _chunkStream.size();
       }
 
-      // make the bypass data contiguous with the arithmetic coded data
-      // since they share an initial buffer
-      auto end = std::move(bypassPtr, buf + buf_size, buf + aec_stream_len);
-
-      return end - buf;
+      return _bufWr - _buf;
     }
 
     //------------------------------------------------------------------------
 
-    const char* buffer() { return reinterpret_cast<char*>(buf); }
+    const char* buffer() { return reinterpret_cast<char*>(_buf); }
 
     //------------------------------------------------------------------------
 
@@ -165,14 +166,7 @@ namespace dirac {
         return;
       }
 
-      bypassAccum <<= 1;
-      bypassAccum |= bit;
-
-      if (--bypassCount)
-        return;
-
-      bypassCount = 8;
-      *--bypassPtr = bypassAccum;
+      _chunkStream.writeBypassBit(bit);
     }
 
     //------------------------------------------------------------------------
@@ -192,37 +186,33 @@ namespace dirac {
   private:
     static void writeByteCallback(uint8_t byte, void* thisptr)
     {
-      return reinterpret_cast<ArithmeticEncoder*>(thisptr)->writeByte(byte);
+      auto _this = reinterpret_cast<ArithmeticEncoder*>(thisptr);
+      if (_this->_bufSize == 0)
+        throw std::runtime_error("Aec stream overflow");
+      _this->_bufSize--;
+      *_this->_bufWr++ = byte;
     }
 
-    void writeByte(uint8_t byte) { buf[aec_stream_len++] = byte; }
-
     //------------------------------------------------------------------------
+
+    static void writeChunkCallback(uint8_t byte, void* thisptr)
+    {
+      auto _this = reinterpret_cast<ChunkStreamBuilder*>(thisptr);
+      _this->writeAecByte(byte);
+    }
     //------------------------------------------------------------------------
 
   private:
     ::SchroArith impl;
-    uint8_t* buf;
-    int buf_size;
+    uint8_t* _buf;
+    uint8_t* _bufWr;
+    size_t _bufSize;
     std::unique_ptr<uint8_t[]> allocatedBuffer;
 
     // Controls entropy coding method for bypass bins
     bool _cabac_bypass_stream_enabled_flag = false;
 
-    int aec_stream_len;
-
-    // State related to bypass stream coding.
-    // The bypass stream is stored as a byte-reversed sequence starting at
-    // the end of buf and growing downwards.
-
-    // Pointer to the tail of the bypass stream
-    uint8_t* bypassPtr;
-
-    // Number of bins in the bypass accumulator
-    int bypassCount;
-
-    // Accumulator for bypass bins to construct
-    uint8_t bypassAccum;
+    ChunkStreamBuilder _chunkStream;
   };
 
   //==========================================================================
@@ -231,11 +221,8 @@ namespace dirac {
   public:
     void setBuffer(size_t size, const char* buffer)
     {
-      buf = reinterpret_cast<const uint8_t*>(buffer);
-      buf_end = buf + size;
-
-      bypassPtr = buf_end - 1;
-      bypassCount = 0;
+      _buffer = reinterpret_cast<const uint8_t*>(buffer);
+      _bufferLen = size;
     }
 
     //------------------------------------------------------------------------
@@ -247,7 +234,15 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    void start() { schro_arith_decode_init(&impl, &readByteCallback, this); }
+    void start()
+    {
+      if (_cabac_bypass_stream_enabled_flag) {
+        _chunkReader.reset(_buffer, _bufferLen);
+        schro_arith_decode_init(&impl, &readChunkCallback, &_chunkReader);
+      } else {
+        schro_arith_decode_init(&impl, &readByteCallback, this);
+      }
+    }
 
     //------------------------------------------------------------------------
 
@@ -262,13 +257,7 @@ namespace dirac {
         return schro_arith_decode_bit(&impl, &probability);
       }
 
-      if (!bypassCount--) {
-        bypassAccum = *bypassPtr--;
-        bypassCount = 7;
-      }
-      int bit = !!(bypassAccum & 0x80);
-      bypassAccum <<= 1;
-      return bit;
+      return _chunkReader.readBypassBit();
     }
 
     //------------------------------------------------------------------------
@@ -294,39 +283,37 @@ namespace dirac {
   private:
     static uint8_t readByteCallback(void* thisptr)
     {
-      return reinterpret_cast<ArithmeticDecoder*>(thisptr)->readByte();
+      auto _this = reinterpret_cast<ArithmeticDecoder*>(thisptr);
+      if (!_this->_bufferLen)
+        return 0xff;
+      _this->_bufferLen--;
+      return *_this->_buffer++;
     }
 
-    uint8_t readByte()
+    //------------------------------------------------------------------------
+
+    static uint8_t readChunkCallback(void* thisptr)
     {
-      if (buf < buf_end)
-        return *buf++;
-      else
-        return 0xff;
+      auto _this = reinterpret_cast<ChunkStreamReader*>(thisptr);
+      return _this->readAecByte();
     }
 
     //------------------------------------------------------------------------
 
   private:
     ::SchroArith impl;
-    const uint8_t* buf;
-    const uint8_t* buf_end;
+
+    // the user supplied buffer.
+    const uint8_t* _buffer;
+
+    // the length of the user supplied buffer
+    size_t _bufferLen;
 
     // Controls entropy coding method for bypass bins
     bool _cabac_bypass_stream_enabled_flag = false;
 
-    // State related to bypass stream coding.
-    // The bypass stream is stored as a byte-reversed sequence starting at
-    // the end of buf and growing downwards.
-
-    // Pointer to the tail of the bypass stream
-    const uint8_t* bypassPtr;
-
-    // Number of bins in the bypass accumulator
-    int bypassCount;
-
-    // Accumulator for bypass bins to construct
-    uint8_t bypassAccum;
+    // Parser for chunked bypass stream representation
+    ChunkStreamReader _chunkReader;
   };
 
   //==========================================================================

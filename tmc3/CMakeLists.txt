@@ -77,6 +77,7 @@ file(GLOB PROJECT_INC_FILES
   "colourspace.h"
   "constants.h"
   "entropy.h"
+  "entropychunk.h"
   "entropydirac.h"
   "entropyo3dgc.h"
   "entropyutils.h"
