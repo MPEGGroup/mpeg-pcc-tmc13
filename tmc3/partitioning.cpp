@@ -109,6 +109,40 @@ shortestAxis(const Box3<T>& curBox)
 }
 
 //----------------------------------------------------------------------------
+
+std::vector<Partition>
+partitionByNpts(const PartitionParams& params, const PCCPointSet3& cloud)
+{
+  std::vector<Partition> slices;
+  int sliceMaxPts = params.sliceMaxPoints;
+  int numSlices = (cloud.getPointCount() + sliceMaxPts - 1) / sliceMaxPts;
+
+  for (int sliceId = 0; sliceId < numSlices; sliceId++) {
+    slices.emplace_back();
+    auto& slice = slices.back();
+    slice.sliceId = sliceId;
+    slice.tileId = 0;
+
+    // generate the point range
+    int firstPointIdx = sliceMaxPts * sliceId;
+    int numPoints =
+      std::min(int(cloud.getPointCount()) - firstPointIdx, sliceMaxPts);
+    slice.pointIndexes.resize(numPoints);
+    for (int i = 0; i < numPoints; i++)
+      slice.pointIndexes[i] = firstPointIdx + i;
+
+    // work out the origin
+    auto bbox = cloud.computeBoundingBox(
+      slice.pointIndexes.begin(), slice.pointIndexes.end());
+
+    for (int k = 0; k < 3; k++)
+      slice.origin[k] = int(bbox.min[k]);
+  }
+
+  return slices;
+}
+
+//----------------------------------------------------------------------------
 // Split point cloud into slices along the longest axis.
 // numPartitions describes the number of slices to produce (if zero, the
 // ratio of longest:shortest axis is used).

@@ -248,6 +248,10 @@ PCCTMC3Encoder3::compress(
       case PartitionMethod::kOctreeUniform:
         curSlices = partitionByOctreeDepth(params->partition, tileCloud, t);
         break;
+
+      case PartitionMethod::kNpoints:
+        curSlices = partitionByNpts(params->partition, tileCloud);
+        break;
       }
       // Map slice indexes to tile indexes(the original indexes)
       for (int i = 0; i < curSlices.size(); i++) {

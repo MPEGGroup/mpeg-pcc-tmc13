@@ -59,6 +59,9 @@ enum class PartitionMethod
 
   // TBD
   kUniformSquare = 4,
+
+  // Paritition into n-point slices
+  kNpoints = 5,
 };
 
 //============================================================================
@@ -125,6 +128,10 @@ std::vector<Partition> partitionByUniformSquare(
   const PCCPointSet3& cloud,
   int tileID,
   int paritionBoundaryLog2);
+
+std::vector<Partition>
+partitionByNpts(const PartitionParams& params, const PCCPointSet3& cloud);
+
 //============================================================================
 
 std::vector<std::vector<int32_t>>
