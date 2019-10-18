@@ -61,7 +61,7 @@ struct PCCResidualsDecoder {
   void stop();
   int decodePredMode(int max);
   int decodeZeroCnt(int max);
-  uint32_t decodeSymbol(int k1, int k2);
+  uint32_t decodeSymbol(int k1, int k2, int k3);
   void decode(uint32_t values[3]);
   uint32_t decode();
 };
@@ -129,15 +129,15 @@ PCCResidualsDecoder::decodeZeroCnt(int maxMode)
 //----------------------------------------------------------------------------
 
 uint32_t
-PCCResidualsDecoder::decodeSymbol(int k1, int k2)
+PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
 {
   if (arithmeticDecoder.decode(binaryModelIsZero[k1]))
     return 0u;
 
-  if (arithmeticDecoder.decode(binaryModelIsOne[k1]))
+  if (arithmeticDecoder.decode(binaryModelIsOne[k2]))
     return 1u;
 
-  uint32_t value = symbolCoder[k2].decode(&arithmeticDecoder);
+  uint32_t value = symbolCoder[k3].decode(&arithmeticDecoder);
   if (value == kAttributeResidualAlphabetSize) {
     value +=
       arithmeticDecoder.decodeExpGolomb(0, binaryModel0, binaryModelDiff[k1]);
@@ -151,11 +151,13 @@ PCCResidualsDecoder::decodeSymbol(int k1, int k2)
 void
 PCCResidualsDecoder::decode(uint32_t value[3])
 {
-  value[0] = decodeSymbol(0, 0);
+  value[0] = decodeSymbol(0, 0, 0);
   int b0 = value[0] == 0;
-  value[1] = decodeSymbol(1 + b0, 1);
-  int b1 = value[1] == 0;
-  value[2] = decodeSymbol(3 + (b0 << 1) + b1, 1);
+  int b1 = value[0] <= 1;
+  value[1] = decodeSymbol(1 + b0, 1 + b1, 1);
+  int b2 = value[1] == 0;
+  int b3 = value[1] <= 1;
+  value[2] = decodeSymbol(3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
 
   int d = (value[0] == value[1] && value[0] == value[2]);
   for (int k = 0; k < 3; k++) {
@@ -168,7 +170,7 @@ PCCResidualsDecoder::decode(uint32_t value[3])
 uint32_t
 PCCResidualsDecoder::decode()
 {
-  return decodeSymbol(0, 0) + 1;
+  return decodeSymbol(0, 0, 0) + 1;
 }
 
 //============================================================================

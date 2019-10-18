@@ -65,7 +65,7 @@ struct PCCResidualsEncoder {
   int stop();
   void encodePredMode(int value, int max);
   void encodeZeroCnt(int value, int max);
-  void encodeSymbol(uint32_t value, int k1, int k2);
+  void encodeSymbol(uint32_t value, int k1, int k2, int k3);
   void encode(uint32_t value0, uint32_t value1, uint32_t value2);
   void encode(uint32_t value);
 };
@@ -133,7 +133,7 @@ PCCResidualsEncoder::encodeZeroCnt(int mode, int maxMode)
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
+PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2, int k3)
 {
   bool isZero = value == 0;
   arithmeticEncoder.encode(isZero, binaryModelIsZero[k1]);
@@ -142,17 +142,17 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2)
   }
 
   bool isOne = value == 1;
-  arithmeticEncoder.encode(isOne, binaryModelIsOne[k1]);
+  arithmeticEncoder.encode(isOne, binaryModelIsOne[k2]);
   if (isOne) {
     return;
   }
   value -= 2;
 
   if (value < kAttributeResidualAlphabetSize) {
-    symbolCoder[k2].encode(value, &arithmeticEncoder);
+    symbolCoder[k3].encode(value, &arithmeticEncoder);
   } else {
     int alphabetSize = kAttributeResidualAlphabetSize;
-    symbolCoder[k2].encode(alphabetSize, &arithmeticEncoder);
+    symbolCoder[k3].encode(alphabetSize, &arithmeticEncoder);
     arithmeticEncoder.encodeExpGolomb(
       value - alphabetSize, 0, binaryModel0, binaryModelDiff[k1]);
   }
@@ -169,11 +169,13 @@ PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
     value2--;
   }
 
-  int b0 = value0 == 0;
-  int b1 = value1 == 0;
-  encodeSymbol(value0, 0, 0);
-  encodeSymbol(value1, 1 + b0, 1);
-  encodeSymbol(value2, 3 + (b0 << 1) + b1, 1);
+  int b0 = (value0 == 0);
+  int b1 = (value0 <= 1);
+  int b2 = (value1 == 0);
+  int b3 = (value1 <= 1);
+  encodeSymbol(value0, 0, 0, 0);
+  encodeSymbol(value1, 1 + b0, 1 + b1, 1);
+  encodeSymbol(value2, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
 }
 
 //----------------------------------------------------------------------------
@@ -181,7 +183,7 @@ PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
 void
 PCCResidualsEncoder::encode(uint32_t value)
 {
-  encodeSymbol(value - 1, 0, 0);
+  encodeSymbol(value - 1, 0, 0, 0);
 }
 
 //============================================================================
