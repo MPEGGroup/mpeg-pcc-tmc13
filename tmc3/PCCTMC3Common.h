@@ -39,6 +39,7 @@
 #include "PCCMath.h"
 #include "PCCPointSet.h"
 #include "constants.h"
+#include "hls.h"
 
 #include "nanoflann.hpp"
 
@@ -584,15 +585,12 @@ indexTieBreaker(int a, int b)
 
 inline void
 computeNearestNeighbors(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& retained,
   const int32_t startIndex,
   const int32_t endIndex,
-  const int32_t searchRange,
-  const int32_t numberOfNearestNeighborsInPrediction,
-  const bool intraLodPredictionEnabled,
-  const bool scalableEnableFlag,
   const int32_t nodeSizeLog2,
   std::vector<uint32_t>& indexes,
   std::vector<PCCPredictor>& predictors,
@@ -606,12 +604,13 @@ computeNearestNeighbors(
   for (int32_t i = 0, b = 0; i < retainedSize; ++b) {
     auto& bBox = bBoxes[b];
     bBox.min = bBox.max = clacIntermediatePosition(
-      scalableEnableFlag, nodeSizeLog2,
+      aps.scalable_lifting_enabled_flag, nodeSizeLog2,
       pointCloud[packedVoxel[retained[i++]].index]);
     for (int32_t k = 1; k < bucketSize && i < retainedSize; ++k, ++i) {
       const int32_t pointIndex = packedVoxel[retained[i]].index;
       const auto point = clacIntermediatePosition(
-        scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex]);
+        aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+        pointCloud[pointIndex]);
       for (int32_t p = 0; p < 3; ++p) {
         bBox.min[p] = std::min(bBox.min[p], point[p]);
         bBox.max[p] = std::max(bBox.max[p], point[p]);
@@ -621,7 +620,7 @@ computeNearestNeighbors(
 
   std::vector<Box3<double>> bBoxesI;
   const int32_t indexesSize = endIndex - startIndex;
-  if (intraLodPredictionEnabled) {
+  if (aps.intra_lod_prediction_enabled_flag) {
     bBoxesI.resize((indexesSize + bucketSize - 1) / bucketSize);
     for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
       auto& bBox = bBoxesI[b];
@@ -637,14 +636,14 @@ computeNearestNeighbors(
     }
   }
 
-  const int32_t index0 = numberOfNearestNeighborsInPrediction - 1;
+  const int32_t index0 = aps.num_pred_nearest_neighbours - 1;
 
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     const int32_t index = indexes[i];
     const int64_t mortonCode = packedVoxel[index].mortonCode;
     const int32_t pointIndex = packedVoxel[index].index;
     const auto point = clacIntermediatePosition(
-      scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex]);
+      aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex]);
     indexes[i] = pointIndex;
     while (j < retainedSize - 1
            && mortonCode >= packedVoxel[retained[j]].mortonCode)
@@ -654,8 +653,8 @@ computeNearestNeighbors(
 
     predictor.init();
 
-    const int32_t j0 = std::max(0, j - searchRange);
-    const int32_t j1 = std::min(retainedSize, j + searchRange + 1);
+    const int32_t j0 = std::max(0, j - aps.search_range);
+    const int32_t j1 = std::min(retainedSize, j + aps.search_range + 1);
 
     const int32_t bucketIndex0 = j / bucketSize;
     int32_t k0 = std::max(bucketIndex0 * bucketSize, j0);
@@ -664,7 +663,8 @@ computeNearestNeighbors(
     for (int32_t k = k0; k < k1; ++k) {
       const int32_t pointIndex1 = packedVoxel[retained[k]].index;
       const auto point1 = clacIntermediatePosition(
-        scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex1]);
+        aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+        pointCloud[pointIndex1]);
 
       double norm2 = (point - point1).getNorm2();
       if (nodeSizeLog2 > 0 && point == point1) {
@@ -672,11 +672,12 @@ computeNearestNeighbors(
         norm2 = norm2 * norm2;
       }
       predictor.insertNeighbor(
-        pointIndex1, norm2, numberOfNearestNeighborsInPrediction,
+        pointIndex1, norm2, aps.num_pred_nearest_neighbours,
         indexTieBreaker(k, j));
     }
 
-    for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr; ++s0) {
+    for (int32_t s0 = 1, sr = 1 + aps.search_range / bucketSize; s0 < sr;
+         ++s0) {
       for (int32_t s1 = 0; s1 < 2; ++s1) {
         const int32_t bucketIndex1 =
           s1 == 0 ? bucketIndex0 + s0 : bucketIndex0 - s0;
@@ -684,7 +685,7 @@ computeNearestNeighbors(
           continue;
         }
         if (
-          predictor.neighborCount < numberOfNearestNeighborsInPrediction
+          predictor.neighborCount < aps.num_pred_nearest_neighbours
           || bBoxes[bucketIndex1].getDist2(point)
             <= predictor.neighbors[index0].weight) {
           const int32_t k0 = std::max(bucketIndex1 * bucketSize, j0);
@@ -692,7 +693,8 @@ computeNearestNeighbors(
           for (int32_t k = k0; k < k1; ++k) {
             const int32_t pointIndex1 = packedVoxel[retained[k]].index;
             const auto point1 = clacIntermediatePosition(
-              scalableEnableFlag, nodeSizeLog2, pointCloud[pointIndex1]);
+              aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+              pointCloud[pointIndex1]);
 
             double norm2 = (point - point1).getNorm2();
             if (nodeSizeLog2 > 0 && point == point1) {
@@ -700,16 +702,16 @@ computeNearestNeighbors(
               norm2 = norm2 * norm2;
             }
             predictor.insertNeighbor(
-              pointIndex1, norm2, numberOfNearestNeighborsInPrediction,
+              pointIndex1, norm2, aps.num_pred_nearest_neighbours,
               indexTieBreaker(k, j));
           }
         }
       }
     }
 
-    if (intraLodPredictionEnabled) {
+    if (aps.intra_lod_prediction_enabled_flag) {
       const int32_t i0 = i - startIndex;
-      const int32_t j1 = std::min(indexesSize, i0 + searchRange + 1);
+      const int32_t j1 = std::min(indexesSize, i0 + aps.search_range + 1);
       const int32_t bucketIndex0 = i0 / bucketSize;
       int32_t k0 = i0 + 1;
       int32_t k1 = std::min((bucketIndex0 + 1) * bucketSize, j1);
@@ -719,18 +721,18 @@ computeNearestNeighbors(
         const auto& point1 = pointCloud[pointIndex1];
         predictor.insertNeighbor(
           pointIndex1, (point - point1).getNorm2(),
-          numberOfNearestNeighborsInPrediction,
-          startIndex + k - i + 2 * searchRange);
+          aps.num_pred_nearest_neighbours,
+          startIndex + k - i + 2 * aps.search_range);
       }
 
-      for (int32_t s0 = 1, sr = (1 + searchRange / bucketSize); s0 < sr;
+      for (int32_t s0 = 1, sr = 1 + aps.search_range / bucketSize; s0 < sr;
            ++s0) {
         const int32_t bucketIndex1 = bucketIndex0 + s0;
         if (bucketIndex1 >= bBoxesI.size())
           continue;
 
         if (
-          predictor.neighborCount < numberOfNearestNeighborsInPrediction
+          predictor.neighborCount < aps.num_pred_nearest_neighbours
           || bBoxesI[bucketIndex1].getDist2(point)
             <= predictor.neighbors[index0].weight) {
           const int32_t k0 = bucketIndex1 * bucketSize;
@@ -741,13 +743,13 @@ computeNearestNeighbors(
             const auto& point1 = pointCloud[pointIndex1];
             predictor.insertNeighbor(
               pointIndex1, (point - point1).getNorm2(),
-              numberOfNearestNeighborsInPrediction,
-              startIndex + k - i + 2 * searchRange);
+              aps.num_pred_nearest_neighbours,
+              startIndex + k - i + 2 * aps.search_range);
           }
         }
       }
     }
-    assert(predictor.neighborCount <= numberOfNearestNeighborsInPrediction);
+    assert(predictor.neighborCount <= aps.num_pred_nearest_neighbours);
   }
 }
 
@@ -848,25 +850,25 @@ subsampleByDecimation(
 
 inline void
 subsample(
-  bool useDecimation,
-  bool useScalableLifting,
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& input,
-  const double radius2,
-  const int32_t octreeNodeSizeLog2,
-  const int32_t searchRange,
+  const int32_t lodIndex,
   std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  if (useScalableLifting) {
+  if (aps.scalable_lifting_enabled_flag) {
+    int32_t octreeNodeSizeLog2 = lodIndex;
     subsampleByOctree(
       pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes);
-  } else if (useDecimation) {
+  } else if (aps.lod_decimation_enabled_flag) {
     subsampleByDecimation(input, retained, indexes);
   } else {
+    double radius2 = aps.dist2[lodIndex];
     subsampleByDistance(
-      pointCloud, packedVoxel, input, radius2, searchRange, retained, indexes);
+      pointCloud, packedVoxel, input, radius2, aps.search_range, retained,
+      indexes);
   }
 }
 
@@ -914,15 +916,8 @@ updatePredictors(
 
 inline void
 buildPredictorsFast(
+  const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
-  bool lod_decimation_enabled_flag,
-  bool scalable_lifting_enabled_flag,
-  bool intraLodPredictionEnabled,
-  const std::vector<int64_t>& dist2,
-  const int32_t levelOfDetailCount,
-  const int32_t numberOfNearestNeighborsInPrediction,
-  const int32_t searchRange1,
-  const int32_t searchRange2,
   int32_t minGeomNodeSizeLog2,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
@@ -954,26 +949,21 @@ buildPredictorsFast(
   std::vector<Box3<double>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
-       !input.empty() && lodIndex <= levelOfDetailCount; ++lodIndex) {
+       !input.empty() && lodIndex <= aps.num_detail_levels; ++lodIndex) {
     const int32_t startIndex = indexes.size();
-    if (lodIndex == levelOfDetailCount) {
+    if (lodIndex == aps.num_detail_levels) {
       for (const auto index : input) {
         indexes.push_back(index);
       }
     } else {
-      const double radius2 = dist2[lodIndex];
       subsample(
-        lod_decimation_enabled_flag, scalable_lifting_enabled_flag, pointCloud,
-        packedVoxel, input, radius2, lodIndex, searchRange1, retained,
-        indexes);
+        aps, pointCloud, packedVoxel, input, lodIndex, retained, indexes);
     }
     const int32_t endIndex = indexes.size();
 
     computeNearestNeighbors(
-      pointCloud, packedVoxel, retained, startIndex, endIndex, searchRange2,
-      numberOfNearestNeighborsInPrediction, intraLodPredictionEnabled,
-      scalable_lifting_enabled_flag, lodIndex, indexes, predictors,
-      pointIndexToPredictorIndex, predIndex, bBoxes);
+      aps, pointCloud, packedVoxel, retained, startIndex, endIndex, lodIndex,
+      indexes, predictors, pointIndexToPredictorIndex, predIndex, bBoxes);
 
     if (!retained.empty()) {
       numberOfPointsPerLevelOfDetail.push_back(retained.size());

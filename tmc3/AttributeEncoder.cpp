@@ -480,11 +480,7 @@ AttributeEncoder::encodeReflectancesPred(
   std::vector<uint32_t> indexesLOD;
 
   buildPredictorsFast(
-    pointCloud, aps.lod_decimation_enabled_flag,
-    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
-    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
-    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
-    indexesLOD);
+    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
@@ -671,11 +667,7 @@ AttributeEncoder::encodeColorsPred(
   std::vector<uint32_t> indexesLOD;
 
   buildPredictorsFast(
-    pointCloud, aps.lod_decimation_enabled_flag,
-    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
-    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
-    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
-    indexesLOD);
+    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   uint32_t values[3];
@@ -925,11 +917,7 @@ AttributeEncoder::encodeColorsLift(
   std::vector<uint32_t> indexesLOD;
 
   buildPredictorsFast(
-    pointCloud, aps.lod_decimation_enabled_flag,
-    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
-    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
-    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
-    indexesLOD);
+    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -1034,11 +1022,7 @@ AttributeEncoder::encodeReflectancesLift(
   std::vector<uint32_t> indexesLOD;
 
   buildPredictorsFast(
-    pointCloud, aps.lod_decimation_enabled_flag,
-    aps.scalable_lifting_enabled_flag, aps.intra_lod_prediction_enabled_flag,
-    aps.dist2, aps.num_detail_levels, aps.num_pred_nearest_neighbours,
-    aps.search_range, aps.search_range, 0, predictors, numberOfPointsPerLOD,
-    indexesLOD);
+    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
