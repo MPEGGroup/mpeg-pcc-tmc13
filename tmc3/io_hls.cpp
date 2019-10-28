@@ -273,29 +273,31 @@ write(const AttributeParameterSet& aps)
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
-    bs.writeUe(aps.max_num_direct_predictors);
-    bs.writeUe(aps.search_range);
-    bs.write(aps.lod_decimation_enabled_flag);
-
     bs.writeUe(aps.num_detail_levels);
-    for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-      // todo(??): is this an appropriate encoding?
-      bs.writeUe64(aps.dist2[idx]);
+
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
+      bs.write(aps.scalable_lifting_enabled_flag);
+
+    if (!aps.scalable_lifting_enabled_flag) {
+      bs.writeUe(aps.search_range);
+      bs.write(aps.lod_decimation_enabled_flag);
+
+      for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+        // todo(??): is this an appropriate encoding?
+        bs.writeUe64(aps.dist2[idx]);
+      }
     }
   }
 
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.writeUe(aps.adaptive_prediction_threshold);
     bs.write(aps.intra_lod_prediction_enabled_flag);
+    bs.writeUe(aps.max_num_direct_predictors);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.write(aps.raht_prediction_enabled_flag);
     bs.writeUe(aps.raht_depth);
-  }
-
-  if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
-    bs.write(aps.scalable_lifting_enabled_flag);
   }
 
   bool aps_extension_flag = false;
@@ -326,14 +328,20 @@ parseAps(const PayloadBuffer& buf)
     || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
   if (isLifting) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
-    bs.readUe(&aps.max_num_direct_predictors);
-    bs.readUe(&aps.search_range);
-    bs.read(&aps.lod_decimation_enabled_flag);
+    bs.readUe(&aps.num_detail_levels);
 
-    aps.num_detail_levels = int(bs.readUe());
-    aps.dist2.resize(aps.num_detail_levels);
-    for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-      bs.readUe(&aps.dist2[idx]);
+    aps.scalable_lifting_enabled_flag = false;
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
+      bs.read(&aps.scalable_lifting_enabled_flag);
+
+    if (!aps.scalable_lifting_enabled_flag) {
+      bs.readUe(&aps.search_range);
+      bs.read(&aps.lod_decimation_enabled_flag);
+
+      aps.dist2.resize(aps.num_detail_levels);
+      for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+        bs.readUe(&aps.dist2[idx]);
+      }
     }
   }
 
@@ -341,16 +349,12 @@ parseAps(const PayloadBuffer& buf)
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.adaptive_prediction_threshold);
     bs.read(&aps.intra_lod_prediction_enabled_flag);
+    bs.readUe(&aps.max_num_direct_predictors);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
     bs.read(&aps.raht_prediction_enabled_flag);
     bs.readUe(&aps.raht_depth);
-  }
-
-  aps.scalable_lifting_enabled_flag = false;
-  if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
-    bs.readUn(1, &aps.scalable_lifting_enabled_flag);
   }
 
   bool aps_extension_flag = bs.read();
