@@ -708,7 +708,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   (po::Section("Recolouring"))
 
   ("recolourSearchRange",
-    params.encoder.recolour.searchRange, 8,
+    params.encoder.recolour.searchRange, 1,
     "")
 
   ("recolourNumNeighboursFwd",
