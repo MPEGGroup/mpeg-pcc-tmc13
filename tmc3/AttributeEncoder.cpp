@@ -695,30 +695,20 @@ AttributeEncoder::encodeColorsPred(
     const Vec3<uint8_t> color = pointCloud.getColor(pointIndex);
     const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
-    const int64_t quantAttValue = color[0];
-    const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta = quant[0].quantize(
-      (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
-    const int64_t reconstructedDelta =
-      divExp2RoundHalfUp(quant[0].scale(delta), kFixedPointAttributeShift);
-    const int64_t reconstructedQuantAttValue =
-      quantPredAttValue + reconstructedDelta;
-    values[0] = uint32_t(IntToUInt(long(delta)));
+
     Vec3<uint8_t> reconstructedColor;
-    reconstructedColor[0] =
-      uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
-    for (size_t k = 1; k < 3; ++k) {
-      const int64_t quantAttValue = color[k];
-      const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta = quant[1].quantize(
-        (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
-      const int64_t reconstructedDelta =
-        divExp2RoundHalfUp(quant[1].scale(delta), kFixedPointAttributeShift);
-      const int64_t reconstructedQuantAttValue =
-        quantPredAttValue + reconstructedDelta;
-      values[k] = uint32_t(IntToUInt(long(delta)));
-      reconstructedColor[k] =
-        uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
+    for (int k = 0; k < 3; ++k) {
+      const auto& q = quant[std::min(k, 1)];
+      int64_t residual = color[k] - predictedColor[k];
+
+      int64_t residualQ = q.quantize(residual << kFixedPointAttributeShift);
+      int64_t residualR =
+        divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+
+      values[k] = uint32_t(IntToUInt(long(residualQ)));
+
+      int64_t recon = predictedColor[k] + residualR;
+      reconstructedColor[k] = uint8_t(PCCClip(recon, int64_t(0), clipMax));
     }
     pointCloud.setColor(pointIndex, reconstructedColor);
 

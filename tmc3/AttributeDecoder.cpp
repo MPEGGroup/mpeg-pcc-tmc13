@@ -399,20 +399,14 @@ AttributeDecoder::decodeColorsPred(
     Vec3<uint8_t>& color = pointCloud.getColor(pointIndex);
     const Vec3<uint8_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
-    const int64_t quantPredAttValue = predictedColor[0];
-    const int64_t delta = divExp2RoundHalfUp(
-      quant[0].scale(UIntToInt(values[0])), kFixedPointAttributeShift);
-    const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
+
     int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
-    color[0] =
-      uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
-    for (size_t k = 1; k < 3; ++k) {
-      const int64_t quantPredAttValue = predictedColor[k];
-      const int64_t delta = divExp2RoundHalfUp(
-        quant[1].scale(UIntToInt(values[k])), kFixedPointAttributeShift);
-      const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
-      color[k] =
-        uint8_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
+    for (int k = 0; k < 3; ++k) {
+      const auto& q = quant[std::min(k, 1)];
+      const int64_t residual = divExp2RoundHalfUp(
+        q.scale(UIntToInt(values[k])), kFixedPointAttributeShift);
+      const int64_t recon = predictedColor[k] + residual;
+      color[k] = uint8_t(PCCClip(recon, int64_t(0), clipMax));
     }
   }
 }
