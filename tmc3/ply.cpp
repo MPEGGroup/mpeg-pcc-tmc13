@@ -122,9 +122,9 @@ ply::write(
   }
 
   if (cloud.hasColors()) {
-    fout << "property uchar red" << std::endl;
     fout << "property uchar green" << std::endl;
     fout << "property uchar blue" << std::endl;
+    fout << "property uchar red" << std::endl;
   }
   if (cloud.hasReflectances()) {
     fout << "property uint16 refc" << std::endl;
@@ -396,9 +396,9 @@ ply::read(
       position[2] = atof(tokens[indexZ].c_str());
       if (cloud.hasColors()) {
         auto& color = cloud.getColor(pointCounter);
-        color[0] = atoi(tokens[indexR].c_str());
-        color[1] = atoi(tokens[indexG].c_str());
-        color[2] = atoi(tokens[indexB].c_str());
+        color[0] = atoi(tokens[indexG].c_str());
+        color[1] = atoi(tokens[indexB].c_str());
+        color[2] = atoi(tokens[indexR].c_str());
       }
       if (cloud.hasReflectances()) {
         cloud.getReflectance(pointCounter) =
@@ -448,13 +448,13 @@ ply::read(
           }
         } else if (a == indexR && attributeInfo.byteCount == 1) {
           auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[0]), sizeof(uint8_t));
+          ifs.read(reinterpret_cast<char*>(&color[2]), sizeof(uint8_t));
         } else if (a == indexG && attributeInfo.byteCount == 1) {
           auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[1]), sizeof(uint8_t));
+          ifs.read(reinterpret_cast<char*>(&color[0]), sizeof(uint8_t));
         } else if (a == indexB && attributeInfo.byteCount == 1) {
           auto& color = cloud.getColor(pointCounter);
-          ifs.read(reinterpret_cast<char*>(&color[2]), sizeof(uint8_t));
+          ifs.read(reinterpret_cast<char*>(&color[1]), sizeof(uint8_t));
         } else if (a == indexReflectance && attributeInfo.byteCount <= 2) {
           if (attributeInfo.byteCount == 1) {
             uint8_t reflectance;

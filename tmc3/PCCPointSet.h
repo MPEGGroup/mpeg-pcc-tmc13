@@ -494,9 +494,9 @@ public:
   void convertRGBToYUV()
   {  // BT709
     for (auto& color : colors) {
-      const uint8_t r = color[0];
-      const uint8_t g = color[1];
-      const uint8_t b = color[2];
+      const uint8_t r = color[2];
+      const uint8_t g = color[0];
+      const uint8_t b = color[1];
       const double y = PCCClip(
         std::round(0.212600 * r + 0.715200 * g + 0.072200 * b), 0., 255.);
       const double u = PCCClip(
@@ -521,9 +521,9 @@ public:
         PCCClip(round(y1 - 0.18733 * u1 - 0.46813 * v1), 0.0, 255.0);
       const double b =
         PCCClip(round(y1 + 1.85563 * u1 /*+ 0.00000 * v1*/), 0.0, 255.0);
-      color[0] = static_cast<uint8_t>(r);
-      color[1] = static_cast<uint8_t>(g);
-      color[2] = static_cast<uint8_t>(b);
+      color[2] = static_cast<uint8_t>(r);
+      color[0] = static_cast<uint8_t>(g);
+      color[1] = static_cast<uint8_t>(b);
     }
   }
 

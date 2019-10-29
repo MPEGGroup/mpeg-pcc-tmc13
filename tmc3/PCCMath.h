@@ -68,12 +68,7 @@ public:
     return data[i];
   }
   size_t getElementCount() const { return 3; }
-  T& r() { return data[0]; }
-  T& g() { return data[1]; }
-  T& b() { return data[2]; }
-  const T& r() const { return data[0]; }
-  const T& g() const { return data[1]; }
-  const T& b() const { return data[2]; }
+
   T& x() { return data[0]; }
   T& y() { return data[1]; }
   T& z() { return data[2]; }
