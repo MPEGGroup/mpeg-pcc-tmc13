@@ -43,7 +43,7 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
-#include "PCCPointSetProcessing.h"
+#include "pointset_processing.h"
 #include "hls.h"
 #include "partitioning.h"
 

@@ -37,7 +37,7 @@
 
 #include "geometry_trisoup.h"
 
-#include "PCCPointSetProcessing.h"
+#include "pointset_processing.h"
 #include "geometry.h"
 #include "geometry_octree.h"
 

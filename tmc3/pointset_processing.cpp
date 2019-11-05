@@ -33,8 +33,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PCCPointSetProcessing_h
-#define PCCPointSetProcessing_h
+#include "pointset_processing.h"
+
+#include "KDTreeVectorOfVectorsAdaptor.h"
 
 #include <cstddef>
 #include <set>
@@ -42,30 +43,7 @@
 #include <utility>
 #include <map>
 
-#include "KDTreeVectorOfVectorsAdaptor.h"
-#include "PCCPointSet.h"
-
 namespace pcc {
-
-//============================================================================
-
-struct RecolourParams {
-  double distOffsetFwd;
-  double distOffsetBwd;
-  double maxGeometryDist2Fwd;
-  double maxGeometryDist2Bwd;
-  double maxAttributeDist2Fwd;
-  double maxAttributeDist2Bwd;
-
-  int searchRange;
-  int numNeighboursFwd;
-  int numNeighboursBwd;
-
-  bool useDistWeightedAvgFwd;
-  bool useDistWeightedAvgBwd;
-  bool skipAvgIfIdenticalSourcePointPresentFwd;
-  bool skipAvgIfIdenticalSourcePointPresentBwd;
-};
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
@@ -76,7 +54,7 @@ struct RecolourParams {
 //
 // NB: attributes are not processed.
 
-inline void
+void
 quantizePositionsUniq(
   const float scaleFactor,
   const Vec3<int> offset,
@@ -134,7 +112,7 @@ quantizePositionsUniq(
 //
 // NB: attributes are preserved
 
-inline void
+void
 quantizePositions(
   const float scaleFactor,
   const Vec3<int> offset,
@@ -183,7 +161,7 @@ quantizePositions(
 //============================================================================
 // Clamp point co-ordinates in @cloud to @bbox, preserving attributes.
 
-inline void
+void
 clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 {
   int numSrcPoints = cloud->getPointCount();
@@ -216,7 +194,7 @@ clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 // clouds, is handled according to:
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
-inline bool
+bool
 recolourColour(
   const RecolourParams& params,
   const PCCPointSet3& source,
@@ -578,7 +556,7 @@ recolourColour(
 // clouds, is handled according to:
 //    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
 
-inline bool
+bool
 recolourReflectance(
   const RecolourParams& cfg,
   const PCCPointSet3& source,
@@ -885,7 +863,7 @@ recolourReflectance(
 //   posInTgt =
 //     (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor - offset
 
-inline int
+int
 recolour(
   const RecolourParams& cfg,
   const PCCPointSet3& source,
@@ -924,6 +902,4 @@ recolour(
 
 //============================================================================
 
-};  // namespace pcc
-
-#endif /* PCCPointSetProcessing_h */
+}  // namespace pcc

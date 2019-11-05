@@ -39,7 +39,7 @@
 #include <set>
 
 #include "AttributeEncoder.h"
-#include "PCCPointSetProcessing.h"
+#include "pointset_processing.h"
 #include "geometry.h"
 #include "io_hls.h"
 #include "osspecific.h"
