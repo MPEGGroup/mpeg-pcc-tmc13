@@ -88,6 +88,7 @@ file(GLOB PROJECT_INC_FILES
   "osspecific.h"
   "partitioning.h"
   "pcc_chrono.h"
+  "ply.h"
   "quantization.h"
   "ringbuf.h"
   "tables.h"
@@ -122,6 +123,7 @@ file(GLOB PROJECT_CPP_FILES
   "osspecific.cpp"
   "partitioning.cpp"
   "pcc_chrono.cpp"
+  "ply.cpp"
   "quantization.cpp"
   "tables.cpp"
   "../dependencies/arithmetic-coding/src/*.cpp"
@@ -153,6 +155,7 @@ add_dependencies(tmc3 genversion)
 add_executable (ply-merge EXCLUDE_FROM_ALL
   "../tools/ply-merge.cpp"
   "misc.cpp"
+  "ply.cpp"
   "../dependencies/program-options-lite/program_options_lite.cpp"
   ${VERSION_FILE}
 )

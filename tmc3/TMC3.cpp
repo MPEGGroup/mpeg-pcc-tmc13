@@ -40,6 +40,7 @@
 #include "PCCTMC3Encoder.h"
 #include "PCCTMC3Decoder.h"
 #include "constants.h"
+#include "ply.h"
 #include "program_options_lite.h"
 #include "io_tlv.h"
 #include "version.h"
@@ -877,7 +878,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 {
   std::string srcName{expandNum(params->uncompressedDataPath, frameNum)};
   PCCPointSet3 pointCloud;
-  if (!pointCloud.read(srcName) || pointCloud.getPointCount() == 0) {
+  if (!ply::read(srcName, pointCloud) || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
@@ -945,7 +946,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     }
 
     std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
-    reconPointCloud->write(recName, !params->outputBinaryPly);
+    ply::write(*reconPointCloud, recName, !params->outputBinaryPly);
   }
 
   return 0;
@@ -972,13 +973,13 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
 
   // todo(df): stop the clock
   if (params->colorTransform != COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    cloud.write(plyName);
+    ply::write(cloud, plyName, !params->outputBinaryPly);
     return;
   }
 
   PCCPointSet3 tmpCloud(cloud);
   tmpCloud.convertYUVToRGB();
-  tmpCloud.write(plyName);
+  ply::write(tmpCloud, plyName, !params->outputBinaryPly);
 }
 
 //============================================================================
@@ -1053,7 +1054,7 @@ SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
   // Dump the decoded colour using the pre inverse scaled geometry
   if (!params->preInvScalePath.empty()) {
     std::string filename{expandNum(params->preInvScalePath, frameNum)};
-    pointCloud.write(params->preInvScalePath, !params->outputBinaryPly);
+    ply::write(pointCloud, params->preInvScalePath, !params->outputBinaryPly);
   }
 
   decoder.inverseQuantization(pointCloud);
@@ -1061,7 +1062,7 @@ SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
   clock->stop();
 
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
-  if (!pointCloud.write(decName, !params->outputBinaryPly)) {
+  if (!ply::write(pointCloud, decName, !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
 

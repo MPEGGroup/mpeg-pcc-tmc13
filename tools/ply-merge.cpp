@@ -38,6 +38,7 @@
 
 #include "PCCMisc.h"
 #include "PCCPointSet.h"
+#include "ply.h"
 #include "program_options_lite.h"
 #include "version.h"
 
@@ -231,8 +232,9 @@ runMerge(const Options& opts)
 
       srcClouds.emplace_back();
       auto& srcCloud = srcClouds.back();
-      if (!srcCloud.read(srcName) || srcCloud.getPointCount() == 0)
+      if (!ply::read(srcName, srcCloud) || srcCloud.getPointCount() == 0) {
         throw runtime_error("failed to read input file: " + srcName);
+      }
     }
 
     int totalPoints = 0;
@@ -266,7 +268,7 @@ runMerge(const Options& opts)
     }
 
     string outName{expandNum(opts.outPath, outFrameNum)};
-    if (!outCloud.write(outName, !opts.outputBinaryPly))
+    if (!ply::write(outCloud, outName, !opts.outputBinaryPly))
       throw runtime_error("failed to write output file: " + outName);
     cout << outName << endl;
   }
@@ -286,8 +288,10 @@ runSplit(const Options& opts)
     string srcName{expandNum(opts.srcPath, srcFrameNum)};
 
     PCCPointSet3 srcCloud;
-    if (!srcCloud.read(srcName) || srcCloud.getPointCount() == 0)
+    if (!ply::read(srcName, srcCloud) || srcCloud.getPointCount() == 0) {
       throw runtime_error("failed to read input file: " + srcName);
+    }
+
     int numSrcPoints = srcCloud.getPointCount();
 
     if (!srcCloud.hasFrameIndex())
@@ -327,7 +331,7 @@ runSplit(const Options& opts)
 
       string outName{expandNum(opts.outPath, outFrameNum)};
       if (outCloud.getPointCount() > 0)
-        if (!outCloud.write(outName, !opts.outputBinaryPly))
+        if (!ply::write(outCloud, outName, !opts.outputBinaryPly))
           throw runtime_error("failed to write output file: " + outName);
       cout << outName << endl;
 

@@ -45,6 +45,7 @@
 #include "osspecific.h"
 #include "partitioning.h"
 #include "pcc_chrono.h"
+#include "ply.h"
 
 namespace pcc {
 
