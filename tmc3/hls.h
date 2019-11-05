@@ -166,6 +166,7 @@ struct AttributeDescription {
   int attr_num_dimensions;
   int attr_instance_id;
   int attr_bitdepth;
+  int attr_bitdepth_secondary;
   int cicp_colour_primaries_idx;
   int cicp_transfer_characteristics_idx;
   ColourMatrix cicp_matrix_coefficients_idx;

@@ -222,7 +222,9 @@ recolourColour(
   std::vector<Vec3<attr_t>> refinedColors1;
   refinedColors1.resize(pointCountTarget);
 
-  double clipMax = (1 << attrDesc.attr_bitdepth) - 1;
+  Vec3<double> clipMax{double((1 << attrDesc.attr_bitdepth) - 1),
+                       double((1 << attrDesc.attr_bitdepth_secondary) - 1),
+                       double((1 << attrDesc.attr_bitdepth_secondary) - 1)};
 
   double maxGeometryDist2Fwd = params.maxGeometryDist2Fwd < 512
     ? params.maxGeometryDist2Fwd
@@ -322,7 +324,7 @@ recolourColour(
         }
         for (int k = 0; k < 3; ++k) {
           refinedColors1[index][k] =
-            attr_t(PCCClip(round(refinedColor[k]), 0.0, clipMax));
+            attr_t(PCCClip(round(refinedColor[k]), 0.0, clipMax[k]));
         }
         isDone = true;
       }
@@ -488,7 +490,7 @@ recolourColour(
       Vec3<double> color0;
       for (size_t k = 0; k < 3; ++k) {
         color0[k] = PCCClip(
-          round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, clipMax);
+          round(w * centroid1[k] + oneMinusW * centroid2[k]), 0.0, clipMax[k]);
       }
       const double rSource = 1.0 / double(pointCountSource);
       const double rTarget = 1.0 / double(pointCountTarget);
@@ -496,13 +498,13 @@ recolourColour(
       Vec3<double> bestColor(color0);
       Vec3<double> color;
       for (int32_t s1 = -params.searchRange; s1 <= params.searchRange; ++s1) {
-        color[0] = PCCClip(color0[0] + s1, 0.0, clipMax);
+        color[0] = PCCClip(color0[0] + s1, 0.0, clipMax[0]);
         for (int32_t s2 = -params.searchRange; s2 <= params.searchRange;
              ++s2) {
-          color[1] = PCCClip(color0[1] + s2, 0.0, clipMax);
+          color[1] = PCCClip(color0[1] + s2, 0.0, clipMax[1]);
           for (int32_t s3 = -params.searchRange; s3 <= params.searchRange;
                ++s3) {
-            color[2] = PCCClip(color0[2] + s3, 0.0, clipMax);
+            color[2] = PCCClip(color0[2] + s3, 0.0, clipMax[2]);
 
             double e1 = 0.0;
             for (size_t k = 0; k < 3; ++k) {

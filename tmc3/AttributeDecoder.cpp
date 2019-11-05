@@ -377,6 +377,10 @@ AttributeDecoder::decodeColorsPred(
   buildPredictorsFast(
     aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
+  Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
+                        (1 << desc.attr_bitdepth_secondary) - 1,
+                        (1 << desc.attr_bitdepth_secondary) - 1};
+
   uint32_t values[3];
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
   int quantLayer = 0;
@@ -402,14 +406,13 @@ AttributeDecoder::decodeColorsPred(
     const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, indexesLOD);
 
-    int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
     int64_t residual0 = 0;
     for (int k = 0; k < 3; ++k) {
       const auto& q = quant[std::min(k, 1)];
       const int64_t residual = divExp2RoundHalfUp(
         q.scale(UIntToInt(values[k])), kFixedPointAttributeShift);
       const int64_t recon = predictedColor[k] + residual + residual0;
-      color[k] = attr_t(PCCClip(recon, int64_t(0), clipMax));
+      color[k] = attr_t(PCCClip(recon, int64_t(0), clipMax[k]));
 
       if (!k && aps.inter_component_prediction_enabled_flag)
         residual0 = residual;
@@ -526,15 +529,18 @@ AttributeDecoder::decodeColorsRaht(
     aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
     attribCount, voxelCount, coefficients);
 
-  const int clipMax = (1 << desc.attr_bitdepth) - 1;
+  Vec3<int> clipMax{(1 << desc.attr_bitdepth) - 1,
+                    (1 << desc.attr_bitdepth_secondary) - 1,
+                    (1 << desc.attr_bitdepth_secondary) - 1};
+
   for (int n = 0; n < voxelCount; n++) {
     const int r = attributes[attribCount * n];
     const int g = attributes[attribCount * n + 1];
     const int b = attributes[attribCount * n + 2];
     Vec3<attr_t> color;
-    color[0] = attr_t(PCCClip(r, 0, clipMax));
-    color[1] = attr_t(PCCClip(g, 0, clipMax));
-    color[2] = attr_t(PCCClip(b, 0, clipMax));
+    color[0] = attr_t(PCCClip(r, 0, clipMax[0]));
+    color[1] = attr_t(PCCClip(g, 0, clipMax[1]));
+    color[2] = attr_t(PCCClip(b, 0, clipMax[2]));
     pointCloud.setColor(packedVoxel[n].index, color);
   }
 
@@ -631,13 +637,16 @@ AttributeDecoder::decodeColorsLift(
     PCCLiftPredict(predictors, startIndex, endIndex, false, colors);
   }
 
-  const int64_t clipMax = (1 << desc.attr_bitdepth) - 1;
+  Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
+                        (1 << desc.attr_bitdepth_secondary) - 1,
+                        (1 << desc.attr_bitdepth_secondary) - 1};
+
   for (size_t f = 0; f < pointCount; ++f) {
     const auto color0 =
       divExp2RoundHalfInf(colors[f], kFixedPointAttributeShift);
     Vec3<attr_t> color;
     for (size_t d = 0; d < 3; ++d) {
-      color[d] = attr_t(PCCClip(color0[d], int64_t(0), clipMax));
+      color[d] = attr_t(PCCClip(color0[d], int64_t(0), clipMax[d]));
     }
     pointCloud.setColor(indexesLOD[f], color);
   }

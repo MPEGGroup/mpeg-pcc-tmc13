@@ -770,6 +770,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       attr_sps.attributeLabel = KnownAttributeLabel::kColour;
     }
 
+    // Derive the secondary bitdepth
+    // todo(df): this needs to be a command line argument
+    //  -- but there are a few edge cases to handle
+    attr_sps.attr_bitdepth_secondary = attr_sps.attr_bitdepth;
+
     bool isLifting =
       attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
       || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
@@ -855,10 +860,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (attr_sps.attr_bitdepth > 16)
       err.error() << it.first << ".bitdepth must be less than 17\n";
 
-    if (it.first == "reflectance") {
-      if (attr_sps.attr_bitdepth > 16)
-        err.error() << it.first << ".bitdepth must be less than 17\n";
-    }
+    if (attr_sps.attr_bitdepth_secondary > 16)
+      err.error() << it.first << ".bitdepth_secondary must be less than 17\n";
 
     if (isLifting) {
       int lod = attr_aps.num_detail_levels;
