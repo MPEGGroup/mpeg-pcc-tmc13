@@ -150,6 +150,22 @@ Controls the ability to code duplicate points.  When duplicate point
 merging is enabled, bitstream syntax related to duplicate points is
 disabled and a pre-filtering process is used to remove co-located points.
 
+### `--geometry_axis_order=INT-VALUE`
+Configures the order in which axes are internally coded.  Changing
+the axis order does not change the orientation of the reconstructed
+point cloud.
+
+  | Value | Coding order |
+  |:-----:| -------------|
+  | 0     | z, y, x      |
+  | 1     | x, y, z      |
+  | 2     | x, z, y      |
+  | 3     | y, z, x      |
+  | 4     | z, y, x      |
+  | 5     | z, x, y      |
+  | 6     | y, x, z      |
+  | 7     | x, y, z      |
+
 ### `--disableAttributeCoding=0|1`
 This option instructs the encoder to ignore all options relating to
 attribute coding, as if they had never been configured.

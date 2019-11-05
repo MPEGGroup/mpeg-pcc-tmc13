@@ -128,7 +128,8 @@ private:
 
 class PCCTMC3Decoder3::Callbacks {
 public:
-  virtual void onOutputCloud(const PCCPointSet3&) = 0;
+  virtual void
+  onOutputCloud(const SequenceParameterSet&, const PCCPointSet3&) = 0;
 };
 
 //============================================================================

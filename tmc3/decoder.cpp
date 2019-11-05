@@ -90,7 +90,7 @@ PCCTMC3Decoder3::decompress(
 
   if (!buf) {
     // flush decoder, output pending cloud if any
-    callback->onOutputCloud(_accumCloud);
+    callback->onOutputCloud(*_sps, _accumCloud);
     _accumCloud.clear();
     return 0;
   }
@@ -106,7 +106,8 @@ PCCTMC3Decoder3::decompress(
   // NB: frame counter is reset to avoid outputing a runt point cloud
   //     on the next slice.
   case PayloadType::kFrameBoundaryMarker:
-    callback->onOutputCloud(_accumCloud);
+    // todo(df): if no sps is activated ...
+    callback->onOutputCloud(*_sps, _accumCloud);
     _accumCloud.clear();
     _currentFrameIdx = -1;
     return 0;
@@ -114,7 +115,7 @@ PCCTMC3Decoder3::decompress(
   case PayloadType::kGeometryBrick:
     activateParameterSets(parseGbhIds(*buf));
     if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr))) {
-      callback->onOutputCloud(_accumCloud);
+      callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
     }
     return decodeGeometryBrick(*buf);

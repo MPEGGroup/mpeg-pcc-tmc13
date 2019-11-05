@@ -121,6 +121,20 @@ enum class AttributeEncoding
 
 //============================================================================
 
+enum class AxisOrder
+{
+  kZYX = 0,
+  kXYZ = 1,
+  kXZY = 2,
+  kYZX = 3,
+  kZYX_4 = 4,
+  kZXY = 5,
+  kYXZ = 6,
+  kXYZ_7 = 7,
+};
+
+//============================================================================
+
 // invariant properties
 struct AttributeDescription {
   int attr_num_dimensions;
@@ -161,6 +175,9 @@ struct SequenceParameterSet {
 
   // The number of bits to use for frame_idx
   int log2_max_frame_idx;
+
+  // Defines the ordering of the position components (eg, xyz vs zyx)
+  AxisOrder geometry_axis_order;
 
   // Controls whether bypass bins are written to a seperate sub-stream, or
   // encoded as ep bins via CABAC.

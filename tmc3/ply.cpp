@@ -87,7 +87,10 @@ getTokens(
 
 bool
 ply::write(
-  const PCCPointSet3& cloud, const std::string& fileName, bool asAscii)
+  const PCCPointSet3& cloud,
+  const PropertyNameMap& attributeNames,
+  const std::string& fileName,
+  bool asAscii)
 {
   std::ofstream fout(fileName, std::ofstream::out);
   if (!fout.is_open()) {
@@ -109,13 +112,13 @@ ply::write(
   }
   fout << "element vertex " << pointCount << std::endl;
   if (asAscii) {
-    fout << "property float x" << std::endl;
-    fout << "property float y" << std::endl;
-    fout << "property float z" << std::endl;
+    fout << "property float " << attributeNames.position[0] << std::endl;
+    fout << "property float " << attributeNames.position[1] << std::endl;
+    fout << "property float " << attributeNames.position[2] << std::endl;
   } else {
-    fout << "property float64 x" << std::endl;
-    fout << "property float64 y" << std::endl;
-    fout << "property float64 z" << std::endl;
+    fout << "property float64 " << attributeNames.position[0] << std::endl;
+    fout << "property float64 " << attributeNames.position[1] << std::endl;
+    fout << "property float64 " << attributeNames.position[2] << std::endl;
   }
 
   if (cloud.hasColors()) {
@@ -182,7 +185,10 @@ ply::write(
 //============================================================================
 
 bool
-ply::read(const std::string& fileName, PCCPointSet3& cloud)
+ply::read(
+  const std::string& fileName,
+  const PropertyNameMap& attributeNames,
+  PCCPointSet3& cloud)
 {
   std::ifstream ifs(fileName, std::ifstream::in | std::ifstream::binary);
   if (!ifs.is_open()) {
@@ -317,15 +323,15 @@ ply::read(const std::string& fileName, PCCPointSet3& cloud)
   for (size_t a = 0; a < attributeCount; ++a) {
     const auto& attributeInfo = attributesInfo[a];
     if (
-      attributeInfo.name == "x"
+      attributeInfo.name == attributeNames.position[0]
       && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
       indexX = a;
     } else if (
-      attributeInfo.name == "y"
+      attributeInfo.name == attributeNames.position[1]
       && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
       indexY = a;
     } else if (
-      attributeInfo.name == "z"
+      attributeInfo.name == attributeNames.position[2]
       && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
       indexZ = a;
     } else if (attributeInfo.name == "red" && attributeInfo.byteCount == 1) {

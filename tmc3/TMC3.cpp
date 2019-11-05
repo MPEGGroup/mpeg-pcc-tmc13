@@ -104,6 +104,8 @@ protected:
   void onPostRecolour(const PCCPointSet3& cloud) override;
 
 private:
+  ply::PropertyNameMap _plyAttrNames;
+
   Parameters* params;
   PCCTMC3Encoder3 encoder;
 
@@ -122,7 +124,9 @@ public:
   int decompress(Stopwatch* clock);
 
 protected:
-  void onOutputCloud(const PCCPointSet3& decodedPointCloud) override;
+  void onOutputCloud(
+    const SequenceParameterSet& sps,
+    const PCCPointSet3& decodedPointCloud) override;
 
 private:
   const Parameters* params;
@@ -171,6 +175,19 @@ main(int argc, char* argv[])
 }
 
 //---------------------------------------------------------------------------
+
+std::array<const char*, 3>
+axisOrderToPropertyNames(AxisOrder order)
+{
+  static const std::array<const char*, 3> kAxisOrderToPropertyNames[] = {
+    {"z", "y", "x"}, {"x", "y", "z"}, {"x", "z", "y"}, {"y", "z", "x"},
+    {"z", "y", "x"}, {"z", "x", "y"}, {"y", "x", "z"}, {"x", "y", "z"},
+  };
+
+  return kAxisOrderToPropertyNames[int(order)];
+}
+
+//---------------------------------------------------------------------------
 // :: Command line / config parsing helpers
 
 template<typename T>
@@ -182,6 +199,14 @@ readUInt(std::istream& in, T& val)
   val = T(tmp);
   return in;
 }
+
+namespace pcc {
+static std::istream&
+operator>>(std::istream& in, AxisOrder& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
 
 static std::istream&
 operator>>(std::istream& in, ColorTransform& val)
@@ -202,6 +227,24 @@ static std::istream&
 operator>>(std::istream& in, PartitionMethod& val)
 {
   return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const AxisOrder& val)
+{
+  switch (val) {
+  case AxisOrder::kZYX: out << "0 (zyx)"; break;
+  case AxisOrder::kXYZ: out << "1 (xyz)"; break;
+  case AxisOrder::kXZY: out << "2 (xzy)"; break;
+  case AxisOrder::kYZX: out << "3 (yzx)"; break;
+  case AxisOrder::kZYX_4: out << "4 (zyx)"; break;
+  case AxisOrder::kZXY: out << "5 (zxy)"; break;
+  case AxisOrder::kYXZ: out << "6 (yxz)"; break;
+  case AxisOrder::kXYZ_7: out << "7 (xyz)"; break;
+  }
+  return out;
 }
 }  // namespace pcc
 
@@ -370,6 +413,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     " skipLayerNum indicates the number of skipped lod layers from leaf lod.")
 
   (po::Section("Encoder"))
+
+  ("geometry_axis_order",
+    params.encoder.sps.geometry_axis_order, AxisOrder::kXYZ,
+    "Sets the geometry axis coding order:\n"
+    "  0: (zyx)\n  1: (xyz)\n  2: (xzy)\n"
+    "  3: (yzx)\n  4: (zyx)\n  5: (zxy)\n"
+    "  6: (yxz)\n  7: (xyz)")
 
   ("seq_bounding_box_xyz0",
     params.encoder.sps.seq_bounding_box_xyz0, {0},
@@ -847,7 +897,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 //============================================================================
 
 SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
-{}
+{
+  // determine the naming (ordering) of ply properties
+  _plyAttrNames.position =
+    axisOrderToPropertyNames(params->encoder.sps.geometry_axis_order);
+}
 
 //----------------------------------------------------------------------------
 
@@ -878,7 +932,9 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 {
   std::string srcName{expandNum(params->uncompressedDataPath, frameNum)};
   PCCPointSet3 pointCloud;
-  if (!ply::read(srcName, pointCloud) || pointCloud.getPointCount() == 0) {
+  if (
+    !ply::read(srcName, _plyAttrNames, pointCloud)
+    || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
@@ -946,7 +1002,8 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     }
 
     std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
-    ply::write(*reconPointCloud, recName, !params->outputBinaryPly);
+    ply::write(
+      *reconPointCloud, _plyAttrNames, recName, !params->outputBinaryPly);
   }
 
   return 0;
@@ -973,13 +1030,13 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
 
   // todo(df): stop the clock
   if (params->colorTransform != COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    ply::write(cloud, plyName, !params->outputBinaryPly);
+    ply::write(cloud, _plyAttrNames, plyName, !params->outputBinaryPly);
     return;
   }
 
   PCCPointSet3 tmpCloud(cloud);
   tmpCloud.convertYUVToRGB();
-  ply::write(tmpCloud, plyName, !params->outputBinaryPly);
+  ply::write(tmpCloud, _plyAttrNames, plyName, !params->outputBinaryPly);
 }
 
 //============================================================================
@@ -1034,7 +1091,8 @@ SequenceDecoder::decompress(Stopwatch* clock)
 //----------------------------------------------------------------------------
 
 void
-SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
+SequenceDecoder::onOutputCloud(
+  const SequenceParameterSet& sps, const PCCPointSet3& decodedPointCloud)
 {
   // copy the point cloud in order to modify it according to the output options
   PCCPointSet3 pointCloud(decodedPointCloud);
@@ -1051,10 +1109,16 @@ SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
     }
   }
 
+  // the order of the property names must be determined from the sps
+  ply::PropertyNameMap attrNames;
+  attrNames.position = axisOrderToPropertyNames(sps.geometry_axis_order);
+
   // Dump the decoded colour using the pre inverse scaled geometry
   if (!params->preInvScalePath.empty()) {
     std::string filename{expandNum(params->preInvScalePath, frameNum)};
-    ply::write(pointCloud, params->preInvScalePath, !params->outputBinaryPly);
+    ply::write(
+      pointCloud, attrNames, params->preInvScalePath,
+      !params->outputBinaryPly);
   }
 
   decoder.inverseQuantization(pointCloud);
@@ -1062,7 +1126,7 @@ SequenceDecoder::onOutputCloud(const PCCPointSet3& decodedPointCloud)
   clock->stop();
 
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
-  if (!ply::write(pointCloud, decName, !params->outputBinaryPly)) {
+  if (!ply::write(pointCloud, attrNames, decName, !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
 

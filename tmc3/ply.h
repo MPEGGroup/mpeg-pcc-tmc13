@@ -35,6 +35,7 @@
 
 #pragma once
 
+#include <array>
 #include <string>
 
 #include "PCCPointSet.h"
@@ -43,10 +44,26 @@ namespace pcc {
 namespace ply {
 
   //============================================================================
+  // This defines the the attribute names to be used when reading/writing ply
+  // files.  The order of the names define the ordering used in the internal
+  // point cloud representation.
 
-  bool
-  write(const PCCPointSet3& cloud, const std::string& fileName, bool asAscii);
-  bool read(const std::string& fileName, PCCPointSet3& cloud);
+  struct PropertyNameMap {
+    // The names of the position attributes, typically {"x", "y", "z"}
+    std::array<const char*, 3> position;
+  };
+
+  //============================================================================
+
+  bool write(
+    const PCCPointSet3& cloud,
+    const PropertyNameMap& propertyNames,
+    const std::string& fileName,
+    bool asAscii);
+  bool read(
+    const std::string& fileName,
+    const PropertyNameMap& propertyNames,
+    PCCPointSet3& cloud);
 
   //============================================================================
 

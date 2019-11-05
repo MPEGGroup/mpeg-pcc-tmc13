@@ -219,6 +219,9 @@ parseParameters(int argc, char* argv[], Options& params)
 void
 runMerge(const Options& opts)
 {
+  ply::PropertyNameMap propNames;
+  propNames.position = {"x", "y", "z"};
+
   // iterate over all input frames in groups
   int outFrameNum = opts.firstOutputFrameNum;
   for (int i = 0; i < opts.frameCount; outFrameNum++) {
@@ -232,7 +235,9 @@ runMerge(const Options& opts)
 
       srcClouds.emplace_back();
       auto& srcCloud = srcClouds.back();
-      if (!ply::read(srcName, srcCloud) || srcCloud.getPointCount() == 0) {
+      if (
+        !ply::read(srcName, propNames, srcCloud)
+        || srcCloud.getPointCount() == 0) {
         throw runtime_error("failed to read input file: " + srcName);
       }
     }
@@ -268,7 +273,7 @@ runMerge(const Options& opts)
     }
 
     string outName{expandNum(opts.outPath, outFrameNum)};
-    if (!ply::write(outCloud, outName, !opts.outputBinaryPly))
+    if (!ply::write(outCloud, propNames, outName, !opts.outputBinaryPly))
       throw runtime_error("failed to write output file: " + outName);
     cout << outName << endl;
   }
@@ -281,6 +286,9 @@ runMerge(const Options& opts)
 void
 runSplit(const Options& opts)
 {
+  ply::PropertyNameMap propNames;
+  propNames.position = {"x", "y", "z"};
+
   int outFrameNum = opts.firstOutputFrameNum;
   int srcFrameNum = opts.firstFrameNum;
 
@@ -288,7 +296,9 @@ runSplit(const Options& opts)
     string srcName{expandNum(opts.srcPath, srcFrameNum)};
 
     PCCPointSet3 srcCloud;
-    if (!ply::read(srcName, srcCloud) || srcCloud.getPointCount() == 0) {
+    if (
+      !ply::read(srcName, propNames, srcCloud)
+      || srcCloud.getPointCount() == 0) {
       throw runtime_error("failed to read input file: " + srcName);
     }
 
@@ -331,7 +341,7 @@ runSplit(const Options& opts)
 
       string outName{expandNum(opts.outPath, outFrameNum)};
       if (outCloud.getPointCount() > 0)
-        if (!ply::write(outCloud, outName, !opts.outputBinaryPly))
+        if (!ply::write(outCloud, propNames, outName, !opts.outputBinaryPly))
           throw runtime_error("failed to write output file: " + outName);
       cout << outName << endl;
 

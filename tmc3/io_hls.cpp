@@ -112,6 +112,7 @@ write(const SequenceParameterSet& sps)
   }
 
   bs.writeUn(5, sps.log2_max_frame_idx);
+  bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
 
   bool sps_extension_flag = false;
@@ -173,6 +174,7 @@ parseSps(const PayloadBuffer& buf)
   }
 
   bs.readUn(5, &sps.log2_max_frame_idx);
+  bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
 
   bool sps_extension_flag = bs.read();
