@@ -88,6 +88,14 @@ struct AttributeLabel {
 
   //--------------------------------------------------------------------------
 
+  friend bool
+  operator!=(const AttributeLabel& lhs, const KnownAttributeLabel& rhs)
+  {
+    return !(lhs == rhs);
+  }
+
+  //--------------------------------------------------------------------------
+
   bool known_attribute_label_flag() const
   {
     switch (KnownAttributeLabel(attribute_label_four_bytes)) {
@@ -134,6 +142,24 @@ enum class AxisOrder
 };
 
 //============================================================================
+// ISO/IEC 23001-8 codec independent code points
+enum class ColourMatrix : uint8_t
+{
+  kIdentity = 0,
+  kBt709 = 1,
+  kUnspecified = 2,
+  kReserved_3 = 3,
+  kUsa47Cfr73dot682a20 = 4,
+  kBt601 = 5,
+  kSmpte170M = 6,
+  kSmpte240M = 7,
+  kYCgCo = 8,
+  kBt2020Ncl = 9,
+  kBt2020Cl = 10,
+  kSmpte2085 = 11,
+};
+
+//============================================================================
 
 // invariant properties
 struct AttributeDescription {
@@ -142,7 +168,7 @@ struct AttributeDescription {
   int attr_bitdepth;
   int cicp_colour_primaries_idx;
   int cicp_transfer_characteristics_idx;
-  int cicp_matrix_coefficients_idx;
+  ColourMatrix cicp_matrix_coefficients_idx;
   bool cicp_video_full_range_flag;
 
   AttributeLabel attributeLabel;

@@ -25,7 +25,7 @@ categories:
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - use raht
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      - transformType: 1
 
      ##
@@ -46,7 +46,7 @@ categories:
 
     decflags:
      - mode: 1
-     - colorTransform: 1
+     - convertPlyColourspace: 1
 
     pcerrorflags:
      - dropdups: 2

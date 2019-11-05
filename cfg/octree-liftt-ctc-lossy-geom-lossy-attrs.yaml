@@ -32,7 +32,7 @@ categories:
      #    - generates dist2 per lod
      -
        - !conditional 'defined ${seq_lod} && defined ${seq_dist2}'
-       - colorTransform: 1
+       - convertPlyColourspace: 1
        -
          - !conditional '${reflectance8b16b_scale_factor}'
          - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
@@ -80,7 +80,7 @@ categories:
 
     decflags:
      - mode: 1
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}

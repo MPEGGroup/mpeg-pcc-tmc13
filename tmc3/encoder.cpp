@@ -289,21 +289,6 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_enc = params->attr[it.second];
     attr_sps.attr_instance_id = it.second;
 
-    attr_sps.cicp_colour_primaries_idx = 2;
-    attr_sps.cicp_transfer_characteristics_idx = 2;
-    attr_sps.cicp_matrix_coefficients_idx = 2;
-    attr_sps.cicp_video_full_range_flag = true;
-
-    if (it.first == "color") {
-      attr_sps.attr_num_dimensions = 3;
-      attr_sps.attributeLabel = KnownAttributeLabel::kColour;
-    }
-
-    if (it.first == "reflectance") {
-      attr_sps.attr_num_dimensions = 1;
-      attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
-    }
-
     // the encoder options may not specify sufficient offsets for the number
     // of layers used by the sytax: extend with last value as appropriate
     if (!attr_enc.abh.attr_layer_qp_delta_luma.empty()) {

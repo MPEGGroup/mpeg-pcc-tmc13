@@ -20,7 +20,7 @@ categories:
      # attribute coding (common options -- relies on option ordering)
      #  - uses raht transform
      #  - scale 16bit reflectance data to 8bit
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
@@ -58,7 +58,7 @@ categories:
 
     decflags:
      - mode: 1
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}

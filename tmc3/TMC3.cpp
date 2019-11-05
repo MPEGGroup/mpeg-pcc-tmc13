@@ -82,8 +82,8 @@ struct Parameters {
   pcc::EncoderParams encoder;
   pcc::DecoderParams decoder;
 
-  // todo(df): this should be per-attribute
-  ColorTransform colorTransform;
+  // perform attribute colourspace conversion on ply input/output.
+  bool convertColourspace;
 
   // todo(df): this should be per-attribute
   int reflectanceScale;
@@ -138,6 +138,11 @@ private:
   int frameNum;
   Stopwatch* clock;
 };
+
+//============================================================================
+
+void convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud);
+void convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud);
 
 //============================================================================
 
@@ -203,17 +208,19 @@ readUInt(std::istream& in, T& val)
 
 namespace pcc {
 static std::istream&
-operator>>(std::istream& in, AxisOrder& val)
+operator>>(std::istream& in, ColourMatrix& val)
 {
   return readUInt(in, val);
 }
 }  // namespace pcc
 
+namespace pcc {
 static std::istream&
-operator>>(std::istream& in, ColorTransform& val)
+operator>>(std::istream& in, AxisOrder& val)
 {
   return readUInt(in, val);
 }
+}  // namespace pcc
 
 namespace pcc {
 static std::istream&
@@ -228,6 +235,31 @@ static std::istream&
 operator>>(std::istream& in, PartitionMethod& val)
 {
   return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const ColourMatrix& val)
+{
+  switch (val) {
+  case ColourMatrix::kIdentity: out << "0 (Identity)"; break;
+  case ColourMatrix::kBt709: out << "1 (Bt709)"; break;
+  case ColourMatrix::kUnspecified: out << "2 (Unspecified)"; break;
+  case ColourMatrix::kReserved_3: out << "3 (Reserved)"; break;
+  case ColourMatrix::kUsa47Cfr73dot682a20:
+    out << "4 (Usa47Cfr73dot682a20)";
+    break;
+  case ColourMatrix::kBt601: out << "5 (Bt601)"; break;
+  case ColourMatrix::kSmpte170M: out << "6 (Smpte170M)"; break;
+  case ColourMatrix::kSmpte240M: out << "7 (Smpte240M)"; break;
+  case ColourMatrix::kYCgCo: out << "8 (kYCgCo)"; break;
+  case ColourMatrix::kBt2020Ncl: out << "9 (Bt2020Ncl)"; break;
+  case ColourMatrix::kBt2020Cl: out << "10 (Bt2020Cl)"; break;
+  case ColourMatrix::kSmpte2085: out << "11 (Smpte2085)"; break;
+  default: out << "Unknown"; break;
+  }
+  return out;
 }
 }  // namespace pcc
 
@@ -391,14 +423,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.outputBinaryPly, false,
     "Output ply files using binary (or otherwise ascii) format")
 
-  // general
-  // todo(df): this should be per-attribute
-  ("colorTransform",
-    params.colorTransform, COLOR_TRANSFORM_RGB_TO_YCBCR,
-    "The colour transform to be applied:\n"
-    "  0: none\n"
-    "  1: RGB to YCbCr (Rec.709)")
+  ("convertPlyColourspace",
+    params.convertColourspace, true,
+    "Convert ply colourspace according to attribute colourMatrix")
 
+  // general
   // todo(df): this should be per-attribute
   ("hack.reflectanceScale",
     params.reflectanceScale, 1,
@@ -526,6 +555,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("bitdepth",
     params_attr.desc.attr_bitdepth, 8,
     "Attribute bitdepth")
+
+  // todo(df): this should be per-attribute
+  ("colourMatrix",
+    params_attr.desc.cicp_matrix_coefficients_idx, ColourMatrix::kBt709,
+    "Matrix used in colourspace conversion\n"
+    "  0: none (identity)\n"
+    "  1: ITU-T BT.709")
 
   ("transformType",
     params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
@@ -713,10 +749,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     auto& attr_aps = params.encoder.aps[it.second];
     auto& attr_enc = params.encoder.attr[it.second];
 
-    // Avoid wasting bits signalling chroma quant step size for reflectance
+    // default values for attribute
+    attr_sps.cicp_colour_primaries_idx = 2;
+    attr_sps.cicp_transfer_characteristics_idx = 2;
+    attr_sps.cicp_video_full_range_flag = true;
+
     if (it.first == "reflectance") {
+      // Avoid wasting bits signalling chroma quant step size for reflectance
       attr_aps.aps_chroma_qp_offset = 0;
       attr_enc.abh.attr_layer_qp_delta_chroma.clear();
+
+      // There is no matrix for reflectace
+      attr_sps.cicp_matrix_coefficients_idx = ColourMatrix::kUnspecified;
+      attr_sps.attr_num_dimensions = 1;
+      attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
+    }
+
+    if (it.first == "color") {
+      attr_sps.attr_num_dimensions = 3;
+      attr_sps.attributeLabel = KnownAttributeLabel::kColour;
     }
 
     bool isLifting =
@@ -960,9 +1011,8 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   clock->start();
 
-  if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    convertGbrToYCbCrBt709(pointCloud);
-  }
+  if (params->convertColourspace)
+    convertFromGbr(params->encoder.sps, pointCloud);
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
     const auto pointCount = pointCloud.getPointCount();
@@ -995,9 +1045,8 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   clock->stop();
 
   if (!params->reconstructedDataPath.empty()) {
-    if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-      convertYCbCrBt709ToGbr(*reconPointCloud);
-    }
+    if (params->convertColourspace)
+      convertToGbr(params->encoder.sps, *reconPointCloud);
 
     if (params->reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
       const auto pointCount = reconPointCloud->getPointCount();
@@ -1036,13 +1085,13 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   std::string plyName{expandNum(params->postRecolorPath, frameNum)};
 
   // todo(df): stop the clock
-  if (params->colorTransform != COLOR_TRANSFORM_RGB_TO_YCBCR) {
+  if (!params->convertColourspace) {
     ply::write(cloud, _plyAttrNames, plyName, !params->outputBinaryPly);
     return;
   }
 
   PCCPointSet3 tmpCloud(cloud);
-  convertYCbCrBt709ToGbr(tmpCloud);
+  convertToGbr(params->encoder.sps, tmpCloud);
   ply::write(tmpCloud, _plyAttrNames, plyName, !params->outputBinaryPly);
 }
 
@@ -1104,9 +1153,8 @@ SequenceDecoder::onOutputCloud(
   // copy the point cloud in order to modify it according to the output options
   PCCPointSet3 pointCloud(decodedPointCloud);
 
-  if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    convertYCbCrBt709ToGbr(pointCloud);
-  }
+  if (params->convertColourspace)
+    convertToGbr(sps, pointCloud);
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
     const auto pointCount = pointCloud.getPointCount();
@@ -1142,3 +1190,50 @@ SequenceDecoder::onOutputCloud(
   // todo(df): frame number should be derived from the bitstream
   frameNum++;
 }
+
+//============================================================================
+
+const AttributeDescription*
+findColourAttrDesc(const SequenceParameterSet& sps)
+{
+  // todo(df): don't assume that there is only one colour attribute in the sps
+  for (const auto& desc : sps.attributeSets) {
+    if (desc.attributeLabel == KnownAttributeLabel::kColour)
+      return &desc;
+  }
+  return nullptr;
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
+{
+  const AttributeDescription* attrDesc = findColourAttrDesc(sps);
+  if (!attrDesc)
+    return;
+
+  switch (attrDesc->cicp_matrix_coefficients_idx) {
+  case ColourMatrix::kBt709: convertYCbCrBt709ToGbr(cloud); break;
+
+  default: break;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
+{
+  const AttributeDescription* attrDesc = findColourAttrDesc(sps);
+  if (!attrDesc)
+    return;
+
+  switch (attrDesc->cicp_matrix_coefficients_idx) {
+  case ColourMatrix::kBt709: convertGbrToYCbCrBt709(cloud); break;
+
+  default: break;
+  }
+}
+
+//============================================================================

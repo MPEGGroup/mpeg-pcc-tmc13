@@ -23,7 +23,7 @@ categories:
      #  - automatically derive dist2 based on single initial value by the encoder:
      #    - the initial dist2 is scaled by positionQuantisationScale
      #    - generates dist2 per lod
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
@@ -71,7 +71,7 @@ categories:
 
     decflags:
      - mode: 1
-     - colorTransform: 1
+     - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}

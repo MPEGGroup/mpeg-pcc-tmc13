@@ -42,12 +42,6 @@
 
 #include "pcc_chrono.h"
 
-enum ColorTransform
-{
-  COLOR_TRANSFORM_NONE = 0,
-  COLOR_TRANSFORM_RGB_TO_YCBCR = 1
-};
-
 struct Parameters;
 
 typedef pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock>

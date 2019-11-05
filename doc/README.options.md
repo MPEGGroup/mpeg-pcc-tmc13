@@ -83,14 +83,13 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
-### `--colourTransform=0|1`
-Controls the use of a colour space transformation before attribute
-coding and after decoding.
-
-  | Value | Description            |
-  |:-----:| ---------------------- |
-  | 0     | none                   |
-  | 1     | RGB to YCbCr (Rec.709) |
+### `--convertPlyColourspace=0|1`
+Controls the conversion of ply RGB colour attributes to/from the
+colourspace set by an attribute's `colourMatrix` before attribute
+coding and after decoding.  When disabled (0), or if there is no
+converter available for the requested `colourMatrix`, no conversion
+happens; however the `colourMatrix` value is still written to the
+bitstream.
 
 ### `--hack.reflectanceScale=0|1`
 Some input data uses 8-bit reflectance data scaled by 255 and represented
@@ -285,6 +284,28 @@ Saves the current attribute configuration for coding the named attribute.
 
 This option must be specified after the options corresponding to
 the attribute.
+
+### `--colourMatrix=INT-VALUE`
+Indicates the colourspace of the coded attribute values according to
+the ISO/IEC 23001-8 Codec Independent Code Points for ColourMatrix.
+When used in conjunction with `convertPlyColourspace=1`, a colourspace
+conversion will be performed at the input/output of the encoder and
+decoder if supported.
+
+  | Value | RGB converter | Description                               |
+  |:-----:|:-------------:|------------------------------------------ |
+  | 0     | n/a           | Direct coding (eg, RGB, XYZ)              |
+  | 1     | Yes           | YCbCr ITU-R BT.709                        |
+  | 2     | n/a           | Unspecified                               |
+  | 3     | n/a           | Reserved                                  |
+  | 4     | No            | USA Title 47 CFR 73.682 (a)(20)           |
+  | 5     | No            | YCbCr ITU-R BT.601                        |
+  | 6     | No            | YCbCr SMPTE 170M                          |
+  | 7     | No            | YCbCr SMPTE 240M                          |
+  | 8     | No            | YCgCo / YCgCoR                            |
+  | 9     | No            | YCbCr ITU-R BT.2020                       |
+  | 10    | No            | YCbCr ITU-R BT.2020 (constant luminance)  |
+  | 11    | No            | YDzDx SMPTE ST 2085                       |
 
 ### `--bitdepth=INT-VALUE`
 The bitdepth of the attribute data.  NB, this is not necessarily the
