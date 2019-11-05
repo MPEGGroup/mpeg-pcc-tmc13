@@ -72,6 +72,7 @@ file(GLOB PROJECT_INC_FILES
   "PCCTMC3Encoder.h"
   "RAHT.h"
   "TMC3.h"
+  "colourspace.h"
   "constants.h"
   "entropy.h"
   "entropydirac.h"

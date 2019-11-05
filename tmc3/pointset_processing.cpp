@@ -35,6 +35,7 @@
 
 #include "pointset_processing.h"
 
+#include "colourspace.h"
 #include "KDTreeVectorOfVectorsAdaptor.h"
 
 #include <cstddef>
@@ -898,6 +899,28 @@ recolour(
   }
 
   return 0;
+}
+
+//============================================================================
+
+void
+convertGbrToYCbCrBt709(PCCPointSet3& cloud)
+{
+  for (int i = 0; i < cloud.getPointCount(); i++) {
+    auto& val = cloud.getColor(i);
+    val = transformGbrToYCbCrBt709(val);
+  }
+}
+
+//============================================================================
+
+void
+convertYCbCrBt709ToGbr(PCCPointSet3& cloud)
+{
+  for (int i = 0; i < cloud.getPointCount(); i++) {
+    auto& val = cloud.getColor(i);
+    val = transformYCbCrBt709ToGbr(val);
+  }
 }
 
 //============================================================================

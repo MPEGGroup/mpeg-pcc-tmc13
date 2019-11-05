@@ -41,6 +41,7 @@
 #include "PCCTMC3Decoder.h"
 #include "constants.h"
 #include "ply.h"
+#include "pointset_processing.h"
 #include "program_options_lite.h"
 #include "io_tlv.h"
 #include "version.h"
@@ -963,7 +964,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   clock->start();
 
   if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    pointCloud.convertRGBToYUV();
+    convertGbrToYCbCrBt709(pointCloud);
   }
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
@@ -998,7 +999,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   if (!params->reconstructedDataPath.empty()) {
     if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-      reconPointCloud->convertYUVToRGB();
+      convertYCbCrBt709ToGbr(*reconPointCloud);
     }
 
     if (params->reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
@@ -1044,7 +1045,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   }
 
   PCCPointSet3 tmpCloud(cloud);
-  tmpCloud.convertYUVToRGB();
+  convertYCbCrBt709ToGbr(tmpCloud);
   ply::write(tmpCloud, _plyAttrNames, plyName, !params->outputBinaryPly);
 }
 
@@ -1107,7 +1108,7 @@ SequenceDecoder::onOutputCloud(
   PCCPointSet3 pointCloud(decodedPointCloud);
 
   if (params->colorTransform == COLOR_TRANSFORM_RGB_TO_YCBCR) {
-    pointCloud.convertYUVToRGB();
+    convertYCbCrBt709ToGbr(pointCloud);
   }
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
