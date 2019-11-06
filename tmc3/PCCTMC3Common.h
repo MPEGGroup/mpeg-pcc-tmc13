@@ -522,10 +522,9 @@ computeNearestNeighbors(
     const int32_t pointIndex = packedVoxel[index].index;
     const auto& point = pointCloud[pointIndex];
     indexes[i] = pointIndex;
-    while (j < retainedSize
+    while (j < retainedSize - 1
            && mortonCode >= packedVoxel[retained[j]].mortonCode)
       ++j;
-    j = std::min(retainedSize - 1, j);
     auto& predictor = predictors[--predIndex];
     pointIndexToPredictorIndex[pointIndex] = predIndex;
 
