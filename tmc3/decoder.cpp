@@ -54,6 +54,7 @@ namespace pcc {
 void
 PCCTMC3Decoder3::init()
 {
+  _currentFrameIdx = -1;
   _sps = nullptr;
   _gps = nullptr;
   _spss.clear();
@@ -63,15 +64,23 @@ PCCTMC3Decoder3::init()
 
 //============================================================================
 
+static bool
+payloadStartsNewSlice(PayloadType type)
+{
+  return type == PayloadType::kGeometryBrick
+    || type == PayloadType::kFrameBoundaryMarker;
+}
+
+//============================================================================
+
 int
 PCCTMC3Decoder3::decompress(
   const PayloadBuffer* buf,
   std::function<void(const PCCPointSet3&)> onOutputCloud)
 {
-  // todo(df): call _accumCloud.clear() at start of frame
   // Starting a new geometry brick/slice/tile, transfer any
   // finished points to the output accumulator
-  if (!buf || buf->type == PayloadType::kGeometryBrick) {
+  if (!buf || payloadStartsNewSlice(buf->type)) {
     if (size_t numPoints = _currentPointCloud.getPointCount()) {
       for (size_t i = 0; i < numPoints; i++)
         for (int k = 0; k < 3; k++)
@@ -83,6 +92,7 @@ PCCTMC3Decoder3::decompress(
   if (!buf) {
     // flush decoder, output pending cloud if any
     onOutputCloud(_accumCloud);
+    _accumCloud.clear();
     return 0;
   }
 
@@ -93,8 +103,21 @@ PCCTMC3Decoder3::decompress(
 
   case PayloadType::kAttributeParameterSet: storeAps(parseAps(*buf)); return 0;
 
+  // the frame boundary marker flushes the current frame.
+  // NB: frame counter is reset to avoid outputing a runt point cloud
+  //     on the next slice.
+  case PayloadType::kFrameBoundaryMarker:
+    onOutputCloud(_accumCloud);
+    _accumCloud.clear();
+    _currentFrameIdx = -1;
+    return 0;
+
   case PayloadType::kGeometryBrick:
-    // todo(df): call onOutputCloud when starting a new cloud
+    activateParameterSets(parseGbhIds(*buf));
+    if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr))) {
+      onOutputCloud(_accumCloud);
+      _accumCloud.clear();
+    }
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
@@ -145,14 +168,21 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 }
 
 //==========================================================================
-// Initialise the point cloud storage and decode a single geometry slice.
 
-int
-PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
+bool
+PCCTMC3Decoder3::frameIdxChanged(const GeometryBrickHeader& gbh) const
 {
-  assert(buf.type == PayloadType::kGeometryBrick);
-  std::cout << "positions bitstream size " << buf.size() << " B\n";
+  // dont treat the first frame in the sequence as a frame boundary
+  if (_currentFrameIdx < 0)
+    return false;
+  return _currentFrameIdx != gbh.frame_idx;
+}
 
+//==========================================================================
+
+void
+PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
+{
   // HACK: assume activation of the first SPS and GPS
   // todo(df): parse brick header here for propper sps & gps activation
   //  -- this is currently inconsistent between trisoup and octree
@@ -160,6 +190,16 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   assert(!_gpss.empty());
   _sps = &_spss.cbegin()->second;
   _gps = &_gpss.cbegin()->second;
+}
+
+//==========================================================================
+// Initialise the point cloud storage and decode a single geometry slice.
+
+int
+PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
+{
+  assert(buf.type == PayloadType::kGeometryBrick);
+  std::cout << "positions bitstream size " << buf.size() << " B\n";
 
   // todo(df): replace with attribute mapping
   bool hasColour = std::any_of(
@@ -181,9 +221,10 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   clock_user.start();
 
   int gbhSize;
-  _gbh = parseGbh(*_gps, buf, &gbhSize);
+  _gbh = parseGbh(*_sps, *_gps, buf, &gbhSize);
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
+  _currentFrameIdx = _gbh.frame_idx;
 
   EntropyDecoder arithmeticDecoder;
   arithmeticDecoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);

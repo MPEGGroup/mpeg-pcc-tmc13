@@ -86,7 +86,7 @@ struct EncoderParams {
 
 class PCCTMC3Encoder3 {
 public:
-  PCCTMC3Encoder3() = default;
+  PCCTMC3Encoder3();
   PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
   PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
   ~PCCTMC3Encoder3() = default;
@@ -137,6 +137,10 @@ private:
 
   // Identifies the current tile
   int _tileId;
+
+  // Current frame number.
+  // NB: only the log2_max_frame_idx LSBs are sampled for frame_idx
+  int _frameCounter;
 
   // Map quantized points to the original input points
   std::multimap<Vec3<double>, int32_t> quantizedToOrigin;

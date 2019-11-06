@@ -55,6 +55,7 @@ TileInventory parseTileInventory(const PayloadBuffer& buf);
 //----------------------------------------------------------------------------
 
 void write(
+  const SequenceParameterSet& sps,
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PayloadBuffer* buf);
@@ -65,10 +66,19 @@ void write(
   PayloadBuffer* buf);
 
 GeometryBrickHeader parseGbh(
-  const GeometryParameterSet& gps, const PayloadBuffer& buf, int* bytesRead);
+  const SequenceParameterSet& sps,
+  const GeometryParameterSet& gps,
+  const PayloadBuffer& buf,
+  int* bytesRead);
 
 AttributeBrickHeader parseAbh(
   const AttributeParameterSet& aps, const PayloadBuffer& buf, int* bytesRead);
+
+/**
+ * Parse @buf, decoding only the parameter set, slice, tile.
+ * NB: the returned header is intentionally incomplete.
+ */
+GeometryBrickHeader parseGbhIds(const PayloadBuffer& buf);
 
 /**
  * Parse @buf, decoding only the parameter set and slice ids.

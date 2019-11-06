@@ -50,6 +50,11 @@ namespace pcc {
 
 //============================================================================
 
+PCCTMC3Encoder3::PCCTMC3Encoder3() : _frameCounter(-1)
+{}
+
+//============================================================================
+
 int
 PCCTMC3Encoder3::compress(
   const PCCPointSet3& inputPointCloud,
@@ -57,6 +62,9 @@ PCCTMC3Encoder3::compress(
   std::function<void(const PayloadBuffer&)> outputFn,
   PCCPointSet3* reconstructedCloud)
 {
+  // start of frame
+  _frameCounter++;
+
   fixupParameterSets(params);
 
   // Determine input bounding box (for SPS metadata) if not manually set
@@ -264,6 +272,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   params->sps.profileCompatibility.profile_compatibility_flags = 0;
   params->sps.level = 0;
 
+  // use one bit to indicate frame boundaries
+  params->sps.log2_max_frame_idx = 1;
+
   // the encoder writes out the slice origin in the GBH
   // NB: this may be disabled during encoding
   params->gps.geom_box_present_flag = true;
@@ -456,11 +467,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(PayloadBuffer* buf)
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
   gbh.geom_tile_id = std::max(0, _tileId);
+  gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_max_node_size_log2 = nodeSizeLog2;
   gbh.geom_num_points = int(pointCloud.getPointCount());
-  write(*_gps, gbh, buf);
+  write(*_sps, *_gps, gbh, buf);
 
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;

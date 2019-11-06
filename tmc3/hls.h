@@ -53,6 +53,7 @@ enum class PayloadType
   kAttributeParameterSet = 3,
   kAttributeBrick = 4,
   kTileInventory = 5,
+  kFrameBoundaryMarker = 6,
 };
 
 //============================================================================
@@ -158,6 +159,9 @@ struct SequenceParameterSet {
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;
 
+  // The number of bits to use for frame_idx
+  int log2_max_frame_idx;
+
   // Controls whether bypass bins are written to a seperate sub-stream, or
   // encoded as ep bins via CABAC.
   bool cabac_bypass_stream_enabled_flag;
@@ -224,6 +228,7 @@ struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
   int geom_tile_id;
   int geom_slice_id;
+  int frame_idx;
 
   // derived from geom_box_origin_{x,y,z} * (1 << geom_box_log2_scale)
   Vec3<int> geomBoxOrigin;

@@ -80,8 +80,10 @@ public:
   //==========================================================================
 
 private:
+  void activateParameterSets(const GeometryBrickHeader& gbh);
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
+  bool frameIdxChanged(const GeometryBrickHeader& gbh) const;
 
   //==========================================================================
 
@@ -96,6 +98,9 @@ private:
 
   // Current identifier of payloads with the same geometry
   int _sliceId;
+
+  // The last decoded frame_idx
+  int _currentFrameIdx;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;

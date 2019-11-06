@@ -111,6 +111,7 @@ write(const SequenceParameterSet& sps)
     }
   }
 
+  bs.writeUn(5, sps.log2_max_frame_idx);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
 
   bool sps_extension_flag = false;
@@ -171,6 +172,7 @@ parseSps(const PayloadBuffer& buf)
     }
   }
 
+  bs.readUn(5, &sps.log2_max_frame_idx);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
 
   bool sps_extension_flag = bs.read();
@@ -371,6 +373,7 @@ parseAps(const PayloadBuffer& buf)
 
 void
 write(
+  const SequenceParameterSet& sps,
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PayloadBuffer* buf)
@@ -381,6 +384,7 @@ write(
   bs.writeUe(gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
+  bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
 
   if (gps.geom_box_present_flag) {
     int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
@@ -404,7 +408,10 @@ write(
 
 GeometryBrickHeader
 parseGbh(
-  const GeometryParameterSet& gps, const PayloadBuffer& buf, int* bytesRead)
+  const SequenceParameterSet& sps,
+  const GeometryParameterSet& gps,
+  const PayloadBuffer& buf,
+  int* bytesRead)
 {
   GeometryBrickHeader gbh;
   assert(buf.type == PayloadType::kGeometryBrick);
@@ -413,6 +420,7 @@ parseGbh(
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
+  bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
 
   if (gps.geom_box_present_flag) {
     if (gps.geom_box_log2_scale_present_flag)
@@ -436,6 +444,25 @@ parseGbh(
 
   if (bytesRead)
     *bytesRead = int(std::distance(buf.begin(), bs.pos()));
+
+  return gbh;
+}
+
+//----------------------------------------------------------------------------
+
+GeometryBrickHeader
+parseGbhIds(const PayloadBuffer& buf)
+{
+  GeometryBrickHeader gbh;
+  assert(buf.type == PayloadType::kGeometryBrick);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUe(&gbh.geom_geom_parameter_set_id);
+  bs.readUe(&gbh.geom_tile_id);
+  bs.readUe(&gbh.geom_slice_id);
+
+  /* NB: this function only decodes ids at the start of the header. */
+  /* NB: do not attempt to parse any further */
 
   return gbh;
 }
