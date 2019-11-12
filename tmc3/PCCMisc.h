@@ -33,8 +33,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PCCMisc_h
-#define PCCMisc_h
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -252,5 +251,3 @@ countingSort(
 //---------------------------------------------------------------------------
 
 }  // namespace pcc
-
-#endif /* PCCMisc_h */
