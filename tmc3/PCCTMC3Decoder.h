@@ -62,8 +62,10 @@ public:
 
   PCCTMC3Decoder3(const DecoderParams& params) : _params(params) { init(); }
 
-  PCCTMC3Decoder3(const PCCTMC3Decoder3&) = default;
-  PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = default;
+  PCCTMC3Decoder3(const PCCTMC3Decoder3&) = delete;
+  PCCTMC3Decoder3(PCCTMC3Decoder3&&) = default;
+  PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = delete;
+  PCCTMC3Decoder3& operator=(PCCTMC3Decoder3&& rhs) = default;
   ~PCCTMC3Decoder3() = default;
 
   void init();

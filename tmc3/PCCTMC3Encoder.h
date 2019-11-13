@@ -87,8 +87,10 @@ public:
   class Callbacks;
 
   PCCTMC3Encoder3();
-  PCCTMC3Encoder3(const PCCTMC3Encoder3&) = default;
-  PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = default;
+  PCCTMC3Encoder3(const PCCTMC3Encoder3&) = delete;
+  PCCTMC3Encoder3(PCCTMC3Encoder3&&) = default;
+  PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = delete;
+  PCCTMC3Encoder3& operator=(PCCTMC3Encoder3&& rhs) = default;
   ~PCCTMC3Encoder3() = default;
 
   int compress(
