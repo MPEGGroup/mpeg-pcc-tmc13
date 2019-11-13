@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include "Attribute.h"
+#include "AttributeCommon.h"
 #include "PayloadBuffer.h"
 #include "PCCTMC3Common.h"
 #include "quantization.h"
@@ -124,6 +125,9 @@ protected:
     const std::vector<uint32_t>& indexes,
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
+
+private:
+  AttributeLods _lods;
 };
 
 //============================================================================

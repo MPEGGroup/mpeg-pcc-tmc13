@@ -356,6 +356,15 @@ AttributeEncoder::encode(
   PCCResidualsEncoder encoder;
   encoder.start(sps, int(pointCloud.getPointCount()));
 
+  // generate LoDs if necessary
+  switch (attr_aps.attr_encoding) {
+  case AttributeEncoding::kLiftingTransform:
+  case AttributeEncoding::kPredictingTransform:
+    if (_lods.empty())
+      _lods.generate(attr_aps, 0, pointCloud);
+  default: break;
+  }
+
   if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
@@ -424,7 +433,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
   PCCResidualsEntropyEstimator& context,
   const Quantizer& quant)
 {
-  predictor.computeWeights();
+  predictor.predMode = 0;
   predictor.maxDiff = 0;
   if (predictor.neighborCount > 1) {
     int64_t minValue = 0;
@@ -490,13 +499,6 @@ AttributeEncoder::encodeReflectancesPred(
   PCCResidualsEncoder& encoder)
 {
   const uint32_t pointCount = pointCloud.getPointCount();
-  std::vector<PCCPredictor> predictors;
-  std::vector<uint32_t> numberOfPointsPerLOD;
-  std::vector<uint32_t> indexesLOD;
-
-  buildPredictorsFast(
-    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
-
   const int64_t clipMax = (1ll << desc.attr_bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
   int zero_cnt = 0;
@@ -508,20 +510,20 @@ AttributeEncoder::encodeReflectancesPred(
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+    if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    const uint32_t pointIndex = indexesLOD[predictorIndex];
+    const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
-    auto& predictor = predictors[predictorIndex];
+    auto& predictor = _lods.predictors[predictorIndex];
 
     computeReflectancePredictionWeights(
-      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
-      quant[0]);
+      aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
+      context, quant[0]);
 
     const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
     const attr_t predictedReflectance =
-      predictor.predictReflectance(pointCloud, indexesLOD);
+      predictor.predictReflectance(pointCloud, _lods.indexes);
     const int64_t quantAttValue = reflectance;
     const int64_t quantPredAttValue = predictedReflectance;
     const int64_t delta = quant[0].quantize(
@@ -551,7 +553,7 @@ AttributeEncoder::encodeReflectancesPred(
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    auto& predictor = predictors[predictorIndex];
+    auto& predictor = _lods.predictors[predictorIndex];
     if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
@@ -604,7 +606,6 @@ AttributeEncoder::computeColorPredictionWeights(
   PCCResidualsEntropyEstimator& context,
   const Quantizers& quant)
 {
-  predictor.computeWeights();
   predictor.maxDiff = 0;
   if (predictor.neighborCount > 1) {
     int64_t minValue[3] = {0, 0, 0};
@@ -676,12 +677,6 @@ AttributeEncoder::encodeColorsPred(
   PCCResidualsEncoder& encoder)
 {
   const size_t pointCount = pointCloud.getPointCount();
-  std::vector<PCCPredictor> predictors;
-  std::vector<uint32_t> numberOfPointsPerLOD;
-  std::vector<uint32_t> indexesLOD;
-
-  buildPredictorsFast(
-    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
 
   Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
                         (1 << desc.attr_bitdepth_secondary) - 1,
@@ -698,19 +693,19 @@ AttributeEncoder::encodeColorsPred(
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+    if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    const auto pointIndex = indexesLOD[predictorIndex];
+    const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
-    auto& predictor = predictors[predictorIndex];
+    auto& predictor = _lods.predictors[predictorIndex];
 
     computeColorPredictionWeights(
-      aps, pointCloud, indexesLOD, predictorIndex, predictor, encoder, context,
-      quant);
+      aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
+      context, quant);
     const Vec3<attr_t> color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =
-      predictor.predictColor(pointCloud, indexesLOD);
+      predictor.predictColor(pointCloud, _lods.indexes);
 
     Vec3<attr_t> reconstructedColor;
     int64_t residual0 = 0;
@@ -757,7 +752,7 @@ AttributeEncoder::encodeColorsPred(
   zero_cnt = zerorun[run_index++];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    auto& predictor = predictors[predictorIndex];
+    auto& predictor = _lods.predictors[predictorIndex];
     if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
@@ -934,30 +929,21 @@ AttributeEncoder::encodeColorsLift(
   PCCResidualsEncoder& encoder)
 {
   const size_t pointCount = pointCloud.getPointCount();
-  std::vector<PCCPredictor> predictors;
-  std::vector<uint32_t> numberOfPointsPerLOD;
-  std::vector<uint32_t> indexesLOD;
-
-  buildPredictorsFast(
-    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
-
-  for (size_t predictorIndex = 0; predictorIndex < pointCount;
-       ++predictorIndex) {
-    predictors[predictorIndex].computeWeights();
-  }
   std::vector<uint64_t> weights;
+
   if (!aps.scalable_lifting_enabled_flag) {
-    PCCComputeQuantizationWeights(predictors, weights);
+    PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      predictors, numberOfPointsPerLOD, pointCount, 0, weights);
+      _lods.predictors, _lods.numPointsInLod, pointCount, 0, weights);
   }
-  const size_t lodCount = numberOfPointsPerLOD.size();
+
+  const size_t lodCount = _lods.numPointsInLod.size();
   std::vector<Vec3<int64_t>> colors;
   colors.resize(pointCount);
 
   for (size_t index = 0; index < pointCount; ++index) {
-    const auto& color = pointCloud.getColor(indexesLOD[index]);
+    const auto& color = pointCloud.getColor(_lods.indexes[index]);
     for (size_t d = 0; d < 3; ++d) {
       colors[index][d] = int32_t(color[d]) << kFixedPointAttributeShift;
     }
@@ -965,10 +951,11 @@ AttributeEncoder::encodeColorsLift(
 
   for (size_t i = 0; (i + 1) < lodCount; ++i) {
     const size_t lodIndex = lodCount - i - 1;
-    const size_t startIndex = numberOfPointsPerLOD[lodIndex - 1];
-    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
-    PCCLiftPredict(predictors, startIndex, endIndex, true, colors);
-    PCCLiftUpdate(predictors, weights, startIndex, endIndex, true, colors);
+    const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
+    const size_t endIndex = _lods.numPointsInLod[lodIndex];
+    PCCLiftPredict(_lods.predictors, startIndex, endIndex, true, colors);
+    PCCLiftUpdate(
+      _lods.predictors, weights, startIndex, endIndex, true, colors);
   }
 
   // compress
@@ -976,10 +963,10 @@ AttributeEncoder::encodeColorsLift(
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+    if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    const auto pointIndex = indexesLOD[predictorIndex];
+    const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
     const int64_t quantWeight = weights[predictorIndex];
@@ -1011,10 +998,11 @@ AttributeEncoder::encodeColorsLift(
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
-    const size_t startIndex = numberOfPointsPerLOD[lodIndex - 1];
-    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
-    PCCLiftUpdate(predictors, weights, startIndex, endIndex, false, colors);
-    PCCLiftPredict(predictors, startIndex, endIndex, false, colors);
+    const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
+    const size_t endIndex = _lods.numPointsInLod[lodIndex];
+    PCCLiftUpdate(
+      _lods.predictors, weights, startIndex, endIndex, false, colors);
+    PCCLiftPredict(_lods.predictors, startIndex, endIndex, false, colors);
   }
 
   Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
@@ -1028,7 +1016,7 @@ AttributeEncoder::encodeColorsLift(
     for (size_t d = 0; d < 3; ++d) {
       color[d] = attr_t(PCCClip(color0[d], 0, clipMax[d]));
     }
-    pointCloud.setColor(indexesLOD[f], color);
+    pointCloud.setColor(_lods.indexes[f], color);
   }
 }
 
@@ -1043,41 +1031,32 @@ AttributeEncoder::encodeReflectancesLift(
   PCCResidualsEncoder& encoder)
 {
   const size_t pointCount = pointCloud.getPointCount();
-  std::vector<PCCPredictor> predictors;
-  std::vector<uint32_t> numberOfPointsPerLOD;
-  std::vector<uint32_t> indexesLOD;
-
-  buildPredictorsFast(
-    aps, pointCloud, 0, predictors, numberOfPointsPerLOD, indexesLOD);
-
-  for (size_t predictorIndex = 0; predictorIndex < pointCount;
-       ++predictorIndex) {
-    predictors[predictorIndex].computeWeights();
-  }
   std::vector<uint64_t> weights;
+
   if (!aps.scalable_lifting_enabled_flag) {
-    PCCComputeQuantizationWeights(predictors, weights);
+    PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      predictors, numberOfPointsPerLOD, pointCount, 0, weights);
+      _lods.predictors, _lods.numPointsInLod, pointCount, 0, weights);
   }
 
-  const size_t lodCount = numberOfPointsPerLOD.size();
+  const size_t lodCount = _lods.numPointsInLod.size();
   std::vector<int64_t> reflectances;
   reflectances.resize(pointCount);
 
   for (size_t index = 0; index < pointCount; ++index) {
-    reflectances[index] = int32_t(pointCloud.getReflectance(indexesLOD[index]))
+    reflectances[index] =
+      int32_t(pointCloud.getReflectance(_lods.indexes[index]))
       << kFixedPointAttributeShift;
   }
 
   for (size_t i = 0; (i + 1) < lodCount; ++i) {
     const size_t lodIndex = lodCount - i - 1;
-    const size_t startIndex = numberOfPointsPerLOD[lodIndex - 1];
-    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
-    PCCLiftPredict(predictors, startIndex, endIndex, true, reflectances);
+    const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
+    const size_t endIndex = _lods.numPointsInLod[lodIndex];
+    PCCLiftPredict(_lods.predictors, startIndex, endIndex, true, reflectances);
     PCCLiftUpdate(
-      predictors, weights, startIndex, endIndex, true, reflectances);
+      _lods.predictors, weights, startIndex, endIndex, true, reflectances);
   }
 
   // compress
@@ -1085,10 +1064,10 @@ AttributeEncoder::encodeReflectancesLift(
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
-    if (predictorIndex == numberOfPointsPerLOD[quantLayer]) {
+    if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
-    const auto pointIndex = indexesLOD[predictorIndex];
+    const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
     const int64_t quantWeight = weights[predictorIndex];
@@ -1110,18 +1089,19 @@ AttributeEncoder::encodeReflectancesLift(
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
-    const size_t startIndex = numberOfPointsPerLOD[lodIndex - 1];
-    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
+    const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
+    const size_t endIndex = _lods.numPointsInLod[lodIndex];
     PCCLiftUpdate(
-      predictors, weights, startIndex, endIndex, false, reflectances);
-    PCCLiftPredict(predictors, startIndex, endIndex, false, reflectances);
+      _lods.predictors, weights, startIndex, endIndex, false, reflectances);
+    PCCLiftPredict(
+      _lods.predictors, startIndex, endIndex, false, reflectances);
   }
   const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
     const int64_t refl =
       divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
     pointCloud.setReflectance(
-      indexesLOD[f], attr_t(PCCClip(refl, int64_t(0), maxReflectance)));
+      _lods.indexes[f], attr_t(PCCClip(refl, int64_t(0), maxReflectance)));
   }
 }
 

@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "Attribute.h"
+#include "AttributeCommon.h"
 #include "PayloadBuffer.h"
 #include "PCCTMC3Common.h"
 #include "quantization.h"
@@ -137,6 +138,9 @@ protected:
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
     const Quantizer& quant);
+
+private:
+  AttributeLods _lods;
 };
 
 //============================================================================
