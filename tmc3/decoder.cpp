@@ -38,7 +38,6 @@
 #include <cassert>
 #include <string>
 
-#include "Attribute.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
 #include "geometry.h"
@@ -110,6 +109,7 @@ PCCTMC3Decoder3::decompress(
     callback->onOutputCloud(*_sps, _accumCloud);
     _accumCloud.clear();
     _currentFrameIdx = -1;
+    _attrDecoder.reset();
     return 0;
 
   case PayloadType::kGeometryBrick:
@@ -118,6 +118,9 @@ PCCTMC3Decoder3::decompress(
       callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
     }
+
+    // avoid accidents with stale attribute decoder on next slice
+    _attrDecoder.reset();
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
@@ -283,11 +286,14 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   const auto& attr_sps = _sps->attributeSets[abh.attr_sps_attr_idx];
   const auto& label = attr_sps.attributeLabel;
 
-  auto attrDecoder = makeAttributeDecoder();
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
+  // replace the attribute decoder if not compatible
+  if (!_attrDecoder || !_attrDecoder->isReusable(attr_aps))
+    _attrDecoder = makeAttributeDecoder();
+
   clock_user.start();
-  attrDecoder->decode(
+  _attrDecoder->decode(
     *_sps, attr_sps, attr_aps, _gbh.geom_num_points,
     _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
   clock_user.stop();

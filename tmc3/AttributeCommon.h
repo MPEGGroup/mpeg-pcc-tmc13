@@ -46,6 +46,9 @@ namespace pcc {
 //============================================================================
 
 struct AttributeLods {
+  // Indicates if the generated LoDs are compatible with the provided aps
+  bool isReusable(const AttributeParameterSet& aps) const;
+
   bool empty() const { return numPointsInLod.empty(); };
 
   void generate(
@@ -56,6 +59,11 @@ struct AttributeLods {
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numPointsInLod;
   std::vector<uint32_t> indexes;
+
+private:
+  // This is the aps that was used to generate the LoDs.  It is used to check
+  // if the generated LoDs are reusable.
+  AttributeParameterSet _aps;
 };
 
 //============================================================================

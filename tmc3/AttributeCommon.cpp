@@ -48,6 +48,8 @@ AttributeLods::generate(
   int minGeomNodeSizeLog2,
   const PCCPointSet3& cloud)
 {
+  _aps = aps;
+
   if (minGeomNodeSizeLog2 > 0)
     assert(aps.scalable_lifting_enabled_flag);
 
@@ -57,6 +59,44 @@ AttributeLods::generate(
   assert(predictors.size() == cloud.getPointCount());
   for (auto& predictor : predictors)
     predictor.computeWeights();
+}
+
+//----------------------------------------------------------------------------
+
+bool
+AttributeLods::isReusable(const AttributeParameterSet& aps) const
+{
+  if (numPointsInLod.empty())
+    return true;
+
+  if (_aps.lod_decimation_enabled_flag != aps.lod_decimation_enabled_flag)
+    return false;
+
+  if (_aps.num_pred_nearest_neighbours != aps.num_pred_nearest_neighbours)
+    return false;
+
+  if (_aps.search_range != aps.search_range)
+    return false;
+
+  if (_aps.lod_neigh_bias != aps.lod_neigh_bias)
+    return false;
+
+  if (
+    _aps.intra_lod_prediction_enabled_flag
+    != aps.intra_lod_prediction_enabled_flag)
+    return false;
+
+  if (_aps.num_detail_levels != aps.num_detail_levels)
+    return false;
+
+  if (_aps.dist2 != aps.dist2)
+    return false;
+
+  // until this feature is stable, always generate LoDs.
+  if (_aps.scalable_lifting_enabled_flag || aps.scalable_lifting_enabled_flag)
+    return false;
+
+  return true;
 }
 
 //============================================================================

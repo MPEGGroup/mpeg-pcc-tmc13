@@ -406,6 +406,14 @@ AttributeEncoder::encode(
 
 //----------------------------------------------------------------------------
 
+bool
+AttributeEncoder::isReusable(const AttributeParameterSet& aps) const
+{
+  return _lods.isReusable(aps);
+}
+
+//----------------------------------------------------------------------------
+
 int64_t
 AttributeEncoder::computeReflectanceResidual(
   const uint64_t reflectance,

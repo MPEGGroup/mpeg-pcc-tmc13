@@ -57,6 +57,9 @@ public:
     int minGeomNodeSizeLog2,
     const PayloadBuffer&,
     PCCPointSet3& pointCloud) = 0;
+
+  // Indicates if the attribute decoder can decode the given aps
+  virtual bool isReusable(const AttributeParameterSet& aps) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -76,6 +79,9 @@ public:
     const AttributeBrickHeader& abh,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload) = 0;
+
+  // Indicates if the attribute decoder can decode the given aps
+  virtual bool isReusable(const AttributeParameterSet& aps) const = 0;
 };
 
 //----------------------------------------------------------------------------

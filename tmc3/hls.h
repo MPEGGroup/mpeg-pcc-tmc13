@@ -342,6 +342,7 @@ struct GeometryBrickHeader {
 };
 
 //============================================================================
+// NB: when updating this, remember to update AttributeLods::isReusable(...)
 
 struct AttributeParameterSet {
   int aps_attr_parameter_set_id;

@@ -38,6 +38,7 @@
 #include <functional>
 #include <map>
 
+#include "Attribute.h"
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
@@ -124,6 +125,9 @@ private:
   const GeometryParameterSet* _gps;
 
   GeometryBrickHeader _gbh;
+
+  // Attribute decoder for reuse between attributes of same slice
+  std::unique_ptr<AttributeDecoderIntf> _attrDecoder;
 };
 
 //----------------------------------------------------------------------------

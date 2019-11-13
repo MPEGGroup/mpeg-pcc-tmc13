@@ -63,6 +63,8 @@ public:
     const PayloadBuffer&,
     PCCPointSet3& pointCloud) override;
 
+  bool isReusable(const AttributeParameterSet& aps) const override;
+
 protected:
   // todo(df): consider alternative encapsulation
 

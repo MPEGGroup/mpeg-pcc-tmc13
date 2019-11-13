@@ -389,6 +389,7 @@ PCCTMC3Encoder3::compressPartition(
   callback->onPostRecolour(pointCloud);
 
   // attributeCoding
+  auto attrEncoder = makeAttributeEncoder();
 
   // for each attribute
   for (const auto& it : params->attributeIdxMap) {
@@ -420,7 +421,10 @@ PCCTMC3Encoder3::compressPartition(
 
     write(attr_aps, abh, &payload);
 
-    auto attrEncoder = makeAttributeEncoder();
+    // replace the attribute encoder if not compatible
+    if (!attrEncoder->isReusable(attr_aps))
+      attrEncoder = makeAttributeEncoder();
+
     attrEncoder->encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
     clock_user.stop();
 

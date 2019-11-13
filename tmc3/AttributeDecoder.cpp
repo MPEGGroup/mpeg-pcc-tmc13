@@ -260,6 +260,14 @@ AttributeDecoder::decode(
 
 //----------------------------------------------------------------------------
 
+bool
+AttributeDecoder::isReusable(const AttributeParameterSet& aps) const
+{
+  return _lods.isReusable(aps);
+}
+
+//----------------------------------------------------------------------------
+
 void
 AttributeDecoder::computeReflectancePredictionWeights(
   const AttributeParameterSet& aps,
