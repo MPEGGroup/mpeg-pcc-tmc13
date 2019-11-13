@@ -174,6 +174,20 @@ PCCResidualsDecoder::decode()
 }
 
 //============================================================================
+// AttributeDecoderIntf
+
+AttributeDecoderIntf::~AttributeDecoderIntf() = default;
+
+//============================================================================
+// AttributeDecoder factory
+
+std::unique_ptr<AttributeDecoderIntf>
+makeAttributeDecoder()
+{
+  return std::unique_ptr<AttributeDecoder>(new AttributeDecoder());
+}
+
+//============================================================================
 // AttributeDecoder Members
 
 void

@@ -3,7 +3,7 @@
  * party and contributor rights, including patent rights, and no such
  * rights are granted under this licence.
  *
- * Copyright (c) 2017-2018, ISO/IEC
+ * Copyright (c) 2017-2019, ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,97 +35,53 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <memory>
 
-#include "Attribute.h"
+#include "hls.h"
 #include "PayloadBuffer.h"
-#include "PCCTMC3Common.h"
-#include "quantization.h"
+#include "PCCPointSet.h"
 
 namespace pcc {
 
 //============================================================================
-// Opaque definitions (Internal detail)
 
-struct PCCResidualsDecoder;
-
-//============================================================================
-
-class AttributeDecoder : public AttributeDecoderIntf {
+class AttributeDecoderIntf {
 public:
-  void decode(
+  virtual ~AttributeDecoderIntf();
+
+  virtual void decode(
     const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     int geom_num_points,
     int minGeomNodeSizeLog2,
     const PayloadBuffer&,
-    PCCPointSet3& pointCloud) override;
-
-protected:
-  // todo(df): consider alternative encapsulation
-
-  void decodeReflectancesLift(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    int geom_num_points,
-    int minGeomNodeSizeLog2,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  void decodeColorsLift(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    int geom_num_points,
-    int minGeomNodeSizeLog2,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  void decodeReflectancesPred(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  void decodeColorsPred(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  void decodeReflectancesRaht(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  void decodeColorsRaht(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const QpSet& qpSet,
-    PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
-
-  static void computeColorPredictionWeights(
-    const AttributeParameterSet& aps,
-    const PCCPointSet3& pointCloud,
-    const std::vector<uint32_t>& indexes,
-    PCCPredictor& predictor,
-    PCCResidualsDecoder& decoder);
-
-  static void computeReflectancePredictionWeights(
-    const AttributeParameterSet& aps,
-    const PCCPointSet3& pointCloud,
-    const std::vector<uint32_t>& indexes,
-    PCCPredictor& predictor,
-    PCCResidualsDecoder& decoder);
+    PCCPointSet3& pointCloud) = 0;
 };
+
+//----------------------------------------------------------------------------
+
+std::unique_ptr<AttributeDecoderIntf> makeAttributeDecoder();
 
 //============================================================================
 
-} /* namespace pcc */
+class AttributeEncoderIntf {
+public:
+  virtual ~AttributeEncoderIntf();
+
+  virtual void encode(
+    const SequenceParameterSet& sps,
+    const AttributeDescription& desc,
+    const AttributeParameterSet& attr_aps,
+    const AttributeBrickHeader& abh,
+    PCCPointSet3& pointCloud,
+    PayloadBuffer* payload) = 0;
+};
+
+//----------------------------------------------------------------------------
+
+std::unique_ptr<AttributeEncoderIntf> makeAttributeEncoder();
+
+//============================================================================
+
+}  // namespace pcc

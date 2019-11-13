@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <vector>
 
+#include "Attribute.h"
 #include "PayloadBuffer.h"
 #include "PCCTMC3Common.h"
 #include "quantization.h"
@@ -52,7 +53,7 @@ struct PCCResidualsEntropyEstimator;
 
 //============================================================================
 
-class AttributeEncoder {
+class AttributeEncoder : public AttributeEncoderIntf {
 public:
   void encode(
     const SequenceParameterSet& sps,
@@ -60,7 +61,7 @@ public:
     const AttributeParameterSet& attr_aps,
     const AttributeBrickHeader& abh,
     PCCPointSet3& pointCloud,
-    PayloadBuffer* payload);
+    PayloadBuffer* payload) override;
 
 protected:
   // todo(df): consider alternative encapsulation

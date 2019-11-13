@@ -38,7 +38,7 @@
 #include <cassert>
 #include <set>
 
-#include "AttributeEncoder.h"
+#include "Attribute.h"
 #include "pointset_processing.h"
 #include "geometry.h"
 #include "io_hls.h"
@@ -420,8 +420,8 @@ PCCTMC3Encoder3::compressPartition(
 
     write(attr_aps, abh, &payload);
 
-    AttributeEncoder attrEncoder;
-    attrEncoder.encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
+    auto attrEncoder = makeAttributeEncoder();
+    attrEncoder->encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
     clock_user.stop();
 
     int coded_size = int(payload.size());

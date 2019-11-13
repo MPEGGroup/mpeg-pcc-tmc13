@@ -56,6 +56,7 @@ file(GLOB PROJECT_IN_FILES
 )
 
 file(GLOB PROJECT_INC_FILES
+  "Attribute.h"
   "AttributeDecoder.h"
   "AttributeEncoder.h"
   "BitReader.h"

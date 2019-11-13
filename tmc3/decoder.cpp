@@ -38,7 +38,7 @@
 #include <cassert>
 #include <string>
 
-#include "AttributeDecoder.h"
+#include "Attribute.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
 #include "geometry.h"
@@ -283,11 +283,11 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   const auto& attr_sps = _sps->attributeSets[abh.attr_sps_attr_idx];
   const auto& label = attr_sps.attributeLabel;
 
-  AttributeDecoder attrDecoder;
+  auto attrDecoder = makeAttributeDecoder();
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   clock_user.start();
-  attrDecoder.decode(
+  attrDecoder->decode(
     *_sps, attr_sps, attr_aps, _gbh.geom_num_points,
     _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
   clock_user.stop();

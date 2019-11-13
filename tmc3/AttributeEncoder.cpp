@@ -326,6 +326,20 @@ PCCResidualsEntropyEstimator::update(
 }
 
 //============================================================================
+// AttributeEncoderIntf
+
+AttributeEncoderIntf::~AttributeEncoderIntf() = default;
+
+//============================================================================
+// AttributeEncoder factory
+
+std::unique_ptr<AttributeEncoderIntf>
+makeAttributeEncoder()
+{
+  return std::unique_ptr<AttributeEncoder>(new AttributeEncoder());
+}
+
+//============================================================================
 // AttributeEncoder Members
 
 void
