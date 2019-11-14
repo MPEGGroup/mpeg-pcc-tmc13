@@ -445,16 +445,33 @@ geometryQuantization(
   int quantBitsMask = (1 << nodeSizeLog2) - 1;
   Vec3<uint32_t> end_pos_quant = ((1 << nodeSizeLog2) >> qpShift) - 1;
   for (int i = node.start; i < node.end; i++) {
-    Vec3<double> reconPoint;
     for (int k = 0; k < 3; k++) {
       uint32_t pos = uint32_t(pointCloud[i][k]);
       uint32_t quantPos = quantizer.quantize(pos & quantBitsMask);
       quantPos = PCCClip(quantPos, 0, end_pos_quant[k]);
 
-      pointCloud[i][k] = quantPos;
-      reconPoint[k] = (pos & ~quantBitsMask) + quantizer.scale(quantPos);
+      // NB: this representation is: |pppppp00qqq|, which isn't the
+      // same used by the decoder:  (|ppppppqqq|00)
+      pointCloud[i][k] = (pos & ~quantBitsMask) | quantPos;
     }
-    pointCloud.setPositionReconstructed(i, reconPoint);
+  }
+}
+
+//-------------------------------------------------------------------------
+
+void
+geometryScale(
+  PCCPointSet3& pointCloud, PCCOctree3Node& node, int quantNodeSizeLog2)
+{
+  QuantizerGeom quantizer = QuantizerGeom(node.qp);
+  int qpShift = (node.qp - 4) / 6;
+  int quantBitsMask = (1 << quantNodeSizeLog2) - 1;
+  for (int i = node.start; i < node.end; i++) {
+    for (int k = 0; k < 3; k++) {
+      uint32_t pos = uint32_t(pointCloud[i][k]);
+      uint32_t quantPos = pos & quantBitsMask;
+      pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
+    }
   }
 }
 
@@ -560,6 +577,8 @@ encodeGeometryOctree(
   }
   Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
 
+  // the node size where quantisation is performed
+  int quantNodeSizeLog2 = 0;
   int numLvlsUntilQuantization = -1;
   if (gps.geom_scaling_enabled_flag) {
     numLvlsUntilQuantization = 0;
@@ -570,11 +589,10 @@ encodeGeometryOctree(
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
 
   // applied to the root node, just set the node qp
-  if (numLvlsUntilQuantization == 0)
+  if (numLvlsUntilQuantization == 0) {
+    quantNodeSizeLog2 = nodeSizeLog2;
     node00.qp = sliceQp;
-
-  if (gps.geom_scaling_enabled_flag)
-    pointCloud.copyPositions();
+  }
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {
@@ -592,8 +610,10 @@ encodeGeometryOctree(
 
       // determing a per node QP at the appropriate level
       // NB: this has no effect here if geom_octree_qp_offset_depth=0
-      if (--numLvlsUntilQuantization == 0)
+      if (--numLvlsUntilQuantization == 0) {
+        quantNodeSizeLog2 = nodeSizeLog2;
         calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
+      }
     }
 
     PCCOctree3Node& node0 = fifo.front();
@@ -607,7 +627,7 @@ encodeGeometryOctree(
     int effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     int effectiveChildSizeLog2 = effectiveNodeSizeLog2 - 1;
     if (numLvlsUntilQuantization == 0) {
-      geometryQuantization(pointCloud, node0, nodeSizeLog2);
+      geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
       if (gps.geom_unique_points_flag)
         checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
     }
@@ -695,6 +715,9 @@ encodeGeometryOctree(
     if (effectiveNodeSizeLog2 <= 1) {
       int childStart = node0.start;
 
+      // inverse quantise any quantised positions
+      geometryScale(pointCloud, node0, quantNodeSizeLog2);
+
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {
           // child is empty: skip
@@ -760,6 +783,9 @@ encodeGeometryOctree(
           effectiveChildSizeLog2, child, pointCloud);
 
         if (directModeUsed) {
+          // inverse quantise any quantised positions
+          geometryScale(pointCloud, node0, quantNodeSizeLog2);
+
           // point reordering to match decoder's order
           for (auto idx = child.start; idx < child.end; idx++)
             pointIdxToDmIdx[idx] = nextDmIdx++;
@@ -787,18 +813,15 @@ encodeGeometryOctree(
     }
   }
 
-  // inverse quantise the point cloud
-  // NB: this is done here to handle the partial tree coding case
-  if (gps.geom_scaling_enabled_flag)
-    for (int i = 0; i < pointCloud.getPointCount(); i++)
-      pointCloud[i] = pointCloud.getPositionReconstructed(i);
-
   // return partial coding result
   //  - add missing levels to node positions
+  //  - inverse quantise the point cloud
   // todo(df): this does not yet support inverse quantisation of node.pos
   if (nodesRemaining) {
-    for (auto& node : fifo)
+    for (auto& node : fifo) {
       node.pos <<= nodeSizeLog2;
+      geometryScale(pointCloud, node, quantNodeSizeLog2);
+    }
     *nodesRemaining = std::move(fifo);
     return;
   }

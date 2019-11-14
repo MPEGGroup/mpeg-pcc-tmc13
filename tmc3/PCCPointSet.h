@@ -254,7 +254,6 @@ public:
     swap(withColors, other.withColors);
     swap(withReflectances, other.withReflectances);
     swap(withFrameIndex, other.withFrameIndex);
-    swap(positionsReconstructed, other.positionsReconstructed);
   }
 
   Vec3<double> operator[](const size_t index) const
@@ -297,22 +296,6 @@ public:
     assert(index < reflectances.size() && withReflectances);
     reflectances[index] = reflectance;
   }
-  Vec3<double> getPositionReconstructed(const size_t index) const
-  {
-    assert(index < positionsReconstructed.size());
-    return positionsReconstructed[index];
-  }
-  Vec3<double>& getPositionReconstructed(const size_t index)
-  {
-    assert(index < positionsReconstructed.size());
-    return positionsReconstructed[index];
-  }
-  void setPositionReconstructed(const size_t index, const Vec3<double> pos)
-  {
-    assert(index < positionsReconstructed.size());
-    positionsReconstructed[index] = pos;
-  }
-  void copyPositions() { positionsReconstructed = positions; }
 
   bool hasReflectances() const { return withReflectances; }
   void addReflectances()
@@ -385,7 +368,6 @@ public:
   void resize(const size_t size)
   {
     positions.resize(size);
-    positionsReconstructed.resize(size);
     if (hasColors()) {
       colors.resize(size);
     }
@@ -400,8 +382,6 @@ public:
   void reserve(const size_t size)
   {
     positions.reserve(size);
-    positionsReconstructed.reserve(size);
-
     if (hasColors()) {
       colors.reserve(size);
     }
@@ -418,7 +398,6 @@ public:
     colors.clear();
     reflectances.clear();
     frameidx.clear();
-    positionsReconstructed.clear();
   }
 
   size_t removeDuplicatePointInQuantizedPoint(int minGeomNodeSizeLog2)
@@ -450,9 +429,6 @@ public:
     std::copy(
       src.positions.begin(), src.positions.end(),
       std::next(positions.begin(), dstEnd));
-    std::copy(
-      src.positionsReconstructed.begin(), src.positionsReconstructed.end(),
-      std::next(positionsReconstructed.begin(), dstEnd));
 
     if (hasColors() && src.hasColors())
       std::copy(
@@ -476,8 +452,6 @@ public:
     if (hasReflectances()) {
       std::swap(getReflectance(index1), getReflectance(index2));
     }
-    std::swap(
-      getPositionReconstructed(index1), getPositionReconstructed(index2));
   }
 
   Box3<double> computeBoundingBox() const
@@ -528,10 +502,6 @@ public:
 
 private:
   std::vector<Vec3<double>> positions;
-
-  // todo(df): remove this
-  std::vector<Vec3<double>> positionsReconstructed;
-
   std::vector<Vec3<attr_t>> colors;
   std::vector<attr_t> reflectances;
   std::vector<uint8_t> frameidx;
