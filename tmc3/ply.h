@@ -55,11 +55,25 @@ namespace ply {
 
   //============================================================================
 
+  ///
+  // Write @a pointCloud to a PLY file called @a fileName.
+  // Each point position, pt, is converted prior to writing by:
+  //  pt' = pt * positionScale + offset
+  //
+  // @param pointCloud  points to be written.
+  // @param propertyNames  Describes ply property names of pointcloud attributes.
+  // @param positionScale  scale factor for positions.
+  // @param positionOffset  offset for positions (after scaling).
+  // @param fileName  output filename.
+  // @param asAscii  PLY writing format (true => ascii, false => binary).
   bool write(
-    const PCCPointSet3& cloud,
+    const PCCPointSet3& pointCloud,
     const PropertyNameMap& propertyNames,
+    double positionScale,
+    Vec3<int32_t> positionOffset,
     const std::string& fileName,
     bool asAscii);
+
   bool read(
     const std::string& fileName,
     const PropertyNameMap& propertyNames,

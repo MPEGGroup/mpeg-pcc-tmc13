@@ -89,6 +89,8 @@ bool
 ply::write(
   const PCCPointSet3& cloud,
   const PropertyNameMap& attributeNames,
+  double positionScale,
+  Vec3<int32_t> positionOffset,
   const std::string& fileName,
   bool asAscii)
 {
@@ -139,7 +141,7 @@ ply::write(
     //      fout << std::setprecision(std::numeric_limits<double>::max_digits10);
     fout << std::fixed << std::setprecision(5);
     for (size_t i = 0; i < pointCount; ++i) {
-      const Vec3<double>& position = cloud[i];
+      Vec3<double> position = cloud[i] * positionScale + positionOffset;
       fout << position.x() << " " << position.y() << " " << position.z();
       if (cloud.hasColors()) {
         const Vec3<attr_t>& color = cloud.getColor(i);
@@ -160,7 +162,7 @@ ply::write(
     fout.close();
     fout.open(fileName, std::ofstream::binary | std::ofstream::app);
     for (size_t i = 0; i < pointCount; ++i) {
-      const Vec3<double>& position = cloud[i];
+      Vec3<double> position = cloud[i] * positionScale + positionOffset;
       fout.write(
         reinterpret_cast<const char* const>(&position), sizeof(double) * 3);
       if (cloud.hasColors()) {

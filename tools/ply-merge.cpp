@@ -273,7 +273,7 @@ runMerge(const Options& opts)
     }
 
     string outName{expandNum(opts.outPath, outFrameNum)};
-    if (!ply::write(outCloud, propNames, outName, !opts.outputBinaryPly))
+    if (!ply::write(outCloud, propNames, 1, 0, outName, !opts.outputBinaryPly))
       throw runtime_error("failed to write output file: " + outName);
     cout << outName << endl;
   }
@@ -341,7 +341,8 @@ runSplit(const Options& opts)
 
       string outName{expandNum(opts.outPath, outFrameNum)};
       if (outCloud.getPointCount() > 0)
-        if (!ply::write(outCloud, propNames, outName, !opts.outputBinaryPly))
+        if (!ply::write(
+              outCloud, propNames, 1, 0, outName, !opts.outputBinaryPly))
           throw runtime_error("failed to write output file: " + outName);
       cout << outName << endl;
 

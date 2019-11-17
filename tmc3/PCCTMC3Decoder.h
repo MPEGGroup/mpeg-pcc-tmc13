@@ -90,11 +90,6 @@ private:
 
   //==========================================================================
 
-public:
-  void inverseQuantization(PCCPointSet3& pointCloud);
-
-  //==========================================================================
-
 private:
   // Decoder specific parameters
   DecoderParams _params;

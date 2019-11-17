@@ -1126,7 +1126,10 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
     std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
     ply::write(
-      *reconPointCloud, _plyAttrNames, recName, !params->outputBinaryPly);
+      *reconPointCloud, _plyAttrNames,
+      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
+      params->encoder.sps.seq_bounding_box_xyz0, recName,
+      !params->outputBinaryPly);
   }
 
   return 0;
@@ -1153,13 +1156,21 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
 
   // todo(df): stop the clock
   if (!params->convertColourspace) {
-    ply::write(cloud, _plyAttrNames, plyName, !params->outputBinaryPly);
+    ply::write(
+      cloud, _plyAttrNames,
+      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
+      params->encoder.sps.seq_bounding_box_xyz0, plyName,
+      !params->outputBinaryPly);
     return;
   }
 
   PCCPointSet3 tmpCloud(cloud);
   convertToGbr(params->encoder.sps, tmpCloud);
-  ply::write(tmpCloud, _plyAttrNames, plyName, !params->outputBinaryPly);
+  ply::write(
+    tmpCloud, _plyAttrNames,
+    1.0 / params->encoder.sps.seq_source_geom_scale_factor,
+    params->encoder.sps.seq_bounding_box_xyz0, plyName,
+    !params->outputBinaryPly);
 }
 
 //============================================================================
@@ -1239,16 +1250,18 @@ SequenceDecoder::onOutputCloud(
   if (!params->preInvScalePath.empty()) {
     std::string filename{expandNum(params->preInvScalePath, frameNum)};
     ply::write(
-      pointCloud, attrNames, params->preInvScalePath,
+      pointCloud, attrNames,
+      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
+      params->encoder.sps.seq_bounding_box_xyz0, params->preInvScalePath,
       !params->outputBinaryPly);
   }
-
-  decoder.inverseQuantization(pointCloud);
 
   clock->stop();
 
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
-  if (!ply::write(pointCloud, attrNames, decName, !params->outputBinaryPly)) {
+  if (!ply::write(
+        pointCloud, attrNames, 1.0 / sps.seq_source_geom_scale_factor,
+        sps.seq_bounding_box_xyz0, decName, !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
 

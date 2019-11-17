@@ -513,18 +513,9 @@ PCCTMC3Encoder3::appendReconstructedPoints(PCCPointSet3* reconstructedCloud)
     pointCloud.hasColors(), pointCloud.hasReflectances());
   reconstructedCloud->resize(outIdx + pointCount);
 
-  const double minPositionQuantizationScale = 0.0000000001;
-  const double invScale =
-    fabs(_sps->seq_source_geom_scale_factor) > minPositionQuantizationScale
-    ? 1.0 / _sps->seq_source_geom_scale_factor
-    : 1.0;
   for (size_t i = 0; i < pointCount; ++i, ++outIdx) {
-    const auto quantizedPoint = pointCloud[i];
-    auto& point = (*reconstructedCloud)[outIdx];
-    for (size_t k = 0; k < 3; ++k) {
-      point[k] = (quantizedPoint[k] + _sliceOrigin[k]) * invScale
-        + _sps->seq_bounding_box_xyz0[k];
-    }
+    (*reconstructedCloud)[outIdx] = pointCloud[i] + _sliceOrigin;
+
     if (pointCloud.hasColors()) {
       reconstructedCloud->setColor(outIdx, pointCloud.getColor(i));
     }

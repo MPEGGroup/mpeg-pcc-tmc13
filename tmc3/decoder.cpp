@@ -308,22 +308,6 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   std::cout << std::endl;
 }
 
-//==========================================================================
-
-void
-PCCTMC3Decoder3::inverseQuantization(PCCPointSet3& pointCloud)
-{
-  const size_t pointCount = pointCloud.getPointCount();
-  const double invScale = 1.0 / _sps->seq_source_geom_scale_factor;
-
-  for (size_t i = 0; i < pointCount; ++i) {
-    auto& point = pointCloud[i];
-    for (size_t k = 0; k < 3; ++k) {
-      point[k] = point[k] * invScale + _sps->seq_bounding_box_xyz0[k];
-    }
-  }
-}
-
 //============================================================================
 
 }  // namespace pcc
