@@ -326,7 +326,7 @@ public:
 
   friend std::ostream& operator<<(std::ostream& os, const Vec3& vec)
   {
-    os << vec[0] << " " << vec[1] << " " << vec[2] << std::endl;
+    os << vec[0] << " " << vec[1] << " " << vec[2];
     return os;
   }
 
@@ -412,7 +412,7 @@ struct Box3 {
   friend std::ostream& operator<<(std::ostream& os, const Box3& box)
   {
     os << box.min[0] << " " << box.min[1] << " " << box.min[2] << " "
-       << box.max[0] << " " << box.max[1] << " " << box.max[2] << std::endl;
+       << box.max[0] << " " << box.max[1] << " " << box.max[2];
     return os;
   }
   friend std::istream& operator>>(std::istream& is, Box3& box)
