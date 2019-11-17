@@ -124,17 +124,17 @@ determineTrisoupVertices(
 
     // Width of block.
     // in future, may override with leaf blockWidth
-    const uint32_t blockWidth = defaultBlockWidth;
+    const int32_t blockWidth = defaultBlockWidth;
 
     // Eight corners of block.
-    const Vec3<uint32_t> pos000({0, 0, 0});
-    const Vec3<uint32_t> posW00({blockWidth, 0, 0});
-    const Vec3<uint32_t> pos0W0({0, blockWidth, 0});
-    const Vec3<uint32_t> posWW0({blockWidth, blockWidth, 0});
-    const Vec3<uint32_t> pos00W({0, 0, blockWidth});
-    const Vec3<uint32_t> posW0W({blockWidth, 0, blockWidth});
-    const Vec3<uint32_t> pos0WW({0, blockWidth, blockWidth});
-    const Vec3<uint32_t> posWWW({blockWidth, blockWidth, blockWidth});
+    const Vec3<int32_t> pos000({0, 0, 0});
+    const Vec3<int32_t> posW00({blockWidth, 0, 0});
+    const Vec3<int32_t> pos0W0({0, blockWidth, 0});
+    const Vec3<int32_t> posWW0({blockWidth, blockWidth, 0});
+    const Vec3<int32_t> pos00W({0, 0, blockWidth});
+    const Vec3<int32_t> posW0W({blockWidth, 0, blockWidth});
+    const Vec3<int32_t> pos0WW({0, blockWidth, blockWidth});
+    const Vec3<int32_t> posWWW({blockWidth, blockWidth, blockWidth});
 
     // x: left to right; y: bottom to top; z: far to near
     TrisoupSegmentEnc seg000W00 =  // far bottom edge
