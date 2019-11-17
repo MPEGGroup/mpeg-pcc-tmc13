@@ -42,6 +42,7 @@
 #include <limits>
 #include <math.h>
 #include <string.h>
+#include <type_traits>
 
 #include "PCCMisc.h"
 #include "tables.h"
@@ -89,34 +90,43 @@ public:
     memcpy(data, rhs.data, sizeof(data));
     return *this;
   }
-  Vec3& operator+=(const Vec3& rhs)
+
+  template<typename U>
+  Vec3& operator+=(const typename pcc::Vec3<U>& rhs)
   {
     data[0] += rhs[0];
     data[1] += rhs[1];
     data[2] += rhs[2];
     return *this;
   }
-  Vec3& operator-=(const Vec3& rhs)
+
+  template<typename U>
+  Vec3& operator-=(const typename pcc::Vec3<U>& rhs)
   {
     data[0] -= rhs[0];
     data[1] -= rhs[1];
     data[2] -= rhs[2];
     return *this;
   }
-  Vec3& operator-=(const T a)
+
+  template<typename U>
+  Vec3& operator-=(U a)
   {
     data[0] -= a;
     data[1] -= a;
     data[2] -= a;
     return *this;
   }
-  Vec3& operator+=(const T a)
+
+  template<typename U>
+  Vec3& operator+=(U a)
   {
     data[0] += a;
     data[1] += a;
     data[2] += a;
     return *this;
   }
+
   Vec3& operator<<=(int val)
   {
     data[0] <<= val;
@@ -124,6 +134,7 @@ public:
     data[2] <<= val;
     return *this;
   }
+
   Vec3& operator>>=(int val)
   {
     data[0] >>= val;
@@ -131,7 +142,9 @@ public:
     data[2] >>= val;
     return *this;
   }
-  Vec3& operator/=(const T a)
+
+  template<typename U>
+  Vec3& operator/=(U a)
   {
     assert(a != 0);
     data[0] /= a;
@@ -139,77 +152,141 @@ public:
     data[2] /= a;
     return *this;
   }
-  Vec3& operator*=(const T a)
+
+  template<typename U>
+  Vec3& operator*=(U a)
   {
     data[0] *= a;
     data[1] *= a;
     data[2] *= a;
     return *this;
   }
-  Vec3& operator=(const T a)
+
+  template<typename U>
+  Vec3& operator=(const U a)
   {
     data[0] = a;
     data[1] = a;
     data[2] = a;
     return *this;
   }
-  Vec3& operator=(const T* const rhs)
+
+  template<typename U>
+  Vec3& operator=(const U* rhs)
   {
     data[0] = rhs[0];
     data[1] = rhs[1];
     data[2] = rhs[2];
     return *this;
   }
-  T operator*(const Vec3& rhs) const
-  {
-    return (data[0] * rhs[0] + data[1] * rhs[1] + data[2] * rhs[2]);
-  }
+
   Vec3 operator-() const { return Vec3<T>(-data[0], -data[1], -data[2]); }
-  friend Vec3 operator+(const Vec3& lhs, const Vec3& rhs)
+
+  template<typename U>
+  friend Vec3<typename std::common_type<T, U>::type>
+  operator+(const Vec3& lhs, const typename pcc::Vec3<U>& rhs)
   {
-    return Vec3<T>(lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]);
   }
-  friend Vec3 operator+(const T lhs, const Vec3& rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator+(const U lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs + rhs[0], lhs + rhs[1], lhs + rhs[2]);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs + rhs[0], lhs + rhs[1], lhs + rhs[2]);
   }
-  friend Vec3 operator+(const Vec3& lhs, const T rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator+(const Vec3& lhs, const U rhs)
   {
-    return Vec3<T>(lhs[0] + rhs, lhs[1] + rhs, lhs[2] + rhs);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] + rhs, lhs[1] + rhs, lhs[2] + rhs);
   }
-  friend Vec3 operator-(const Vec3& lhs, const Vec3& rhs)
+
+  template<typename U>
+  friend Vec3<typename std::common_type<T, U>::type>
+  operator-(const Vec3& lhs, const typename pcc::Vec3<U>& rhs)
   {
-    return Vec3<T>(lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]);
   }
-  friend Vec3 operator-(const T lhs, const Vec3& rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator-(const U lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs - rhs[0], lhs - rhs[1], lhs - rhs[2]);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs - rhs[0], lhs - rhs[1], lhs - rhs[2]);
   }
-  friend Vec3 operator-(const Vec3& lhs, const T rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator-(const Vec3& lhs, const U rhs)
   {
-    return Vec3<T>(lhs[0] - rhs, lhs[1] - rhs, lhs[2] - rhs);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] - rhs, lhs[1] - rhs, lhs[2] - rhs);
   }
-  friend Vec3 operator*(const T lhs, const Vec3& rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator*(const U lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs * rhs[0], lhs * rhs[1], lhs * rhs[2]);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs * rhs[0], lhs * rhs[1], lhs * rhs[2]);
   }
-  friend Vec3 operator*(const Vec3& lhs, const T rhs)
+
+  // todo(df): make this elementwise?
+  template<typename U>
+  friend typename std::common_type<T, U>::type
+  operator*(pcc::Vec3<T> lhs, const pcc::Vec3<U>& rhs)
   {
-    return Vec3<T>(lhs[0] * rhs, lhs[1] * rhs, lhs[2] * rhs);
+    return (lhs[0] * rhs[0] + lhs[1] * rhs[1] + lhs[2] * rhs[2]);
   }
-  friend Vec3 operator/(const Vec3& lhs, const T rhs)
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator*(const Vec3& lhs, const U rhs)
+  {
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] * rhs, lhs[1] * rhs, lhs[2] * rhs);
+  }
+
+  template<typename U>
+  friend Vec3<typename std::enable_if<
+    std::is_arithmetic<U>::value,
+    typename std::common_type<T, U>::type>::type>
+  operator/(const Vec3& lhs, const U rhs)
   {
     assert(rhs != 0);
-    return Vec3<T>(lhs[0] / rhs, lhs[1] / rhs, lhs[2] / rhs);
+    return Vec3<typename std::common_type<T, U>::type>(
+      lhs[0] / rhs, lhs[1] / rhs, lhs[2] / rhs);
   }
+
   friend Vec3 operator<<(const Vec3& lhs, int val)
   {
     return Vec3<T>(lhs[0] << val, lhs[1] << val, lhs[2] << val);
   }
+
   friend Vec3 operator>>(const Vec3& lhs, int val)
   {
     return Vec3<T>(lhs[0] >> val, lhs[1] >> val, lhs[2] >> val);
   }
+
   bool operator<(const Vec3& rhs) const
   {
     if (data[0] == rhs[0]) {
@@ -220,6 +297,7 @@ public:
     }
     return (data[0] < rhs[0]);
   }
+
   bool operator>(const Vec3& rhs) const
   {
     if (data[0] == rhs[0]) {
@@ -230,42 +308,61 @@ public:
     }
     return (data[0] > rhs[0]);
   }
+
   bool operator==(const Vec3& rhs) const
   {
     return (data[0] == rhs[0] && data[1] == rhs[1] && data[2] == rhs[2]);
   }
+
   bool operator!=(const Vec3& rhs) const
   {
     return (data[0] != rhs[0] || data[1] != rhs[1] || data[2] != rhs[2]);
   }
+
   friend std::ostream& operator<<(std::ostream& os, const Vec3& vec)
   {
     os << vec[0] << " " << vec[1] << " " << vec[2] << std::endl;
     return os;
   }
+
   friend std::istream& operator>>(std::istream& is, Vec3& vec)
   {
     is >> vec[0] >> vec[1] >> vec[2];
     return is;
   }
+
   Vec3(const T a) { data[0] = data[1] = data[2] = a; }
+
   Vec3(const T x, const T y, const T z)
   {
     data[0] = x;
     data[1] = y;
     data[2] = z;
   }
+
   Vec3(const Vec3& vec)
   {
     data[0] = vec.data[0];
     data[1] = vec.data[1];
     data[2] = vec.data[2];
   }
+
+  template<typename U>
+  Vec3(const typename pcc::Vec3<U>& vec)
+  {
+    data[0] = vec.data[0];
+    data[1] = vec.data[1];
+    data[2] = vec.data[2];
+  }
+
   Vec3() = default;
   ~Vec3(void) = default;
 
 private:
   T data[3];
+
+  template<typename U>
+  friend class pcc::Vec3;
 };
 
 template<typename T>
@@ -299,9 +396,9 @@ struct Box3 {
 
   T getDist2(const Vec3<T>& point) const
   {
-    const T dx = std::max(std::max(min[0] - point[0], 0.0), point[0] - max[0]);
-    const T dy = std::max(std::max(min[1] - point[1], 0.0), point[1] - max[1]);
-    const T dz = std::max(std::max(min[2] - point[2], 0.0), point[2] - max[2]);
+    const T dx = std::max(std::max(min[0] - point[0], T()), point[0] - max[0]);
+    const T dy = std::max(std::max(min[1] - point[1], T()), point[1] - max[1]);
+    const T dz = std::max(std::max(min[2] - point[2], T()), point[2] - max[2]);
     return dx * dx + dy * dy + dz * dz;
   }
 
@@ -322,11 +419,12 @@ struct Box3 {
 //---------------------------------------------------------------------------
 // element-wise multiplication of two vectors
 
-template<typename T>
-Vec3<T>
-times(Vec3<T> lhs, const Vec3<T>& rhs)
+template<typename T, typename U>
+Vec3<typename std::common_type<T, U>::type>
+times(Vec3<T> lhs, const Vec3<U>& rhs)
 {
-  return Vec3<T>{lhs[0] * rhs[0], lhs[1] * rhs[1], lhs[2] * rhs[2]};
+  return Vec3<typename std::common_type<T, U>::type>(
+    lhs[0] * rhs[0], lhs[1] * rhs[1], lhs[2] * rhs[2]);
 }
 
 //---------------------------------------------------------------------------

@@ -438,8 +438,7 @@ decodeTrisoupCommon(
     Vec3<int32_t> SS = 0;
     for (int j = 0; j < leafVertices.size(); j++) {
       Vec3<int32_t> S = leafVertices[j].pos - blockCentroid;
-      SS += {(S[0] * S[0]) >> kTrisoupFpBits, (S[1] * S[1]) >> kTrisoupFpBits,
-             (S[2] * S[2]) >> kTrisoupFpBits};
+      SS += times(S, S) >> kTrisoupFpBits;
     }
 
     // Dominant axis is the coordinate minimizing the variance.
