@@ -136,7 +136,7 @@ deriveQpSet(
 //============================================================================
 //for PredLift
 Quantizers
-QpSet::quantizers(const Vec3<double>& point, int qpLayer) const
+QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 {
   int qpRegionOffset = 0;
   if (regionOffset.valid && regionOffset.region.contains(point)) {

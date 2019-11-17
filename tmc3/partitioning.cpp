@@ -108,7 +108,7 @@ partitionByUniformGeom(
 {
   std::vector<Partition> slices;
 
-  Box3<double> bbox = cloud.computeBoundingBox();
+  Box3<int32_t> bbox = cloud.computeBoundingBox();
 
   int maxEdgeAxis = longestAxis(bbox);
   int maxEdge = bbox.max[maxEdgeAxis] - bbox.min[maxEdgeAxis];
@@ -183,7 +183,7 @@ partitionByOctreeDepth(
   // noting that there is a correspondence between point position
   // and octree node, calculate the position mask and shift required
   // to determine the node address for a point.
-  Box3<double> bbox = cloud.computeBoundingBox();
+  Box3<int32_t> bbox = cloud.computeBoundingBox();
   int maxBb = (int)std::max({bbox.max[0], bbox.max[1], bbox.max[2]});
 
   int cloudSizeLog2 = ceillog2(maxBb + 1);
@@ -260,7 +260,7 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud)
   // for each point determine the tile to which it belongs
   // let tile_origin = floor(pos / tile_size)
   // append pointIdx to tileMap[tile_origin]
-  Box3<double> bbox = cloud.computeBoundingBox();
+  Box3<int32_t> bbox = cloud.computeBoundingBox();
   int maxtileNum =
     std::ceil(std::max({bbox.max[0], bbox.max[1], bbox.max[2]}) / tileSize);
   int tileNumlog2 = ceillog2(maxtileNum);

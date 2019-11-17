@@ -145,7 +145,7 @@ private:
   int _frameCounter;
 
   // Map quantized points to the original input points
-  std::multimap<Vec3<double>, int32_t> quantizedToOrigin;
+  std::multimap<point_t, int32_t> quantizedToOrigin;
 };
 
 //----------------------------------------------------------------------------

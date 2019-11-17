@@ -503,23 +503,21 @@ FindNeighborWithinDistance(
 
 inline bool
 checkDistance(
-  const Vec3<double>& point,
-  const Vec3<double>& refpoint,
-  int32_t nodeSizeLog2)
+  const point_t& point, const point_t& refpoint, int32_t nodeSizeLog2)
 {
   uint32_t mask = uint32_t(-1) << nodeSizeLog2;
 
-  int32_t minX = (int32_t(refpoint.x()) & mask) * 2 - 1;
-  int32_t minY = (int32_t(refpoint.y()) & mask) * 2 - 1;
-  int32_t minZ = (int32_t(refpoint.z()) & mask) * 2 - 1;
+  int32_t minX = (refpoint.x() & mask) * 2 - 1;
+  int32_t minY = (refpoint.y() & mask) * 2 - 1;
+  int32_t minZ = (refpoint.z() & mask) * 2 - 1;
 
   int32_t maxX = minX + (2 << nodeSizeLog2);
   int32_t maxY = minY + (2 << nodeSizeLog2);
   int32_t maxZ = minZ + (2 << nodeSizeLog2);
 
-  int32_t x = int32_t(point.x()) * 2;
-  int32_t y = int32_t(point.y()) * 2;
-  int32_t z = int32_t(point.z()) * 2;
+  int32_t x = point.x() * 2;
+  int32_t y = point.y() * 2;
+  int32_t z = point.z() * 2;
 
   return minX < x && maxX > x && minY < y && maxY > y && minZ < z && maxZ > z;
 }
@@ -553,22 +551,19 @@ findNeighborWithinVoxel(
 
 //---------------------------------------------------------------------------
 
-inline Vec3<double>
+inline point_t
 clacIntermediatePosition(
-  bool enabled, int32_t nodeSizeLog2, const Vec3<double>& point)
+  bool enabled, int32_t nodeSizeLog2, const point_t& point)
 {
   if (!enabled || !nodeSizeLog2)
     return point;
 
   uint32_t mask = (uint32_t(-1)) << nodeSizeLog2;
-  int32_t centerX = (int32_t(point.x()) & mask) + (1 << (nodeSizeLog2 - 1));
-  int32_t centerY = (int32_t(point.y()) & mask) + (1 << (nodeSizeLog2 - 1));
-  int32_t centerZ = (int32_t(point.z()) & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerX = (point.x() & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerY = (point.y() & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerZ = (point.z() & mask) + (1 << (nodeSizeLog2 - 1));
 
-  Vec3<double> newPoint = point;
-  newPoint.x() = centerX;
-  newPoint.y() = centerY;
-  newPoint.z() = centerZ;
+  point_t newPoint{centerX, centerY, centerZ};
 
   return newPoint;
 }
@@ -596,7 +591,7 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  std::vector<Box3<double>>& bBoxes)
+  std::vector<Box3<int32_t>>& bBoxes)
 {
   const int32_t retainedSize = retained.size();
   const int32_t bucketSize = 8;
@@ -618,7 +613,7 @@ computeNearestNeighbors(
     }
   }
 
-  std::vector<Box3<double>> bBoxesI;
+  std::vector<Box3<int32_t>> bBoxesI;
   const int32_t indexesSize = endIndex - startIndex;
   if (aps.intra_lod_prediction_enabled_flag) {
     bBoxesI.resize((indexesSize + bucketSize - 1) / bucketSize);
@@ -954,7 +949,7 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
   // NB: when partial decoding is enabled, LoDs correspond to octree levels
-  std::vector<Box3<double>> bBoxes;
+  std::vector<Box3<int32_t>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
        !input.empty() && lodIndex <= aps.num_detail_levels; ++lodIndex) {

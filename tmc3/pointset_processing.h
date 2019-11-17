@@ -77,7 +77,7 @@ void quantizePositionsUniq(
   const Box3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst,
-  std::multimap<Vec3<double>, int32_t>& doubleQuantizedToOrigin);
+  std::multimap<point_t, int32_t>& doubleQuantizedToOrigin);
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining duplicate points.
@@ -98,7 +98,7 @@ void quantizePositions(
 //============================================================================
 // Clamp point co-ordinates in @cloud to @bbox, preserving attributes.
 
-void clampVolume(Box3<double> bbox, PCCPointSet3* cloud);
+void clampVolume(Box3<int32_t> bbox, PCCPointSet3* cloud);
 
 //============================================================================
 // Determine colour attribute values from a reference/source point cloud.
@@ -126,7 +126,7 @@ bool recolourColour(
   const RecolourParams& params,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  Vec3<double> targetToSourceOffset,
+  point_t targetToSourceOffset,
   PCCPointSet3& target);
 
 //============================================================================
@@ -155,7 +155,7 @@ bool recolourReflectance(
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  Vec3<double> targetToSourceOffset,
+  point_t targetToSourceOffset,
   PCCPointSet3& target);
 
 //============================================================================

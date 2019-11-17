@@ -924,7 +924,7 @@ checkDuplicatePoints(
   auto first = PCCPointSet3::iterator(&pointCloud, node.start);
   auto last = PCCPointSet3::iterator(&pointCloud, node.end);
 
-  std::set<Vec3<double>> uniquePointsSet;
+  std::set<Vec3<int32_t>> uniquePointsSet;
   for (auto i = first; i != last;) {
     if (uniquePointsSet.find(**i) == uniquePointsSet.end()) {
       uniquePointsSet.insert(**i);
@@ -982,13 +982,10 @@ GeometryOctreeEncoder::encodeDirectPosition(
     numPoints = 1;
   }
 
-  for (auto idx = node.start; idx < node.start + numPoints; idx++)
+  for (auto idx = node.start; idx < node.start + numPoints; idx++) {
     encodePointPosition(
-      nodeSizeLog2,
-      Vec3<int32_t>{int32_t(pointCloud[idx][0]), int32_t(pointCloud[idx][1]),
-                    int32_t(pointCloud[idx][2])}
-        >> shiftBits,
-      node.planarMode);
+      nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode);
+  }
 
   return true;
 }

@@ -883,8 +883,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
     *(outputPoints++) = pos =
       decodePointPosition(nodeSizeLog2, node.planarMode, node.planePosBits);
 
-  // todo(df): currently the output buffer holds two points ...
-  for (int i = 0; i < std::min(1, numDuplicatePoints); i++)
+  for (int i = 0; i < numDuplicatePoints; i++)
     *(outputPoints++) = pos;
 
   return numPoints + numDuplicatePoints;
@@ -1207,12 +1206,11 @@ decodeGeometryOctree(
         }
 
         // the final bits from the leaf:
-        Vec3<int32_t> pos{(node0.pos[0] << !(occupancySkip & 4)) + x,
-                          (node0.pos[1] << !(occupancySkip & 2)) + y,
-                          (node0.pos[2] << !(occupancySkip & 1)) + z};
+        Vec3<int32_t> point{(node0.pos[0] << !(occupancySkip & 4)) + x,
+                            (node0.pos[1] << !(occupancySkip & 2)) + y,
+                            (node0.pos[2] << !(occupancySkip & 1)) + z};
 
-        pos = invQuantPosition(node0.qp, posQuantBitMasks, pos);
-        const Vec3<double> point(pos[0], pos[1], pos[2]);
+        point = invQuantPosition(node0.qp, posQuantBitMasks, point);
 
         for (int i = 0; i < numPoints; ++i)
           pointCloud[processedPointCount++] = point;
@@ -1246,27 +1244,19 @@ decodeGeometryOctree(
         && planarProb[0] * planarProb[1] * planarProb[2] <= th_idcm;
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
-        // todo(df): this should go away when output is integer
-        Vec3<int32_t> points[2]{};
         int numPoints = decoder.decodeDirectPosition(
-          gps.geom_unique_points_flag, effectiveChildSizeLog2, child, points);
+          gps.geom_unique_points_flag, effectiveChildSizeLog2, child,
+          &pointCloud[processedPointCount]);
 
-        for (int j = 0; j < std::min(2, numPoints); j++) {
-          auto& point = points[j];
+        for (int j = 0; j < numPoints; j++) {
+          auto& point = pointCloud[processedPointCount++];
           for (int k = 0; k < 3; k++) {
             int shift = std::max(0, effectiveChildSizeLog2[k]);
             point[k] += child.pos[k] << shift;
           }
 
           point = invQuantPosition(node0.qp, posQuantBitMasks, point);
-          pointCloud[processedPointCount++] =
-            Vec3<double>(point[0], point[1], point[2]);
         }
-
-        // todo(df): remove this when removing points array
-        for (int j = 2; j < numPoints; j++)
-          pointCloud[processedPointCount++] =
-            Vec3<double>(points[1][0], points[1][1], points[1][2]);
 
         if (numPoints > 0) {
           // node fully decoded, do not split: discard child
@@ -1340,10 +1330,8 @@ decodeGeometryOctreeScalable(
     pointCloud.resize(size + nodes.size());
     size_t processedPointCount = size;
 
-    for (auto node0 : nodes) {
-      const Vec3<double> point(node0.pos[0], node0.pos[1], node0.pos[2]);
-      pointCloud[processedPointCount++] = point;
-    }
+    for (auto node0 : nodes)
+      pointCloud[processedPointCount++] = node0.pos;
   }
 }
 

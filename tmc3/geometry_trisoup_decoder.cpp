@@ -589,9 +589,7 @@ decodeTrisoupCommon(
   // Move list of points to pointCloud.
   pointCloud.resize(refinedVertices.size());
   for (int i = 0; i < refinedVertices.size(); i++) {
-    pointCloud[i] = Vec3<double>{(double)refinedVertices[i][0],
-                                 (double)refinedVertices[i][1],
-                                 (double)refinedVertices[i][2]};
+    pointCloud[i] = refinedVertices[i];
   }
 }
 

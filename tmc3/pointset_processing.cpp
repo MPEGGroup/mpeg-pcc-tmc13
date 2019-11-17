@@ -63,15 +63,14 @@ quantizePositionsUniq(
   const Box3<int> clamp,
   const PCCPointSet3& src,
   PCCPointSet3* dst,
-  std::multimap<Vec3<double>, int32_t>& doubleQuantizedToOrigin)
+  std::multimap<Vec3<int32_t>, int32_t>& mapQuantisedPosToIndexes)
 {
   // Determine the set of unique quantised points
-
   std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
   std::set<Vec3<int32_t>> uniquePoints;
   int numSrcPoints = src.getPointCount();
   for (int i = 0; i < numSrcPoints; ++i) {
-    const Vec3<double>& point = src[i];
+    const auto& point = src[i];
 
     Vec3<int32_t> quantizedPoint;
     for (int k = 0; k < 3; k++) {
@@ -90,19 +89,11 @@ quantizePositionsUniq(
     dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
   }
   dst->resize(uniquePoints.size());
-  doubleQuantizedToOrigin.clear();
+  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
 
   int idx = 0;
-  for (const auto& point : uniquePoints) {
-    auto& dstPoint = (*dst)[idx++];
-    for (int k = 0; k < 3; ++k)
-      dstPoint[k] = double(point[k]);
-    std::multimap<Vec3<int32_t>, int32_t>::iterator pos;
-    for (pos = intQuantizedToOrigin.lower_bound(point);
-         pos != intQuantizedToOrigin.upper_bound(point); ++pos) {
-      doubleQuantizedToOrigin.insert(std::make_pair(dstPoint, pos->second));
-    }
-  }
+  for (const auto& point : uniquePoints)
+    (*dst)[idx++] = point;
 }
 
 //============================================================================
@@ -131,17 +122,12 @@ quantizePositions(
     dst->resize(numSrcPoints);
   }
 
-  Box3<double> clampD{
-    {double(clamp.min[0]), double(clamp.min[1]), double(clamp.min[2])},
-    {double(clamp.max[0]), double(clamp.max[1]), double(clamp.max[2])},
-  };
-
   for (int i = 0; i < numSrcPoints; ++i) {
-    const Vec3<double> point = src[i];
+    const auto point = src[i];
     auto& dstPoint = (*dst)[i];
     for (int k = 0; k < 3; ++k) {
       double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
-      dstPoint[k] = PCCClip(k_pos, clampD.min[k], clampD.max[k]);
+      dstPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
     }
   }
 

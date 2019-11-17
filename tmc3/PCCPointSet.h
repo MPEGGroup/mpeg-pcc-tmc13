@@ -56,11 +56,14 @@ namespace pcc {
 // The type used for internally representing attribute data
 typedef uint16_t attr_t;
 
+// The type used for internally representing positions
+typedef Vec3<int32_t> point_t;
+
 //============================================================================
 
 class PCCPointSet3 {
 public:
-  typedef Vec3<double> PointType;
+  typedef point_t PointType;
 
   //=========================================================================
   // proxy object for use with iterator, allowing handling of PCCPointSet3's
@@ -256,12 +259,12 @@ public:
     swap(withFrameIndex, other.withFrameIndex);
   }
 
-  Vec3<double> operator[](const size_t index) const
+  PointType operator[](const size_t index) const
   {
     assert(index < positions.size());
     return positions[index];
   }
-  Vec3<double>& operator[](const size_t index)
+  PointType& operator[](const size_t index)
   {
     assert(index < positions.size());
     return positions[index];
@@ -403,7 +406,7 @@ public:
   size_t removeDuplicatePointInQuantizedPoint(int minGeomNodeSizeLog2)
   {
     for (int i = 0; i < positions.size(); i++) {
-      Vec3<double> newPoint = positions[i];
+      PointType newPoint = positions[i];
       if (minGeomNodeSizeLog2 > 0) {
         uint32_t mask = ((uint32_t)-1) << minGeomNodeSizeLog2;
         positions[i].x() = ((int32_t)(positions[i].x()) & mask);
@@ -454,13 +457,13 @@ public:
     }
   }
 
-  Box3<double> computeBoundingBox() const
+  Box3<int32_t> computeBoundingBox() const
   {
-    Box3<double> bbox = {std::numeric_limits<double>::max(),
-                         std::numeric_limits<double>::lowest()};
+    Box3<int32_t> bbox = {std::numeric_limits<int32_t>::max(),
+                          std::numeric_limits<int32_t>::lowest()};
     const size_t pointCount = getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
-      const Vec3<double>& pt = (*this)[i];
+      const auto& pt = (*this)[i];
       for (int k = 0; k < 3; ++k) {
         if (pt[k] > bbox.max[k]) {
           bbox.max[k] = pt[k];
@@ -478,14 +481,14 @@ public:
   // given by iterating over [begin, end)
 
   template<typename ForwardIt>
-  Box3<double> computeBoundingBox(ForwardIt begin, ForwardIt end) const
+  Box3<int32_t> computeBoundingBox(ForwardIt begin, ForwardIt end) const
   {
-    Box3<double> bbox = {std::numeric_limits<double>::max(),
-                         std::numeric_limits<double>::lowest()};
+    Box3<int32_t> bbox = {std::numeric_limits<int32_t>::max(),
+                          std::numeric_limits<int32_t>::lowest()};
 
     for (auto it = begin; it != end; ++it) {
       int i = *it;
-      const Vec3<double>& pt = (*this)[i];
+      const auto& pt = (*this)[i];
       for (int k = 0; k < 3; ++k) {
         if (pt[k] > bbox.max[k]) {
           bbox.max[k] = pt[k];
@@ -501,7 +504,7 @@ public:
   //--------------------------------------------------------------------------
 
 private:
-  std::vector<Vec3<double>> positions;
+  std::vector<PointType> positions;
   std::vector<Vec3<attr_t>> colors;
   std::vector<attr_t> reflectances;
   std::vector<uint8_t> frameidx;

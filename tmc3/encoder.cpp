@@ -130,7 +130,7 @@ PCCTMC3Encoder3::compress(
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
     for (int t = 0; t < tileMaps.size(); t++) {
-      Box3<double> bbox = inverseQuantizedCloud.computeBoundingBox(
+      Box3<int32_t> bbox = inverseQuantizedCloud.computeBoundingBox(
         tileMaps[t].begin(), tileMaps[t].end());
 
       auto& tileIvt = partitions.tileInventory.tiles[t];
@@ -173,7 +173,7 @@ PCCTMC3Encoder3::compress(
       // Get the point cloud of current tile and compute their bounding boxes
       PCCPointSet3 tileCloud;
       getSrcPartition(quantizedInputCloud, tileCloud, tile);
-      Box3<double> bbox = tileCloud.computeBoundingBox();
+      Box3<int32_t> bbox = tileCloud.computeBoundingBox();
       Vec3<int> tile_quantized_box_xyz0;
       for (int k = 0; k < 3; k++) {
         tile_quantized_box_xyz0[k] = int(bbox.min[k]);
@@ -234,7 +234,7 @@ PCCTMC3Encoder3::compress(
     std::vector<int32_t> partitionOriginIdxes;
     for (int i = 0; i < partition.pointIndexes.size(); i++) {
       const auto& point = srcPartition[i];
-      std::multimap<Vec3<double>, int32_t>::iterator pos;
+      std::multimap<point_t, int32_t>::iterator pos;
       for (pos = quantizedToOrigin.lower_bound(point);
            pos != quantizedToOrigin.upper_bound(point); ++pos) {
         partitionOriginIdxes.push_back(pos->second);
@@ -329,15 +329,12 @@ PCCTMC3Encoder3::compressPartition(
   pointCloud = inputPointCloud;
 
   // Offset the point cloud to account for (preset) _sliceOrigin.
-  Vec3<double> sliceOriginD{double(_sliceOrigin[0]), double(_sliceOrigin[1]),
-                            double(_sliceOrigin[2])};
-
   // The new maximum bounds of the offset cloud
   Vec3<int> maxBound{0};
 
   const size_t pointCount = pointCloud.getPointCount();
   for (size_t i = 0; i < pointCount; ++i) {
-    const Vec3<double> point = (pointCloud[i] -= sliceOriginD);
+    const point_t point = (pointCloud[i] -= _sliceOrigin);
     for (int k = 0; k < 3; ++k) {
       const int k_coord = int(point[k]);
       assert(k_coord >= 0);
@@ -563,15 +560,12 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   }
 
   // Offset the point cloud to account for (preset) _sliceOrigin.
-  Vec3<double> sliceOriginD{double(_sliceOrigin[0]), double(_sliceOrigin[1]),
-                            double(_sliceOrigin[2])};
-
   // The new maximum bounds of the offset cloud
   Vec3<int> maxBound{0};
 
   const size_t pointCount = pointCloud0.getPointCount();
   for (size_t i = 0; i < pointCount; ++i) {
-    const Vec3<double> point = (pointCloud0[i] -= sliceOriginD);
+    const point_t point = (pointCloud0[i] -= _sliceOrigin);
     for (int k = 0; k < 3; ++k) {
       const int k_coord = int(point[k]);
       assert(k_coord >= 0);
