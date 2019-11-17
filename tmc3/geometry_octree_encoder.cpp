@@ -169,7 +169,7 @@ public:
 
   void encodePointPosition(
     const Vec3<int>& nodeSizeLog2,
-    const Vec3<uint32_t>& pos,
+    const Vec3<int32_t>& pos,
     uint8_t planarMode);
 
   void encodeQpOffset(int dqp);
@@ -798,7 +798,7 @@ GeometryOctreeEncoder::encodeOccupancy(
 // Encode a position of a point in a given volume.
 void
 GeometryOctreeEncoder::encodePointPosition(
-  const Vec3<int>& nodeSizeLog2, const Vec3<uint32_t>& pos, uint8_t planarMode)
+  const Vec3<int>& nodeSizeLog2, const Vec3<int32_t>& pos, uint8_t planarMode)
 {
   for (int k = 0; k < 3; k++) {
     if (nodeSizeLog2[k] <= 0)
@@ -880,11 +880,11 @@ geometryQuantization(
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << nodeSizeLog2[k]) - 1;
-    uint32_t clipMax = ((1 << nodeSizeLog2[k]) >> qpShift) - 1;
+    int32_t clipMax = ((1 << nodeSizeLog2[k]) >> qpShift) - 1;
 
     for (int i = node.start; i < node.end; i++) {
-      uint32_t pos = uint32_t(pointCloud[i][k]);
-      uint32_t quantPos = quantizer.quantize(pos & quantBitsMask);
+      int32_t pos = int32_t(pointCloud[i][k]);
+      int32_t quantPos = quantizer.quantize(pos & quantBitsMask);
       quantPos = PCCClip(quantPos, 0, clipMax);
 
       // NB: this representation is: |ppppppqqq|00, which is the
@@ -906,8 +906,8 @@ geometryScale(
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
     for (int i = node.start; i < node.end; i++) {
-      uint32_t pos = uint32_t(pointCloud[i][k]);
-      uint32_t quantPos = (pos >> qpShift) & quantBitsMask;
+      int32_t pos = int32_t(pointCloud[i][k]);
+      int32_t quantPos = (pos >> qpShift) & quantBitsMask;
       pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
     }
   }
@@ -985,9 +985,8 @@ GeometryOctreeEncoder::encodeDirectPosition(
   for (auto idx = node.start; idx < node.start + numPoints; idx++)
     encodePointPosition(
       nodeSizeLog2,
-      Vec3<uint32_t>{uint32_t(pointCloud[idx][0]),
-                     uint32_t(pointCloud[idx][1]),
-                     uint32_t(pointCloud[idx][2])}
+      Vec3<int32_t>{int32_t(pointCloud[idx][0]), int32_t(pointCloud[idx][1]),
+                    int32_t(pointCloud[idx][2])}
         >> shiftBits,
       node.planarMode);
 
@@ -1016,7 +1015,7 @@ encodeGeometryOctree(
   PCCOctree3Node& node00 = fifo.back();
   node00.start = uint32_t(0);
   node00.end = uint32_t(pointCloud.getPointCount());
-  node00.pos = uint32_t(0);
+  node00.pos = int32_t(0);
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
@@ -1090,7 +1089,7 @@ encodeGeometryOctree(
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
-  Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+  Vec3<int32_t> occupancyAtlasOrigin{-1};
 
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;

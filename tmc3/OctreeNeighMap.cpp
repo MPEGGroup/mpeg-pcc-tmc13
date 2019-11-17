@@ -43,12 +43,12 @@ namespace pcc {
 
 void
 updateGeometryOccupancyAtlas(
-  const Vec3<uint32_t>& currentPosition,
+  const Vec3<int32_t>& currentPosition,
   const int atlasShift,
   const pcc::ringbuf<PCCOctree3Node>& fifo,
   const pcc::ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,
-  Vec3<uint32_t>* atlasOrigin)
+  Vec3<int32_t>* atlasOrigin)
 {
   const uint32_t mask = (1 << occupancyAtlas->cubeSizeLog2()) - 1;
   const int shift = occupancyAtlas->cubeSizeLog2();
@@ -81,7 +81,7 @@ updateGeometryOccupancyAtlas(
 
 void
 updateGeometryOccupancyAtlasOccChild(
-  const Vec3<uint32_t>& pos,
+  const Vec3<int32_t>& pos,
   uint8_t childOccupancy,
   MortonMap3D* occupancyAtlas)
 {
@@ -141,7 +141,7 @@ updatePatternFromNeighOccupancy(
 GeometryNeighPattern
 makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
-  const Vec3<uint32_t>& position,
+  const Vec3<int32_t>& position,
   const int atlasShift,
   const MortonMap3D& occupancyAtlas)
 {

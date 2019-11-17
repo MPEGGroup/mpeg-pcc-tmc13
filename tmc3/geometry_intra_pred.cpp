@@ -62,7 +62,7 @@ static const int LUT_th1[5] = {67, 66, 65, 66, 64};
 void
 predictGeometryOccupancyIntra(
   const MortonMap3D& occupancyAtlas,
-  Vec3<uint32_t> pos,
+  Vec3<int32_t> pos,
   const int atlasShift,
   int* occupancyIsPredicted,
   int* occupancyPrediction)

@@ -158,7 +158,7 @@ public:
     bool planarPossibleY,
     bool planarPossibleZ);
 
-  Vec3<uint32_t> decodePointPosition(
+  Vec3<int32_t> decodePointPosition(
     const Vec3<int>& nodeSizeLog2, uint8_t planarMode, uint8_t planePosBits);
 
   int decodeQpOffset();
@@ -804,11 +804,11 @@ GeometryOctreeDecoder::decodeOccupancy(
 
 //-------------------------------------------------------------------------
 // Decode a position of a point in a given volume.
-Vec3<uint32_t>
+Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPosition(
   const Vec3<int>& nodeSizeLog2, uint8_t planarMode, uint8_t planePosBits)
 {
-  Vec3<uint32_t> delta{};
+  Vec3<int32_t> delta{};
   for (int k = 0; k < 3; k++) {
     if (nodeSizeLog2[k] <= 0)
       continue;
@@ -878,7 +878,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
     }
   }
 
-  Vec3<uint32_t> pos;
+  Vec3<int32_t> pos;
   for (int i = 0; i < numPoints; i++)
     *(outputPoints++) = pos =
       decodePointPosition(nodeSizeLog2, node.planarMode, node.planePosBits);
@@ -893,8 +893,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
 //-------------------------------------------------------------------------
 // Helper to inverse quantise positions
 
-Vec3<uint32_t>
-invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<uint32_t>& pos)
+Vec3<int32_t>
+invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
 {
   // pos represents the position within the coded tree as follows:
   //   |pppppqqqqqq|00
@@ -906,7 +906,7 @@ invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<uint32_t>& pos)
 
   QuantizerGeom quantizer(qp);
   int shiftBits = (qp - 4) / 6;
-  Vec3<uint32_t> recon;
+  Vec3<int32_t> recon;
   for (int k = 0; k < 3; k++) {
     int posQuant = pos[k] & (quantMasks[k] >> shiftBits);
     recon[k] = (pos[k] ^ posQuant) << shiftBits;
@@ -970,7 +970,7 @@ decodeGeometryOctree(
   PCCOctree3Node& node00 = fifo.back();
   node00.start = uint32_t(0);
   node00.end = uint32_t(0);
-  node00.pos = uint32_t(0);
+  node00.pos = int32_t(0);
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
@@ -1006,7 +1006,7 @@ decodeGeometryOctree(
   // ie, the number of nodes added to the next level of the tree
   int numNodesNextLvl = 0;
 
-  Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
+  Vec3<int32_t> occupancyAtlasOrigin{-1};
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
@@ -1207,9 +1207,9 @@ decodeGeometryOctree(
         }
 
         // the final bits from the leaf:
-        Vec3<uint32_t> pos{(node0.pos[0] << !(occupancySkip & 4)) + x,
-                           (node0.pos[1] << !(occupancySkip & 2)) + y,
-                           (node0.pos[2] << !(occupancySkip & 1)) + z};
+        Vec3<int32_t> pos{(node0.pos[0] << !(occupancySkip & 4)) + x,
+                          (node0.pos[1] << !(occupancySkip & 2)) + y,
+                          (node0.pos[2] << !(occupancySkip & 1)) + z};
 
         pos = invQuantPosition(node0.qp, posQuantBitMasks, pos);
         const Vec3<double> point(pos[0], pos[1], pos[2]);
@@ -1247,7 +1247,7 @@ decodeGeometryOctree(
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
         // todo(df): this should go away when output is integer
-        Vec3<uint32_t> points[2]{};
+        Vec3<int32_t> points[2]{};
         int numPoints = decoder.decodeDirectPosition(
           gps.geom_unique_points_flag, effectiveChildSizeLog2, child, points);
 
