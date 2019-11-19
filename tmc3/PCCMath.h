@@ -91,16 +91,16 @@ public:
   }
   Vec3& operator+=(const Vec3& rhs)
   {
-    data[0] += rhs.data[0];
-    data[1] += rhs.data[1];
-    data[2] += rhs.data[2];
+    data[0] += rhs[0];
+    data[1] += rhs[1];
+    data[2] += rhs[2];
     return *this;
   }
   Vec3& operator-=(const Vec3& rhs)
   {
-    data[0] -= rhs.data[0];
-    data[1] -= rhs.data[1];
-    data[2] -= rhs.data[2];
+    data[0] -= rhs[0];
+    data[1] -= rhs[1];
+    data[2] -= rhs[2];
     return *this;
   }
   Vec3& operator-=(const T a)
@@ -162,90 +162,81 @@ public:
   }
   T operator*(const Vec3& rhs) const
   {
-    return (
-      data[0] * rhs.data[0] + data[1] * rhs.data[1] + data[2] * rhs.data[2]);
+    return (data[0] * rhs[0] + data[1] * rhs[1] + data[2] * rhs[2]);
   }
   Vec3 operator-() const { return Vec3<T>(-data[0], -data[1], -data[2]); }
   friend Vec3 operator+(const Vec3& lhs, const Vec3& rhs)
   {
-    return Vec3<T>(
-      lhs.data[0] + rhs.data[0], lhs.data[1] + rhs.data[1],
-      lhs.data[2] + rhs.data[2]);
+    return Vec3<T>(lhs[0] + rhs[0], lhs[1] + rhs[1], lhs[2] + rhs[2]);
   }
   friend Vec3 operator+(const T lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs + rhs.data[0], lhs + rhs.data[1], lhs + rhs.data[2]);
+    return Vec3<T>(lhs + rhs[0], lhs + rhs[1], lhs + rhs[2]);
   }
   friend Vec3 operator+(const Vec3& lhs, const T rhs)
   {
-    return Vec3<T>(lhs.data[0] + rhs, lhs.data[1] + rhs, lhs.data[2] + rhs);
+    return Vec3<T>(lhs[0] + rhs, lhs[1] + rhs, lhs[2] + rhs);
   }
   friend Vec3 operator-(const Vec3& lhs, const Vec3& rhs)
   {
-    return Vec3<T>(
-      lhs.data[0] - rhs.data[0], lhs.data[1] - rhs.data[1],
-      lhs.data[2] - rhs.data[2]);
+    return Vec3<T>(lhs[0] - rhs[0], lhs[1] - rhs[1], lhs[2] - rhs[2]);
   }
   friend Vec3 operator-(const T lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs - rhs.data[0], lhs - rhs.data[1], lhs - rhs.data[2]);
+    return Vec3<T>(lhs - rhs[0], lhs - rhs[1], lhs - rhs[2]);
   }
   friend Vec3 operator-(const Vec3& lhs, const T rhs)
   {
-    return Vec3<T>(lhs.data[0] - rhs, lhs.data[1] - rhs, lhs.data[2] - rhs);
+    return Vec3<T>(lhs[0] - rhs, lhs[1] - rhs, lhs[2] - rhs);
   }
   friend Vec3 operator*(const T lhs, const Vec3& rhs)
   {
-    return Vec3<T>(lhs * rhs.data[0], lhs * rhs.data[1], lhs * rhs.data[2]);
+    return Vec3<T>(lhs * rhs[0], lhs * rhs[1], lhs * rhs[2]);
   }
   friend Vec3 operator*(const Vec3& lhs, const T rhs)
   {
-    return Vec3<T>(lhs.data[0] * rhs, lhs.data[1] * rhs, lhs.data[2] * rhs);
+    return Vec3<T>(lhs[0] * rhs, lhs[1] * rhs, lhs[2] * rhs);
   }
   friend Vec3 operator/(const Vec3& lhs, const T rhs)
   {
     assert(rhs != 0);
-    return Vec3<T>(lhs.data[0] / rhs, lhs.data[1] / rhs, lhs.data[2] / rhs);
+    return Vec3<T>(lhs[0] / rhs, lhs[1] / rhs, lhs[2] / rhs);
   }
   friend Vec3 operator<<(const Vec3& lhs, int val)
   {
-    return Vec3<T>(lhs.data[0] << val, lhs.data[1] << val, lhs.data[2] << val);
+    return Vec3<T>(lhs[0] << val, lhs[1] << val, lhs[2] << val);
   }
   friend Vec3 operator>>(const Vec3& lhs, int val)
   {
-    return Vec3<T>(lhs.data[0] >> val, lhs.data[1] >> val, lhs.data[2] >> val);
+    return Vec3<T>(lhs[0] >> val, lhs[1] >> val, lhs[2] >> val);
   }
   bool operator<(const Vec3& rhs) const
   {
-    if (data[0] == rhs.data[0]) {
-      if (data[1] == rhs.data[1]) {
-        return (data[2] < rhs.data[2]);
+    if (data[0] == rhs[0]) {
+      if (data[1] == rhs[1]) {
+        return (data[2] < rhs[2]);
       }
-      return (data[1] < rhs.data[1]);
+      return (data[1] < rhs[1]);
     }
-    return (data[0] < rhs.data[0]);
+    return (data[0] < rhs[0]);
   }
   bool operator>(const Vec3& rhs) const
   {
-    if (data[0] == rhs.data[0]) {
-      if (data[1] == rhs.data[1]) {
-        return (data[2] > rhs.data[2]);
+    if (data[0] == rhs[0]) {
+      if (data[1] == rhs[1]) {
+        return (data[2] > rhs[2]);
       }
-      return (data[1] > rhs.data[1]);
+      return (data[1] > rhs[1]);
     }
-    return (data[0] > rhs.data[0]);
+    return (data[0] > rhs[0]);
   }
   bool operator==(const Vec3& rhs) const
   {
-    return (
-      data[0] == rhs.data[0] && data[1] == rhs.data[1]
-      && data[2] == rhs.data[2]);
+    return (data[0] == rhs[0] && data[1] == rhs[1] && data[2] == rhs[2]);
   }
   bool operator!=(const Vec3& rhs) const
   {
-    return (
-      data[0] != rhs.data[0] || data[1] != rhs.data[1]
-      || data[2] != rhs.data[2]);
+    return (data[0] != rhs[0] || data[1] != rhs[1] || data[2] != rhs[2]);
   }
   friend std::ostream& operator<<(std::ostream& os, const Vec3& vec)
   {
