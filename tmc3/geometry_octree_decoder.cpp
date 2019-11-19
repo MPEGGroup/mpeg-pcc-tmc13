@@ -475,7 +475,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
 // Helper to inverse quantise positions
 
 Vec3<uint32_t>
-invQuantPosition(int qp, int quantBitMask, const Vec3<uint32_t>& pos)
+invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<uint32_t>& pos)
 {
   // pos represents the position within the coded tree as follows:
   //   |pppppqqqqqq|00
@@ -489,7 +489,7 @@ invQuantPosition(int qp, int quantBitMask, const Vec3<uint32_t>& pos)
   int shiftBits = (qp - 4) / 6;
   Vec3<uint32_t> recon;
   for (int k = 0; k < 3; k++) {
-    int posQuant = pos[k] & (quantBitMask >> shiftBits);
+    int posQuant = pos[k] & (quantMasks[k] >> shiftBits);
     recon[k] = (pos[k] ^ posQuant) << shiftBits;
     recon[k] |= quantizer.scale(posQuant);
   }
@@ -570,15 +570,12 @@ decodeGeometryOctree(
 
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = -1;
-  int posQuantBits = 0;
+  Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
 
   if (gbh.geom_octree_qp_offset_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
-  else if (gps.geom_scaling_enabled_flag) {
+  else if (gps.geom_scaling_enabled_flag)
     node00.qp = sliceQp;
-    // determine the mask of LSBs used in quantisation
-    posQuantBits = (1 << (nodeMaxDimLog2 - numLvlsUntilQpOffset)) - 1;
-  }
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {
@@ -596,7 +593,7 @@ decodeGeometryOctree(
       if (maxNumImplicitQtbtBeforeOt)
         maxNumImplicitQtbtBeforeOt--;
 
-      // if all dimensions have same size, then performing octree for remaining nodes
+      // if all dimensions have same size, then use octree for remaining nodes
       if (
         nodeSizeLog2[0] == nodeSizeLog2[1]
         && nodeSizeLog2[1] == nodeSizeLog2[2])
@@ -605,8 +602,6 @@ decodeGeometryOctree(
       // implicit qtbt for child nodes
       childSizeLog2 = implicitQtBtDecision(
         nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
-
-      occupancySkip = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
 
       nodeMaxDimLog2--;
       numNodesNextLvl = 0;
@@ -622,7 +617,12 @@ decodeGeometryOctree(
       if (nodeMaxDimLog2 == minNodeSizeLog2)
         break;
 
+      // record the node size when quantisation is signalled -- all subsequnt
+      // coded occupancy bits are quantised
       numLvlsUntilQpOffset--;
+      if (!numLvlsUntilQpOffset)
+        for (int k = 0; k < 3; k++)
+          posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
     }
 
     PCCOctree3Node& node0 = fifo.front();
@@ -634,6 +634,16 @@ decodeGeometryOctree(
     int effectiveNodeMaxDimLog2 = nodeMaxDimLog2 - shiftBits;
     auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
+
+    // todo(??): the following needs to be reviewed, it is added to make
+    // quantisation work with qtbt.
+    Vec3<int> actualNodeSizeLog2, actualChildSizeLog2;
+    for (int k = 0; k < 3; k++) {
+      actualNodeSizeLog2[k] = std::max(nodeSizeLog2[k], shiftBits);
+      actualChildSizeLog2[k] = std::max(childSizeLog2[k], shiftBits);
+    }
+    // todo(??): atlasShift may be wrong too
+    occupancySkip = nonSplitQtBtAxes(actualNodeSizeLog2, actualChildSizeLog2);
 
     int occupancyAdjacencyGt0 = 0;
     int occupancyAdjacencyGt1 = 0;
@@ -710,7 +720,7 @@ decodeGeometryOctree(
                            (node0.pos[1] << !(occupancySkip & 2)) + y,
                            (node0.pos[2] << !(occupancySkip & 1)) + z};
 
-        pos = invQuantPosition(node0.qp, posQuantBits, pos);
+        pos = invQuantPosition(node0.qp, posQuantBitMasks, pos);
         const Vec3<double> point(pos[0], pos[1], pos[2]);
 
         for (int i = 0; i < numPoints; ++i)
@@ -747,7 +757,7 @@ decodeGeometryOctree(
             point[k] += child.pos[k] << shift;
           }
 
-          point = invQuantPosition(node0.qp, posQuantBits, point);
+          point = invQuantPosition(node0.qp, posQuantBitMasks, point);
           pointCloud[processedPointCount++] =
             Vec3<double>(point[0], point[1], point[2]);
         }
@@ -784,7 +794,7 @@ decodeGeometryOctree(
       int quantRemovedBits = (node.qp - 4) / 6;
       for (int k = 0; k < 3; k++)
         node.pos[k] <<= nodeSizeLog2[k] - quantRemovedBits;
-      node.pos = invQuantPosition(node.qp, posQuantBits, node.pos);
+      node.pos = invQuantPosition(node.qp, posQuantBitMasks, node.pos);
     }
     *nodesRemaining = std::move(fifo);
     return;

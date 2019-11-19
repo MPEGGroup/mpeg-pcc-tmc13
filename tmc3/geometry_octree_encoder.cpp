@@ -487,17 +487,19 @@ calculateNodeQps(int baseQp, It nodesBegin, It nodesEnd)
 
 void
 geometryQuantization(
-  PCCPointSet3& pointCloud, PCCOctree3Node& node, int nodeSizeLog2)
+  PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> nodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
   int qpShift = (node.qp - 4) / 6;
-  int quantBitsMask = (1 << nodeSizeLog2) - 1;
-  Vec3<uint32_t> end_pos_quant = ((1 << nodeSizeLog2) >> qpShift) - 1;
-  for (int i = node.start; i < node.end; i++) {
-    for (int k = 0; k < 3; k++) {
+
+  for (int k = 0; k < 3; k++) {
+    int quantBitsMask = (1 << nodeSizeLog2[k]) - 1;
+    uint32_t clipMax = ((1 << nodeSizeLog2[k]) >> qpShift) - 1;
+
+    for (int i = node.start; i < node.end; i++) {
       uint32_t pos = uint32_t(pointCloud[i][k]);
       uint32_t quantPos = quantizer.quantize(pos & quantBitsMask);
-      quantPos = PCCClip(quantPos, 0, end_pos_quant[k]);
+      quantPos = PCCClip(quantPos, 0, clipMax);
 
       // NB: this representation is: |pppppp00qqq|, which isn't the
       // same used by the decoder:  (|ppppppqqq|00)
@@ -510,13 +512,14 @@ geometryQuantization(
 
 void
 geometryScale(
-  PCCPointSet3& pointCloud, PCCOctree3Node& node, int quantNodeMaxDimLog2)
+  PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> quantNodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
   int qpShift = (node.qp - 4) / 6;
-  int quantBitsMask = (1 << quantNodeMaxDimLog2) - 1;
-  for (int i = node.start; i < node.end; i++) {
-    for (int k = 0; k < 3; k++) {
+
+  for (int k = 0; k < 3; k++) {
+    int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
+    for (int i = node.start; i < node.end; i++) {
       uint32_t pos = uint32_t(pointCloud[i][k]);
       uint32_t quantPos = pos & quantBitsMask;
       pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
@@ -649,7 +652,7 @@ encodeGeometryOctree(
   Vec3<uint32_t> occupancyAtlasOrigin(0xffffffff);
 
   // the node size where quantisation is performed
-  int quantNodeMaxDimLog2 = 0;
+  Vec3<int> quantNodeSizeLog2 = 0;
   int numLvlsUntilQuantization = -1;
   if (gps.geom_scaling_enabled_flag) {
     numLvlsUntilQuantization = 0;
@@ -661,7 +664,7 @@ encodeGeometryOctree(
 
   // applied to the root node, just set the node qp
   if (numLvlsUntilQuantization == 0) {
-    quantNodeMaxDimLog2 = nodeMaxDimLog2;
+    quantNodeSizeLog2 = nodeSizeLog2;
     node00.qp = sliceQp;
   }
 
@@ -694,7 +697,6 @@ encodeGeometryOctree(
         nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
 
       pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
-      occupancySkip = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
 
       nodeMaxDimLog2--;
       encoder.beginOctreeLevel();
@@ -706,7 +708,7 @@ encodeGeometryOctree(
       // determing a per node QP at the appropriate level
       // NB: this has no effect here if geom_octree_qp_offset_depth=0
       if (--numLvlsUntilQuantization == 0) {
-        quantNodeMaxDimLog2 = nodeMaxDimLog2;
+        quantNodeSizeLog2 = nodeSizeLog2;
         calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
       }
     }
@@ -723,8 +725,18 @@ encodeGeometryOctree(
     auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
+    // todo(??): the following needs to be reviewed, it is added to make
+    // quantisation work with qtbt.
+    Vec3<int> actualNodeSizeLog2, actualChildSizeLog2;
+    for (int k = 0; k < 3; k++) {
+      actualNodeSizeLog2[k] = std::max(nodeSizeLog2[k], shiftBits);
+      actualChildSizeLog2[k] = std::max(childSizeLog2[k], shiftBits);
+    }
+    // todo(??): atlasShift may be wrong too
+    occupancySkip = nonSplitQtBtAxes(actualNodeSizeLog2, actualChildSizeLog2);
+
     if (numLvlsUntilQuantization == 0) {
-      geometryQuantization(pointCloud, node0, quantNodeMaxDimLog2);
+      geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
       if (gps.geom_unique_points_flag)
         checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
     }
@@ -805,7 +817,7 @@ encodeGeometryOctree(
       int childStart = node0.start;
 
       // inverse quantise any quantised positions
-      geometryScale(pointCloud, node0, quantNodeMaxDimLog2);
+      geometryScale(pointCloud, node0, quantNodeSizeLog2);
 
       for (int i = 0; i < 8; i++) {
         if (!childCounts[i]) {
@@ -875,7 +887,7 @@ encodeGeometryOctree(
 
         if (directModeUsed) {
           // inverse quantise any quantised positions
-          geometryScale(pointCloud, node0, quantNodeMaxDimLog2);
+          geometryScale(pointCloud, node0, quantNodeSizeLog2);
 
           // point reordering to match decoder's order
           for (auto idx = child.start; idx < child.end; idx++)
@@ -912,7 +924,7 @@ encodeGeometryOctree(
     for (auto& node : fifo) {
       for (int k = 0; k < 3; k++)
         node.pos[k] <<= nodeSizeLog2[k];
-      geometryScale(pointCloud, node, quantNodeMaxDimLog2);
+      geometryScale(pointCloud, node, quantNodeSizeLog2);
     }
     *nodesRemaining = std::move(fifo);
     return;
