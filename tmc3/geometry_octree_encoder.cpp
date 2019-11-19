@@ -106,6 +106,7 @@ public:
 
   bool encodeDirectPosition(
     const Vec3<int>& nodeSizeLog2,
+    int shiftBits,
     const PCCOctree3Node& node,
     const PCCPointSet3& pointCloud);
 
@@ -501,9 +502,9 @@ geometryQuantization(
       uint32_t quantPos = quantizer.quantize(pos & quantBitsMask);
       quantPos = PCCClip(quantPos, 0, clipMax);
 
-      // NB: this representation is: |pppppp00qqq|, which isn't the
-      // same used by the decoder:  (|ppppppqqq|00)
-      pointCloud[i][k] = (pos & ~quantBitsMask) | quantPos;
+      // NB: this representation is: |ppppppqqq|00, which is the
+      // same as the decoder
+      pointCloud[i][k] = (pos & ~quantBitsMask) | (quantPos << qpShift);
     }
   }
 }
@@ -521,7 +522,7 @@ geometryScale(
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
     for (int i = node.start; i < node.end; i++) {
       uint32_t pos = uint32_t(pointCloud[i][k]);
-      uint32_t quantPos = pos & quantBitsMask;
+      uint32_t quantPos = (pos >> qpShift) & quantBitsMask;
       pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
     }
   }
@@ -556,6 +557,7 @@ checkDuplicatePoints(
 bool
 GeometryOctreeEncoder::encodeDirectPosition(
   const Vec3<int>& nodeSizeLog2,
+  int shiftBits,
   const PCCOctree3Node& node,
   const PCCPointSet3& pointCloud)
 {
@@ -573,7 +575,8 @@ GeometryOctreeEncoder::encodeDirectPosition(
       nodeSizeLog2,
       Vec3<uint32_t>{uint32_t(pointCloud[idx][0]),
                      uint32_t(pointCloud[idx][1]),
-                     uint32_t(pointCloud[idx][2])});
+                     uint32_t(pointCloud[idx][2])}
+        >> shiftBits);
   }
 
   return true;
@@ -750,9 +753,9 @@ encodeGeometryOctree(
       PCCPointSet3::iterator(&pointCloud, node0.end), childCounts,
       [=](const PCCPointSet3::Proxy& proxy) {
         const auto& point = *proxy;
-        return !!(int(point[2]) & (pointSortMask[2] >> shiftBits))
-          | (!!(int(point[1]) & (pointSortMask[1] >> shiftBits)) << 1)
-          | (!!(int(point[0]) & (pointSortMask[0] >> shiftBits)) << 2);
+        return !!(int(point[2]) & pointSortMask[2])
+          | (!!(int(point[1]) & pointSortMask[1]) << 1)
+          | (!!(int(point[0]) & pointSortMask[0]) << 2);
       });
 
     // generate the bitmap of child occupancy and count
@@ -883,7 +886,7 @@ encodeGeometryOctree(
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
         bool directModeUsed = encoder.encodeDirectPosition(
-          effectiveChildSizeLog2, child, pointCloud);
+          effectiveChildSizeLog2, shiftBits, child, pointCloud);
 
         if (directModeUsed) {
           // inverse quantise any quantised positions
