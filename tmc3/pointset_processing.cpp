@@ -294,7 +294,7 @@ recolourColour(
       double maxAttributeDist2 = std::numeric_limits<double>::min();
       for (int i = 0; i < nNN; ++i) {
         for (int j = 0; j < nNN; ++j) {
-          const double dist2 = (colors[i] - colors[j]).getNorm2();
+          const double dist2 = (colors[i] - colors[j]).getNorm2<double>();
           if (dist2 > maxAttributeDist2) {
             maxAttributeDist2 = dist2;
           }
@@ -416,7 +416,7 @@ recolourColour(
           double maxAttributeDist2 = std::numeric_limits<double>::min();
           for (int i = 0; i < nNN; ++i) {
             for (int j = 0; j < nNN; ++j) {
-              const double dist2 = (colors[i] - colors[j]).getNorm2();
+              const double dist2 = (colors[i] - colors[j]).getNorm2<double>();
               if (dist2 > maxAttributeDist2) {
                 maxAttributeDist2 = dist2;
               }
@@ -462,7 +462,7 @@ recolourColour(
       }
     }
     const double r = double(pointCountTarget) / double(pointCountSource);
-    const double delta2 = (centroid2 - centroid1).getNorm2();
+    const double delta2 = (centroid2 - centroid1).getNorm2<double>();
     const double eps = 0.000001;
 
     const bool fixWeight = 1;  // m42538

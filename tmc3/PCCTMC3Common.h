@@ -490,7 +490,7 @@ FindNeighborWithinDistance(
     const int32_t index1 = retained[j];
     const int32_t pointIndex1 = packedVoxel[index1].index;
     const auto& point1 = pointCloud[pointIndex1];
-    const auto d2 = (point1 - point).getNorm2();
+    const auto d2 = (point1 - point).getNorm2<double>();
     if (d2 <= radius2) {
       return index1;
     }
@@ -666,7 +666,9 @@ computeNearestNeighbors(
         aps.scalable_lifting_enabled_flag, nodeSizeLog2,
         pointCloud[pointIndex1]);
 
-      double norm2 = times(point - point1, aps.lod_neigh_bias).getNorm2();
+      double norm2 =
+        times(point - point1, aps.lod_neigh_bias).getNorm2<double>();
+
       if (nodeSizeLog2 > 0 && point == point1) {
         norm2 = double(1 << (nodeSizeLog2 - 1));
         norm2 = norm2 * norm2;
@@ -686,7 +688,7 @@ computeNearestNeighbors(
         }
         if (
           predictor.neighborCount < aps.num_pred_nearest_neighbours
-          || bBoxes[bucketIndex1].getDist2(point)
+          || bBoxes[bucketIndex1].getDist2<int64_t>(point)
             <= predictor.neighbors[index0].weight) {
           const int32_t k0 = std::max(bucketIndex1 * bucketSize, j0);
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
@@ -697,7 +699,8 @@ computeNearestNeighbors(
               pointCloud[pointIndex1]);
 
             double norm2 =
-              times(point - point1, aps.lod_neigh_bias).getNorm2();
+              times(point - point1, aps.lod_neigh_bias).getNorm2<double>();
+
             if (nodeSizeLog2 > 0 && point == point1) {
               norm2 = (double)(1 << (nodeSizeLog2 - 1));
               norm2 = norm2 * norm2;
@@ -720,9 +723,9 @@ computeNearestNeighbors(
       for (int32_t k = k0; k < k1; ++k) {
         const int32_t pointIndex1 = packedVoxel[indexes[startIndex + k]].index;
         const auto& point1 = pointCloud[pointIndex1];
+        auto d2 = times(point - point1, aps.lod_neigh_bias).getNorm2<double>();
         predictor.insertNeighbor(
-          pointIndex1, times(point - point1, aps.lod_neigh_bias).getNorm2(),
-          aps.num_pred_nearest_neighbours,
+          pointIndex1, d2, aps.num_pred_nearest_neighbours,
           startIndex + k - i + 2 * aps.search_range);
       }
 
@@ -734,7 +737,7 @@ computeNearestNeighbors(
 
         if (
           predictor.neighborCount < aps.num_pred_nearest_neighbours
-          || bBoxesI[bucketIndex1].getDist2(point)
+          || bBoxesI[bucketIndex1].getDist2<int64_t>(point)
             <= predictor.neighbors[index0].weight) {
           const int32_t k0 = bucketIndex1 * bucketSize;
           const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
@@ -742,10 +745,11 @@ computeNearestNeighbors(
             const int32_t pointIndex1 =
               packedVoxel[indexes[startIndex + k]].index;
             const auto& point1 = pointCloud[pointIndex1];
+            auto d2 =
+              times(point - point1, aps.lod_neigh_bias).getNorm2<double>();
+
             predictor.insertNeighbor(
-              pointIndex1,
-              times(point - point1, aps.lod_neigh_bias).getNorm2(),
-              aps.num_pred_nearest_neighbours,
+              pointIndex1, d2, aps.num_pred_nearest_neighbours,
               startIndex + k - i + 2 * aps.search_range);
           }
         }
@@ -776,9 +780,11 @@ subsampleByDistance(
         continue;
       }
       const auto& point = pointCloud[packedVoxel[index].index];
+      const auto& lastRetained =
+        pointCloud[packedVoxel[retained.back()].index];
+      auto distanceToLastRetained = (lastRetained - point).getNorm2<double>();
       if (
-        (pointCloud[packedVoxel[retained.back()].index] - point).getNorm2()
-          <= radius2
+        distanceToLastRetained <= radius2
         || FindNeighborWithinDistance(
              pointCloud, packedVoxel, index, radius2, searchRange, retained)
           != PCC_UNDEFINED_INDEX) {

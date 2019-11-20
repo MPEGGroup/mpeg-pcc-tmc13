@@ -79,12 +79,17 @@ public:
   const T& y() const { return data[1]; }
   const T& z() const { return data[2]; }
 
-  T getNorm() const { return static_cast<T>(sqrt(getNorm2())); }
-  T getNorm2() const { return (*this) * (*this); }
+  template<typename ResultT>
+  ResultT getNorm2() const
+  {
+    return Vec3<ResultT>(*this) * Vec3<ResultT>(*this);
+  }
+
   T getNormInf() const
   {
     return std::max(data[2], std::max(abs(data[0]), abs(data[1])));
   }
+
   Vec3& operator=(const Vec3& rhs)
   {
     memcpy(data, rhs.data, sizeof(data));
@@ -394,11 +399,13 @@ struct Box3 {
       && max.z() >= box.min.z() && min.z() <= box.max.z();
   }
 
-  T getDist2(const Vec3<T>& point) const
+  template<typename SquaredT>
+  SquaredT getDist2(const Vec3<T>& point) const
   {
-    const T dx = std::max(std::max(min[0] - point[0], T()), point[0] - max[0]);
-    const T dy = std::max(std::max(min[1] - point[1], T()), point[1] - max[1]);
-    const T dz = std::max(std::max(min[2] - point[2], T()), point[2] - max[2]);
+    using U = SquaredT;
+    U dx = U(std::max(std::max(min[0] - point[0], T()), point[0] - max[0]));
+    U dy = U(std::max(std::max(min[1] - point[1], T()), point[1] - max[1]));
+    U dz = U(std::max(std::max(min[2] - point[2], T()), point[2] - max[2]));
     return dx * dx + dy * dy + dz * dz;
   }
 
