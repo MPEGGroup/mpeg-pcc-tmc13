@@ -411,17 +411,36 @@ GeometryOctreeDecoder::decodeDirectPosition(
   if (_arithmeticDecoder->decode(_ctxNumIdcmPointsEq1))
     numPoints++;
 
-  QuantizerGeom quantizer(node.qp);
-  for (int i = 0; i < numPoints; i++) {
-    // convert node-relative position to world position
-    Vec3<uint32_t> pos = decodePointPosition(nodeSizeLog2);
-    *(outputPoints++) = {
-      double(quantizer.scale(node.pos_quant[0] + pos[0]) + node.pos_base[0]),
-      double(quantizer.scale(node.pos_quant[1] + pos[1]) + node.pos_base[1]),
-      double(quantizer.scale(node.pos_quant[2] + pos[2]) + node.pos_base[2])};
-  }
+  for (int i = 0; i < numPoints; i++)
+    *(outputPoints++) = decodePointPosition(nodeSizeLog2);
 
   return numPoints;
+}
+
+//-------------------------------------------------------------------------
+// Helper to inverse quantise positions
+
+Vec3<uint32_t>
+invQuantPosition(int qp, int quantBitMask, const Vec3<uint32_t>& pos)
+{
+  // pos represents the position within the coded tree as follows:
+  //   |pppppqqqqqq|00
+  //  - p = unquantised bit
+  //  - q = quantised bit
+  //  - 0 = bits that were not coded (MSBs of q)
+  // The reconstruction is:
+  //   |ppppp00qqqqqq|
+
+  QuantizerGeom quantizer(qp);
+  int shiftBits = (qp - 4) / 6;
+  Vec3<uint32_t> recon;
+  for (int k = 0; k < 3; k++) {
+    int posQuant = pos[k] & (quantBitMask >> shiftBits);
+    recon[k] = (pos[k] ^ posQuant) << shiftBits;
+    recon[k] |= quantizer.scale(posQuant);
+  }
+
+  return recon;
 }
 
 //-------------------------------------------------------------------------
@@ -474,11 +493,15 @@ decodeGeometryOctree(
 
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = -1;
+  int posQuantBits = 0;
 
   if (gbh.geom_octree_qp_offset_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
-  else if (gps.geom_scaling_enabled_flag)
+  else if (gps.geom_scaling_enabled_flag) {
     node00.qp = sliceQp;
+    // determine the mask of LSBs used in quantisation
+    posQuantBits = (1 << (nodeSizeLog2 - numLvlsUntilQpOffset)) - 1;
+  }
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {
@@ -503,11 +526,8 @@ decodeGeometryOctree(
 
     PCCOctree3Node& node0 = fifo.front();
 
-    if (numLvlsUntilQpOffset == 0) {
+    if (numLvlsUntilQpOffset == 0)
       node0.qp = decoder.decodeQpOffset() + sliceQp;
-      node0.pos_base = node0.pos;
-      node0.pos_quant = {0, 0, 0};
-    }
 
     int shiftBits = (node0.qp - 4) / 6;
     int effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
@@ -519,12 +539,12 @@ decodeGeometryOctree(
 
     if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlas(
-        node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+        node0.pos, fifo, fifoCurrLvlEnd, &occupancyAtlas,
         &occupancyAtlasOrigin);
 
       GeometryNeighPattern gnp = makeGeometryNeighPattern(
         gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-        nodeSizeLog2, occupancyAtlas);
+        occupancyAtlas);
 
       node0.neighPattern = gnp.neighPattern;
       occupancyAdjacencyGt0 = gnp.adjacencyGt0;
@@ -538,7 +558,7 @@ decodeGeometryOctree(
     // generate intra prediction
     if (effectiveNodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
       predictGeometryOccupancyIntra(
-        occupancyAtlas, node0.pos, nodeSizeLog2, &occupancyIsPredicted,
+        occupancyAtlas, node0.pos, &occupancyIsPredicted,
         &occupancyPrediction);
     }
 
@@ -554,7 +574,7 @@ decodeGeometryOctree(
     // update atlas for advanced neighbours
     if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlasOccChild(
-        node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+        node0.pos, occupancy, &occupancyAtlas);
     }
 
     // population count of occupancy for IDCM
@@ -583,11 +603,12 @@ decodeGeometryOctree(
           numPoints = decoder.decodePositionLeafNumPoints();
         }
 
-        QuantizerGeom quantizer(node0.qp);
-        const Vec3<double> point(
-          quantizer.scale(node0.pos_quant[0] + x) + node0.pos_base[0],
-          quantizer.scale(node0.pos_quant[1] + y) + node0.pos_base[1],
-          quantizer.scale(node0.pos_quant[2] + z) + node0.pos_base[2]);
+        // the final bits from the leaf:
+        Vec3<uint32_t> pos{(node0.pos[0] << 1) + x, (node0.pos[1] << 1) + y,
+                           (node0.pos[2] << 1) + z};
+
+        pos = invQuantPosition(node0.qp, posQuantBits, pos);
+        const Vec3<double> point(pos[0], pos[1], pos[2]);
 
         for (int i = 0; i < numPoints; ++i)
           pointCloud[processedPointCount++] = point;
@@ -601,23 +622,26 @@ decodeGeometryOctree(
       auto& child = fifo.back();
 
       child.qp = node0.qp;
-      child.pos_quant[0] = node0.pos_quant[0] + (x << effectiveChildSizeLog2);
-      child.pos_quant[1] = node0.pos_quant[1] + (y << effectiveChildSizeLog2);
-      child.pos_quant[2] = node0.pos_quant[2] + (z << effectiveChildSizeLog2);
-      child.pos_base = node0.pos_base;
-
-      child.pos[0] = node0.pos[0] + (x << childSizeLog2);
-      child.pos[1] = node0.pos[1] + (y << childSizeLog2);
-      child.pos[2] = node0.pos[2] + (z << childSizeLog2);
+      child.pos[0] = (node0.pos[0] << 1) + x;
+      child.pos[1] = (node0.pos[1] << 1) + y;
+      child.pos[2] = (node0.pos[2] << 1) + z;
       child.numSiblingsPlus1 = numOccupied;
       child.siblingOccupancy = occupancy;
 
       bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
       if (isDirectModeEligible(
             idcmEnabled, effectiveNodeSizeLog2, node0, child)) {
+        // todo(df): this should go away when output is integer
+        Vec3<uint32_t> pointResidual[2];
         int numPoints = decoder.decodeDirectPosition(
-          effectiveChildSizeLog2, child, &pointCloud[processedPointCount]);
-        processedPointCount += numPoints;
+          effectiveChildSizeLog2, child, pointResidual);
+
+        for (int j = 0; j < numPoints; j++) {
+          auto pos = (child.pos << effectiveChildSizeLog2) + pointResidual[j];
+          pos = invQuantPosition(node0.qp, posQuantBits, pos);
+          pointCloud[processedPointCount++] =
+            Vec3<double>(pos[0], pos[1], pos[2]);
+        }
 
         if (numPoints > 0) {
           // node fully decoded, do not split: discard child
@@ -634,7 +658,7 @@ decodeGeometryOctree(
       if (!gps.neighbour_avail_boundary_log2) {
         updateGeometryNeighState(
           gps.neighbour_context_restriction_flag, fifo.end(), numNodesNextLvl,
-          childSizeLog2, child, i, node0.neighPattern, occupancy);
+          child, i, node0.neighPattern, occupancy);
       }
     }
   }
@@ -645,9 +669,15 @@ decodeGeometryOctree(
   pointCloud.resize(processedPointCount);
 
   // return partial coding result
-  // todo(df): node.pos is still in quantised form -- this is probably wrong
+  //  - add missing levels to node positions and inverse quantise
   if (nodesRemaining) {
+    for (auto& node : fifo) {
+      int quantRemovedBits = (node.qp - 4) / 6;
+      auto pos = node.pos << nodeSizeLog2 - quantRemovedBits;
+      node.pos = invQuantPosition(node.qp, posQuantBits, pos);
+    }
     *nodesRemaining = std::move(fifo);
+    return;
   }
 }
 

@@ -78,9 +78,8 @@ struct PCCOctree3Node {
   // The occupancy map used describing the current node and its siblings.
   uint8_t siblingOccupancy;
 
+  // The qp used for geometry quantisation
   int qp;
-  Vec3<uint32_t> pos_quant;
-  Vec3<uint32_t> pos_base;
 };
 
 //---------------------------------------------------------------------------
@@ -92,7 +91,6 @@ void updateGeometryNeighState(
   bool siblingRestriction,
   const ringbuf<PCCOctree3Node>::iterator& bufEnd,
   int64_t numNodesNextLvl,
-  int childSizeLog2,
   PCCOctree3Node& child,
   int childIdx,
   uint8_t neighPattern,

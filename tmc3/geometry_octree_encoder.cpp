@@ -442,18 +442,17 @@ geometryQuantization(
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
   int qpShift = (node.qp - 4) / 6;
-  Vec3<uint32_t> start_pos = node.pos;
-  Vec3<uint32_t> start_pos_quant = 0;
-  Vec3<uint32_t> end_pos_quant = (1 << nodeSizeLog2) >> qpShift;
+  int quantBitsMask = (1 << nodeSizeLog2) - 1;
+  Vec3<uint32_t> end_pos_quant = ((1 << nodeSizeLog2) >> qpShift) - 1;
   for (int i = node.start; i < node.end; i++) {
-    Vec3<double> reconPoint, quantizedPoint;
+    Vec3<double> reconPoint;
     for (int k = 0; k < 3; k++) {
-      int64_t k_pos = pointCloud[i][k] - start_pos[k];
+      uint32_t pos = uint32_t(pointCloud[i][k]);
+      uint32_t quantPos = quantizer.quantize(pos & quantBitsMask);
+      quantPos = PCCClip(quantPos, 0, end_pos_quant[k]);
 
-      k_pos = quantizer.quantize(k_pos);
-      k_pos = PCCClip(k_pos, start_pos_quant[k], end_pos_quant[k] - 1);
-      pointCloud[i][k] = k_pos;
-      reconPoint[k] = quantizer.scale(k_pos) + start_pos[k];
+      pointCloud[i][k] = quantPos;
+      reconPoint[k] = (pos & ~quantBitsMask) + quantizer.scale(quantPos);
     }
     pointCloud.setPositionReconstructed(i, reconPoint);
   }
@@ -652,12 +651,12 @@ encodeGeometryOctree(
 
     if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlas(
-        node0.pos, nodeSizeLog2, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+        node0.pos, fifo, fifoCurrLvlEnd, &occupancyAtlas,
         &occupancyAtlasOrigin);
 
       GeometryNeighPattern gnp = makeGeometryNeighPattern(
         gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-        nodeSizeLog2, occupancyAtlas);
+        occupancyAtlas);
 
       node0.neighPattern = gnp.neighPattern;
       occupancyAdjacencyGt0 = gnp.adjacencyGt0;
@@ -671,14 +670,14 @@ encodeGeometryOctree(
     // generate intra prediction
     if (effectiveNodeSizeLog2 < gps.intra_pred_max_node_size_log2) {
       predictGeometryOccupancyIntra(
-        occupancyAtlas, node0.pos, nodeSizeLog2, &occupancyIsPredicted,
+        occupancyAtlas, node0.pos, &occupancyIsPredicted,
         &occupancyPrediction);
     }
 
     // update atlas for advanced neighbours
     if (gps.neighbour_avail_boundary_log2) {
       updateGeometryOccupancyAtlasOccChild(
-        node0.pos, nodeSizeLog2, occupancy, &occupancyAtlas);
+        node0.pos, occupancy, &occupancyAtlas);
     }
 
     // encode child occupancy map
@@ -744,9 +743,9 @@ encodeGeometryOctree(
       int z = !!(i & 1);
 
       child.qp = node0.qp;
-      child.pos[0] = node0.pos[0] + (x << childSizeLog2);
-      child.pos[1] = node0.pos[1] + (y << childSizeLog2);
-      child.pos[2] = node0.pos[2] + (z << childSizeLog2);
+      child.pos[0] = (node0.pos[0] << 1) + x;
+      child.pos[1] = (node0.pos[1] << 1) + y;
+      child.pos[2] = (node0.pos[2] << 1) + z;
 
       child.start = childPointsStartIdx;
       childPointsStartIdx += childCounts[i];
@@ -783,7 +782,7 @@ encodeGeometryOctree(
       if (!gps.neighbour_avail_boundary_log2) {
         updateGeometryNeighState(
           gps.neighbour_context_restriction_flag, fifo.end(), numNodesNextLvl,
-          childSizeLog2, child, i, node0.neighPattern, occupancy);
+          child, i, node0.neighPattern, occupancy);
       }
     }
   }
@@ -795,8 +794,11 @@ encodeGeometryOctree(
       pointCloud[i] = pointCloud.getPositionReconstructed(i);
 
   // return partial coding result
-  // todo(df): node.pos is still in quantised form -- this is probably wrong
+  //  - add missing levels to node positions
+  // todo(df): this does not yet support inverse quantisation of node.pos
   if (nodesRemaining) {
+    for (auto& node : fifo)
+      node.pos <<= nodeSizeLog2;
     *nodesRemaining = std::move(fifo);
     return;
   }

@@ -116,7 +116,6 @@ updateGeometryNeighState(
   bool siblingRestriction,
   const ringbuf<PCCOctree3Node>::iterator& bufEnd,
   int64_t numNodesNextLvl,
-  int childSizeLog2,
   PCCOctree3Node& child,
   int childIdx,
   uint8_t neighPattern,
@@ -124,7 +123,7 @@ updateGeometryNeighState(
 {
   int64_t midx;
   if (!siblingRestriction) {
-    midx = child.mortonIdx = mortonAddr(child.pos, childSizeLog2);
+    midx = child.mortonIdx = mortonAddr(child.pos);
   }
 
   static const struct {

@@ -44,14 +44,13 @@ namespace pcc {
 void
 updateGeometryOccupancyAtlas(
   const Vec3<uint32_t>& currentPosition,
-  const int nodeSizeLog2,
   const pcc::ringbuf<PCCOctree3Node>& fifo,
   const pcc::ringbuf<PCCOctree3Node>::iterator& fifoCurrLvlEnd,
   MortonMap3D* occupancyAtlas,
   Vec3<uint32_t>* atlasOrigin)
 {
   const uint32_t mask = (1 << occupancyAtlas->cubeSizeLog2()) - 1;
-  const int shift = occupancyAtlas->cubeSizeLog2() + nodeSizeLog2;
+  const int shift = occupancyAtlas->cubeSizeLog2();
   const auto currentOrigin = currentPosition >> shift;
 
   // only refresh the atlas if the current position lies outside the
@@ -67,9 +66,9 @@ updateGeometryOccupancyAtlas(
     if (currentOrigin != it->pos >> shift)
       break;
 
-    const uint32_t x = (it->pos[0] >> nodeSizeLog2) & mask;
-    const uint32_t y = (it->pos[1] >> nodeSizeLog2) & mask;
-    const uint32_t z = (it->pos[2] >> nodeSizeLog2) & mask;
+    const uint32_t x = it->pos[0] & mask;
+    const uint32_t y = it->pos[1] & mask;
+    const uint32_t z = it->pos[2] & mask;
     occupancyAtlas->setByte(x, y, z, it->siblingOccupancy);
   }
 }
@@ -79,14 +78,13 @@ updateGeometryOccupancyAtlas(
 void
 updateGeometryOccupancyAtlasOccChild(
   const Vec3<uint32_t>& pos,
-  int nodeSizeLog2,
   uint8_t childOccupancy,
   MortonMap3D* occupancyAtlas)
 {
   uint32_t mask = (1 << occupancyAtlas->cubeSizeLog2()) - 1;
-  uint32_t x = (pos[0] >> nodeSizeLog2) & mask;
-  uint32_t y = (pos[1] >> nodeSizeLog2) & mask;
-  uint32_t z = (pos[2] >> nodeSizeLog2) & mask;
+  uint32_t x = pos[0] & mask;
+  uint32_t y = pos[1] & mask;
+  uint32_t z = pos[2] & mask;
 
   occupancyAtlas->setChildOcc(x, y, z, childOccupancy);
 }
@@ -140,14 +138,13 @@ GeometryNeighPattern
 makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<uint32_t>& position,
-  const int nodeSizeLog2,
   const MortonMap3D& occupancyAtlas)
 {
   const int mask = occupancyAtlas.cubeSize() - 1;
   const int cubeSizeMinusOne = mask;
-  const int32_t x = (position[0] >> nodeSizeLog2) & mask;
-  const int32_t y = (position[1] >> nodeSizeLog2) & mask;
-  const int32_t z = (position[2] >> nodeSizeLog2) & mask;
+  const int32_t x = position[0] & mask;
+  const int32_t y = position[1] & mask;
+  const int32_t z = position[2] & mask;
   uint8_t neighPattern;
   if (
     x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0

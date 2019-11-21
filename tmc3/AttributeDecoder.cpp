@@ -431,7 +431,7 @@ AttributeDecoder::decodeReflectancesRaht(
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
-    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n], 0);
+    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
   }
   sort(packedVoxel.begin(), packedVoxel.end());
@@ -491,7 +491,7 @@ AttributeDecoder::decodeColorsRaht(
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
-    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n], 0);
+    packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
   }
   sort(packedVoxel.begin(), packedVoxel.end());

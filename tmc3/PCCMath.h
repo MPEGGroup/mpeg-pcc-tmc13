@@ -378,16 +378,13 @@ mortonAddr(const int32_t x, const int32_t y, const int32_t z)
 }
 
 //---------------------------------------------------------------------------
-// Convert a vector position (divided by 2^depth) to morton order address.
+// Convert a vector position to morton order address.
 
 template<typename T>
 int64_t
-mortonAddr(const Vec3<T>& vec, int depth)
+mortonAddr(const Vec3<T>& vec)
 {
-  int x = int(vec.x()) >> depth;
-  int y = int(vec.y()) >> depth;
-  int z = int(vec.z()) >> depth;
-  return mortonAddr(x, y, z);
+  return mortonAddr(int(vec.x()), int(vec.y()), int(vec.z()));
 }
 
 //---------------------------------------------------------------------------

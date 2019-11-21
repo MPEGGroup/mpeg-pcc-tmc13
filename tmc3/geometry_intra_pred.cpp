@@ -63,14 +63,13 @@ void
 predictGeometryOccupancyIntra(
   const MortonMap3D& occupancyAtlas,
   Vec3<uint32_t> pos,
-  int nodeSizeLog2,
   int* occupancyIsPredicted,
   int* occupancyPrediction)
 {
   uint32_t mask = occupancyAtlas.cubeSize() - 1;
-  int32_t x = (pos[0] >> nodeSizeLog2) & mask;
-  int32_t y = (pos[1] >> nodeSizeLog2) & mask;
-  int32_t z = (pos[2] >> nodeSizeLog2) & mask;
+  int32_t x = pos[0] & mask;
+  int32_t y = pos[1] & mask;
+  int32_t z = pos[2] & mask;
 
   int score[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   int numOccupied = 0;
