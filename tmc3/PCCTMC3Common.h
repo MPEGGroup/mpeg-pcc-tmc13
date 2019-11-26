@@ -954,13 +954,18 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.reserve(21);
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
-  // NB: when partial decoding is enabled, LoDs correspond to octree levels
+  int32_t num_detail_levels = aps.num_detail_levels;
+  if (aps.scalable_lifting_enabled_flag == 1) {
+    // NB: when partial decoding is enabled, LoDs correspond to octree levels
+    num_detail_levels = INT_MAX;
+  }
+
   std::vector<Box3<int32_t>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
-       !input.empty() && lodIndex <= aps.num_detail_levels; ++lodIndex) {
+       !input.empty() && lodIndex <= num_detail_levels; ++lodIndex) {
     const int32_t startIndex = indexes.size();
-    if (lodIndex == aps.num_detail_levels) {
+    if (lodIndex == num_detail_levels) {
       for (const auto index : input) {
         indexes.push_back(index);
       }
