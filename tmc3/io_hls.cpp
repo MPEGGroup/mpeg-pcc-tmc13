@@ -317,9 +317,7 @@ write(const AttributeParameterSet& aps)
   bs.writeSe(aps.aps_chroma_qp_offset);
   bs.write(aps.aps_slice_qp_deltas_present_flag);
 
-  bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
-    || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
-  if (isLifting) {
+  if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.search_range);
     bs.writeUe(aps.num_detail_levels);
@@ -376,9 +374,7 @@ parseAps(const PayloadBuffer& buf)
   bs.readSe(&aps.aps_chroma_qp_offset);
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
-  bool isLifting = aps.attr_encoding == AttributeEncoding::kLiftingTransform
-    || aps.attr_encoding == AttributeEncoding::kPredictingTransform;
-  if (isLifting) {
+  if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.search_range);
     bs.readUe(&aps.num_detail_levels);

@@ -209,13 +209,8 @@ AttributeDecoder::decode(
   decoder.start(sps, payload.data() + abhSize, payload.size() - abhSize);
 
   // generate LoDs if necessary
-  switch (attr_aps.attr_encoding) {
-  case AttributeEncoding::kLiftingTransform:
-  case AttributeEncoding::kPredictingTransform:
-    if (_lods.empty())
-      _lods.generate(attr_aps, minGeomNodeSizeLog2, pointCloud);
-  default: break;
-  }
+  if (attr_aps.lodParametersPresent() && _lods.empty())
+    _lods.generate(attr_aps, minGeomNodeSizeLog2, pointCloud);
 
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {

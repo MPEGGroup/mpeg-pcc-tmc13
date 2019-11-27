@@ -839,12 +839,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
       attr_sps.attr_bitdepth_secondary++;
 
-    bool isLifting =
-      attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
-      || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
-
     // derive the dist2 values based on an initial value
-    if (isLifting) {
+    if (attr_aps.lodParametersPresent()) {
       if (attr_aps.dist2.size() > attr_aps.num_detail_levels) {
         attr_aps.dist2.resize(attr_aps.num_detail_levels);
       } else if (
@@ -917,17 +913,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       }
     }
 
-    bool isLifting =
-      attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
-      || attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform;
-
     if (attr_sps.attr_bitdepth > 16)
       err.error() << it.first << ".bitdepth must be less than 17\n";
 
     if (attr_sps.attr_bitdepth_secondary > 16)
       err.error() << it.first << ".bitdepth_secondary must be less than 17\n";
 
-    if (isLifting) {
+    if (attr_aps.lodParametersPresent()) {
       int lod = attr_aps.num_detail_levels;
       if (lod > 255 || lod < 0) {
         err.error() << it.first
