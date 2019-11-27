@@ -66,11 +66,17 @@ AttributeLods::generate(
 bool
 AttributeLods::isReusable(const AttributeParameterSet& aps) const
 {
+  // No LoDs cached => can be reused by anything
   if (numPointsInLod.empty())
     return true;
 
-  if (_aps.lod_decimation_enabled_flag != aps.lod_decimation_enabled_flag)
-    return false;
+  // If the other aps doesn't use LoDs, it is compatible.
+  // Otherwise, if both use LoDs, check each parameter
+  if (!(_aps.lodParametersPresent() && aps.lodParametersPresent()))
+    return true;
+
+  // NB: the following comparison order needs to be the same as the i/o
+  // order otherwise comparisons may involve undefined values
 
   if (_aps.num_pred_nearest_neighbours != aps.num_pred_nearest_neighbours)
     return false;
@@ -78,22 +84,25 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
   if (_aps.search_range != aps.search_range)
     return false;
 
+  if (_aps.num_detail_levels != aps.num_detail_levels)
+    return false;
+
   if (_aps.lod_neigh_bias != aps.lod_neigh_bias)
     return false;
 
-  if (
-    _aps.intra_lod_prediction_enabled_flag
-    != aps.intra_lod_prediction_enabled_flag)
+  // until this feature is stable, always generate LoDs.
+  if (_aps.scalable_lifting_enabled_flag || aps.scalable_lifting_enabled_flag)
     return false;
 
-  if (_aps.num_detail_levels != aps.num_detail_levels)
+  if (_aps.lod_decimation_enabled_flag != aps.lod_decimation_enabled_flag)
     return false;
 
   if (_aps.dist2 != aps.dist2)
     return false;
 
-  // until this feature is stable, always generate LoDs.
-  if (_aps.scalable_lifting_enabled_flag || aps.scalable_lifting_enabled_flag)
+  if (
+    _aps.intra_lod_prediction_enabled_flag
+    != aps.intra_lod_prediction_enabled_flag)
     return false;
 
   return true;
