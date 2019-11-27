@@ -957,7 +957,15 @@ buildPredictorsFast(
   int32_t num_detail_levels = aps.num_detail_levels;
   if (aps.scalable_lifting_enabled_flag == 1) {
     // NB: when partial decoding is enabled, LoDs correspond to octree levels
-    num_detail_levels = INT_MAX;
+    num_detail_levels = std::numeric_limits<int>::max();
+    ;
+  }
+
+  // prepare temporal buffer
+  std::vector<uint32_t> indexesOfSbsample;
+  indexesOfSbsample.resize(0);
+  if (aps.scalable_lifting_enabled_flag) {
+    indexesOfSbsample.reserve(pointCount);
   }
 
   std::vector<Box3<int32_t>> bBoxes;
@@ -974,6 +982,26 @@ buildPredictorsFast(
         aps, pointCloud, packedVoxel, input, lodIndex, retained, indexes);
     }
     const int32_t endIndex = indexes.size();
+    if (aps.scalable_lifting_enabled_flag) {
+      indexesOfSbsample.resize(endIndex);
+      if (lodIndex == 0) {
+        for (int32_t i = startIndex; i < endIndex; i++) {
+          indexesOfSbsample[i] = indexes[i];
+        }
+      }
+      if (lodIndex == 1) {
+        if (endIndex - startIndex > startIndex) {
+          for (int32_t i = 0; i < startIndex; i++) {
+            indexes[i] = indexesOfSbsample[i];
+          }
+          predIndex = int32_t(pointCount);
+          computeNearestNeighbors(
+            aps, pointCloud, packedVoxel, retained, 0, startIndex,
+            lodIndex - 1, indexes, predictors, pointIndexToPredictorIndex,
+            predIndex, bBoxes);
+        }
+      }
+    }
 
     computeNearestNeighbors(
       aps, pointCloud, packedVoxel, retained, startIndex, endIndex, lodIndex,
