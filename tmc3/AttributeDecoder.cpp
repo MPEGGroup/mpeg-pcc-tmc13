@@ -599,7 +599,6 @@ AttributeDecoder::decodeColorsLift(
 
   // decompress
   int zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
-  std::cout << zero_cnt << '\n';
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -616,7 +615,6 @@ AttributeDecoder::decodeColorsLift(
     } else {
       decoder.decode(values);
       zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
-  std::cout << zero_cnt << '\n';
     }
 
     const int64_t quantWeight = weights[predictorIndex];
