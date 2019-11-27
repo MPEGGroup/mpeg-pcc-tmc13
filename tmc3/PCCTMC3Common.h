@@ -207,7 +207,13 @@ struct PCCPredictor {
     predMode = 0;
   }
 
-  void init() { neighborCount = 0; }
+  void init()
+  {
+    neighborCount = 0;
+    memset(
+      neighbors, 0,
+      sizeof(PCCNeighborInfo) * kAttributePredictionMaxNeighbourCount);
+  }
 
   void insertNeighbor(
     const uint32_t reference,
