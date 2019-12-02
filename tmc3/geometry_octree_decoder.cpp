@@ -896,12 +896,13 @@ Vec3<int32_t>
 invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
 {
   // pos represents the position within the coded tree as follows:
-  //   |pppppqqqqqq|00
+  //     |pppppqqqqqq|00
   //  - p = unquantised bit
   //  - q = quantised bit
   //  - 0 = bits that were not coded (MSBs of q)
   // The reconstruction is:
-  //   |ppppp00qqqqqq|
+  //   |ppppp00qqqqqq| <- just prior to scaling
+  //   |pppppssssssss| <  after scaling (s = scale(q))
 
   QuantizerGeom quantizer(qp);
   int shiftBits = (qp - 4) / 6;

@@ -887,8 +887,8 @@ geometryQuantization(
       int32_t quantPos = quantizer.quantize(pos & quantBitsMask);
       quantPos = PCCClip(quantPos, 0, clipMax);
 
-      // NB: this representation is: |ppppppqqq|00, which is the
-      // same as the decoder
+      // NB: this representation is: |ppppppqqq00|, which, except for
+      // the zero padding, is the same as the decoder.
       pointCloud[i][k] = (pos & ~quantBitsMask) | (quantPos << qpShift);
     }
   }
@@ -907,7 +907,7 @@ geometryScale(
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
     for (int i = node.start; i < node.end; i++) {
       int32_t pos = int32_t(pointCloud[i][k]);
-      int32_t quantPos = (pos >> qpShift) & quantBitsMask;
+      int32_t quantPos = (pos & quantBitsMask) >> qpShift;
       pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
     }
   }
