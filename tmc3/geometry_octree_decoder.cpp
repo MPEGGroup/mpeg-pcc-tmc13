@@ -947,13 +947,16 @@ decodeGeometryOctree(
     nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
 
   // prepare parameters for partition and occupancy coding
-  int occupancySkip = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
+  int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
+  int occupancySkip = occupancySkipLevel;
   int atlasShift = 7;
 
   // implicit qtbt for grand-child node
   Vec3<int> grandchildSizeLog2 = implicitQtBtDecision(
     childSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
-  int childOccupancySkip = nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
+  int childOccupancySkipLevel =
+    nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
+  int childOccupancySkip = childOccupancySkipLevel;
 
   // push the first node
   fifo.emplace_back();
@@ -961,6 +964,7 @@ decodeGeometryOctree(
   node00.start = uint32_t(0);
   node00.end = uint32_t(0);
   node00.pos = int32_t(0);
+  node00.posQ = int32_t(0);
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
@@ -1015,7 +1019,7 @@ decodeGeometryOctree(
       fifoCurrLvlEnd = fifo.end();
 
       Vec3<int> parentNodeSizeLog2 = nodeSizeLog2;
-      // implicit qtbt for current node
+      // implicit qtbt for all nodes in current level
       nodeSizeLog2 = implicitQtBtDecision(
         nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
 
@@ -1034,6 +1038,7 @@ decodeGeometryOctree(
       // implicit qtbt for child nodes
       childSizeLog2 = implicitQtBtDecision(
         nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+      occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
 
       // implicit qtbt for grand-child nodes
       int minSizeImplicitQtbt2 = minSizeImplicitQtbt;
@@ -1047,7 +1052,8 @@ decodeGeometryOctree(
         maxNumImplicitQtbtBeforeOt ? maxNumImplicitQtbtBeforeOt - 1 : 0,
         minSizeImplicitQtbt2);
 
-      childOccupancySkip = nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
+      childOccupancySkipLevel =
+        nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
 
       nodeMaxDimLog2--;
       numNodesNextLvl = 0;
@@ -1085,15 +1091,17 @@ decodeGeometryOctree(
     auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
-    // todo(??): the following needs to be reviewed, it is added to make
-    // quantisation work with qtbt.
-    Vec3<int> actualNodeSizeLog2, actualChildSizeLog2;
-    for (int k = 0; k < 3; k++) {
-      actualNodeSizeLog2[k] = std::max(nodeSizeLog2[k], shiftBits);
-      actualChildSizeLog2[k] = std::max(childSizeLog2[k], shiftBits);
+    // make quantisation work with qtbt and planar.
+    occupancySkip = occupancySkipLevel;
+    childOccupancySkip = childOccupancySkipLevel;
+    if (shiftBits != 0) {
+      for (int k = 0; k < 3; k++) {
+        if (effectiveChildSizeLog2[k] < 0)
+          occupancySkip |= (4 >> k);
+        if (effectiveChildSizeLog2[k] < 1)
+          childOccupancySkip |= (4 >> k);
+      }
     }
-    // todo(??): atlasShift may be wrong too
-    occupancySkip = nonSplitQtBtAxes(actualNodeSizeLog2, actualChildSizeLog2);
 
     int occupancyAdjacencyGt0 = 0;
     int occupancyAdjacencyGt1 = 0;
@@ -1200,9 +1208,9 @@ decodeGeometryOctree(
         }
 
         // the final bits from the leaf:
-        Vec3<int32_t> point{(node0.pos[0] << !(occupancySkip & 4)) + x,
-                            (node0.pos[1] << !(occupancySkip & 2)) + y,
-                            (node0.pos[2] << !(occupancySkip & 1)) + z};
+        Vec3<int32_t> point{(node0.posQ[0] << !(occupancySkip & 4)) + x,
+                            (node0.posQ[1] << !(occupancySkip & 2)) + y,
+                            (node0.posQ[2] << !(occupancySkip & 1)) + z};
 
         point = invQuantPosition(node0.qp, posQuantBitMasks, point);
 
@@ -1219,9 +1227,12 @@ decodeGeometryOctree(
 
       child.qp = node0.qp;
       // only shift position if an occupancy bit was coded for the axis
-      child.pos[0] = (node0.pos[0] << !(occupancySkip & 4)) + x;
-      child.pos[1] = (node0.pos[1] << !(occupancySkip & 2)) + y;
-      child.pos[2] = (node0.pos[2] << !(occupancySkip & 1)) + z;
+      child.pos[0] = (node0.pos[0] << !(occupancySkipLevel & 4)) + x;
+      child.pos[1] = (node0.pos[1] << !(occupancySkipLevel & 2)) + y;
+      child.pos[2] = (node0.pos[2] << !(occupancySkipLevel & 1)) + z;
+      child.posQ[0] = (node0.posQ[0] << !(occupancySkip & 4)) + x;
+      child.posQ[1] = (node0.posQ[1] << !(occupancySkip & 2)) + y;
+      child.posQ[2] = (node0.posQ[2] << !(occupancySkip & 1)) + z;
       child.numSiblingsPlus1 = numOccupied;
       child.siblingOccupancy = occupancy;
 
@@ -1245,7 +1256,7 @@ decodeGeometryOctree(
           auto& point = pointCloud[processedPointCount++];
           for (int k = 0; k < 3; k++) {
             int shift = std::max(0, effectiveChildSizeLog2[k]);
-            point[k] += child.pos[k] << shift;
+            point[k] += child.posQ[k] << shift;
           }
 
           point = invQuantPosition(node0.qp, posQuantBitMasks, point);
