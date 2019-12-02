@@ -1263,6 +1263,28 @@ encodeGeometryOctree(
         node0.planarPossible & 4);
     }
 
+    // planar eligibility
+    bool planarEligible[3] = {false, false, false};
+    if (gps.geom_planar_mode_enabled_flag) {
+      // update the plane rate depending on the occupancy and local density
+      updateplanarRate(planarRate, occupancy, localDensity, numSiblings);
+      eligilityPlanar(
+        planarEligible, planarRate, planarRateThreshold, localDensity);
+      if (childOccupancySkip & 4)
+        planarEligible[0] = false;
+      if (childOccupancySkip & 2)
+        planarEligible[1] = false;
+      if (childOccupancySkip & 1)
+        planarEligible[2] = false;
+
+      // avoid mismatch when the next level will apply quantization
+      if (numLvlsUntilQuantization == 1) {
+        planarEligible[0] = false;
+        planarEligible[1] = false;
+        planarEligible[2] = false;
+      }
+    }
+
     // Leaf nodes are immediately coded.  No further splitting occurs.
     if (isLeafNode(effectiveChildSizeLog2)) {
       int childStart = node0.start;
@@ -1301,21 +1323,6 @@ encodeGeometryOctree(
     //  - directly code point positions if IDCM allowed and selected
     //  - otherwise, insert split children into fifo while updating neighbour state
     int childPointsStartIdx = node0.start;
-
-    // planar eligibility
-    bool planarEligible[3] = {false, false, false};
-    if (gps.geom_planar_mode_enabled_flag) {
-      // update the plane rate depending on the occupancy and local density
-      updateplanarRate(planarRate, occupancy, localDensity, numSiblings);
-      eligilityPlanar(
-        planarEligible, planarRate, planarRateThreshold, localDensity);
-      if (childOccupancySkip & 4)
-        planarEligible[0] = false;
-      if (childOccupancySkip & 2)
-        planarEligible[1] = false;
-      if (childOccupancySkip & 1)
-        planarEligible[2] = false;
-    }
 
     for (int i = 0; i < 8; i++) {
       if (!childCounts[i]) {

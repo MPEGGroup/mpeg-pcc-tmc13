@@ -1169,6 +1169,13 @@ decodeGeometryOctree(
         planarEligible[1] = false;
       if (childOccupancySkip & 1)
         planarEligible[2] = false;
+
+      // avoid mismatch when the next level will apply quantization
+      if (numLvlsUntilQpOffset == 1) {
+        planarEligible[0] = false;
+        planarEligible[1] = false;
+        planarEligible[2] = false;
+      }
     }
 
     // nodeSizeLog2 > 1: for each child:
