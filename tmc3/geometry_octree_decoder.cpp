@@ -897,9 +897,10 @@ invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
   int shiftBits = (qp - 4) / 6;
   Vec3<int32_t> recon;
   for (int k = 0; k < 3; k++) {
-    int posQuant = pos[k] & (quantMasks[k] >> shiftBits);
-    recon[k] = (pos[k] ^ posQuant) << shiftBits;
-    recon[k] |= quantizer.scale(posQuant);
+    int lowPart = pos[k] & (quantMasks[k] >> shiftBits);
+    int highPart = pos[k] ^ lowPart;
+    int lowPartScaled = PCCClip(quantizer.scale(lowPart), 0, quantMasks[k]);
+    recon[k] = (highPart << shiftBits) | lowPartScaled;
   }
 
   return recon;

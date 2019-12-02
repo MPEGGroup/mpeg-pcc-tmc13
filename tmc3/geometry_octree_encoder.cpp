@@ -895,9 +895,11 @@ geometryScale(
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
     for (int i = node.start; i < node.end; i++) {
-      int32_t pos = int32_t(pointCloud[i][k]);
-      int32_t quantPos = (pos & quantBitsMask) >> qpShift;
-      pointCloud[i][k] = (pos & ~quantBitsMask) | quantizer.scale(quantPos);
+      int pos = pointCloud[i][k];
+      int lowPart = (pos & quantBitsMask) >> qpShift;
+      int lowPartScaled = PCCClip(quantizer.scale(lowPart), 0, quantBitsMask);
+      int highPartScaled = pos & ~quantBitsMask;
+      pointCloud[i][k] = highPartScaled | lowPartScaled;
     }
   }
 }
