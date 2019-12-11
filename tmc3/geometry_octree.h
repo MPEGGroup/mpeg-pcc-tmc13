@@ -88,6 +88,9 @@ struct PCCOctree3Node {
   uint8_t planarPossible = 7;
   uint8_t planePosBits = 0;
   uint8_t planarMode = 0;
+
+  // angular
+  uint8_t laserIndex = 255;
 };
 
 //---------------------------------------------------------------------------
@@ -353,6 +356,16 @@ int maskPlanarY(const PCCOctree3Node& node0, bool activatable);
 int maskPlanarZ(const PCCOctree3Node& node0, bool activatable);
 
 void maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip);
+
+int determineContextAngleForPlanar(
+  PCCOctree3Node& child,
+  const Vec3<int>& headPos,
+  Vec3<int> childSizeLog2,
+  const int* zLaser,
+  const int* thetaLaser,
+  const int numLasers,
+  int deltaAngle,
+  bool* angularIdcm);
 
 //---------------------------------------------------------------------------
 

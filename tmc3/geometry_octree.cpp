@@ -372,9 +372,11 @@ isPlanarNode(
 OctreePlanarState::OctreePlanarState(
   const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
 {
-  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-  int maxPlaneSize = kNumPlanarPlanes << nodeMaxDimLog2;
-  _planes3x3.resize(maxPlaneSize * 9);
+  if (!gps.planar_buffer_disabled_flag) {
+    int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
+    int maxPlaneSize = kNumPlanarPlanes << nodeMaxDimLog2;
+    _planes3x3.resize(maxPlaneSize * 9);
+  }
 
   _rateThreshold[0] = gps.geom_planar_threshold0 << 4;
   _rateThreshold[1] = gps.geom_planar_threshold1 << 4;
@@ -384,6 +386,12 @@ OctreePlanarState::OctreePlanarState(
 void
 OctreePlanarState::initPlanes(int depth)
 {
+  if (_planes3x3.empty()) {
+    for (auto& plane : _planes)
+      plane = nullptr;
+    return;
+  }
+
   const int kPlanarInit[9] = {-2,    -1000, -1000, -1000, -2,
                               -1000, -1000, -1000, -2};
 
@@ -571,6 +579,90 @@ maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip)
   mask[0] = maskPlanarX(node0, occupancySkip & 4);
   mask[1] = maskPlanarY(node0, occupancySkip & 2);
   mask[2] = maskPlanarZ(node0, occupancySkip & 1);
+}
+
+//----------------------------------------------------------------------------
+// determine angular context for planar integer implementation.
+
+int
+determineContextAngleForPlanar(
+  PCCOctree3Node& child,
+  const Vec3<int>& headPos,
+  Vec3<int> childSizeLog2,
+  const int* zLaser,
+  const int* thetaLaser,
+  const int numLasers,
+  int deltaAngle,
+  bool* angularIdcm)
+{
+  Vec3<int64_t> absPos = {child.pos[0] << childSizeLog2[0],
+                          child.pos[1] << childSizeLog2[1],
+                          child.pos[2] << childSizeLog2[2]};
+
+  // eligibility
+  Vec3<int64_t> midNode = {1 << (childSizeLog2[0] - 1),
+                           1 << (childSizeLog2[1] - 1),
+                           1 << (childSizeLog2[2] - 1)};
+  uint64_t xLidar =
+    std::abs(((absPos[0] - headPos[0] + midNode[0]) << 8) - 128);
+  uint64_t yLidar =
+    std::abs(((absPos[1] - headPos[1] + midNode[1]) << 8) - 128);
+
+  uint64_t rL1 = (xLidar + yLidar) >> 1;
+  uint64_t deltaAngleR = deltaAngle * rL1;
+  if (deltaAngleR <= (midNode[2] << 26))
+    return -1;
+
+  // determine inverse of r  (1/sqrt(r2) = irsqrt(r2))
+  uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
+  uint64_t rInv = irsqrt(r2);
+
+  // determine non-corrected theta
+  int64_t zLidar = ((absPos[2] - headPos[2] + midNode[2]) << 1) - 1;
+  int64_t theta = zLidar * rInv;
+  int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
+
+  // determine laser
+  int laserIndex = int(child.laserIndex);
+  if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
+    int delta = std::abs(thetaLaser[0] - theta32);
+    laserIndex = 0;
+    for (int j = 1; j < numLasers; j++) {
+      int temp = std::abs(thetaLaser[j] - theta32);
+      if (temp < delta) {
+        delta = temp;
+        laserIndex = j;
+      }
+    }
+    child.laserIndex = uint8_t(laserIndex);
+  } else {
+    *angularIdcm = true;
+  }
+
+  int thetaLaserDelta = thetaLaser[laserIndex] - theta32;
+  int64_t hr = zLaser[laserIndex] * rInv;
+  thetaLaserDelta += hr >= 0 ? -(hr >> 17) : ((-hr) >> 17);
+
+  // determine correction of angles low and high for bottom and top planes
+  int64_t zShift = (rInv << (childSizeLog2[2] + 1)) >> 17;
+  int angleBot = std::abs(thetaLaserDelta - zShift);
+  int angleTop = std::abs(thetaLaserDelta + zShift);
+
+  // determine context
+  int contextAngle = angleBot > angleTop ? 1 : 0;
+  int diff = std::abs(angleBot - angleTop);
+
+  // difference of precision between diff and rinv is 32-18 = 14
+  if (diff >= rInv >> 15)
+    contextAngle += 2;
+  if (diff >= rInv >> 14)
+    contextAngle += 2;
+  if (diff >= rInv >> 13)
+    contextAngle += 2;
+  if (diff >= rInv >> 12)
+    contextAngle += 2;
+
+  return contextAngle;
 }
 
 //============================================================================

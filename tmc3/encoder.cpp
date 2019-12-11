@@ -85,6 +85,15 @@ PCCTMC3Encoder3::compress(
     }
   }
 
+  // Determine the ladar head position relative to the sequence bounding box
+  // NB: currently the sps box offset is unscaled
+  if (params->gps.geom_angular_mode_enabled_flag) {
+    auto origin = params->sps.seq_bounding_box_xyz0;
+    auto scale = params->sps.seq_source_geom_scale_factor;
+    params->gps.geom_angular_lidar_head_position -= origin;
+    params->gps.geom_angular_lidar_head_position *= scale;
+  }
+
   // placeholder to "activate" the parameter sets
   _sps = &params->sps;
   _gps = &params->gps;

@@ -600,6 +600,30 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gbh.geom_octree_qp_offset_depth, -1,
     "Octree depth used for signalling position QP offsets (-1 => disabled)")
 
+  ("angularEnabled",
+    params.encoder.gps.geom_angular_mode_enabled_flag, false,
+    "Controls angular contextualisation of occupancy")
+
+  ("lidarHeadPosition",
+    params.encoder.lidarHeadPosition, {0, 0, 0},
+    "laser head position (x, y, z) in angular mode")
+
+  ("numLasers",
+    params.encoder.numLasers, 0,
+    "Number of lasers in angular mode")
+
+  ("lasersTheta",
+    params.encoder.lasersTheta, {},
+    "Vertical laser angle in angular mode")
+
+  ("lasersZ",
+    params.encoder.lasersZ, {},
+    "Vertical laser offset in angular mode")
+
+  ("planarBufferDisabled",
+    params.encoder.gps.planar_buffer_disabled_flag, false,
+    "Disable planar buffer (when angular mode is enabled)")
+
   (po::Section("Attributes"))
 
   // attribute processing
@@ -900,7 +924,47 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     }
   }
 
+  // convert floating point values of Lasers' Theta and H to fixed point
+  if (params.encoder.gps.geom_angular_mode_enabled_flag) {
+    if (!params.encoder.gps.geom_planar_mode_enabled_flag) {
+      err.error() << "planar mode must be enabled with angular mode\n";
+    }
+
+    params.encoder.gps.geom_angular_lidar_head_position[0] =
+      params.encoder.lidarHeadPosition[0];
+    params.encoder.gps.geom_angular_lidar_head_position[1] =
+      params.encoder.lidarHeadPosition[1];
+    params.encoder.gps.geom_angular_lidar_head_position[2] =
+      params.encoder.lidarHeadPosition[2];
+
+    for (auto val : params.encoder.lasersTheta) {
+      int one = 1 << 18;
+      params.encoder.gps.geom_angular_theta_laser.push_back(round(val * one));
+    }
+
+    for (auto val : params.encoder.lasersZ) {
+      int one = 1 << 3;
+      params.encoder.gps.geom_angular_z_laser.push_back(
+        round(val * params.encoder.sps.seq_source_geom_scale_factor * one));
+    }
+
+    if (
+      params.encoder.gps.geom_angular_theta_laser.size()
+      != params.encoder.numLasers)
+      err.error() << "lasersZ.size() != numLasers\n";
+
+    if (
+      params.encoder.gps.geom_angular_z_laser.size()
+      != params.encoder.numLasers)
+      err.error() << "lasersTheta.size() != numLasers\n";
+  }
+
   // sanity checks
+
+  if (
+    params.encoder.gps.planar_buffer_disabled_flag
+    && !params.encoder.gps.geom_angular_mode_enabled_flag)
+    err.error() << "planar buffer can only be disabled with angular mode\n";
 
   if (
     params.encoder.partition.sliceMaxPoints

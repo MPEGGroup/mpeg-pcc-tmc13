@@ -71,7 +71,8 @@ public:
     int dist,
     int neighb,
     int& h,
-    int planeId);
+    int planeId,
+    int contextAngle);
 
   void determinePlanarMode(
     int index,
@@ -87,7 +88,8 @@ public:
     uint8_t neighPattern,
     int pos,
     int planarProb[3],
-    int planarRate[3]);
+    int planarRate[3],
+    int contextAngle);
 
   void determinePlanarMode(
     PCCPointSet3& pointCloud,
@@ -98,7 +100,8 @@ public:
     int x,
     int y,
     int z,
-    int planarProb[3]);
+    int planarProb[3],
+    int contextAngle);
 
   void encodeOccupancyNeighZ(
     int mappedOccupancy,
@@ -175,6 +178,15 @@ public:
     const Vec3<int32_t>& pos,
     uint8_t planarMode);
 
+  void encodePointPositionAngular(
+    const Vec3<int>& nodeSizeLog2,
+    const Vec3<int32_t>& pos,
+    uint8_t planarMode,
+    const PCCOctree3Node& node,
+    const Vec3<int>& headPos,
+    const int* zLaser,
+    const int* thetaLaser);
+
   void encodeQpOffset(int dqp);
 
   bool encodeDirectPosition(
@@ -182,7 +194,11 @@ public:
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
     const PCCOctree3Node& node,
-    const PCCPointSet3& pointCloud);
+    const PCCPointSet3& pointCloud,
+    bool angularIdcm,
+    const Vec3<int>& headPos,
+    const int* zLaser,
+    const int* thetaLaser);
 
 public:
   // selects between the bitwise and bytewise occupancy coders
@@ -208,6 +224,8 @@ public:
   AdaptiveBitModel _ctxPlanarMode[3][2][2];
   AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][2][6][2];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[10];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[10];
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
@@ -247,8 +265,7 @@ GeometryOctreeEncoder::beginOctreeLevel(int planarDepth)
     _bytewiseOccupancyCoder[i].resetLut();
   }
 
-  if (!_planar._planes3x3.empty())
-    _planar.initPlanes(planarDepth);
+  _planar.initPlanes(planarDepth);
 }
 
 //============================================================================
@@ -278,7 +295,8 @@ GeometryOctreeEncoder::encodePlanarMode(
   int dist,
   int neighb,
   int& h,
-  int planeId)
+  int planeId,
+  int contextAngle)
 {
   const int mask0 = (1 << planeId);
   const int mask1[3] = {6, 5, 3};
@@ -296,18 +314,26 @@ GeometryOctreeEncoder::encodePlanarMode(
   }
 
   // encode the plane index
-  if (plane < 0) {
-    _arithmeticEncoder->encode(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
-    h = approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
-  } else {
-    discreteDist += (dist <= 16 ? 0 : 1);
-    int lastIndexPlane2d = plane + (discreteDist << 1);
+  if (contextAngle == -1) {  // angular mode off
+    if (plane < 0) {
+      _arithmeticEncoder->encode(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
+      h =
+        approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
+    } else {
+      discreteDist += (dist <= 16 ? 0 : 1);
+      int lastIndexPlane2d = plane + (discreteDist << 1);
+      _arithmeticEncoder->encode(
+        planeBit,
+        _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+      h = approxSymbolProbability(
+        planeBit,
+        _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+    }
+  } else {  // angular mode on
     _arithmeticEncoder->encode(
-      planeBit,
-      _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+      planeBit, _ctxPlanarPlaneLastIndexAngular[contextAngle]);
     h = approxSymbolProbability(
-      planeBit,
-      _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posxyz]);
+      planeBit, _ctxPlanarPlaneLastIndexAngular[contextAngle]);
   }
   return planeBit;
 }
@@ -330,7 +356,8 @@ GeometryOctreeEncoder::determinePlanarMode(
   uint8_t neighPattern,
   int pos,
   int planarProb[3],
-  int planarRate[3])
+  int planarRate[3],
+  int contextAngle)
 {
   auto kNumPlanarPlanes = OctreePlanarState::kNumPlanarPlanes;
 
@@ -341,33 +368,55 @@ GeometryOctreeEncoder::determinePlanarMode(
   child.planarMode |= planarMode & planeSelector;
   child.planePosBits |= planePosBits & planeSelector;
 
-  const int shift = coord3 * kNumPlanarPlanes;
-  int* localPlane1 = plane1 + shift;
-  int* localPlane2 = plane2 + shift;
-  int* localPlane3 = plane3 + shift;
+  int* localPlane1;
+  int* localPlane2;
+  int* localPlane3;
 
-  int minDist = std::abs(coord1 - localPlane1[kNumPlanarPlanes - 1])
-    + std::abs(coord2 - localPlane2[kNumPlanarPlanes - 1]);
-  int idxMinDist = kNumPlanarPlanes - 1;
+  int closestPlanarFlag;
+  int closestDist;
 
-  for (int idxP = 0; idxP < kNumPlanarPlanes - 1; idxP++) {
-    int dist0 = std::abs(coord1 - localPlane1[idxP])
-      + std::abs(coord2 - localPlane2[idxP]);
-    if (dist0 < minDist) {
-      idxMinDist = idxP;
-      minDist = dist0;
+  if (!plane1) {
+    // angular: buffer disabled
+    closestPlanarFlag = 0;
+    closestDist = 0;
+  } else {
+    const int shift = coord3 * kNumPlanarPlanes;
+    localPlane1 = plane1 + shift;
+    localPlane2 = plane2 + shift;
+    localPlane3 = plane3 + shift;
+
+    int minDist = std::abs(coord1 - localPlane1[kNumPlanarPlanes - 1])
+      + std::abs(coord2 - localPlane2[kNumPlanarPlanes - 1]);
+    int idxMinDist = kNumPlanarPlanes - 1;
+
+    for (int idxP = 0; idxP < kNumPlanarPlanes - 1; idxP++) {
+      int dist0 = std::abs(coord1 - localPlane1[idxP])
+        + std::abs(coord2 - localPlane2[idxP]);
+      if (dist0 < minDist) {
+        idxMinDist = idxP;
+        minDist = dist0;
+      }
+    }
+
+    // push closest point front
+    localPlane1[kNumPlanarPlanes - 1] = localPlane1[idxMinDist];
+    localPlane2[kNumPlanarPlanes - 1] = localPlane2[idxMinDist];
+    localPlane3[kNumPlanarPlanes - 1] = localPlane3[idxMinDist];
+
+    closestPlanarFlag = localPlane3[kNumPlanarPlanes - 1];
+    closestDist = minDist;
+
+    for (int idxP = 0; idxP < kNumPlanarPlanes - 1;
+         idxP++, localPlane1++, localPlane2++, localPlane3++) {
+      *localPlane1 = *(localPlane1 + 1);
+      *localPlane2 = *(localPlane2 + 1);
+      *localPlane3 = *(localPlane3 + 1);
     }
   }
-
-  // push closest point front
-  localPlane1[kNumPlanarPlanes - 1] = localPlane1[idxMinDist];
-  localPlane2[kNumPlanarPlanes - 1] = localPlane2[idxMinDist];
-  localPlane3[kNumPlanarPlanes - 1] = localPlane3[idxMinDist];
-
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
   int planeBit = encodePlanarMode(
-    child, localPlane3[kNumPlanarPlanes - 1], pos, minDist, adjNeigh,
-    planarProb[planeId], planeId);
+    child, closestPlanarFlag, pos, closestDist, adjNeigh, planarProb[planeId],
+    planeId, contextAngle);
 
   bool isPlanar = (child.planarMode & planeSelector)
     && planarProb[planeId] > kPlanarChildThreshold;
@@ -375,16 +424,11 @@ GeometryOctreeEncoder::determinePlanarMode(
   planarRate[planeId] =
     (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
 
-  for (int idxP = 0; idxP < kNumPlanarPlanes - 1;
-       idxP++, localPlane1++, localPlane2++, localPlane3++) {
-    *localPlane1 = *(localPlane1 + 1);
-    *localPlane2 = *(localPlane2 + 1);
-    *localPlane3 = *(localPlane3 + 1);
+  if (plane1) {
+    *localPlane1 = coord1;
+    *localPlane2 = coord2;
+    *localPlane3 = planeBit;
   }
-
-  *localPlane1 = coord1;
-  *localPlane2 = coord2;
-  *localPlane3 = planeBit;
 }
 
 //============================================================================
@@ -400,7 +444,8 @@ GeometryOctreeEncoder::determinePlanarMode(
   int x,
   int y,
   int z,
-  int planarProb[3])
+  int planarProb[3],
+  int contextAngle)
 {
   // planarity
   uint8_t planarMode, planePosBits;
@@ -417,21 +462,21 @@ GeometryOctreeEncoder::determinePlanarMode(
     determinePlanarMode(
       0, child, planarMode, planePosBits, _planar._planes[1],
       _planar._planes[2], _planar._planes[0], yy, zz, xx, neighPattern, x,
-      planarProb, _planar._rate.data());
+      planarProb, _planar._rate.data(), -1);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
       1, child, planarMode, planePosBits, _planar._planes[3],
       _planar._planes[5], _planar._planes[4], xx, zz, yy, neighPattern, y,
-      planarProb, _planar._rate.data());
+      planarProb, _planar._rate.data(), -1);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
       2, child, planarMode, planePosBits, _planar._planes[6],
       _planar._planes[7], _planar._planes[8], xx, yy, zz, neighPattern, z,
-      planarProb, _planar._rate.data());
+      planarProb, _planar._rate.data(), contextAngle);
   }
 }
 
@@ -815,6 +860,97 @@ GeometryOctreeEncoder::encodePointPosition(
 }
 
 //-------------------------------------------------------------------------
+// Encode a position of a point in a given volume, using elevation angle prior
+
+void
+GeometryOctreeEncoder::encodePointPositionAngular(
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int32_t>& pos,
+  uint8_t planarMode,
+  const PCCOctree3Node& child,
+  const Vec3<int>& headPos,
+  const int* zLaser,
+  const int* thetaLaser)
+{
+  Vec3<int> mask = {0, 0, 0};
+  Vec3<int> posxyz = {(child.pos[0] << nodeSizeLog2[0]) - headPos[0],
+                      (child.pos[1] << nodeSizeLog2[1]) - headPos[1],
+                      (child.pos[2] << nodeSizeLog2[2]) - headPos[2]};
+
+  for (int k = 0; k < 3; k++) {
+    if (nodeSizeLog2[k] <= 0)
+      continue;
+
+    mask[k] = 1 << (nodeSizeLog2[k] - 1);
+    int bit = !!(pos[k] & mask[k]);
+    if (!(planarMode & (1 << k)))
+      _arithmeticEncoder->encode(bit, _ctxEquiProb);
+    if (bit)
+      posxyz[k] += mask[k];
+
+    mask[k] >>= 1;
+  }
+
+  // x, y
+  for (int xy : {0, 1}) {
+    for (int mask2 = mask[xy]; mask2; mask2 >>= 1) {
+      int bit = !!(pos[xy] & mask2);
+      _arithmeticEncoder->encode(bit, _ctxEquiProb);
+      posxyz[xy] += bit ? mask2 : 0;
+    }
+  }
+
+  if (mask[2] == 0)
+    return;
+
+  // Since x and y are known,
+  // r is known too and does not depend on the bit for z
+  uint64_t xLidar = (int64_t(posxyz[0]) << 8) - 128;
+  uint64_t yLidar = (int64_t(posxyz[1]) << 8) - 128;
+  uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
+  int64_t rInv = irsqrt(r2);
+
+  // code bits for z using angular. Eligibility is implicit. Laser is known.
+  int laserIndex = int(child.laserIndex);
+  int64_t hr = zLaser[laserIndex] * rInv;
+  int fixedThetaLaser =
+    thetaLaser[laserIndex] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
+
+  int zShift = (rInv << nodeSizeLog2[2]) >> 17;
+  for (; mask[2]; mask[2] >>= 1, zShift >>= 1) {
+    // determine non-corrected theta
+    int64_t zLidar = ((posxyz[2] + mask[2]) << 1) - 1;
+    int64_t theta = zLidar * rInv;
+    int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
+    int thetaLaserDelta = fixedThetaLaser - theta32;
+
+    // determine correction of angles low and high for bottom and top planes
+    int angleBot = std::abs(thetaLaserDelta - zShift);
+    int angleTop = std::abs(thetaLaserDelta + zShift);
+
+    // determine context
+    int contextAngle = angleBot > angleTop ? 1 : 0;
+    int diff = std::abs(angleBot - angleTop);
+
+    // difference of precision between diff and rinv is 32-18 = 14
+    if (diff >= rInv >> 15)
+      contextAngle += 2;
+    if (diff >= rInv >> 14)
+      contextAngle += 2;
+    if (diff >= rInv >> 13)
+      contextAngle += 2;
+    if (diff >= rInv >> 12)
+      contextAngle += 2;
+
+    int bit = !!(pos[2] & mask[2]);
+    _arithmeticEncoder->encode(
+      bit, _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle]);
+    if (bit)
+      posxyz[2] += mask[2];
+  }
+}
+
+//-------------------------------------------------------------------------
 // Direct coding of position of points in node (early tree termination).
 void
 GeometryOctreeEncoder::encodeQpOffset(int dqp)
@@ -946,7 +1082,11 @@ GeometryOctreeEncoder::encodeDirectPosition(
   const Vec3<int>& nodeSizeLog2,
   int shiftBits,
   const PCCOctree3Node& node,
-  const PCCPointSet3& pointCloud)
+  const PCCPointSet3& pointCloud,
+  bool angularIdcm,
+  const Vec3<int>& headPos,
+  const int* zLaser,
+  const int* thetaLaser)
 {
   int numPoints = node.end - node.start;
   // Check for duplicated points only if there are less than 10.
@@ -984,8 +1124,13 @@ GeometryOctreeEncoder::encodeDirectPosition(
   }
 
   for (auto idx = node.start; idx < node.start + numPoints; idx++) {
-    encodePointPosition(
-      nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode);
+    if (angularIdcm)
+      encodePointPositionAngular(
+        nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode, node,
+        headPos, zLaser, thetaLaser);
+    else
+      encodePointPosition(
+        nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode);
   }
 
   return true;
@@ -1039,6 +1184,21 @@ encodeGeometryOctree(
   auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
   const int idcmThreshold = gps.geom_planar_idcm_threshold * 127 * 127;
+
+  //  Lidar angles for planar prediction
+  const int numLasers = gps.geom_angular_num_lidar_lasers();
+  const int* thetaLaser = gps.geom_angular_theta_laser.data();
+  const int* zLaser = gps.geom_angular_z_laser.data();
+
+  // Lidar position relative to slice origin
+  auto headPos = gps.geom_angular_lidar_head_position - gbh.geomBoxOrigin;
+
+  int deltaAngle = 128 << 18;
+  for (int i = 0; i < numLasers - 1; i++) {
+    int d = std::abs(thetaLaser[i] - thetaLaser[i + 1]);
+    if (deltaAngle > d)
+      deltaAngle = d;
+  }
 
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
@@ -1297,21 +1457,33 @@ encodeGeometryOctree(
         child.end = childPointsStartIdx;
         child.numSiblingsPlus1 = numSiblings;
         child.siblingOccupancy = occupancy;
+        child.laserIndex = node0.laserIndex;
+
+        int contextAngle = -1;
+        bool angularIdcm = false;
+        if (gps.geom_angular_mode_enabled_flag) {
+          contextAngle = determineContextAngleForPlanar(
+            child, headPos, childSizeLog2, zLaser, thetaLaser, numLasers,
+            deltaAngle, &angularIdcm);
+        }
 
         // determine planarity if eligible
         int planarProb[3] = {127, 127, 127};
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           encoder.determinePlanarMode(
             pointCloud, planarEligible, childSizeLog2, child,
-            node0.neighPattern, x, y, z, planarProb);
+            node0.neighPattern, x, y, z, planarProb, contextAngle);
 
         // IDCM
         bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
           && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
+        if (gps.geom_angular_mode_enabled_flag)
+          idcmEnabled = idcmEnabled && angularIdcm;
+
         if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
           bool directModeUsed = encoder.encodeDirectPosition(
             gps.geom_unique_points_flag, effectiveChildSizeLog2, shiftBits,
-            child, pointCloud);
+            child, pointCloud, angularIdcm, headPos, zLaser, thetaLaser);
 
           if (directModeUsed) {
             // inverse quantise any quantised positions

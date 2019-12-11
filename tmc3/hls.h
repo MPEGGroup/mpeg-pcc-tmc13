@@ -287,6 +287,21 @@ struct GeometryParameterSet {
   int geom_planar_threshold1;
   int geom_planar_threshold2;
   int geom_planar_idcm_threshold;
+
+  // Controls the use of xyz-planar mode
+  bool geom_angular_mode_enabled_flag;
+  Vec3<int> geom_angular_lidar_head_position;
+
+  int geom_angular_num_lidar_lasers() const
+  {
+    return geom_angular_theta_laser.size();
+  }
+
+  std::vector<int> geom_angular_theta_laser;
+  std::vector<int> geom_angular_z_laser;
+
+  // disable the use of planar buffer when angular mode is enabled
+  bool planar_buffer_disabled_flag;
 };
 
 //============================================================================

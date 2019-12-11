@@ -219,6 +219,19 @@ write(const GeometryParameterSet& gps)
     bs.writeUe(gps.geom_planar_threshold0);
     bs.writeUe(gps.geom_planar_threshold1);
     bs.writeUe(gps.geom_planar_threshold2);
+    bs.write(gps.geom_angular_mode_enabled_flag);
+  }
+
+  if (gps.geom_angular_mode_enabled_flag) {
+    bs.writeUe(gps.geom_angular_lidar_head_position[0]);
+    bs.writeUe(gps.geom_angular_lidar_head_position[1]);
+    bs.writeUe(gps.geom_angular_lidar_head_position[2]);
+    bs.writeUe(gps.geom_angular_num_lidar_lasers());
+    for (int i = 0; i < gps.geom_angular_num_lidar_lasers(); i++) {
+      bs.writeUe(gps.geom_angular_theta_laser[i] + 1048576);
+      bs.writeUe(gps.geom_angular_z_laser[i] + 1048576);
+    }
+    bs.write(gps.planar_buffer_disabled_flag);
   }
 
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
@@ -268,10 +281,32 @@ parseGps(const PayloadBuffer& buf)
 
   bs.read(&gps.geom_planar_mode_enabled_flag);
   bs.readUe(&gps.geom_planar_idcm_threshold);
+
+  gps.geom_angular_mode_enabled_flag = false;
   if (gps.geom_planar_mode_enabled_flag) {
     bs.readUe(&gps.geom_planar_threshold0);
     bs.readUe(&gps.geom_planar_threshold1);
     bs.readUe(&gps.geom_planar_threshold2);
+    bs.read(&gps.geom_angular_mode_enabled_flag);
+  }
+
+  gps.planar_buffer_disabled_flag = false;
+  if (gps.geom_angular_mode_enabled_flag) {
+    bs.readUe(&gps.geom_angular_lidar_head_position[0]);
+    bs.readUe(&gps.geom_angular_lidar_head_position[1]);
+    bs.readUe(&gps.geom_angular_lidar_head_position[2]);
+
+    int geom_angular_num_lidar_lasers;
+    bs.readUe(&geom_angular_num_lidar_lasers);
+    gps.geom_angular_theta_laser.resize(geom_angular_num_lidar_lasers);
+    gps.geom_angular_z_laser.resize(geom_angular_num_lidar_lasers);
+    for (int i = 0; i < geom_angular_num_lidar_lasers; i++) {
+      bs.readUe(&gps.geom_angular_theta_laser[i]);
+      bs.readUe(&gps.geom_angular_z_laser[i]);
+      gps.geom_angular_theta_laser[i] -= 1048576;
+      gps.geom_angular_z_laser[i] -= 1048576;
+    }
+    bs.read(&gps.planar_buffer_disabled_flag);
   }
 
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);

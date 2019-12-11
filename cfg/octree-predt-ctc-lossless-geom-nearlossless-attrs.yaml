@@ -16,6 +16,13 @@ categories:
      - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
+     -
+       - !conditional '${numLasers}'
+       - angularEnabled: 1
+       - numLasers: '${numLasers}'
+       - lasersTheta: '${lasersTheta}'
+       - lasersZ: '${lasersZ}'
+       - planarBufferDisabled: 1
 
      # default qtbt and planar with cat3-frame exception
      - max_num_implicit_qtbt_before_ot: 4
@@ -25,7 +32,6 @@ categories:
      -
        - !conditional '"${group}" eq "cat3-frame"'
        - max_num_implicit_qtbt_before_ot: 0
-       - planarEnabled: 0
        - planarModeIdcmUse: 127
 
      ####

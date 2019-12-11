@@ -78,6 +78,19 @@ struct EncoderParams {
 
   // attribute recolouring parameters
   RecolourParams recolour;
+
+  // LiDAR head position (expressed at the precision of the volume with
+  // seq_source_geom_scale_factor)
+  Vec3<int> lidarHeadPosition;
+
+  // number of expected lasers
+  int numLasers;
+
+  // floating Lasers' theta (have to be converted to fixed point in gps)
+  std::vector<double> lasersTheta;
+
+  // floating Lasers' H (have to be converted to fixed point in gps)
+  std::vector<double> lasersZ;
 };
 
 //============================================================================
