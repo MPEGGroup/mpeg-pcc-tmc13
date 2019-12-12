@@ -83,6 +83,21 @@ void decodeGeometryTrisoup(
   PCCPointSet3& pointCloud,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
+//----------------------------------------------------------------------------
+
+void encodePredictiveGeometry(
+  const PredGeomEncOpts& opt,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  EntropyEncoder* arithmeticEncoder);
+
+void decodePredictiveGeometry(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  EntropyDecoder* arithmeticDecoder);
+
 //============================================================================
 
 }  // namespace pcc

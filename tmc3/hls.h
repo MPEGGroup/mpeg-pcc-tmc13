@@ -269,6 +269,9 @@ struct GeometryParameterSet {
   // Default scaling factor for per-slice geometry box origin
   int gps_geom_box_log2_scale;
 
+  // Selects between predictive and octree geometry coding methods.
+  bool predgeom_enabled_flag;
+
   // Controls the ability to represent multiple points (with associated
   // attributes) at the same spatial position.
   bool geom_unique_points_flag;

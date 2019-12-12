@@ -47,6 +47,7 @@
 #include "pointset_processing.h"
 #include "hls.h"
 #include "partitioning.h"
+#include "geometry.h"
 
 namespace pcc {
 
@@ -76,6 +77,9 @@ struct EncoderParams {
 
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
+
+  // Options for the predictive geometry coder
+  PredGeomEncOpts predGeom;
 
   // Parameters that control partitioning
   PartitionParams partition;

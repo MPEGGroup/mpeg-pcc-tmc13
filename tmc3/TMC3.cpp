@@ -252,6 +252,14 @@ operator>>(std::istream& in, PartitionMethod& val)
 }  // namespace pcc
 
 namespace pcc {
+static std::istream&
+operator>>(std::istream& in, PredGeomEncOpts::SortMode& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
 static std::ostream&
 operator<<(std::ostream& out, const ColourMatrix& val)
 {
@@ -316,6 +324,22 @@ operator<<(std::ostream& out, const PartitionMethod& val)
   case PartitionMethod::kUniformGeom: out << "2 (UniformGeom)"; break;
   case PartitionMethod::kOctreeUniform: out << "3 (UniformOctree)"; break;
   case PartitionMethod::kUniformSquare: out << "4 (UniformSquare)"; break;
+  default: out << int(val) << " (Unknown)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const PredGeomEncOpts::SortMode& val)
+{
+  switch (val) {
+    using SortMode = PredGeomEncOpts::SortMode;
+  case SortMode::kNoSort: out << int(val) << " (None)"; break;
+  case SortMode::kSortMorton: out << int(val) << " (Morton)"; break;
+  case SortMode::kSortAzimuth: out << int(val) << " (Azimuth)"; break;
+  case SortMode::kSortRadius: out << int(val) << " (Radius)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -533,6 +557,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   (po::Section("Geometry"))
 
+  ("geomTreeType",
+    params.encoder.gps.predgeom_enabled_flag, false,
+    "Selects the tree coding method\n"
+    "  0: octree\n"
+    "  1: predictive")
+
   ("qtbtEnabled",
     params.encoder.gps.qtbt_enabled_flag, true,
     "Enables non-cubic geometry bounding box")
@@ -661,6 +691,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("planarBufferDisabled",
     params.encoder.gps.planar_buffer_disabled_flag, false,
     "Disable planar buffer (when angular mode is enabled)")
+
+  ("predGeomSort",
+    params.encoder.predGeom.sortMode, PredGeomEncOpts::kSortMorton,
+    "Predictive geometry tree construction order")
+
+  ("predGeomTreePtsMax",
+    params.encoder.predGeom.maxPtsPerTree, 1100000,
+    "Maximum number of points per predictive geometry tree")
 
   (po::Section("Attributes"))
 

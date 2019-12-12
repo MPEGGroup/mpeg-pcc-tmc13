@@ -260,6 +260,14 @@ countingSort(
 
 //---------------------------------------------------------------------------
 
+struct NoOp {
+  template<typename... Args>
+  void operator()(Args...)
+  {}
+};
+
+//---------------------------------------------------------------------------
+
 template<typename It, typename ValueOp, typename AccumOp>
 void
 radixSort8WithAccum(int maxValLog2, It begin, It end, ValueOp op, AccumOp acc)
@@ -282,6 +290,15 @@ radixSort8WithAccum(int maxValLog2, It begin, It end, ValueOp op, AccumOp acc)
     radixSort8WithAccum(maxValLog2, childBegin, childEnd, op, acc);
     childBegin = childEnd;
   }
+}
+
+//---------------------------------------------------------------------------
+
+template<typename It, typename ValueOp>
+void
+radixSort8(int maxValLog2, It begin, It end, ValueOp op)
+{
+  radixSort8WithAccum(maxValLog2, begin, end, op, NoOp());
 }
 
 //----------------------------------------------------------------------------

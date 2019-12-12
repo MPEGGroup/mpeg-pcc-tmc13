@@ -262,7 +262,12 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
   size_t bufRemaining = buf.size() - gbhSize;
   const char* bufPtr = buf.data() + gbhSize;
-  for (int i = 0; i < 1 + _gbh.geom_octree_parallel_max_node_size_log2; i++) {
+
+  int numGeomStreams = 1 + _gbh.geom_octree_parallel_max_node_size_log2;
+  if (_gps->predgeom_enabled_flag)
+    numGeomStreams = 1;
+
+  for (int i = 0; i < numGeomStreams; i++) {
     arithmeticDecoders.emplace_back(new EntropyDecoder);
     auto& aec = arithmeticDecoders.back();
 
@@ -277,9 +282,11 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     bufRemaining -= bufLen;
   }
 
-  if (_gps->trisoup_node_size_log2 == 0) {
-    _currentPointCloud.resize(_gbh.geom_num_points_minus1 + 1);
-
+  _currentPointCloud.resize(_gbh.geom_num_points_minus1 + 1);
+  if (_gps->predgeom_enabled_flag)
+    decodePredictiveGeometry(
+      *_gps, _gbh, _currentPointCloud, arithmeticDecoders[0].get());
+  else if (_gps->trisoup_node_size_log2 == 0) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
         *_gps, _gbh, _currentPointCloud, arithmeticDecoders);

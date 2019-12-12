@@ -61,4 +61,19 @@ struct OctreeEncOpts {
 
 //=============================================================================
 
+struct PredGeomEncOpts {
+  enum SortMode
+  {
+    kNoSort,
+    kSortMorton,
+    kSortAzimuth,
+    kSortRadius
+  } sortMode;
+
+  // limit on number of points per tree
+  int maxPtsPerTree;
+};
+
+//=============================================================================
+
 }  // namespace pcc

@@ -91,12 +91,10 @@ PCCTMC3Encoder3::compress(
 
     // Determine the ladar head position relative to the sequence bounding box
     // NB: currently the sps box offset is unscaled
-    if (params->gps.geom_angular_mode_enabled_flag) {
-      auto origin = params->sps.seqBoundingBoxOrigin;
-      auto scale = params->sps.seq_source_geom_scale_factor;
-      params->gps.geomAngularOrigin -= origin;
-      params->gps.geomAngularOrigin *= scale;
-    }
+    auto origin = params->sps.seqBoundingBoxOrigin;
+    auto scale = params->sps.seq_source_geom_scale_factor;
+    params->gps.geomAngularOrigin -= origin;
+    params->gps.geomAngularOrigin *= scale;
   }
 
   // placeholder to "activate" the parameter sets
@@ -559,10 +557,13 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     aec->start();
   }
 
-  if (_gps->trisoup_node_size_log2 == 0) {
+  if (_gps->predgeom_enabled_flag)
+    encodePredictiveGeometry(
+      params->predGeom, *_gps, gbh, pointCloud, arithmeticEncoders[0].get());
+  else if (_gps->trisoup_node_size_log2 == 0)
     encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
-  } else {
+  else {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
     gbh.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;

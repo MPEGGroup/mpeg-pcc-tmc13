@@ -237,6 +237,14 @@ Controls the entropy coding method used for equi-probable (bypass) bins:
 Geometry coding
 ---------------
 
+### `--geomTreeType=0|1`
+Selects the geometry tree coding method.
+
+  | Value | Description              |
+  |:-----:| -------------------------|
+  | 0     | Octree                   |
+  | 1     | Predictive geometry tree |
+
 ### `--positionQuantisationEnabled=0|1`
 Enables in-loop quantisation and reconstruction of geometry positions.
 
@@ -405,6 +413,23 @@ generated per triangle.
 The automatic mode will find the smallest sampling value that such that
 the number of generated points does not exceed the slice limit set by
 `sliceMaxPoints`.
+
+### `--predGeomSort=INT-VALUE`
+Point order used to construct predictive geometry trees.
+Requires `geomTreeType=1`.
+
+ | Value | Description     |
+ |:-----:| ----------------|
+ | 0     | none            |
+ | 1     | morton order    |
+ | 2     | azimuth angle   |
+ | 3     | radial distance |
+
+
+### `--predGeomTreePtsMax=INT-VALUE`
+Maximum number of points per predictive geometry tree.  A slice may contain
+more than one predictive geometry tree.
+Requires `geomTreeType=1`.
 
 
 Attribute coding
