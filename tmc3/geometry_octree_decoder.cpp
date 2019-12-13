@@ -1149,8 +1149,13 @@ decodeGeometryOctree(
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
 
   // the termination depth of the octree phase
-  int maxDepth =
-    nodeMaxDimLog2 - std::max(minNodeSizeLog2, gps.trisoup_node_size_log2);
+  // NB: the tree depth may be greater than the maxNodeSizeLog2 due to
+  //     perverse qtbt splitting.
+  int maxDepth = std::count_if(
+    lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
+    [](const Vec3<int>& nodeSize) { return !isLeafNode(nodeSize); });
+  maxDepth -= std::max(minNodeSizeLog2, gps.trisoup_node_size_log2);
+
   for (int depth = 0; depth < maxDepth; depth++) {
     // setup at the start of each level
     auto fifoCurrLvlEnd = fifo.end();

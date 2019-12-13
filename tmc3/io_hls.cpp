@@ -234,6 +234,11 @@ write(const GeometryParameterSet& gps)
     bs.write(gps.planar_buffer_disabled_flag);
   }
 
+  if (gps.geom_angular_mode_enabled_flag && gps.implicit_qtbt_enabled_flag) {
+    bs.writeUe(gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z);
+    bs.writeUe(gps.implicit_qtbt_angular_max_diff_to_split_z);
+  }
+
   bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
@@ -307,6 +312,13 @@ parseGps(const PayloadBuffer& buf)
       gps.geom_angular_z_laser[i] -= 1048576;
     }
     bs.read(&gps.planar_buffer_disabled_flag);
+  }
+
+  gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z = 0;
+  gps.implicit_qtbt_angular_max_diff_to_split_z = 0;
+  if (gps.geom_angular_mode_enabled_flag && gps.implicit_qtbt_enabled_flag) {
+    bs.readUe(&gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z);
+    bs.readUe(&gps.implicit_qtbt_angular_max_diff_to_split_z);
   }
 
   bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);

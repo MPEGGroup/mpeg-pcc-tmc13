@@ -957,6 +957,16 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       params.encoder.gps.geom_angular_z_laser.size()
       != params.encoder.numLasers)
       err.error() << "lasersTheta.size() != numLasers\n";
+
+    if (params.encoder.gps.implicit_qtbt_enabled_flag) {
+      params.encoder.gps
+        .implicit_qtbt_angular_max_node_min_dim_log2_to_split_z =
+        std::max<int>(
+          0, 6 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+      params.encoder.gps.implicit_qtbt_angular_max_diff_to_split_z =
+        std::max<int>(
+          0, 3 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+    }
   }
 
   // sanity checks

@@ -302,6 +302,10 @@ struct GeometryParameterSet {
 
   // disable the use of planar buffer when angular mode is enabled
   bool planar_buffer_disabled_flag;
+
+  // implicit qtbt parameters
+  int implicit_qtbt_angular_max_node_min_dim_log2_to_split_z;
+  int implicit_qtbt_angular_max_diff_to_split_z;
 };
 
 //============================================================================

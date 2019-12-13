@@ -66,10 +66,10 @@ mkQtBtNodeSizeList(
     nodeSizeLog2, gps.trisoup_node_size_log2, &maxNumImplicitQtbtBeforeOt,
     &minSizeImplicitQtbt);
 
-  for (; nodeMaxDimLog2 > 0; nodeMaxDimLog2--) {
+  while (!isLeafNode(nodeSizeLog2)) {
     // implicit qtbt for current node
     nodeSizeLog2 = implicitQtBtDecision(
-      nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+      gps, nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
     nodeSizeLog2List.push_back(nodeSizeLog2);
 
     if (maxNumImplicitQtbtBeforeOt)

@@ -238,10 +238,15 @@ std::vector<Vec3<int>> mkQtBtNodeSizeList(
 
 inline Vec3<int>
 implicitQtBtDecision(
+  const GeometryParameterSet& gps,
   Vec3<int> nodeSizeLog2,
   int maxNumImplicitQtbtBeforeOt,
   int minDepthImplicitQtbt)
 {
+  int maxNodeMinDimLog2ToSplitZ =
+    gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z;
+  int maxDiffToSplitZ = gps.implicit_qtbt_angular_max_diff_to_split_z;
+
   int nodeMinDimLog2 =
     std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
 
@@ -253,6 +258,21 @@ implicitQtBtDecision(
       if (nodeSizeLog2[k] == nodeMaxDimLog2)
         nodeSizeLog2[k]--;
     }
+  } else if (
+    gps.geom_angular_mode_enabled_flag
+    && (maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ > 0)) {
+    // implicit xy qt bt : do not split z
+    int nodeXYMaxDimLog2 = std::max({nodeSizeLog2[0], nodeSizeLog2[1]});
+    for (int k = 0; k < 2; k++) {
+      if (nodeSizeLog2[k] == nodeXYMaxDimLog2)
+        nodeSizeLog2[k]--;
+    }
+    if (
+      (nodeMinDimLog2 <= maxNodeMinDimLog2ToSplitZ
+       && nodeSizeLog2[2] >= nodeXYMaxDimLog2 + maxDiffToSplitZ)
+      || (nodeXYMaxDimLog2 >= maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ
+          && nodeSizeLog2[2] >= nodeXYMaxDimLog2))
+      nodeSizeLog2[2]--;
   } else  // octree partition
     nodeSizeLog2 = nodeSizeLog2 - 1;
 
