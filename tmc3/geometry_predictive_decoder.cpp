@@ -63,6 +63,7 @@ public:
   int decodeTree(Vec3<int32_t>* outputPoints);
 
 private:
+  int decodeNumDuplicatePoints();
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   Vec3<int32_t> decodeResidual();
@@ -74,6 +75,17 @@ private:
 };
 
 //============================================================================
+
+int
+PredGeomDecoder::decodeNumDuplicatePoints()
+{
+  bool num_dup_points_gt0 = _aed->decode(_ctxNumDupPointsGt0);
+  if (!num_dup_points_gt0)
+    return 0;
+  return 1 + _aed->decodeExpGolomb(0, _ctxBypass, _ctxNumDupPoints);
+}
+
+//----------------------------------------------------------------------------
 
 int
 PredGeomDecoder::decodeNumChildren()
@@ -150,6 +162,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
     auto curNodeIdx = nodeCount++;
     _nodeIdxToParentIdx[curNodeIdx] = parentNodeIdx;
 
+    int numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
     auto residual = decodeResidual();
@@ -159,6 +172,9 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
 
     auto pred = predicter.predict(outputPoints, mode);
     outputPoints[curNodeIdx] = pred + residual;
+
+    for (int i = 0; i < numDuplicatePoints; i++)
+      outputPoints[nodeCount++] = outputPoints[curNodeIdx];
 
     for (int i = 0; i < numChildren; i++)
       _stack.push_back(curNodeIdx);

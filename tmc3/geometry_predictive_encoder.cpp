@@ -95,6 +95,7 @@ public:
     int rootIdx,
     int* codedOrder);
 
+  void encodeNumDuplicatePoints(int numDupPoints);
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
   void encodeResidual(const Vec3<int32_t>& residual);
@@ -107,6 +108,16 @@ private:
 };
 
 //============================================================================
+
+void
+PredGeomEncoder::encodeNumDuplicatePoints(int numDupPoints)
+{
+  _aec->encode(numDupPoints > 0, _ctxNumDupPointsGt0);
+  if (numDupPoints)
+    _aec->encodeExpGolomb(numDupPoints - 1, 0, _ctxBypass, _ctxNumDupPoints);
+}
+
+//----------------------------------------------------------------------------
 
 void
 PredGeomEncoder::encodeNumChildren(int numChildren)
@@ -214,7 +225,6 @@ PredGeomEncoder::encodeTree(
     const auto nodeIdx = _stack.back();
     _stack.pop_back();
 
-    codedOrder[processedNodes++] = nodeIdx;
     const auto& node = nodes[nodeIdx];
     const auto point = cloud[nodeIdx];
 
@@ -245,9 +255,16 @@ PredGeomEncoder::encodeTree(
     }
 
     assert(node.childrenCount <= GNode::MaxChildrenCount);
+    encodeNumDuplicatePoints(node.numDups);
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
     encodeResidual(best.residual);
+
+    // NB: the coded order of duplicate points assumes that the duplicates
+    // are consecutive -- in order that the correct attributes are coded.
+    codedOrder[processedNodes++] = nodeIdx;
+    for (int i = 1; i <= node.numDups; i++)
+      codedOrder[processedNodes++] = nodeIdx + i;
 
     for (int i = 0; i < node.childrenCount; i++) {
       _stack.push_back(node.children[i]);
@@ -314,9 +331,19 @@ generateGeomPredictionTree(
   // the prediction tree, one node for each point
   std::vector<GNode> nodes(pointCount);
 
-  for (int32_t nodeIdx = 0; nodeIdx < pointCount; ++nodeIdx) {
+  for (int nodeIdx = 0, nodeIdxN; nodeIdx < pointCount; nodeIdx = nodeIdxN) {
     auto& node = nodes[nodeIdx];
     auto queryPoint = begin[nodeIdx];
+
+    // scan for duplicate points
+    // NB: the tree coder assumes that duplicate point indices are consecutive
+    // If this guarantee is changed, then the tree coder must be modified too.
+    node.numDups = 0;
+    for (nodeIdxN = nodeIdx + 1; nodeIdxN < pointCount; nodeIdxN++) {
+      if (queryPoint != begin[nodeIdxN])
+        break;
+      node.numDups++;
+    }
 
     int32_t nnPredictedPointIdx[GNode::MaxChildrenCount];
     int64_t nnPredictedDist[GNode::MaxChildrenCount];

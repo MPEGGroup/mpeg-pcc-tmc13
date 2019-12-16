@@ -64,6 +64,7 @@ struct GPredicter {
 struct GNode {
   static const int32_t MaxChildrenCount = 3;
 
+  int numDups;
   int32_t parent;
   int32_t childrenCount;
   int32_t children[MaxChildrenCount];
@@ -78,6 +79,8 @@ struct PredGeomCodec {
   AdaptiveBitModel _ctxIsZero[3];
   AdaptiveBitModel _ctxSign[3];
   AdaptiveBitModel _ctxNumBits[12][3][31];
+  AdaptiveBitModel _ctxNumDupPointsGt0;
+  AdaptiveBitModel _ctxNumDupPoints;
 };
 
 //============================================================================
