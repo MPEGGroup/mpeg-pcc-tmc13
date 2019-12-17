@@ -441,7 +441,8 @@ namespace nanoflann
       template <typename U, typename V>
       inline DistanceType accum_dist(const U a, const V b, int ) const
       {
-        return (a - b) * (a - b);
+        DistanceType diff { a - b };
+        return diff * diff;
       }
     };
     
