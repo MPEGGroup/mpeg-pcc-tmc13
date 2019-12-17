@@ -932,7 +932,7 @@ namespace nanoflann
         cutfeat = 0;
         for (int i = 0; i < (DIM > 0 ? DIM : obj.dim); ++i) {
           ElementType span = bbox[i].high-bbox[i].low;
-          if (span > (1 - EPS) * max_span) {
+          if (span >= (1 - EPS) * max_span) {
             ElementType min_elem, max_elem;
             computeMinMax(obj, ind, count, i, min_elem, max_elem);
             ElementType spread = max_elem - min_elem;;
