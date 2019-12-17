@@ -783,7 +783,7 @@ namespace nanoflann
           struct nonleaf
           {
             int          divfeat; //!< Dimension used for subdivision.
-            DistanceType divlow, divhigh; //!< The values used for subdivision.
+            ElementType  divlow, divhigh; //!< The values used for subdivision.
           } sub;
         } node_type;
         Node *child1, *child2;  //!< Child nodes (both=NULL mean its a leaf node)
@@ -893,7 +893,7 @@ namespace nanoflann
         else {
           IndexType idx;
           int cutfeat;
-          DistanceType cutval;
+          ElementType cutval;
           middleSplit_(obj, &obj.vind[0] + left, right - left, idx, cutfeat, cutval, bbox);
           
           node->node_type.sub.divfeat = cutfeat;
@@ -918,9 +918,9 @@ namespace nanoflann
         return node;
       }
       
-      void middleSplit_(Derived &obj, IndexType* ind, IndexType count, IndexType& index, int& cutfeat, DistanceType& cutval, const BoundingBox& bbox)
+      void middleSplit_(Derived &obj, IndexType* ind, IndexType count, IndexType& index, int& cutfeat, ElementType& cutval, const BoundingBox& bbox)
       {
-        const DistanceType EPS = static_cast<DistanceType>(0.00001);
+        const ElementType EPS = static_cast<ElementType>(0.00001);
         ElementType max_span = bbox[0].high-bbox[0].low;
         for (int i = 1; i < (DIM > 0 ? DIM : obj.dim); ++i) {
           ElementType span = bbox[i].high - bbox[i].low;
@@ -943,7 +943,7 @@ namespace nanoflann
           }
         }
         // split in the middle
-        DistanceType split_val = (bbox[cutfeat].low + bbox[cutfeat].high) / 2;
+        ElementType split_val = (bbox[cutfeat].low + bbox[cutfeat].high) / 2;
         ElementType min_elem, max_elem;
         computeMinMax(obj, ind, count, cutfeat, min_elem, max_elem);
         
@@ -968,7 +968,7 @@ namespace nanoflann
        *  dataset[ind[lim1..lim2-1]][cutfeat]==cutval
        *  dataset[ind[lim2..count]][cutfeat]>cutval
        */
-      void planeSplit(Derived &obj, IndexType* ind, const IndexType count, int cutfeat, DistanceType &cutval, IndexType& lim1, IndexType& lim2)
+      void planeSplit(Derived &obj, IndexType* ind, const IndexType count, int cutfeat, ElementType &cutval, IndexType& lim1, IndexType& lim2)
       {
         /* Move vector indices for left subtree to front of list. */
         IndexType left = 0;
