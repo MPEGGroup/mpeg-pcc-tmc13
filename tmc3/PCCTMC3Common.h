@@ -592,7 +592,6 @@ updateNearestNeighbor(
   const int32_t nodeSizeLog2,
   const int32_t predictorIndex,
   const point_t& point,
-  int tieBreaker,
   PCCPredictor& predictor)
 {
   const int32_t pointIndex1 = packedVoxel[predictorIndex].index;
@@ -606,7 +605,7 @@ updateNearestNeighbor(
     norm2 = norm2 * norm2;
   }
   predictor.insertNeighbor(
-    pointIndex1, norm2, aps.num_pred_nearest_neighbours, tieBreaker);
+    pointIndex1, norm2, aps.num_pred_nearest_neighbours, 0);
 }
 
 //---------------------------------------------------------------------------
@@ -626,6 +625,7 @@ computeNearestNeighbors(
   int32_t& predIndex,
   std::vector<Box3<int32_t>>& bBoxes)
 {
+  constexpr auto searchRangeNear = 2;
   const int32_t retainedSize = retained.size();
   const int32_t bucketSize = 8;
   bBoxes.resize((retainedSize + bucketSize - 1) / bucketSize);
@@ -681,72 +681,97 @@ computeNearestNeighbors(
 
     predictor.init();
 
-    const int32_t j0 = std::max(0, j - aps.search_range);
-    const int32_t j1 = std::min(retainedSize, j + aps.search_range + 1);
+    const int32_t k0 = std::max(0, j - aps.search_range);
+    const int32_t k1 = std::min(retainedSize - 1, j + aps.search_range);
 
-    const int32_t bucketIndex0 = j / bucketSize;
-    int32_t k0 = std::max(bucketIndex0 * bucketSize, j0);
-    int32_t k1 = std::min((bucketIndex0 + 1) * bucketSize, j1);
-
-    for (int32_t k = k0; k < k1; ++k) {
+    if (retainedSize)
       updateNearestNeighbor(
-        aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
-        indexTieBreaker(k, j), predictor);
+        aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
+        predictor);
+
+    for (int32_t n = 1; n <= searchRangeNear; ++n) {
+      const int32_t kp = j + n;
+      if (kp <= k1) {
+        updateNearestNeighbor(
+          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kp], point,
+          predictor);
+      }
+      const int32_t kn = j - n;
+      if (kn >= k0) {
+        updateNearestNeighbor(
+          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kn], point,
+          predictor);
+      }
     }
 
-    for (int32_t s0 = 1, sr = 1 + aps.search_range / bucketSize; s0 < sr;
-         ++s0) {
-      for (int32_t s1 = 0; s1 < 2; ++s1) {
-        const int32_t bucketIndex1 =
-          s1 == 0 ? bucketIndex0 + s0 : bucketIndex0 - s0;
-        if (bucketIndex1 < 0 || bucketIndex1 >= bBoxes.size()) {
-          continue;
+    const int32_t p0 = j - searchRangeNear - 1;
+    const int32_t p1 = j + searchRangeNear + 1;
+    // process p1..k1
+    const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
+    for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
+         ++bucketIndex) {
+      if (
+        predictor.neighborCount < aps.num_pred_nearest_neighbours
+        || bBoxes[bucketIndex].getDist2<int64_t>(point)
+          <= predictor.neighbors[index0].weight) {
+        const int32_t indexBucketAligned = bucketIndex * bucketSize;
+        const int32_t h0 = std::max(p1, indexBucketAligned);
+        const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize - 1);
+        for (int32_t k = h0; k <= h1; ++k) {
+          updateNearestNeighbor(
+            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+            predictor);
         }
-        if (
-          predictor.neighborCount < aps.num_pred_nearest_neighbours
-          || bBoxes[bucketIndex1].getDist2<int64_t>(point)
-            <= predictor.neighbors[index0].weight) {
-          const int32_t k0 = std::max(bucketIndex1 * bucketSize, j0);
-          const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
-          for (int32_t k = k0; k < k1; ++k) {
-            updateNearestNeighbor(
-              aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
-              indexTieBreaker(k, j), predictor);
-          }
+      }
+    }
+
+    // process k0..p0
+    const int32_t bucketIndex0 = k0 / bucketSize;
+    for (int32_t bucketIndex = p0 / bucketSize; bucketIndex >= bucketIndex0;
+         --bucketIndex) {
+      if (
+        predictor.neighborCount < aps.num_pred_nearest_neighbours
+        || bBoxes[bucketIndex].getDist2<int64_t>(point)
+          <= predictor.neighbors[index0].weight) {
+        const int32_t indexBucketAligned = bucketIndex * bucketSize;
+        const int32_t h0 = std::max(k0, indexBucketAligned);
+        const int32_t h1 = std::min(p0, indexBucketAligned + bucketSize - 1);
+        for (int32_t k = h1; k >= h0; --k) {
+          updateNearestNeighbor(
+            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+            predictor);
         }
       }
     }
 
     if (aps.intra_lod_prediction_enabled_flag) {
-      const int32_t i0 = i - startIndex;
-      const int32_t j1 = std::min(indexesSize, i0 + aps.search_range + 1);
-      const int32_t bucketIndex0 = i0 / bucketSize;
-      int32_t k0 = i0 + 1;
-      int32_t k1 = std::min((bucketIndex0 + 1) * bucketSize, j1);
-
-      for (int32_t k = k0; k < k1; ++k) {
+      const int32_t k00 = i + 1;
+      const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
+      for (int32_t k = k00; k <= k01; ++k) {
         updateNearestNeighbor(
-          aps, pointCloud, packedVoxel, nodeSizeLog2, indexes[startIndex + k],
-          point, startIndex + k - i + 2 * aps.search_range, predictor);
+          aps, pointCloud, packedVoxel, nodeSizeLog2, indexes[k], point,
+          predictor);
       }
 
-      for (int32_t s0 = 1, sr = 1 + aps.search_range / bucketSize; s0 < sr;
-           ++s0) {
-        const int32_t bucketIndex1 = bucketIndex0 + s0;
-        if (bucketIndex1 >= bBoxesI.size())
-          continue;
-
+      const int32_t k0 = k01 + 1 - startIndex;
+      const int32_t k1 =
+        std::min(endIndex - 1, k00 + aps.search_range) - startIndex;
+      const int32_t bucketIndex0 = k0 / bucketSize;
+      const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
+      for (int32_t bucketIndex = bucketIndex0; bucketIndex < bucketIndex1;
+           ++bucketIndex) {
         if (
           predictor.neighborCount < aps.num_pred_nearest_neighbours
-          || bBoxesI[bucketIndex1].getDist2<int64_t>(point)
+          || bBoxesI[bucketIndex].getDist2<int64_t>(point)
             <= predictor.neighbors[index0].weight) {
-          const int32_t k0 = bucketIndex1 * bucketSize;
-          const int32_t k1 = std::min((bucketIndex1 + 1) * bucketSize, j1);
-          for (int32_t k = k0; k < k1; ++k) {
+          const int32_t indexBucketAligned = bucketIndex * bucketSize;
+          const int32_t h0 = std::max(k0, indexBucketAligned);
+          const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize);
+          for (int32_t h = h0; h < h1; ++h) {
+            const int32_t k = startIndex + h;
             updateNearestNeighbor(
-              aps, pointCloud, packedVoxel, nodeSizeLog2,
-              indexes[startIndex + k], point,
-              startIndex + k - i + 2 * aps.search_range, predictor);
+              aps, pointCloud, packedVoxel, nodeSizeLog2, indexes[k], point,
+              predictor);
           }
         }
       }
