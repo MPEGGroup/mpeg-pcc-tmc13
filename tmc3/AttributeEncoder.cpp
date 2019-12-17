@@ -358,7 +358,7 @@ AttributeEncoder::encode(
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
-      _lods.generate(attr_aps, 0, pointCloud);
+    _lods.generate(attr_aps, 0, pointCloud);
 
   if (desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {

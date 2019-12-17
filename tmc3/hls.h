@@ -349,7 +349,8 @@ struct AttributeParameterSet {
   int aps_seq_parameter_set_id;
   AttributeEncoding attr_encoding;
 
-  bool lodParametersPresent() const {
+  bool lodParametersPresent() const
+  {
     return attr_encoding == AttributeEncoding::kLiftingTransform
       || attr_encoding == AttributeEncoding::kPredictingTransform;
   }
