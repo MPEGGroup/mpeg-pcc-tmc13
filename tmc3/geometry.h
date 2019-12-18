@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "PCCPointSet.h"
+#include "partitioning.h"
 #include "entropy.h"
 #include "hls.h"
 

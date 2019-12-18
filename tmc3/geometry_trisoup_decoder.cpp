@@ -108,7 +108,11 @@ decodeGeometryTrisoup(
   AdaptiveBitModel ctxTemp;
   StaticBitModel ctxBypass;
 
+  uint32_t samplingValue;
+
   // Decode segind from bitstream.
+  samplingValue =
+    1 + arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
   symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
 
   AdaptiveMAryModel multiSymbolSegindModel0(256);
@@ -131,7 +135,8 @@ decodeGeometryTrisoup(
 
   // Compute refinedVertices.
   int32_t maxval = (1 << gbh.geomMaxNodeSizeLog2(gps)) - 1;
-  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
+  decodeTrisoupCommon(
+    nodes, segind, vertices, pointCloud, blockWidth, maxval, samplingValue);
 }
 
 //============================================================================
@@ -282,7 +287,8 @@ decodeTrisoupCommon(
   const std::vector<uint8_t>& vertices,
   PCCPointSet3& pointCloud,
   int defaultBlockWidth,
-  int poistionClipValue)
+  int poistionClipValue,
+  uint32_t samplingValue)
 {
   // Put all leaves' sgements into a list.
   std::vector<TrisoupSegment> segments;
@@ -552,8 +558,8 @@ decodeTrisoupCommon(
             std::max(v0[g2pos[direction]], v1[g2pos[direction]]),
             v2[g2pos[direction]])
           >> kTrisoupFpBits;
-        for (g1 = startposG1; g1 <= endposG1; g1++) {
-          for (g2 = startposG2; g2 <= endposG2; g2++) {
+        for (g1 = startposG1; g1 <= endposG1; g1 += samplingValue) {
+          for (g2 = startposG2; g2 <= endposG2; g2 += samplingValue) {
             std::vector<Vec3<int64_t>> intersectionVertices;
             for (int sign = -1; sign <= 1; sign += 2) {
               const int rayStart = (sign > 0 ? -1 : poistionClipValue + 1);

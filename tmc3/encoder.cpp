@@ -499,6 +499,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   if (_gps->trisoup_node_size_log2 == 0) {
     encodeGeometryOctree(*_gps, gbh, pointCloud, arithmeticEncoders);
   } else {
+    // limit the number of points to the slice limit
+    // todo(df): this should be derived from the level
+    gbh.geom_num_points = params->partition.sliceMaxPoints;
     encodeGeometryTrisoup(*_gps, gbh, pointCloud, arithmeticEncoders);
   }
 

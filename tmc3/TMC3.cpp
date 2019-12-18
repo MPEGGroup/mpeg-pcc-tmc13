@@ -584,6 +584,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Size of nodes for surface triangulation.\n"
     "  0: disabled\n")
 
+  ("trisoup_sampling_value",
+    params.encoder.gps.trisoup_sampling_value, 0,
+    "Trisoup voxelisation sampling rate\n"
+    "  0: automatic")
+
   ("positionQuantisationEnabled",
     params.encoder.gps.geom_scaling_enabled_flag, false,
     "Enable in-loop quantisation of positions")

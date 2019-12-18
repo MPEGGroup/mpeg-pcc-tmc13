@@ -265,6 +265,10 @@ struct GeometryParameterSet {
   // a value of zero disables the feature
   int trisoup_node_size_log2;
 
+  // sampling value of trisoup decoding process
+  // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
+  int trisoup_sampling_value;
+
   // controls the ability to perform in-loop geometry scaling
   bool geom_scaling_enabled_flag;
 

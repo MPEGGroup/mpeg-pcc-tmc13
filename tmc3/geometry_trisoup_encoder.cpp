@@ -59,21 +59,40 @@ encodeGeometryTrisoup(
 
   int blockWidth = 1 << gps.trisoup_node_size_log2;
 
-  uint32_t symbolCount;
-
   // Determine segind and vertices.
   std::vector<bool> segind;
   std::vector<uint8_t> vertices;
   determineTrisoupVertices(nodes, segind, vertices, pointCloud, blockWidth);
 
+  // Decode refinedVertices from segind and vertices.
+  int32_t maxval = (1 << gbh.geomMaxNodeSizeLog2(gps)) - 1;
+
+  // Decode vertices with certain sampling value
+  int subsample = 1;
+  if (gps.trisoup_sampling_value > 0) {
+    subsample = gps.trisoup_sampling_value;
+    decodeTrisoupCommon(
+      nodes, segind, vertices, pointCloud, blockWidth, maxval, subsample);
+  } else {
+    int maxSubsample = 1 << gps.trisoup_node_size_log2;
+    for (subsample = 1; subsample <= maxSubsample; subsample++) {
+      decodeTrisoupCommon(
+        nodes, segind, vertices, pointCloud, blockWidth, maxval, subsample);
+      if (pointCloud.getPointCount() <= gbh.geom_num_points)
+        break;
+    }
+  }
+
   // Encode segind to bitstream.
   AdaptiveMAryModel multiSymbolSegindModel0(256);
+  uint32_t symbolCount;
   symbolCount = (segind.size() + 7) / 8;
   segind.resize(8 * symbolCount, false);
 
   // todo(df): consider a more appropriate signalling method
   AdaptiveBitModel ctxTemp;
   StaticBitModel ctxBypass;
+  arithmeticEncoder->encodeExpGolomb(subsample - 1, 0, ctxBypass, ctxTemp);
   arithmeticEncoder->encodeExpGolomb(symbolCount, 0, ctxBypass, ctxTemp);
 
   int uniqueIndex = 0;
@@ -97,10 +116,6 @@ encodeGeometryTrisoup(
     uint8_t c = vertices[i];
     arithmeticEncoder->encode(uint32_t(c), multiSymbolVerticesModel0);
   }
-
-  // Decode refinedVertices from segind and vertices.
-  int32_t maxval = (1 << gbh.geomMaxNodeSizeLog2(gps)) - 1;
-  decodeTrisoupCommon(nodes, segind, vertices, pointCloud, blockWidth, maxval);
 }
 
 //---------------------------------------------------------------------------
