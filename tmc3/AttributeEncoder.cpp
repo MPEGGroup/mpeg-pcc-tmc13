@@ -802,10 +802,13 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   }
 
   auto quantLayers = qpSet.quantizerLayers();
+  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
+                                    aps.raht_prediction_threshold1};
+
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
-    attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, quantLayers,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   int zero_cnt = 0;
@@ -873,10 +876,13 @@ AttributeEncoder::encodeColorsTransformRaht(
   }
 
   auto quantLayers = qpSet.quantizerLayers();
+  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
+                                    aps.raht_prediction_threshold1};
+
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, quantLayers, mortonCode, attributes,
-    attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, quantLayers,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   uint32_t values[attribCount];

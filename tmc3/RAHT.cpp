@@ -514,6 +514,7 @@ template<bool isEncoder>
 void
 uraht_process(
   bool raht_prediction_enabled_flag,
+  const int predictionThreshold[2],
   const std::vector<Quantizers>& quantLayers,
   int numPoints,
   int numAttrs,
@@ -577,6 +578,10 @@ uraht_process(
   std::vector<UrahtNode> weightsParent;
   weightsParent.reserve(numPoints);
 
+  std::vector<int> numParentNiegh, numGrandParentNeigh;
+  numParentNiegh.reserve(numPoints);
+  numGrandParentNeigh.reserve(numPoints);
+
   // quant layer selection
   auto quantLayerIt = quantLayers.begin();
 
@@ -603,7 +608,7 @@ uraht_process(
     //  -> first level = all coeffs
     //  -> otherwise = ac coeffs only
     bool inheritDc = !isFirst;
-    bool enablePrediction = inheritDc && raht_prediction_enabled_flag;
+    bool enablePredictionInLvl = inheritDc && raht_prediction_enabled_flag;
     isFirst = 0;
 
     // select quantiser according to transform layer
@@ -615,9 +620,11 @@ uraht_process(
     //  previous reconstruction -> attrRecParent
     std::swap(attrRec, attrRecParent);
     std::swap(attrRecUs, attrRecParentUs);
+    std::swap(numParentNiegh, numGrandParentNeigh);
     auto attrRecParentUsIt = attrRecParentUs.cbegin();
     auto attrRecParentIt = attrRecParent.cbegin();
     auto weightsParentIt = weightsParent.cbegin();
+    auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
 
     for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
       // todo(df): hoist and dynamically allocate
@@ -646,29 +653,55 @@ uraht_process(
 
       mkWeightTree(weights);
 
+      if (!inheritDc) {
+        for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
+          if (!weights[nodeIdx])
+            continue;
+          numParentNiegh[j++] = 19;
+        }
+      }
+
       // Inter-level prediction:
       //  - Find the parent neighbours of the current node
       //  - Generate prediction for all attributes into transformPredBuf
       //  - Subtract transformed coefficients from forward transform
       //  - The transformPredBuf is then used for reconstruction
-      if (enablePrediction) {
+      bool enablePrediction = enablePredictionInLvl;
+      if (enablePredictionInLvl) {
         // indexes of the neighbouring parents
         int parentNeighIdx[19];
         int parentNeighWeights[19];
 
-        findNeighbours(
-          weightsParent.cbegin(), weightsParent.cend(), weightsParentIt,
-          level + 3, occupancy, parentNeighIdx, parentNeighWeights);
+        int parentNeighCount = 0;
+        if (*numGrandParentNeighIt < predictionThreshold[0]) {
+          enablePrediction = false;
+        } else {
+          findNeighbours(
+            weightsParent.cbegin(), weightsParent.cend(), weightsParentIt,
+            level + 3, occupancy, parentNeighIdx, parentNeighWeights);
+          for (int i = 0; i < 19; i++) {
+            parentNeighCount += (parentNeighIdx[i] != -1);
+          }
+          if (parentNeighCount < predictionThreshold[1]) {
+            enablePrediction = false;
+          } else
+            intraDcPred(
+              numAttrs, parentNeighIdx, parentNeighWeights, occupancy,
+              attrRecParent.begin(), transformPredBuf);
+        }
 
-        intraDcPred(
-          numAttrs, parentNeighIdx, parentNeighWeights, occupancy,
-          attrRecParent.begin(), transformPredBuf);
+        for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
+          if (!weights[nodeIdx])
+            continue;
+          numParentNiegh[j++] = parentNeighCount;
+        }
       }
 
       int parentWeight = 0;
       if (inheritDc) {
         parentWeight = weightsParentIt->weight;
         weightsParentIt++;
+        numGrandParentNeighIt++;
       }
 
       // normalise coefficients
@@ -884,6 +917,7 @@ uraht_process(
 void
 regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
+  const int predictionThreshold[2],
   const std::vector<Quantizers>& quantLayers,
   int64_t* mortonCode,
   int* attributes,
@@ -892,8 +926,8 @@ regionAdaptiveHierarchicalTransform(
   int* coefficients)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, quantLayers, voxelCount, attribCount,
-    mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, predictionThreshold, quantLayers, voxelCount,
+    attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================
@@ -916,6 +950,7 @@ regionAdaptiveHierarchicalTransform(
 void
 regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
+  const int predictionThreshold[2],
   const std::vector<Quantizers>& quantLayers,
   int64_t* mortonCode,
   int* attributes,
@@ -924,8 +959,8 @@ regionAdaptiveHierarchicalInverseTransform(
   int* coefficients)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, quantLayers, voxelCount, attribCount,
-    mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, predictionThreshold, quantLayers, voxelCount,
+    attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================

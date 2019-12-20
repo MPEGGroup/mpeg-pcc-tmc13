@@ -402,6 +402,8 @@ struct AttributeParameterSet {
 
   //--- raht parameters
   bool raht_prediction_enabled_flag;
+  int raht_prediction_threshold0;
+  int raht_prediction_threshold1;
   int raht_depth;
 
   //--- lifting parameters
