@@ -534,6 +534,29 @@ uraht_process(
     coeffBufIt + numPoints * 2,
   };
 
+  if (numPoints == 1) {
+    // quant layer selection
+    const auto& qp = *qpLayers.begin();
+
+    for (int k = 0; k < numAttrs; k++) {
+      auto q =
+        Quantizer(qp[std::min(k, int(qp.size()) - 1)] + regionQpOffset[0]);
+      if (isEncoder) {
+        auto coeff = attributes[k];
+        assert(coeff <= INT_MAX && coeff >= INT_MIN);
+        *coeffBufItK[k]++ = coeff =
+          q.quantize(coeff << kFixedPointAttributeShift);
+        attributes[k] =
+          divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+      } else {
+        int64_t coeff = *coeffBufItK[k]++;
+        attributes[k] =
+          divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+      }
+    }
+    return;
+  }
+
   std::vector<UrahtNode> weightsLf, weightsHf;
   std::vector<int> attrsLf, attrsHf;
 
