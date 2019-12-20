@@ -462,7 +462,8 @@ computeQuantizationWeightsScalable(
     const size_t predictorCount = endIndex - startIndex;
     for (size_t index = 0; index < predictorCount; ++index) {
       const size_t predictorIndex = index + startIndex;
-      const double currentQuantWeight = (geom_num_points / predictorCount);
+      const double currentQuantWeight =
+        ((geom_num_points - startIndex) / predictorCount);
 
       if (!minGeomNodeSizeLog2 && (lodIndex == lodCount - 1)) {
         quantizationWeights[predictorIndex] = (1 << kFixedPointWeightShift);
@@ -949,6 +950,7 @@ buildPredictorsFast(
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   int32_t minGeomNodeSizeLog2,
+  int geom_num_points,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
   std::vector<uint32_t>& indexes)
@@ -976,18 +978,15 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
   int32_t num_detail_levels = aps.num_detail_levels;
-  if (aps.scalable_lifting_enabled_flag == 1) {
+  if (aps.scalable_lifting_enabled_flag) {
     // NB: when partial decoding is enabled, LoDs correspond to octree levels
     num_detail_levels = std::numeric_limits<int>::max();
-    ;
   }
 
-  // prepare temporal buffer
-  std::vector<uint32_t> indexesOfSbsample;
-  indexesOfSbsample.resize(0);
-  if (aps.scalable_lifting_enabled_flag) {
-    indexesOfSbsample.reserve(pointCount);
-  }
+  bool concatenateLayers = aps.scalable_lifting_enabled_flag;
+  std::vector<uint32_t> indexesOfSubsample;
+  if (concatenateLayers)
+    indexesOfSubsample.reserve(pointCount);
 
   std::vector<Box3<int32_t>> bBoxes;
   int32_t predIndex = int32_t(pointCount);
@@ -1003,23 +1002,33 @@ buildPredictorsFast(
         aps, pointCloud, packedVoxel, input, lodIndex, retained, indexes);
     }
     const int32_t endIndex = indexes.size();
-    if (aps.scalable_lifting_enabled_flag) {
-      indexesOfSbsample.resize(endIndex);
-      if (lodIndex == 0) {
-        for (int32_t i = startIndex; i < endIndex; i++) {
-          indexesOfSbsample[i] = indexes[i];
-        }
-      }
-      if (lodIndex == 1) {
-        if (endIndex - startIndex > startIndex) {
-          for (int32_t i = 0; i < startIndex; i++) {
-            indexes[i] = indexesOfSbsample[i];
+
+    if (concatenateLayers) {
+      indexesOfSubsample.resize(endIndex);
+      if (startIndex != endIndex) {
+        for (int32_t i = startIndex; i < endIndex; i++)
+          indexesOfSubsample[i] = indexes[i];
+
+        const int32_t numOfPointInSkipped = geom_num_points - pointCount;
+        if (endIndex - startIndex <= startIndex + numOfPointInSkipped) {
+          concatenateLayers = false;
+        } else {
+          for (int32_t i = 0; i < startIndex; i++)
+            indexes[i] = indexesOfSubsample[i];
+
+          // reset predIndex
+          predIndex = pointCount;
+          for (int lod = 0; lod < lodIndex - minGeomNodeSizeLog2; lod++) {
+            int divided_startIndex =
+              pointCount - numberOfPointsPerLevelOfDetail[lod];
+            int divided_endIndex =
+              pointCount - numberOfPointsPerLevelOfDetail[lod + 1];
+
+            computeNearestNeighbors(
+              aps, pointCloud, packedVoxel, retained, divided_startIndex,
+              divided_endIndex, lod + minGeomNodeSizeLog2, indexes,
+              predictors, pointIndexToPredictorIndex, predIndex, bBoxes);
           }
-          predIndex = int32_t(pointCount);
-          computeNearestNeighbors(
-            aps, pointCloud, packedVoxel, retained, 0, startIndex,
-            lodIndex - 1, indexes, predictors, pointIndexToPredictorIndex,
-            predIndex, bBoxes);
         }
       }
     }

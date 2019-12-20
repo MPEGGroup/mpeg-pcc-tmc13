@@ -53,6 +53,7 @@ struct AttributeLods {
 
   void generate(
     const AttributeParameterSet& aps,
+    int geom_num_points,
     int minGeomNodeSizeLog2,
     const PCCPointSet3& cloud);
 

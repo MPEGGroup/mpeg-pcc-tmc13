@@ -210,7 +210,7 @@ AttributeDecoder::decode(
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
-    _lods.generate(attr_aps, minGeomNodeSizeLog2, pointCloud);
+    _lods.generate(attr_aps, geom_num_points, minGeomNodeSizeLog2, pointCloud);
 
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
