@@ -926,10 +926,15 @@ decodeGeometryOctree(
   const GeometryBrickHeader& gbh,
   int minNodeSizeLog2,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder,
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
-  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoder);
+  auto arithmeticDecoderIt = arithmeticDecoders.begin();
+  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoderIt->get());
+
+  // saved state for use with parallel bistream coding.
+  // the saved state is restored at the start of each parallel octree level
+  std::unique_ptr<GeometryOctreeDecoder> savedState;
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -1003,6 +1008,16 @@ decodeGeometryOctree(
     if (!--numLvlsUntilQpOffset)
       for (int k = 0; k < 3; k++)
         posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
+
+    // save context infor. for parallel coding
+    if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
+      savedState.reset(new GeometryOctreeDecoder(decoder));
+    }
+    // load context infor. for parallel coding
+    if (gbh.geom_octree_parallel_max_node_size_log2 >= nodeMaxDimLog2) {
+      decoder = *savedState;
+      decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
+    }
 
     int planarDepth = gbh.geomMaxNodeSizeLog2(gps)
       - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
@@ -1235,9 +1250,9 @@ decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder)
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
 {
-  decodeGeometryOctree(gps, gbh, 0, pointCloud, arithmeticDecoder, nullptr);
+  decodeGeometryOctree(gps, gbh, 0, pointCloud, arithmeticDecoders, nullptr);
 }
 
 //-------------------------------------------------------------------------
@@ -1248,11 +1263,11 @@ decodeGeometryOctreeScalable(
   const GeometryBrickHeader& gbh,
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder)
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, minGeomNodeSizeLog2, pointCloud, arithmeticDecoder, &nodes);
+    gps, gbh, minGeomNodeSizeLog2, pointCloud, arithmeticDecoders, &nodes);
 
   if (minGeomNodeSizeLog2 > 0) {
     size_t size =

@@ -35,6 +35,9 @@
 
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include "PCCPointSet.h"
 #include "entropy.h"
 #include "hls.h"
@@ -47,20 +50,20 @@ void encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder);
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder);
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 void decodeGeometryOctreeScalable(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder);
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 //----------------------------------------------------------------------------
 
@@ -68,13 +71,13 @@ void encodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder);
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
 
 void decodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyDecoder* arithmeticDecoder);
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 //============================================================================
 

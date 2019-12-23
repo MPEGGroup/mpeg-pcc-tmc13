@@ -328,6 +328,11 @@ struct GeometryBrickHeader {
   // octree depth at which qp offsets whould be signalled
   int geom_octree_qp_offset_depth;
 
+  // Geometry octree parallel processing is enabled for last N octree depths
+  int geom_octree_parallel_max_node_size_log2;
+  std::vector<size_t> geom_octree_parallel_bitstream_offsets;
+  int geom_octree_parallel_max_offset_log2;
+
   int geomBoxLog2Scale(const GeometryParameterSet& gps) const
   {
     if (!gps.geom_box_present_flag)

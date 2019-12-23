@@ -229,27 +229,44 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceOrigin = _gbh.geomBoxOrigin;
   _currentFrameIdx = _gbh.frame_idx;
 
-  EntropyDecoder arithmeticDecoder;
-  arithmeticDecoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
-  arithmeticDecoder.setBuffer(int(buf.size()) - gbhSize, buf.data() + gbhSize);
-  arithmeticDecoder.start();
+  // The number of entropy substreams is 1 + parallel_max_node_size_log2
+  // NB: the two substream case is syntactically prohibited
+  // add a dummy length value to handle the last buffer
+  _gbh.geom_octree_parallel_bitstream_offsets.push_back(buf.size());
+
+  std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
+  size_t bufRemaining = buf.size() - gbhSize;
+  const char* bufPtr = buf.data() + gbhSize;
+  for (int i = 0; i < 1 + _gbh.geom_octree_parallel_max_node_size_log2; i++) {
+    arithmeticDecoders.emplace_back(new EntropyDecoder);
+    auto& aec = arithmeticDecoders.back();
+
+    // NB: avoid reading beyond the end of the data unit
+    int bufLen =
+      std::min(bufRemaining, _gbh.geom_octree_parallel_bitstream_offsets[i]);
+
+    aec->setBuffer(bufLen, bufPtr);
+    aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+    aec->start();
+    bufPtr += bufLen;
+    bufRemaining -= bufLen;
+  }
 
   if (_gps->trisoup_node_size_log2 == 0) {
     _currentPointCloud.resize(_gbh.geom_num_points);
 
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
-        *_gps, _gbh, _currentPointCloud, &arithmeticDecoder);
+        *_gps, _gbh, _currentPointCloud, arithmeticDecoders);
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
-        &arithmeticDecoder);
+        arithmeticDecoders);
     }
   } else {
-    decodeGeometryTrisoup(*_gps, _gbh, _currentPointCloud, &arithmeticDecoder);
+    decodeGeometryTrisoup(*_gps, _gbh, _currentPointCloud, arithmeticDecoders);
   }
 
-  arithmeticDecoder.stop();
   clock_user.stop();
 
   auto total_user =

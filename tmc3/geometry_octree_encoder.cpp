@@ -998,10 +998,15 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder,
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
-  GeometryOctreeEncoder encoder(gps, gbh, arithmeticEncoder);
+  auto arithmeticEncoderIt = arithmeticEncoders.begin();
+  GeometryOctreeEncoder encoder(gps, gbh, arithmeticEncoderIt->get());
+
+  // saved state for use with parallel bistream coding.
+  // the saved state is restored at the start of each parallel octree level
+  std::unique_ptr<GeometryOctreeEncoder> savedState;
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -1080,6 +1085,16 @@ encodeGeometryOctree(
         fifo.front().qp = sliceQp;
       else
         calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
+    }
+
+    // save context infor. for parallel coding
+    if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
+      savedState.reset(new GeometryOctreeEncoder(encoder));
+    }
+    // load context infor. for parallel coding
+    if (gbh.geom_octree_parallel_max_node_size_log2 >= nodeMaxDimLog2) {
+      encoder = *savedState;
+      encoder._arithmeticEncoder = (++arithmeticEncoderIt)->get();
     }
 
     int planarDepth = gbh.geomMaxNodeSizeLog2(gps)
@@ -1380,9 +1395,9 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
-  EntropyEncoder* arithmeticEncoder)
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders)
 {
-  encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoder, nullptr);
+  encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoders, nullptr);
 }
 
 //============================================================================

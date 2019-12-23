@@ -471,22 +471,50 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_num_points = int(pointCloud.getPointCount());
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
-  write(*_sps, *_gps, gbh, buf);
+  gbh.geom_octree_parallel_max_node_size_log2 =
+    params->gbh.geom_octree_parallel_max_node_size_log2;
 
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
-  EntropyEncoder arithmeticEncoder(maxAcBufLen, nullptr);
-  arithmeticEncoder.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
-  arithmeticEncoder.start();
 
-  if (_gps->trisoup_node_size_log2 == 0) {
-    encodeGeometryOctree(*_gps, gbh, pointCloud, &arithmeticEncoder);
-  } else {
-    encodeGeometryTrisoup(*_gps, gbh, pointCloud, &arithmeticEncoder);
+  // The number of entropy substreams is 1 + parallel_max_node_size_log2
+  // NB: the two substream case is syntactically prohibited
+  std::vector<std::unique_ptr<EntropyEncoder>> arithmeticEncoders;
+  for (int i = 0; i < 1 + gbh.geom_octree_parallel_max_node_size_log2; i++) {
+    arithmeticEncoders.emplace_back(new EntropyEncoder(maxAcBufLen, nullptr));
+    auto& aec = arithmeticEncoders.back();
+    aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+    aec->start();
   }
 
-  uint32_t dataLen = arithmeticEncoder.stop();
-  std::copy_n(arithmeticEncoder.buffer(), dataLen, std::back_inserter(*buf));
+  if (_gps->trisoup_node_size_log2 == 0) {
+    encodeGeometryOctree(*_gps, gbh, pointCloud, arithmeticEncoders);
+  } else {
+    encodeGeometryTrisoup(*_gps, gbh, pointCloud, arithmeticEncoders);
+  }
+
+  // determine the length of each sub-stream
+  for (auto& arithmeticEncoder : arithmeticEncoders) {
+    auto dataLen = arithmeticEncoder->stop();
+    gbh.geom_octree_parallel_bitstream_offsets.push_back(dataLen);
+  }
+
+  // determine the number of bits to use for the offset fields
+  // NB: don't include the last offset since it isn't signalled
+  if (gbh.geom_octree_parallel_max_node_size_log2 > 0) {
+    size_t maxOffset = *std::max_element(
+      gbh.geom_octree_parallel_bitstream_offsets.begin(),
+      std::prev(gbh.geom_octree_parallel_bitstream_offsets.end()));
+    gbh.geom_octree_parallel_max_offset_log2 = ceillog2(maxOffset + 1);
+  }
+
+  // assemble data unit
+  write(*_sps, *_gps, gbh, buf);
+  for (int i = 0; i < 1 + gbh.geom_octree_parallel_max_node_size_log2; i++) {
+    auto& aec = arithmeticEncoders[i];
+    auto dataLen = gbh.geom_octree_parallel_bitstream_offsets[i];
+    std::copy_n(aec->buffer(), dataLen, std::back_inserter(*buf));
+  }
 }
 
 //----------------------------------------------------------------------------

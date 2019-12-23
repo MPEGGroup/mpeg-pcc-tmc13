@@ -519,6 +519,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Minimum size of implicit qtbt")
 
   // tools
+  ("octreeParallelMaxNodeSizeLog2",
+    params.encoder.gbh.geom_octree_parallel_max_node_size_log2, 0,
+    "Geometry octree parallel processing is enabled at last N octree depths."
+    " 0: disabled")
+
   ("bitwiseOccupancyCoding",
     params.encoder.gps.bitwise_occupancy_coding_flag, true,
     "Selects between bitwise and bytewise occupancy coding:\n"
@@ -776,6 +781,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
+  // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
+  if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)
+    params.encoder.gbh.geom_octree_parallel_max_node_size_log2 = 0;
+
   // Certain coding modes are not available when trisoup is enabled.
   // Disable them, and warn if set (they may be set as defaults).
   if (params.encoder.gps.trisoup_node_size_log2 > 0) {
@@ -784,6 +793,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     if (params.encoder.gps.inferred_direct_coding_mode_enabled_flag)
       err.warn() << "TriSoup geometry is incompatable with IDCM\n";
+
+    if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 > 0)
+      err.warn()
+        << "TriSoup geometry is incompatable with parallel octree coding\n";
+    params.encoder.gbh.geom_octree_parallel_max_node_size_log2 = 0;
 
     params.encoder.gps.geom_unique_points_flag = true;
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;
