@@ -124,8 +124,7 @@ struct QpSet {
   // Lookup the quantizer for a point at a particular layer
   Quantizers quantizers(const Vec3<int32_t>& point, int qpLayer) const;
 
-  // Return the list of quantisers for all layers
-  std::vector<Quantizers> quantizerLayers() const;
+  int regionQpOffset(const Vec3<int32_t>& point) const;
 };
 
 //============================================================================

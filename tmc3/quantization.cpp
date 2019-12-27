@@ -147,15 +147,15 @@ QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 }
 
 //============================================================================
-//for RAHT (which does not yet support region offsets)
-std::vector<Quantizers>
-QpSet::quantizerLayers() const
+//for RAHT region QP Offset
+int
+QpSet::regionQpOffset(const Vec3<int32_t>& point) const
 {
-  std::vector<Quantizers> quantLayers;
-  for (int i = 0; i < layers.size(); i++) {
-    quantLayers.push_back({Quantizer(layers[i][0]), Quantizer(layers[i][1])});
+  int qpRegionOffset = 0;
+  if (regionOffset.valid && regionOffset.region.contains(point)) {
+    qpRegionOffset = regionOffset.qpOffset;
   }
-  return quantLayers;
+  return qpRegionOffset;
 }
 
 //============================================================================

@@ -53,6 +53,7 @@ namespace pcc {
 struct UrahtNode {
   int64_t pos;
   int weight;
+  int qp;
 };
 
 //============================================================================
@@ -118,7 +119,7 @@ reduceLevel(
   auto attrsInWrIt = attrsIn->begin();
   auto attrsInRdIt = attrsIn->begin();
   for (int i = 0; i < numNodes; i++) {
-    const auto& node = *weightsInRdIt++;
+    auto& node = *weightsInRdIt++;
     bool newPair = (posPrev ^ node.pos) >> level != 0;
     posPrev = node.pos;
     if (newPair) {
@@ -127,7 +128,9 @@ reduceLevel(
         *attrsInWrIt++ = *attrsInRdIt++;
     } else {
       (weightsInWrIt - 1)->weight += node.weight;
+      (weightsInWrIt - 1)->qp = ((weightsInWrIt - 1)->qp + node.qp) >> 1;
       weightsOut->push_back(node);
+
       for (int k = 0; k < numAttrs; k++) {
         *(attrsInWrIt - numAttrs + k) += *attrsInRdIt;
         attrsOut->push_back(*attrsInRdIt++);
@@ -515,12 +518,13 @@ void
 uraht_process(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Quantizers>& quantLayers,
+  const std::vector<Qps>& qpLayers,
   int numPoints,
   int numAttrs,
   int64_t* positions,
   int* attributes,
-  int32_t* coeffBufIt)
+  int32_t* coeffBufIt,
+  int* regionQpOffset)
 {
   // coefficients are stored in three planar arrays.  coeffBufItK is a set
   // of iterators to each array.
@@ -536,10 +540,13 @@ uraht_process(
   weightsLf.reserve(numPoints);
   attrsLf.reserve(numPoints * numAttrs);
 
+  int regionQpShift = 4;
+
   // copy positions into internal form
   // todo(df): lift to api
   for (int i = 0; i < numPoints; i++) {
-    weightsLf.emplace_back(UrahtNode{positions[i], 1});
+    weightsLf.emplace_back(
+      UrahtNode{positions[i], 1, regionQpOffset[i] << regionQpShift});
     for (int k = 0; k < numAttrs; k++) {
       attrsLf.push_back(attributes[i * numAttrs + k]);
     }
@@ -583,7 +590,7 @@ uraht_process(
   numGrandParentNeigh.reserve(numPoints);
 
   // quant layer selection
-  auto quantLayerIt = quantLayers.begin();
+  auto qpLayerIt = qpLayers.begin();
 
   // descend tree
   weightsLf.resize(1);
@@ -612,9 +619,9 @@ uraht_process(
     isFirst = 0;
 
     // select quantiser according to transform layer
-    const auto& quant = *quantLayerIt;
-    if (std::next(quantLayerIt) != quantLayers.end())
-      quantLayerIt++;
+    const auto& qp = *qpLayerIt;
+    if (std::next(qpLayerIt) != qpLayers.end())
+      qpLayerIt++;
 
     // prepare reconstruction buffers
     //  previous reconstruction -> attrRecParent
@@ -631,6 +638,7 @@ uraht_process(
       FixedPoint transformBuf[6][8] = {};
       FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
       int weights[8 + 4 + 2] = {};
+      int nodeQp[8 + 4 + 2] = {};
       uint8_t occupancy = 0;
 
       // generate weights, occupancy mask, and fwd transform buffers
@@ -643,6 +651,8 @@ uraht_process(
 
         int nodeIdx = (weightsLf[iLast].pos >> level) & 0x7;
         weights[nodeIdx] = weightsLf[iLast].weight;
+        nodeQp[nodeIdx] = weightsLf[iLast].qp >> regionQpShift;
+
         occupancy |= 1 << nodeIdx;
 
         if (isEncoder) {
@@ -755,7 +765,9 @@ uraht_process(
         // The RAHT transform
         for (int k = 0; k < numAttrs; k++) {
           // todo: hoist to preallocated array
-          auto& q = quant[std::min(k, int(quant.size()) - 1)];
+          auto q =
+            Quantizer(qp[std::min(k, int(qp.size()) - 1)] + nodeQp[idx]);
+
           if (isEncoder) {
             auto coeff = transformBuf[k][idx].round();
             assert(coeff <= INT_MAX && coeff >= INT_MIN);
@@ -815,10 +827,12 @@ uraht_process(
   std::swap(attrRec, attrRecParent);
   auto attrRecParentIt = attrRecParent.cbegin();
   auto attrsHfIt = attrsHf.cbegin();
-  const auto& quant = quantLayers.back();
+  const auto& qp = qpLayers.back();
 
   for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
     int weight = weightsLf[i].weight;
+    int nodeQp = weightsLf[i].qp >> regionQpShift;
+
     // unique points have weight = 1
     if (weight == 1) {
       for (int k = 0; k < numAttrs; k++)
@@ -843,7 +857,7 @@ uraht_process(
       sqrtWeight.val = isqrt(uint64_t(w) << (2 * FixedPoint::kFracBits));
 
       for (int k = 0; k < numAttrs; k++) {
-        auto q = quant[std::min(k, int(quant.size()) - 1)];
+        auto q = Quantizer(qp[std::min(k, int(qp.size()) - 1)] + nodeQp);
 
         FixedPoint transformBuf[2];
         if (isEncoder) {
@@ -918,16 +932,17 @@ void
 regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Quantizers>& quantLayers,
+  const std::vector<Qps>& qpLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients)
+  int* coefficients,
+  int* regionQPOffset)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, predictionThreshold, quantLayers, voxelCount,
-    attribCount, mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, predictionThreshold, qpLayers, voxelCount,
+    attribCount, mortonCode, attributes, coefficients, regionQPOffset);
 }
 
 //============================================================================
@@ -951,16 +966,17 @@ void
 regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Quantizers>& quantLayers,
+  const std::vector<Qps>& qpLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients)
+  int* coefficients,
+  int* regionQPOffset)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, predictionThreshold, quantLayers, voxelCount,
-    attribCount, mortonCode, attributes, coefficients);
+    raht_prediction_enabled_flag, predictionThreshold, qpLayers, voxelCount,
+    attribCount, mortonCode, attributes, coefficients, regionQPOffset);
 }
 
 //============================================================================

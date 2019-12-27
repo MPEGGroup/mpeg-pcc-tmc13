@@ -47,21 +47,23 @@ namespace pcc {
 void regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Quantizers>& quantLayers,
+  const std::vector<Qps>& qpLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients);
+  int* coefficients,
+  int* regionQPOffset);
 
 void regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Quantizers>& quantLayers,
+  const std::vector<Qps>& qpLayers,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients);
+  int* coefficients,
+  int* regionQPOffset);
 
 } /* namespace pcc */
