@@ -457,8 +457,9 @@ AttributeEncoder::computeReflectancePredictionWeights(
       uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
 
-      // base case: weighted average of n neighbours
-      predictor.predMode = 0;
+      // base case: start with the first neighbour
+      // NB: skip evaluation of mode 0 (weighted average of n neighbours)
+      predictor.predMode = 1;
       uint64_t attrPred = predictor.predictReflectance(pointCloud, indexesLOD);
       int64_t attrResidualQuant =
         computeReflectanceResidual(attrValue, attrPred, quant);
@@ -466,7 +467,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
       // NB: idxBits is not included in the score
       int64_t best_score = attrResidualQuant;
 
-      for (int i = 0; i < predictor.neighborCount; i++) {
+      for (int i = 1; i < predictor.neighborCount; i++) {
         if (i == aps.max_num_direct_predictors)
           break;
 
