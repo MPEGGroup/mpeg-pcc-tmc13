@@ -463,8 +463,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
       int64_t attrResidualQuant =
         computeReflectanceResidual(attrValue, attrPred, quant);
 
-      double best_score = attrResidualQuant
-        + kAttrPredLambdaR * (quant.stepSize() >> kFixedPointAttributeShift);
+      // NB: idxBits is not included in the score
+      int64_t best_score = attrResidualQuant;
 
       for (int i = 0; i < predictor.neighborCount; i++) {
         if (i == aps.max_num_direct_predictors)
@@ -475,13 +475,8 @@ AttributeEncoder::computeReflectancePredictionWeights(
         attrResidualQuant =
           computeReflectanceResidual(attrValue, attrPred, quant);
 
-        double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
-        double score = attrResidualQuant
-          + idxBits * kAttrPredLambdaR
-            * (quant.stepSize() >> kFixedPointAttributeShift);
-
-        if (score < best_score) {
-          best_score = score;
+        if (attrResidualQuant < best_score) {
+          best_score = attrResidualQuant;
           predictor.predMode = i + 1;
           // NB: setting predictor.neighborCount = 1 will cause issues
           // with reconstruction.
