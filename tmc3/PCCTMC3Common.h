@@ -509,56 +509,6 @@ FindNeighborWithinDistance(
 
 //---------------------------------------------------------------------------
 
-inline bool
-checkDistance(
-  const point_t& point, const point_t& refpoint, int32_t nodeSizeLog2)
-{
-  uint32_t mask = uint32_t(-1) << nodeSizeLog2;
-
-  int32_t minX = (refpoint.x() & mask) * 2 - 1;
-  int32_t minY = (refpoint.y() & mask) * 2 - 1;
-  int32_t minZ = (refpoint.z() & mask) * 2 - 1;
-
-  int32_t maxX = minX + (2 << nodeSizeLog2);
-  int32_t maxY = minY + (2 << nodeSizeLog2);
-  int32_t maxZ = minZ + (2 << nodeSizeLog2);
-
-  int32_t x = point.x() * 2;
-  int32_t y = point.y() * 2;
-  int32_t z = point.z() * 2;
-
-  return minX < x && maxX > x && minY < y && maxY > y && minZ < z && maxZ > z;
-}
-
-//---------------------------------------------------------------------------
-
-inline uint32_t
-findNeighborWithinVoxel(
-  const PCCPointSet3& pointCloud,
-  const std::vector<MortonCodeWithIndex>& packedVoxel,
-  int32_t index,
-  int32_t octreeNodeSizeLog2,
-  int32_t searchRange,
-  std::vector<uint32_t>& retained)
-{
-  const auto& point = pointCloud[packedVoxel[index].index];
-  int32_t retainedSize = retained.size();
-  int32_t j = retainedSize - 1;
-  int32_t k = 0;
-  while (j >= 0 && ++k < searchRange) {
-    int32_t index1 = retained[j];
-    int32_t pointIndex1 = packedVoxel[index1].index;
-    const auto& point1 = pointCloud[pointIndex1];
-
-    if (checkDistance(point, point1, octreeNodeSizeLog2))
-      return index1;
-    --j;
-  }
-  return PCC_UNDEFINED_INDEX;
-}
-
-//---------------------------------------------------------------------------
-
 inline point_t
 clacIntermediatePosition(
   bool enabled, int32_t nodeSizeLog2, const point_t& point)
@@ -822,6 +772,33 @@ subsampleByDistance(
 //---------------------------------------------------------------------------
 
 inline void
+partitionRange(
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& input,
+  std::vector<uint32_t>& retained,
+  std::vector<uint32_t>& indexes,
+  int start,
+  int end,
+  bool retainFirst)
+{
+  int range = end - start;
+
+  if (retainFirst) {
+    retained.push_back(input[start]);
+    for (int i = 1; i < range; ++i)
+      indexes.push_back(input[start + i]);
+  } else {
+    // last index
+    range--;
+    for (int i = 0; i < range; ++i)
+      indexes.push_back(input[start + i]);
+    retained.push_back(input[start + range]);
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline void
 subsampleByOctree(
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
@@ -830,32 +807,39 @@ subsampleByOctree(
   std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  int32_t nodeSizeLog2OfUpperLayer = octreeNodeSizeLog2 + 1;
-  int32_t searchRange = 1;
-
   if (input.size() == 1) {
     indexes.push_back(input[0]);
-  } else {
-    for (const auto index : input) {
-      if (retained.empty()) {
-        retained.push_back(index);
-        continue;
-      }
-      const auto& point = pointCloud[packedVoxel[index].index];
-      const auto& retainedPoint =
-        pointCloud[packedVoxel[retained.back()].index];
+    return;
+  }
 
-      if (
-        checkDistance(point, retainedPoint, nodeSizeLog2OfUpperLayer)
-        || findNeighborWithinVoxel(
-             pointCloud, packedVoxel, index, nodeSizeLog2OfUpperLayer,
-             searchRange, retained)
-          != PCC_UNDEFINED_INDEX) {
-        indexes.push_back(index);
-      } else {
-        retained.push_back(index);
-      }
+  bool retainFirst = !(octreeNodeSizeLog2 % 2);
+  uint64_t kLodUniformQuant = pow(8, octreeNodeSizeLog2 + 1);
+  const int indexCount = int(input.size());
+  uint64_t endIdx = 0;
+  uint64_t parentIdx = 0;
+  int startIdx = 0;
+  if (indexCount > 0) {
+    auto mortonCode = packedVoxel[input[0]].mortonCode;
+    endIdx =
+      mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
+  }
+
+  for (int i = 1; i < indexCount; ++i) {
+    int index = input[i];
+    auto mortonCode = packedVoxel[index].mortonCode;
+    if (mortonCode >= endIdx) {
+      partitionRange(
+        packedVoxel, input, retained, indexes, startIdx, i, retainFirst);
+      startIdx = i;
+      endIdx =
+        mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
     }
+  }
+
+  if (startIdx < indexCount) {
+    partitionRange(
+      packedVoxel, input, retained, indexes, startIdx, indexCount,
+      retainFirst);
   }
 }
 
