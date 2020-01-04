@@ -41,6 +41,7 @@
 #include "Attribute.h"
 #include "pointset_processing.h"
 #include "geometry.h"
+#include "geometry_octree.h"
 #include "io_hls.h"
 #include "osspecific.h"
 #include "partitioning.h"
@@ -102,13 +103,6 @@ PCCTMC3Encoder3::compress(
     _aps.push_back(&aps);
   }
 
-  // write out all parameter sets prior to encoding
-  callback->onOutputBuffer(write(*_sps));
-  callback->onOutputBuffer(write(*_gps));
-  for (const auto aps : _aps) {
-    callback->onOutputBuffer(write(*aps));
-  }
-
   // initial geometry IDs
   _tileId = 0;
   _sliceId = 0;
@@ -126,6 +120,41 @@ PCCTMC3Encoder3::compress(
   PartitionSet partitions;
   PCCPointSet3 quantizedInputCloud;
   quantizedInputCloud = quantization(inputPointCloud);
+
+  // determine the dist2 parameters based upon the quantized point cloud
+  // todo(df): do this only if no dist2 value is set but should be
+  bool calcDist2 = false;
+  for (auto& aps : params->aps)
+    calcDist2 |= aps.num_detail_levels > 0;
+
+  if (calcDist2) {
+    int maxNodeSizeLog2 =
+      ceillog2(std::max({_sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]}));
+
+    // workout an intrinsic dist2
+    int baseDist2 = estimateDist2(quantizedInputCloud, maxNodeSizeLog2);
+
+    // generate dist2 series for each aps
+    for (auto& aps : params->aps) {
+      if (aps.num_detail_levels == 0)
+        continue;
+
+      aps.dist2.resize(aps.num_detail_levels);
+
+      int64_t d2 = baseDist2;
+      for (int i = 0; i < aps.num_detail_levels; ++i) {
+        aps.dist2[i] = d2;
+        d2 = 4 * d2;
+      }
+    }
+  }
+
+  // write out all parameter sets prior to encoding
+  callback->onOutputBuffer(write(*_sps));
+  callback->onOutputBuffer(write(*_gps));
+  for (const auto aps : _aps) {
+    callback->onOutputBuffer(write(*aps));
+  }
 
   std::vector<std::vector<int32_t>> tileMaps;
   if (params->partition.tileSize) {

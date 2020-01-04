@@ -255,4 +255,30 @@ countingSort(
 
 //---------------------------------------------------------------------------
 
+template<typename It, typename ValueOp, typename AccumOp>
+void
+radixSort8WithAccum(int maxValLog2, It begin, It end, ValueOp op, AccumOp acc)
+{
+  std::array<int, 8> counts = {};
+  countingSort(begin, end, counts, [=](decltype(*begin)& it) {
+    return op(maxValLog2, it);
+  });
+
+  acc(maxValLog2, counts);
+
+  if (--maxValLog2 < 0)
+    return;
+
+  auto childBegin = begin;
+  for (int i = 0; i < counts.size(); i++) {
+    if (!counts[i])
+      continue;
+    auto childEnd = std::next(childBegin, counts[i]);
+    radixSort8WithAccum(maxValLog2, childBegin, childEnd, op, acc);
+    childBegin = childEnd;
+  }
+}
+
+//----------------------------------------------------------------------------
+
 }  // namespace pcc

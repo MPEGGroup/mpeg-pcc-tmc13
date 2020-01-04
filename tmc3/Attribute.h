@@ -90,4 +90,8 @@ std::unique_ptr<AttributeEncoderIntf> makeAttributeEncoder();
 
 //============================================================================
 
+int estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2);
+
+//============================================================================
+
 }  // namespace pcc
