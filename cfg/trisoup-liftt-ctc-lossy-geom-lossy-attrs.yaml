@@ -27,20 +27,15 @@ categories:
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - use lifting transform for lossy conditions
-     #  - automatically derive dist2 based on single initial value by the encoder:
-     #    - the initial dist2 is scaled by positionQuantisationScale
-     #    - generates dist2 per lod
      - convertPlyColourspace: 1
      - transformType: 2
      - numberOfNearestNeighborsInPrediction: 3
-     - levelOfDetailCount: ${seq_lod}
+     - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
      - lodDecimation: 0
      -
        - !conditional '"${group}" =~ m{^cat3}'
        - lodDecimation: 1
        - lod_neigh_bias: ${seq_lod_bias}
-     - positionQuantizationScaleAdjustsDist2: 1
-     - dist2: ${seq_dist2}
 
      ##
      # attribute coding -- colour
@@ -68,50 +63,49 @@ categories:
 
     sequences:
       # cat1
-      #  NB: commented out seqs are missing seq_lod/seq_dist2 definitions
-     #arco_valentino_dense_vox12:        { test-depth:  9 }
-     #arco_valentino_dense_vox20:        { test-depth:  9 }
+      arco_valentino_dense_vox12:        { test-depth:  9 }
+      arco_valentino_dense_vox20:        { test-depth:  9 }
       basketball_player_vox11_00000200:  { test-depth: 11 }
       boxer_viewdep_vox12:               { test-depth: 11 }
       dancer_vox11_00000001:             { test-depth: 11 }
       egyptian_mask_vox12:               { test-depth:  9 }
-     #egyptian_mask_vox20:               { test-depth:  9 }
+      egyptian_mask_vox20:               { test-depth:  9 }
       facade_00009_vox12:                { test-depth: 11 }
-     #facade_00009_vox20:                { test-depth: 11 }
+      facade_00009_vox20:                { test-depth: 11 }
       facade_00015_vox14:                { test-depth: 12 }
-     #facade_00015_vox20:                { test-depth: 12 }
+      facade_00015_vox20:                { test-depth: 12 }
       facade_00064_vox11:                { test-depth: 11 }
-     #facade_00064_vox14:                { test-depth: 12 }
-     #facade_00064_vox20:                { test-depth: 12 }
+      facade_00064_vox14:                { test-depth: 12 }
+      facade_00064_vox20:                { test-depth: 12 }
       frog_00067_vox12:                  { test-depth: 11 }
-     #frog_00067_vox20:                  { test-depth: 11 }
+      frog_00067_vox20:                  { test-depth: 11 }
       head_00039_vox12:                  { test-depth: 12 }
-     #head_00039_vox20:                  { test-depth: 12 }
+      head_00039_vox20:                  { test-depth: 12 }
       house_without_roof_00057_vox12:    { test-depth: 11 }
-     #house_without_roof_00057_vox20:    { test-depth: 11 }
-     #landscape_00014_vox14:             { test-depth: 12 }
-     #landscape_00014_vox20:             { test-depth: 12 }
+      house_without_roof_00057_vox20:    { test-depth: 11 }
+      landscape_00014_vox14:             { test-depth: 12 }
+      landscape_00014_vox20:             { test-depth: 12 }
       longdress_viewdep_vox12:           { test-depth: 11 }
       longdress_vox10_1300:              { test-depth: 10 }
       loot_viewdep_vox12:                { test-depth: 11 }
       loot_vox10_1200:                   { test-depth: 10 }
-     #palazzo_carignano_dense_vox14:     { test-depth:  9 }
-     #palazzo_carignano_dense_vox20:     { test-depth:  9 }
+      palazzo_carignano_dense_vox14:     { test-depth:  9 }
+      palazzo_carignano_dense_vox20:     { test-depth:  9 }
       queen_0200:                        { test-depth: 10 }
       redandblack_viewdep_vox12:         { test-depth: 11 }
       redandblack_vox10_1550:            { test-depth: 10 }
       shiva_00035_vox12:                 { test-depth: 10 }
-     #shiva_00035_vox20:                 { test-depth: 10 }
+      shiva_00035_vox20:                 { test-depth: 10 }
       soldier_viewdep_vox12:             { test-depth: 11 }
       soldier_vox10_0690:                { test-depth: 10 }
-     #stanford_area_2_vox16:             { test-depth: 12 }
-     #stanford_area_2_vox20:             { test-depth: 12 }
-     #stanford_area_4_vox16:             { test-depth: 12 }
-     #stanford_area_4_vox20:             { test-depth: 12 }
-     #staue_klimt_vox12:                 { test-depth:  9 }
-     #staue_klimt_vox20:                 { test-depth:  9 }
+      stanford_area_2_vox16:             { test-depth: 12 }
+      stanford_area_2_vox20:             { test-depth: 12 }
+      stanford_area_4_vox16:             { test-depth: 12 }
+      stanford_area_4_vox20:             { test-depth: 12 }
+      staue_klimt_vox12:                 { test-depth:  9 }
+      staue_klimt_vox20:                 { test-depth:  9 }
       thaidancer_viewdep_vox12:          { test-depth: 11 }
-     #ulb_unicorn_hires_vox15:           { test-depth: 12 }
-     #ulb_unicorn_hires_vox20:           { test-depth: 12 }
+      ulb_unicorn_hires_vox15:           { test-depth: 12 }
+      ulb_unicorn_hires_vox20:           { test-depth: 12 }
       ulb_unicorn_vox13:                 { test-depth: 11 }
-     #ulb_unicorn_vox20:                 { test-depth: 11 }
+      ulb_unicorn_vox20:                 { test-depth: 11 }

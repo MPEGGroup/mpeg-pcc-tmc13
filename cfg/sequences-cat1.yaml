@@ -25,7 +25,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 11
     seq_lod:  11
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -37,7 +36,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 14
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -49,7 +47,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 11
     seq_lod:  11
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -60,7 +57,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  11
-    seq_dist2: 285
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -80,7 +76,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 15
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -100,7 +95,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 14
     seq_lod:  14
-    seq_dist2: 42
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -120,7 +114,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 11
     seq_lod:  13
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -149,7 +142,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  13
-    seq_dist2: 15
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -169,7 +161,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  13
-    seq_dist2: 9
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -189,7 +180,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  13
-    seq_dist2: 14
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -228,7 +218,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 9
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -240,7 +229,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -252,7 +240,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 10
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -264,7 +251,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -294,7 +280,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -306,7 +291,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 10
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -318,7 +302,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -329,7 +312,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 51
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -350,7 +332,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 10
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -362,7 +343,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 10
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -428,7 +408,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 12
     seq_lod:  12
-    seq_dist2: 2
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:
@@ -457,7 +436,6 @@ sequences:
     group: cat1-A
     src-geometry-precision: 13
     seq_lod:  12
-    seq_dist2: 176
     has_colour: 1
     bitdepth_colour: 8
     pcerrorflags:

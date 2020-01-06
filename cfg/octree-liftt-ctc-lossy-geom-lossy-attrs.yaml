@@ -40,24 +40,16 @@ categories:
 
      ####
      # attribute coding (common options -- relies on option ordering)
-     #  - skip attribute coding if dist2 parameters are not defined
-     #     -- this may seem odd, but is required for lossy-geom data
      #  - scale 16bit reflectance data to 8bit
      #  - use lifting transform for lossy conditions
-     #  - automatically derive dist2 based on single initial value by the encoder:
-     #    - the initial dist2 is scaled by positionQuantisationScale
-     #    - generates dist2 per lod
      -
-       - !conditional 'defined ${seq_lod} && defined ${seq_dist2}'
        - convertPlyColourspace: 1
        -
          - !conditional '${reflectance8b16b_scale_factor}'
          - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
        - transformType: 2
        - numberOfNearestNeighborsInPrediction: 3
-       - levelOfDetailCount: ${seq_lod}
-       - positionQuantizationScaleAdjustsDist2: 1
-       - dist2: ${seq_dist2}
+       - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
        - lodDecimation: 0
        -
          - !conditional '"${group}" =~ m{^cat3}'

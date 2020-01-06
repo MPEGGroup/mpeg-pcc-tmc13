@@ -709,8 +709,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("dist2",
     params_attr.aps.dist2, {},
-    "Attribute's list of squared distances, or initial value for automatic"
-    "derivation")
+    "Attribute's list of squared distances.\n"
+    " 0 entries: derive base value automatically\n"
+    ">0 entries: derive subsequent values automatically")
 
   ("intraLodPredictionEnabled",
     params_attr.aps.intra_lod_prediction_enabled_flag, false,
@@ -1026,7 +1027,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         err.error() << it.first
                     << ".levelOfDetailCount must be in the range [0,255]\n";
       }
-      if (attr_aps.dist2.size() != lod) {
+
+      // if empty, values are derived automatically
+      if (!attr_aps.dist2.empty() && attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod
                     << " entries\n";
       }

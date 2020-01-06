@@ -9,7 +9,6 @@ sequences:
     src-geometry-precision: 21
     seq_lod: 10
     seq_lod_bias: '1,1,2'
-    seq_dist2: 8192
     has_refl: 1
     has_colour: 1
     bitdepth_refl: 16
@@ -25,7 +24,6 @@ sequences:
     src-geometry-precision: 20
     seq_lod: 10
     seq_lod_bias: '1,1,2'
-    seq_dist2: 16384
     has_refl: 1
     has_colour: 1
     bitdepth_refl: 16
@@ -41,7 +39,6 @@ sequences:
     src-geometry-precision: 21
     seq_lod: 10
     seq_lod_bias: '1,1,2'
-    seq_dist2: 16384
     has_refl: 1
     has_colour: 1
     bitdepth_refl: 16
@@ -86,7 +83,6 @@ sequences:
       -1.200000, -1.700000, -2.100000, -2.500000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -127,7 +123,6 @@ sequences:
       -1.200000, -1.700000, -2.100000, -2.500000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -168,7 +163,6 @@ sequences:
       -1.200000, -1.700000, -2.100000, -2.500000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -195,7 +189,6 @@ sequences:
       -0.200000, -0.200000, -0.300000, -0.200000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -222,7 +215,6 @@ sequences:
       -0.200000, -0.200000, -0.300000, -0.200000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -249,7 +241,6 @@ sequences:
       -0.200000, -0.200000, -0.300000, -0.200000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:
@@ -276,7 +267,6 @@ sequences:
       -0.200000, -0.200000, -0.300000, -0.200000
     seq_lod: 10
     seq_lod_bias: '1,1,8'
-    seq_dist2: 16384
     has_refl: 1
     bitdepth_refl: 8
     pcerrorflags:

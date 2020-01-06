@@ -1137,7 +1137,7 @@ estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2)
   std::vector<int> numNodesWithSize(maxNodeSizeLog2);
   using IndexesItT = decltype(mortonOrder.begin());
   radixSort8WithAccum(
-    maxNodeSizeLog2, mortonOrder.begin(), mortonOrder.end(),
+    maxNodeSizeLog2 - 1, mortonOrder.begin(), mortonOrder.end(),
     [](int nodeSizeLog2, const MortonCodeWithIndex& index) {
       return (index.mortonCode >> 3 * nodeSizeLog2) & 7;
     },
