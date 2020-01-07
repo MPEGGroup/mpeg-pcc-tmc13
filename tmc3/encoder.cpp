@@ -181,6 +181,7 @@ PCCTMC3Encoder3::compress(
       }
     }
   } else {
+    _sliceOrigin = quantizedInputCloud.computeBoundingBox().min;
     tileMaps.emplace_back();
     auto& tile = tileMaps.back();
     for (int i = 0; i < quantizedInputCloud.getPointCount(); i++)
@@ -189,8 +190,6 @@ PCCTMC3Encoder3::compress(
 
   // If partitioning is not enabled, encode input as a single "partition"
   if (params->partition.method == PartitionMethod::kNone) {
-    // todo(df): params->gps.geom_box_present_flag = false;
-    _sliceOrigin = Vec3<int>{0};
     compressPartition(
       quantizedInputCloud, inputPointCloud, params, callback,
       reconstructedCloud);

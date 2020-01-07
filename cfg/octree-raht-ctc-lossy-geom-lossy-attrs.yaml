@@ -35,6 +35,7 @@ categories:
      - planarModeIdcmUse: 0
      -
        - !conditional '"${group}" eq "cat3-frame"'
+       - partitionMethod: 0
        - max_num_implicit_qtbt_before_ot: 0
        - planarModeIdcmUse: 127
 
