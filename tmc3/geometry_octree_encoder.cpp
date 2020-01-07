@@ -49,6 +49,13 @@ namespace pcc {
 
 //============================================================================
 
+enum class DirectMode
+{
+  kUnavailable,
+  kAllPointSame,
+  kTwoPoints
+};
+
 class GeometryOctreeEncoder {
 public:
   GeometryOctreeEncoder(
@@ -188,7 +195,8 @@ public:
 
   void encodeQpOffset(int dqp);
 
-  bool encodeDirectPosition(
+  void encodeDirectPosition(
+    DirectMode mode,
     bool geom_unique_points_flag,
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
@@ -1155,8 +1163,36 @@ checkDuplicatePoints(
 
 //-------------------------------------------------------------------------
 
-bool
+DirectMode
+canEncodeDirectPosition(
+  bool geom_unique_points_flag,
+  const PCCOctree3Node& node,
+  const PCCPointSet3& pointCloud)
+{
+  int numPoints = node.end - node.start;
+  // Check for duplicated points only if there are less than 10.
+  // NB: this limit is rather arbitrary
+  if (numPoints > 10)
+    return DirectMode::kUnavailable;
+
+  bool allPointsAreEqual = numPoints > 1 && !geom_unique_points_flag;
+  for (auto idx = node.start + 1; allPointsAreEqual && idx < node.end; idx++)
+    allPointsAreEqual &= pointCloud[node.start] == pointCloud[idx];
+
+  if (allPointsAreEqual)
+    return DirectMode::kAllPointSame;
+
+  if (numPoints > MAX_NUM_DM_LEAF_POINTS)
+    return DirectMode::kUnavailable;
+
+  return DirectMode::kTwoPoints;
+}
+
+//-------------------------------------------------------------------------
+
+void
 GeometryOctreeEncoder::encodeDirectPosition(
+  DirectMode mode,
   bool geom_unique_points_flag,
   const Vec3<int>& nodeSizeLog2,
   int shiftBits,
@@ -1169,28 +1205,20 @@ GeometryOctreeEncoder::encodeDirectPosition(
   int numLasers)
 {
   int numPoints = node.end - node.start;
-  // Check for duplicated points only if there are less than 10.
-  // NB: this limit is rather arbitrary
-  if (numPoints > 10) {
+
+  switch (mode) {
+  case DirectMode::kUnavailable:
     _arithmeticEncoder->encode(0, _ctxBlockSkipTh);
-    return false;
-  }
+    return;
 
-  bool allPointsAreEqual = numPoints > 1 && !geom_unique_points_flag;
-  for (auto idx = node.start + 1; allPointsAreEqual && idx < node.end; idx++) {
-    allPointsAreEqual &= pointCloud[node.start] == pointCloud[idx];
-  }
-
-  if (!allPointsAreEqual) {
-    if (numPoints > MAX_NUM_DM_LEAF_POINTS) {
-      _arithmeticEncoder->encode(0, _ctxBlockSkipTh);
-      return false;
-    }
+  case DirectMode::kTwoPoints:
     _arithmeticEncoder->encode(1, _ctxBlockSkipTh);
     _arithmeticEncoder->encode(numPoints > 1, _ctxNumIdcmPointsGt1);
     if (!geom_unique_points_flag && numPoints == 1)
       _arithmeticEncoder->encode(numPoints == 1, _ctxSinglePointPerBlock);
-  } else {
+    break;
+
+  case DirectMode::kAllPointSame:
     _arithmeticEncoder->encode(1, _ctxBlockSkipTh);
     _arithmeticEncoder->encode(0, _ctxNumIdcmPointsGt1);
     _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
@@ -1229,8 +1257,6 @@ GeometryOctreeEncoder::encodeDirectPosition(
       encodePointPosition(
         nodeSizeLog2AfterPlanar, pointCloud[idx] >> shiftBits);
   }
-
-  return true;
 }
 
 //-------------------------------------------------------------------------
@@ -1639,12 +1665,15 @@ encodeGeometryOctree(
           && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
 
         if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
-          bool directModeUsed = encoder.encodeDirectPosition(
-            gps.geom_unique_points_flag, effectiveChildSizeLog2, shiftBits,
-            child, pointCloud, gps.geom_angular_mode_enabled_flag, headPos,
-            zLaser, thetaLaser, numLasers);
+          auto mode = canEncodeDirectPosition(
+            gps.geom_unique_points_flag, child, pointCloud);
 
-          if (directModeUsed) {
+          encoder.encodeDirectPosition(
+            mode, gps.geom_unique_points_flag, effectiveChildSizeLog2,
+            shiftBits, child, pointCloud, gps.geom_angular_mode_enabled_flag,
+            headPos, zLaser, thetaLaser, numLasers);
+
+          if (mode != DirectMode::kUnavailable) {
             // inverse quantise any quantised positions
             geometryScale(pointCloud, node0, quantNodeSizeLog2);
 
