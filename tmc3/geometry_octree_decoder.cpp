@@ -1234,6 +1234,7 @@ decodeGeometryOctree(
   }
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
+  int idcmQp = 0;
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = 0;
   if (gps.geom_scaling_enabled_flag)
@@ -1291,11 +1292,35 @@ decodeGeometryOctree(
     int childOccupancySkipLevel =
       nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
 
+    // Idcm quantisation applies to child nodes before per node qps
+    if (--numLvlsUntilQpOffset > 0) {
+      // If planar is enabled, the planar bits are not quantised (since
+      // the planar mode is determined before quantisation)
+      auto quantNodeSizeLog2 = childSizeLog2;
+      if (gps.geom_planar_mode_enabled_flag)
+        quantNodeSizeLog2 -= 1;
+
+      for (int k = 0; k < 3; k++)
+        quantNodeSizeLog2[k] = std::max(0, quantNodeSizeLog2[k]);
+
+      // limit the idcmQp such that it cannot overquantise the node
+      auto minNs = std::min(
+        {quantNodeSizeLog2[0], quantNodeSizeLog2[1], quantNodeSizeLog2[2]});
+      idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
+      idcmQp = std::min(idcmQp, minNs * 4);
+
+      for (int k = 0; k < 3; k++)
+        posQuantBitMasks[k] = (1 << quantNodeSizeLog2[k]) - 1;
+    }
+
     // record the node size when quantisation is signalled -- all subsequnt
     // coded occupancy bits are quantised
-    if (!--numLvlsUntilQpOffset)
+    // after the qp offset, idcm nodes do not receive special treatment
+    if (!numLvlsUntilQpOffset) {
+      idcmQp = 0;
       for (int k = 0; k < 3; k++)
         posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
+    }
 
     // save context infor. for parallel coding
     if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
@@ -1494,20 +1519,29 @@ decodeGeometryOctree(
           && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
 
         if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
+          auto idcmSize = effectiveChildSizeLog2;
+          if (idcmQp) {
+            int idcmShiftBits = idcmQp >> 2;
+            idcmSize = childSizeLog2 - idcmShiftBits;
+          }
+
           int numPoints = decoder.decodeDirectPosition(
-            gps.geom_unique_points_flag, effectiveChildSizeLog2, child,
+            gps.geom_unique_points_flag, idcmSize, child,
             &pointCloud[processedPointCount],
             gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
             numLasers);
 
+          if (numPoints && idcmQp)
+            child.qp = idcmQp;
+
           for (int j = 0; j < numPoints; j++) {
             auto& point = pointCloud[processedPointCount++];
             for (int k = 0; k < 3; k++) {
-              int shift = std::max(0, effectiveChildSizeLog2[k]);
+              int shift = std::max(0, idcmSize[k]);
               point[k] += child.posQ[k] << shift;
             }
 
-            point = invQuantPosition(node0.qp, posQuantBitMasks, point);
+            point = invQuantPosition(child.qp, posQuantBitMasks, point);
           }
 
           if (numPoints > 0) {

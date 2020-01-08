@@ -312,6 +312,9 @@ struct GeometryParameterSet {
   // intial qp for geometry scaling
   int geom_base_qp;
 
+  // initial qp (offset) for idcm nodes
+  int geom_idcm_qp_offset;
+
   // Enables/disables non-cubic geometry nodes
   bool qtbt_enabled_flag;
 

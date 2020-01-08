@@ -610,6 +610,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_base_qp, 0,
     "Base QP used in position quantisation (0 = lossless)")
 
+  ("positionIdcmQp",
+    params.encoder.idcmQp, 0,
+    "QP used in position quantisation of IDCM nodes")
+
   ("positionSliceQpOffset",
     params.encoder.gbh.geom_slice_qp_offset, 0,
     "Per-slice QP offset used in position quantisation")

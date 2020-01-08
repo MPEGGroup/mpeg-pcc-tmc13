@@ -98,6 +98,9 @@ struct EncoderParams {
 
   // Enable enforcement of level limits (encoder will abort if exceeded)
   bool enforceLevelLimits;
+
+  // Qp used for IDCM quantisation (used to derive HLS values)
+  int idcmQp;
 };
 
 //============================================================================

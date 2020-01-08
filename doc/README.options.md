@@ -244,6 +244,10 @@ effective QP may be varied according to `positionSliceQpOffset` and
 `positionQuantisationOctreeDepth`.
 A QP equal to 0 results in a scale factor of 1.
 
+### `--positionIdcmQp=INT-VALUE`
+The quantisation parameter used to quantise directly coded (IDCM) point
+positions prior to reaching the `positionQuantisationOctreeDepth`.
+
 ### `--positionSliceQpOffset=INT-VALUE`
 A per-slice offset to be applied to `positionBaseQp`.
 

@@ -336,6 +336,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   params->gps.geom_box_log2_scale_present_flag = true;
   params->gps.gps_geom_box_log2_scale = 0;
 
+  // derive the idcm qp offset from cli
+  params->gps.geom_idcm_qp_offset = params->idcmQp - params->gps.geom_base_qp;
+
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
     auto& attr_sps = params->sps.attributeSets[it.second];

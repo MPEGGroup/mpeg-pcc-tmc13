@@ -1102,7 +1102,7 @@ geometryQuantization(
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << nodeSizeLog2[k]) - 1;
-    int32_t clipMax = ((1 << nodeSizeLog2[k]) >> qpShift) - 1;
+    int32_t clipMax = quantBitsMask >> qpShift;
 
     for (int i = node.start; i < node.end; i++) {
       int32_t pos = int32_t(pointCloud[i][k]);
@@ -1381,6 +1381,7 @@ encodeGeometryOctree(
 
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
+  int idcmQp = 0;
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQuantization = 0;
   if (gps.geom_scaling_enabled_flag) {
@@ -1416,8 +1417,28 @@ encodeGeometryOctree(
 
     auto pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
 
+    // Idcm quantisation applies to child nodes before per node qps
+    if (--numLvlsUntilQuantization > 0) {
+      // If planar is enabled, the planar bits are not quantised (since
+      // the planar mode is determined before quantisation)
+      quantNodeSizeLog2 = childSizeLog2;
+      if (gps.geom_planar_mode_enabled_flag)
+        quantNodeSizeLog2 -= 1;
+
+      for (int k = 0; k < 3; k++)
+        quantNodeSizeLog2[k] = std::max(0, quantNodeSizeLog2[k]);
+
+      // limit the idcmQp such that it cannot overquantise the node
+      auto minNs = std::min(
+        {quantNodeSizeLog2[0], quantNodeSizeLog2[1], quantNodeSizeLog2[2]});
+      idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
+      idcmQp = std::min(idcmQp, minNs * 4);
+    }
+
     // determing a per node QP at the appropriate level
-    if (--numLvlsUntilQuantization == 0) {
+    if (!numLvlsUntilQuantization) {
+      // idcm qps are no longer independent
+      idcmQp = 0;
       quantNodeSizeLog2 = nodeSizeLog2;
       if (!depth)
         fifo.front().qp = sliceQp;
@@ -1668,14 +1689,24 @@ encodeGeometryOctree(
           auto mode = canEncodeDirectPosition(
             gps.geom_unique_points_flag, child, pointCloud);
 
+          int idcmShiftBits = shiftBits;
+          auto idcmSize = effectiveChildSizeLog2;
+
+          if (mode != DirectMode::kUnavailable && idcmQp) {
+            child.qp = idcmQp;
+            idcmShiftBits = idcmQp >> 2;
+            idcmSize = childSizeLog2 - idcmShiftBits;
+            geometryQuantization(pointCloud, child, quantNodeSizeLog2);
+          }
+
           encoder.encodeDirectPosition(
-            mode, gps.geom_unique_points_flag, effectiveChildSizeLog2,
-            shiftBits, child, pointCloud, gps.geom_angular_mode_enabled_flag,
-            headPos, zLaser, thetaLaser, numLasers);
+            mode, gps.geom_unique_points_flag, idcmSize, idcmShiftBits, child,
+            pointCloud, gps.geom_angular_mode_enabled_flag, headPos, zLaser,
+            thetaLaser, numLasers);
 
           if (mode != DirectMode::kUnavailable) {
             // inverse quantise any quantised positions
-            geometryScale(pointCloud, node0, quantNodeSizeLog2);
+            geometryScale(pointCloud, child, quantNodeSizeLog2);
 
             // point reordering to match decoder's order
             for (auto idx = child.start; idx < child.end; idx++)
