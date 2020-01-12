@@ -84,25 +84,16 @@ encodeGeometryTrisoup(
   }
 
   // Encode segind to bitstream.
-  AdaptiveMAryModel multiSymbolSegindModel0(256);
-  uint32_t symbolCount;
-  symbolCount = (segind.size() + 7) / 8;
-  segind.resize(8 * symbolCount, false);
-
-  // todo(df): consider a more appropriate signalling method
   AdaptiveBitModel ctxTemp;
   StaticBitModel ctxBypass;
   arithmeticEncoder->encodeExpGolomb(subsample - 1, 0, ctxBypass, ctxTemp);
+
+  uint32_t symbolCount = segind.size();
   arithmeticEncoder->encodeExpGolomb(symbolCount, 0, ctxBypass, ctxTemp);
 
-  int uniqueIndex = 0;
+  AdaptiveBitModel ctxTempSeg;
   for (uint32_t i = 0; i < symbolCount; i++) {
-    uint8_t c = 0;
-    for (int b = 7; b >= 0; b--) {
-      uint8_t bit = uint8_t(segind[uniqueIndex++]);
-      c |= bit << b;
-    }
-    arithmeticEncoder->encode(uint32_t(c), multiSymbolSegindModel0);
+    arithmeticEncoder->encode((int)segind[i], ctxTempSeg);
   }
 
   // Encode vertices to bitstream.

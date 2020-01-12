@@ -115,13 +115,13 @@ decodeGeometryTrisoup(
     1 + arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
   symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
 
-  AdaptiveMAryModel multiSymbolSegindModel0(256);
+  //AdaptiveMAryModel multiSymbolSegindModel0(256);
+  AdaptiveBitModel ctxTempSeg;
+
   std::vector<bool> segind;
   for (uint32_t i = 0; i < symbolCount; i++) {
-    const uint8_t c = arithmeticDecoder->decode(multiSymbolSegindModel0);
-    for (int b = 7; b >= 0; b--) {
-      segind.push_back(!!(c & (1 << b)));
-    }
+    bool c = !!(arithmeticDecoder->decode(ctxTempSeg));
+    segind.push_back(c);
   }
 
   // Decode vertices from bitstream.
