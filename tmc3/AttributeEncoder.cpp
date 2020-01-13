@@ -721,7 +721,7 @@ AttributeEncoder::encodeColorsPred(
         divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
 
       if (aps.inter_component_prediction_enabled_flag && k > 0) {
-        residual = residualR - residual0;
+        residual = residual - residual0;
         residualQ = q.quantize(residual << kFixedPointAttributeShift);
         residualR = residual0
           + divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
