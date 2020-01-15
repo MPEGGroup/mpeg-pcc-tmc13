@@ -189,8 +189,13 @@ PCCTMC3Encoder3::compress(
       tile.push_back(i);
   }
 
+  // don't partition if partitioning would result in a single slice.
+  auto partitionMethod = params->partition.method;
+  if (quantizedInputCloud.getPointCount() < params->partition.sliceMaxPoints)
+    partitionMethod = PartitionMethod::kNone;
+
   // If partitioning is not enabled, encode input as a single "partition"
-  if (params->partition.method == PartitionMethod::kNone) {
+  if (partitionMethod == PartitionMethod::kNone) {
     compressPartition(
       quantizedInputCloud, inputPointCloud, params, callback,
       reconstructedCloud);
@@ -226,7 +231,7 @@ PCCTMC3Encoder3::compress(
 
       //Slice partition of current tile
       std::vector<Partition> curSlices;
-      switch (params->partition.method) {
+      switch (partitionMethod) {
       // NB: this method is handled earlier
       case PartitionMethod::kNone: return 1;
 
