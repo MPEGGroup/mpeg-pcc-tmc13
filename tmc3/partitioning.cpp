@@ -43,6 +43,21 @@
 namespace pcc {
 
 //============================================================================
+
+struct CM_Node {  //node == partition
+  int cnt;
+  int idx;
+  std::vector<int32_t> pointCloudIndex;
+};
+
+struct CM_Nodes {  //nodes == merged partition
+  int total;
+  double xEvg;
+  double yEvg;
+  std::vector<CM_Node> nodes;
+};
+
+//============================================================================
 // Determine whether half of slices are smaller than maxPoints
 
 bool
@@ -167,6 +182,86 @@ partitionByUniformGeom(
       [](const Partition& p) { return p.pointIndexes.empty(); }),
     slices.end());
 
+  return slices;
+}
+
+//----------------------------------------------------------------------------
+
+std::vector<Partition>
+partitionByUniformSquare(
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  int tileID,
+  int partitionBoundaryLog2)
+{
+  std::vector<Partition> slices;
+
+  Box3<int32_t> bbox = cloud.computeBoundingBox();
+
+  int maxEdgeAxis = longestAxis(bbox);
+  int maxEdge = bbox.max[maxEdgeAxis] - bbox.min[maxEdgeAxis];
+
+  int minEdgeAxis = shortestAxis(bbox);
+  int minEdge = (bbox.max[minEdgeAxis] - bbox.min[minEdgeAxis]);
+
+  int midEdgeAxis = 3 - maxEdgeAxis - minEdgeAxis;
+  int midEdge = bbox.max[midEdgeAxis] - bbox.min[midEdgeAxis];
+
+  int firstSliceNum = maxEdge / minEdge + 1;
+  int secondSliceNum = midEdge / minEdge + 1;
+  int sliceNum = firstSliceNum * secondSliceNum;
+  int sliceSize = minEdge ? minEdge : maxEdge;
+
+  int partitionBoundary = 1 << partitionBoundaryLog2;
+  if (sliceSize % partitionBoundary) {
+    sliceSize = (1 + sliceSize / partitionBoundary) * partitionBoundary;
+  }
+
+  while (1) {
+    slices.clear();
+    slices.resize(sliceNum);
+
+    std::vector<Partition> slicesFirstAxis;
+    slicesFirstAxis.clear();
+    slicesFirstAxis.resize(firstSliceNum);
+
+    int count = 0;
+    for (int i = 0; i < firstSliceNum; i++) {
+      for (int j = 0; j < secondSliceNum; j++) {
+        auto& slice = slices[i * secondSliceNum + j];
+        slice.sliceId = count;
+        slice.tileId = tileID;
+        slice.origin = Vec3<int>{0};
+        count++;
+      }
+    }
+    int p = 0;
+    for (int n = 0; n < cloud.getPointCount(); n++) {
+      p = int(cloud[n][maxEdgeAxis]) / sliceSize;
+      auto& slice = slicesFirstAxis[p];
+      slice.pointIndexes.push_back(n);
+    }
+
+    int q = 0;
+    for (int s = 0; s < slicesFirstAxis.size(); s++) {
+      auto& sliceRough = slicesFirstAxis[s];
+      for (int n = 0; n < sliceRough.pointIndexes.size(); n++) {
+        q = int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) / sliceSize;
+        auto& slice = slices[s * secondSliceNum + q];
+        slice.pointIndexes.push_back(sliceRough.pointIndexes[n]);
+      }
+    }
+    slicesFirstAxis.clear();
+
+    break;
+  }
+
+  int count = 0;
+  for (int i = 0; i < slices.size(); i++) {
+    auto& slice = slices[i];
+    slice.sliceId = count;
+    count++;
+  }
   return slices;
 }
 
@@ -361,69 +456,61 @@ maxEdgeAxis(const PCCPointSet3& cloud, std::vector<int32_t>& sliceIndexes)
 //============================================================================
 // evenly split slice into several partitions no larger than maxPoints
 
-std::vector<Partition>::iterator
+void
 splitSlice(
+  CM_Nodes& splitingSlice,
+  std::vector<CM_Nodes>& newlist,
   const PCCPointSet3& cloud,
-  std::vector<Partition>& slices,
-  std::vector<Partition>::iterator toBeSplit,
   int maxPoints)
 {
-  auto& sliceA = (*toBeSplit);
-  auto& AIndexes = sliceA.pointIndexes;
+  auto& aIndexes = splitingSlice.nodes[0].pointCloudIndex;
 
   // Split along the longest edge at the median point
-  int splitAxis = maxEdgeAxis(cloud, AIndexes);
+  int splitAxis = maxEdgeAxis(cloud, aIndexes);
   std::stable_sort(
-    AIndexes.begin(), AIndexes.end(), [&](int32_t a, int32_t b) {
+    aIndexes.begin(), aIndexes.end(), [&](int32_t a, int32_t b) {
       return cloud[a][splitAxis] < cloud[b][splitAxis];
     });
 
-  int numSplit = std::ceil((double)AIndexes.size() / (double)maxPoints);
-  int splitsize = AIndexes.size() / numSplit;
+  int numSplit = std::ceil((double)aIndexes.size() / (double)maxPoints);
+  int splitsize = aIndexes.size() / numSplit;
   std::vector<Partition> splitPartitions;
   splitPartitions.resize(numSplit);
 
-  // The 2nd to the penultimate partitions
-  for (int i = 1; i < numSplit - 1; i++) {
-    splitPartitions[i].sliceId = sliceA.sliceId + i;
-    splitPartitions[i].tileId = sliceA.tileId;
-    splitPartitions[i].origin = Vec3<int>{0};
-
-    auto& Indexes = splitPartitions[i].pointIndexes;
-    Indexes.insert(
-      Indexes.begin(), AIndexes.begin() + i * splitsize,
-      AIndexes.begin() + (i + 1) * splitsize);
+  for (int i = 0; i < numSplit - 1; i++) {
+    auto& indexes = splitPartitions[i].pointIndexes;
+    indexes.insert(
+      indexes.begin(), aIndexes.begin() + i * splitsize,
+      aIndexes.begin() + (i + 1) * splitsize);
   }
-  // The last split partition
-  auto& Indexes = splitPartitions[numSplit - 1].pointIndexes;
-  Indexes.insert(
-    Indexes.begin(), AIndexes.begin() + (numSplit - 1) * splitsize,
-    AIndexes.end());
+  auto& indexes = splitPartitions[numSplit - 1].pointIndexes;
+  indexes.insert(
+    indexes.begin(), aIndexes.begin() + (numSplit - 1) * splitsize,
+    aIndexes.end());
 
-  AIndexes.erase(AIndexes.begin() + splitsize, AIndexes.end());
-
-  toBeSplit = slices.insert(
-    toBeSplit + 1, splitPartitions.begin() + 1, splitPartitions.end());
-
-  return toBeSplit + (numSplit - 1);
+  newlist.resize(numSplit);
+  for (int i = 0; i < numSplit; i++) {
+    auto& Indexes = splitPartitions[i].pointIndexes;
+    newlist[i].xEvg = -1;
+    newlist[i].yEvg = -1;
+    newlist[i].total = Indexes.size();
+    newlist[i].nodes.push_back(CM_Node());
+    newlist[i].nodes[0].pointCloudIndex.resize(Indexes.size());
+    newlist[i].nodes[0].pointCloudIndex = Indexes;
+    newlist[i].nodes[0].cnt = Indexes.size();
+  }
 }
 
 //----------------------------------------------------------------------------
 // combine the two slices into one
 
-std::vector<Partition>::iterator
-mergeSlice(
-  std::vector<Partition>& slices,
-  std::vector<Partition>::iterator a,
-  std::vector<Partition>::iterator b)
+void
+mergePartition(Partition& a, const Partition& b)
 {
-  auto& AIndexes = (*a).pointIndexes;
-  auto& BIndexes = (*b).pointIndexes;
-
-  AIndexes.insert(AIndexes.end(), BIndexes.begin(), BIndexes.end());
-  (*a).origin = minOrigin((*a).origin, (*b).origin);
-
-  return slices.erase(b);
+  auto& aIndexes = a.pointIndexes;
+  auto& bIndexes = b.pointIndexes;
+  aIndexes.insert(aIndexes.end(), bIndexes.begin(), bIndexes.end());
+  a.origin = minOrigin(a.origin, b.origin);
 }
 
 //=============================================================================
@@ -431,7 +518,7 @@ mergeSlice(
 // then merge slices with too few points(less than minPoints)
 
 void
-refineSlices(
+refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& cloud,
   std::vector<Partition>& slices)
@@ -439,71 +526,215 @@ refineSlices(
   int maxPoints = params.sliceMaxPoints;
   int minPoints = params.sliceMinPoints;
 
-  std::vector<Partition>::iterator it = slices.begin();
-  while (it != slices.end()) {
-    if ((*it).pointIndexes.size() > maxPoints) {
-      it = splitSlice(cloud, slices, it, maxPoints);
-    } else {
-      it++;
+  //initialize
+  const auto& bBox = cloud.computeBoundingBox();
+  int minEdgeAxis = shortestAxis(bBox);
+  int minlength = (bBox.max[minEdgeAxis] - bBox.min[minEdgeAxis]);
+
+  int maxEdgeAxis = longestAxis(bBox);
+  int maxEdge = bBox.max[maxEdgeAxis] - bBox.min[maxEdgeAxis];
+
+  int midEdgeAxis = 3 - maxEdgeAxis - minEdgeAxis;
+  int midEdge = bBox.max[midEdgeAxis] - bBox.min[midEdgeAxis];
+
+  int xNum = floor(maxEdge / minlength) + 1;
+  int yNum = floor(midEdge / minlength) + 1;
+
+  std::vector<std::vector<Partition>> slicePartition;
+  std::vector<std::vector<int>> listCnt;
+  slicePartition.clear();
+  slicePartition.resize(xNum);
+  listCnt.resize(xNum);
+  for (int i = 0; i < xNum; i++) {
+    slicePartition[i].resize(yNum);
+    listCnt[i].resize(yNum);
+  }
+
+  for (int i = 0; i < xNum; i++) {
+    for (int j = 0; j < yNum; j++) {
+      int idx = i * yNum + j;
+      if (idx > (slices.size() - 1))
+        continue;
+      slicePartition[i][j] = slices[i * yNum + j];
     }
   }
 
-  it = slices.begin();
-  while (it != slices.end() && slices.size() > 1) {
-    if ((*it).pointIndexes.size() < minPoints) {
-      std::vector<Partition>::iterator toBeMerge;
-      bool isFront = 0;
+  std::vector<CM_Nodes> list;
+  list.clear();
+  list.resize(xNum * yNum);
+  for (int i = 0; i < xNum * yNum; i++) {
+    list[i].nodes.resize(1);
+    list[i].xEvg = i / yNum;
+    list[i].yEvg = i % yNum;
+    list[i].total = slicePartition[i / yNum][i % yNum].pointIndexes.size();
+    list[i].nodes[0].cnt =
+      slicePartition[i / yNum][i % yNum].pointIndexes.size();
+    list[i].nodes[0].idx = i;
+  }
 
-      // - a slice could only merge with the one before or after it
-      // - the first/last slice could only merge with the next/front one
-      // - let mergerfront = point number of slice after merging with the front one
-      //   mergenext = point number of slice after merging with the subsquent one
-      // - if both mergefront and mergenext < maxPoints, choose the larger one;
-      // - if one of them < maxPoints and another > maxPoints,
-      //     choose the small one to meet the requirement
-      // - if both mergefront and mergenext > maxPoints, choose the larger one
-      //     and do one more split after merge. We deem the slice after split
-      //     as acceptable whether they are larger than minPoints or not
-      // NB: if the merger slice is still smaller than minPoints,
-      //     go on merging the same slice
-      if (it == slices.begin()) {
-        assert(it + 1 != slices.end());
-        toBeMerge = it + 1;
-        isFront = 0;
-      } else if (it == slices.end() - 1) {
-        assert(it - 1 != slices.end());
-        toBeMerge = it - 1;
-        isFront = 1;
-      } else {
-        int mergefront =
-          (*it).pointIndexes.size() + (*(it - 1)).pointIndexes.size();
-        int mergenext =
-          (*it).pointIndexes.size() + (*(it + 1)).pointIndexes.size();
+  for (int i = 0; i < list.size(); i++) {
+    for (int n = 0; n < list[i].nodes.size(); n++) {
+      list[i].nodes[n].pointCloudIndex.resize(list[i].total);
+      for (int idx = 0; idx < list[i].total; idx++) {
+        list[i].nodes[n].pointCloudIndex[idx] =
+          slicePartition[i / yNum][i % yNum].pointIndexes[idx];
+      }
+    }
+  }
+
+  //list erase
+  for (int i = 0; i < list.size();) {
+    if (list[i].total == 0) {
+      list.erase(list.begin() + i);
+    } else {
+      i++;
+    }
+  }
+
+  //initial sort
+  int min_idx;
+  for (int i = 0; i < list.size() - 1; i++) {
+    min_idx = i;
+    for (int j = i + 1; j < list.size(); j++) {
+      if (list[min_idx].total > list[j].total)
+        min_idx = j;
+    }
+    std::swap(list[min_idx], list[i]);
+  }
+
+  std::vector<CM_Nodes> newlist;
+  std::vector<CM_Nodes> newSlice;
+  std::vector<CM_Nodes> tmplist = list;
+  int listNum = list.size();
+  for (int i = 0; i < listNum; i++) {
+    if (tmplist[i].total > maxPoints) {
+      splitSlice(list[i], newlist, cloud, maxPoints);
+      for (int j = 0; j < newlist.size(); j++) {
+        newSlice.push_back(newlist[j]);
+      }
+    }
+  }
+
+  tmplist.erase(
+    std::remove_if(
+      tmplist.begin(), tmplist.end(),
+      [=](const CM_Nodes& p) { return p.total > maxPoints; }),
+    tmplist.end());
+
+  list = tmplist;
+  tmplist.clear();
+  for (int i = 0; i < list.size(); i++) {
+    for (int n = 0; n < list[i].nodes.size(); n++) {
+      int xIdx = list[i].nodes[n].idx / yNum;  //partition index x
+      int yIdx = list[i].nodes[n].idx % yNum;  //partition index y
+      listCnt[xIdx][yIdx] = i + 1;
+    }
+  }
+
+  //find adjacent slice
+  for (int i = 0; i < list.size();) {
+    int minLidx = -1;
+    double mindist = 1.0;
+    for (int n = 0; n < list[i].nodes.size(); n++) {
+      int xIdxP = list[i].nodes[n].idx / yNum;
+      int yIdxP = list[i].nodes[n].idx % yNum;
+      for (int f = 0; f < 4; f++) {
+        int xIdxPTmp = 0;
+        int yIdxPTmp = 0;
+        if (f == 0) {
+          xIdxPTmp = xIdxP - 1;  //left
+          yIdxPTmp = yIdxP;
+          if (xIdxPTmp < 0)
+            continue;
+        } else if (f == 1) {
+          xIdxPTmp = xIdxP + 1;  //right
+          yIdxPTmp = yIdxP;
+          if (xIdxPTmp >= xNum)
+            continue;
+        } else if (f == 2) {
+          xIdxPTmp = xIdxP;
+          yIdxPTmp = yIdxP - 1;  //down
+          if (yIdxPTmp < 0)
+            continue;
+        } else if (f == 3) {
+          xIdxPTmp = xIdxP;
+          yIdxPTmp = yIdxP + 1;  //up
+          if (yIdxPTmp >= yNum)
+            continue;
+        }
 
         if (
-          (mergefront > maxPoints && mergenext > maxPoints)
-          || (mergefront < maxPoints && mergenext < maxPoints)) {
-          toBeMerge = mergefront > mergenext ? (it - 1) : (it + 1);
-          isFront = mergefront > mergenext ? 1 : 0;
-        } else {
-          toBeMerge = mergefront < mergenext ? (it - 1) : (it + 1);
-          isFront = mergefront < mergenext ? 1 : 0;
+          (listCnt[xIdxPTmp][yIdxPTmp] == 0)
+          || (listCnt[xIdxPTmp][yIdxPTmp] == i + 1)) {
+          continue;
+        }
+
+        int lIdxTmp = listCnt[xIdxPTmp][yIdxPTmp] - 1;  //list index
+        double distTmp = sqrt(
+          pow((list[i].xEvg - xIdxPTmp), 2)
+          + pow((list[i].yEvg - yIdxPTmp), 2));
+        if (mindist >= distTmp) {
+          if ((list[lIdxTmp].total + list[i].total) < maxPoints) {
+            mindist = distTmp;
+            minLidx = lIdxTmp;
+          }
         }
       }
+    }
 
-      it = isFront ? mergeSlice(slices, toBeMerge, it)
-                   : mergeSlice(slices, it, toBeMerge);
-
-      if ((*(it - 1)).pointIndexes.size() > maxPoints)
-        it = splitSlice(cloud, slices, it - 1, maxPoints);
-      else if ((*(it - 1)).pointIndexes.size() < minPoints)
-        it--;
-
+    if (minLidx <= 0) {
+      i++;
     } else {
-      it++;
+      int pre_num = list[i].nodes.size();
+      list[i].nodes.resize(pre_num + list[minLidx].nodes.size());
+
+      for (int m = pre_num; m < list[i].nodes.size(); m++) {
+        list[i].nodes[m].cnt = list[minLidx].nodes[m - pre_num].cnt;
+        list[i].nodes[m].idx = list[minLidx].nodes[m - pre_num].idx;
+      }
+      list[i].total += list[minLidx].total;
+      list.erase(list.begin() + minLidx);
+      for (int j = i; j < list.size() - 1; j++) {
+        if (list[j].total > list[j + 1].total)
+          std::swap(list[j], list[j + 1]);
+      }
+
+      for (int j = i; j < list.size(); j++) {
+        double xSum = 0;
+        double ySum = 0;
+        for (int n = 0; n < list[j].nodes.size(); n++) {
+          int xIdx = list[j].nodes[n].idx / yNum;
+          int yIdx = list[j].nodes[n].idx % yNum;
+          xSum += xIdx;
+          ySum += yIdx;
+          listCnt[xIdx][yIdx] = j + 1;
+        }
+        list[j].xEvg = xSum / list[j].nodes.size();
+        list[j].yEvg = ySum / list[j].nodes.size();
+      }
     }
   }
 
+  //split
+  std::vector<Partition> refinedSlice;
+  refinedSlice.clear();
+  refinedSlice.resize(list.size() + newSlice.size());
+  for (int i = 0; i < list.size(); i++) {
+    for (int n = 0; n < list[i].nodes.size(); n++) {
+      int xIdxP = list[i].nodes[n].idx / yNum;
+      int yIdxP = list[i].nodes[n].idx % yNum;
+      mergePartition(refinedSlice[i], slicePartition[xIdxP][yIdxP]);
+    }
+  }
+
+  for (int i = list.size(); i < list.size() + newSlice.size(); i++) {
+    refinedSlice[i].pointIndexes.resize(0);
+    refinedSlice[i].pointIndexes.insert(
+      refinedSlice[i].pointIndexes.end(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndex.begin(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndex.end());
+  }
+  slices = refinedSlice;
   for (int i = 0; i < slices.size(); i++) {
     auto& slice = slices[i];
     slice.sliceId = i;

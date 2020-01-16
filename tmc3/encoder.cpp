@@ -240,6 +240,11 @@ PCCTMC3Encoder3::compress(
           params->partition, tileCloud, t, _gps->trisoup_node_size_log2);
         break;
 
+      case PartitionMethod::kUniformSquare:
+        curSlices = partitionByUniformSquare(
+          params->partition, tileCloud, t, _gps->trisoup_node_size_log2);
+        break;
+
       case PartitionMethod::kOctreeUniform:
         curSlices = partitionByOctreeDepth(params->partition, tileCloud, t);
         break;
@@ -253,7 +258,8 @@ PCCTMC3Encoder3::compress(
       // Adjust the point number of each slice
       // to the range between sliceMaxPoints and sliceMinPoints
       // by merge small slices and split large ones.
-      refineSlices(params->partition, quantizedInputCloud, curSlices);
+      refineSlicesByAdjacentInfo(
+        params->partition, quantizedInputCloud, curSlices);
 
       partitions.slices.insert(
         partitions.slices.end(), curSlices.begin(), curSlices.end());

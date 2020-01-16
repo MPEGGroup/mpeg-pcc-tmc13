@@ -302,6 +302,7 @@ operator<<(std::ostream& out, const PartitionMethod& val)
   case PartitionMethod::kNone: out << "0 (None)"; break;
   case PartitionMethod::kUniformGeom: out << "2 (UniformGeom)"; break;
   case PartitionMethod::kOctreeUniform: out << "3 (UniformOctree)"; break;
+  case PartitionMethod::kUniformSquare: out << "4 (UniformSquare)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -473,12 +474,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enables removal of duplicated points")
 
   ("partitionMethod",
-    params.encoder.partition.method, PartitionMethod::kUniformGeom,
+    params.encoder.partition.method, PartitionMethod::kUniformSquare,
     "Method used to partition input point cloud into slices/tiles:\n"
     "  0: none\n"
     "  1: none (deprecated)\n"
     "  2: n Uniform-Geometry partition bins along the longest edge\n"
-    "  3: Uniform Geometry partition at n octree depth")
+    "  3: Uniform Geometry partition at n octree depth\n"
+    "  4: Uniform Square partition")
 
   ("partitionOctreeDepth",
     params.encoder.partition.octreeDepth, 1,

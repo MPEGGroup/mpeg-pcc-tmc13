@@ -56,6 +56,9 @@ enum class PartitionMethod
 
   // Partition according to the depth of octree
   kOctreeUniform = 3,
+
+  // TBD
+  kUniformSquare = 4,
 };
 
 //============================================================================
@@ -117,6 +120,11 @@ std::vector<Partition> partitionByOctreeDepth(
   int tileID,
   bool splitByDepth = false);
 
+std::vector<Partition> partitionByUniformSquare(
+  const PartitionParams& params,
+  const PCCPointSet3& cloud,
+  int tileID,
+  int paritionBoundaryLog2);
 //============================================================================
 
 std::vector<std::vector<int32_t>>
@@ -124,7 +132,7 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud);
 
 //============================================================================
 
-void refineSlices(
+void refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& inputPointCloud,
   std::vector<Partition>& slices);
