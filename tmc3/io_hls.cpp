@@ -366,7 +366,6 @@ write(const AttributeParameterSet& aps)
   if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours);
     bs.writeUe(aps.search_range);
-    bs.writeUe(aps.num_detail_levels);
     bs.writeUe(aps.lod_neigh_bias.x());
     bs.writeUe(aps.lod_neigh_bias.y());
     bs.writeUe(aps.lod_neigh_bias.z());
@@ -375,6 +374,7 @@ write(const AttributeParameterSet& aps)
       bs.write(aps.scalable_lifting_enabled_flag);
 
     if (!aps.scalable_lifting_enabled_flag) {
+      bs.writeUe(aps.num_detail_levels);
       bs.write(aps.lod_decimation_enabled_flag);
 
       for (int idx = 0; idx < aps.num_detail_levels; idx++) {
@@ -426,7 +426,6 @@ parseAps(const PayloadBuffer& buf)
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours);
     bs.readUe(&aps.search_range);
-    bs.readUe(&aps.num_detail_levels);
     bs.readUe(&aps.lod_neigh_bias.x());
     bs.readUe(&aps.lod_neigh_bias.y());
     bs.readUe(&aps.lod_neigh_bias.z());
@@ -436,6 +435,7 @@ parseAps(const PayloadBuffer& buf)
       bs.read(&aps.scalable_lifting_enabled_flag);
 
     if (!aps.scalable_lifting_enabled_flag) {
+      bs.readUe(&aps.num_detail_levels);
       bs.read(&aps.lod_decimation_enabled_flag);
 
       aps.dist2.resize(aps.num_detail_levels);
