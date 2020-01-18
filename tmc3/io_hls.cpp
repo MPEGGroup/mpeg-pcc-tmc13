@@ -375,7 +375,8 @@ write(const AttributeParameterSet& aps)
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.writeUe(aps.num_detail_levels);
-      bs.write(aps.lod_decimation_enabled_flag);
+      if (aps.num_detail_levels > 0)
+        bs.write(aps.lod_decimation_enabled_flag);
 
       for (int idx = 0; idx < aps.num_detail_levels; idx++) {
         // todo(??): is this an appropriate encoding?
@@ -436,7 +437,8 @@ parseAps(const PayloadBuffer& buf)
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.readUe(&aps.num_detail_levels);
-      bs.read(&aps.lod_decimation_enabled_flag);
+      if (aps.num_detail_levels > 0)
+        bs.read(&aps.lod_decimation_enabled_flag);
 
       aps.dist2.resize(aps.num_detail_levels);
       for (int idx = 0; idx < aps.num_detail_levels; idx++) {
