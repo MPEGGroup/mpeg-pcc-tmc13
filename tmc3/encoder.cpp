@@ -345,18 +345,20 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
 
     // the encoder options may not specify sufficient offsets for the number
     // of layers used by the sytax: extend with last value as appropriate
-    if (!attr_enc.abh.attr_layer_qp_delta_luma.empty()) {
-      int numLayers =
-        attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
-        ? attr_aps.raht_depth + 1
-        : attr_aps.num_detail_levels + 1;
+    int numLayers = std::max(
+      attr_enc.abh.attr_layer_qp_delta_luma.size(),
+      attr_enc.abh.attr_layer_qp_delta_chroma.size());
 
-      attr_enc.abh.attr_layer_qp_delta_luma.resize(
-        numLayers, attr_enc.abh.attr_layer_qp_delta_luma.back());
+    int lastDeltaLuma = 0;
+    if (!attr_enc.abh.attr_layer_qp_delta_luma.empty())
+      lastDeltaLuma = attr_enc.abh.attr_layer_qp_delta_luma.back();
 
-      attr_enc.abh.attr_layer_qp_delta_chroma.resize(
-        numLayers, attr_enc.abh.attr_layer_qp_delta_chroma.back());
-    }
+    int lastDeltaChroma = 0;
+    if (!attr_enc.abh.attr_layer_qp_delta_chroma.empty())
+      lastDeltaChroma = attr_enc.abh.attr_layer_qp_delta_chroma.back();
+
+    attr_enc.abh.attr_layer_qp_delta_luma.resize(numLayers, lastDeltaLuma);
+    attr_enc.abh.attr_layer_qp_delta_chroma.resize(numLayers, lastDeltaChroma);
   }
 }
 

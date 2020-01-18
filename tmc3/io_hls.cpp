@@ -397,7 +397,6 @@ write(const AttributeParameterSet& aps)
       bs.writeUe(aps.raht_prediction_threshold0);
       bs.writeUe(aps.raht_prediction_threshold1);
     }
-    bs.writeUe(aps.raht_depth);
   }
 
   bool aps_extension_flag = false;
@@ -460,7 +459,6 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.raht_prediction_threshold0);
       bs.readUe(&aps.raht_prediction_threshold1);
     }
-    bs.readUe(&aps.raht_depth);
   }
 
   bool aps_extension_flag = bs.read();
@@ -666,11 +664,9 @@ write(
   bool attr_layer_qp_present_flag = !abh.attr_layer_qp_delta_luma.empty();
   bs.write(attr_layer_qp_present_flag);
   if (attr_layer_qp_present_flag) {
-    int numLayers = aps.attr_encoding == AttributeEncoding::kRAHTransform
-      ? aps.raht_depth + 1
-      : aps.num_detail_levels + 1;
-
-    for (int i = 0; i < numLayers; i++) {
+    int attr_num_qp_layers_minus1 = abh.attr_num_qp_layers_minus1();
+    bs.writeUe(attr_num_qp_layers_minus1);
+    for (int i = 0; i <= attr_num_qp_layers_minus1; i++) {
       bs.writeSe(abh.attr_layer_qp_delta_luma[i]);
       bs.writeSe(abh.attr_layer_qp_delta_chroma[i]);
     }
@@ -730,13 +726,11 @@ parseAbh(
   bool attr_layer_qp_present_flag;
   bs.read(&attr_layer_qp_present_flag);
   if (attr_layer_qp_present_flag) {
-    int numLayers = aps.attr_encoding == AttributeEncoding::kRAHTransform
-      ? aps.raht_depth + 1
-      : aps.num_detail_levels + 1;
-
-    abh.attr_layer_qp_delta_luma.resize(numLayers);
-    abh.attr_layer_qp_delta_chroma.resize(numLayers);
-    for (int i = 0; i < numLayers; i++) {
+    int attr_num_qp_layers_minus1;
+    bs.readUe(&attr_num_qp_layers_minus1);
+    abh.attr_layer_qp_delta_luma.resize(attr_num_qp_layers_minus1 + 1);
+    abh.attr_layer_qp_delta_chroma.resize(attr_num_qp_layers_minus1 + 1);
+    for (int i = 0; i <= attr_num_qp_layers_minus1; i++) {
       bs.readSe(&abh.attr_layer_qp_delta_luma[i]);
       bs.readSe(&abh.attr_layer_qp_delta_chroma[i]);
     }

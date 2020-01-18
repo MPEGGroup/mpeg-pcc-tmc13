@@ -671,11 +671,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
     "  2: Hierarichical neighbourhood prediction as lifting transform")
 
-  ("rahtDepth",
-    params_attr.aps.raht_depth, 21,
-    "Number of bits for morton representation of an RAHT co-ordinate"
-    "component")
-
   ("rahtPredictionEnabled",
     params_attr.aps.raht_prediction_enabled_flag, true,
     "Controls the use of transform-domain prediction")

@@ -404,7 +404,6 @@ struct AttributeParameterSet {
   bool raht_prediction_enabled_flag;
   int raht_prediction_threshold0;
   int raht_prediction_threshold1;
-  int raht_depth;
 
   //--- lifting parameters
   bool scalable_lifting_enabled_flag;
@@ -425,6 +424,11 @@ struct AttributeBrickHeader {
   bool attr_layer_qp_present_flag() const
   {
     return !attr_layer_qp_delta_luma.empty();
+  }
+
+  int attr_num_qp_layers_minus1() const
+  {
+    return attr_layer_qp_delta_luma.size() - 1;
   }
 
   Vec3<int> attr_region_qp_origin;

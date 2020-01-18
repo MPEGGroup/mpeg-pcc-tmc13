@@ -456,10 +456,6 @@ Coding method to use for the current attribute:
   | 1     | Region Adaptive Hierarchical Transform (RAHT)              |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
 
-### `--rahtDepth=INT-VALUE`
-Number of bits for Morton representation of RAHT co-ordinate
-components.
-
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients
 from spatially upsampling the DC values of neighbouring parent nodes
