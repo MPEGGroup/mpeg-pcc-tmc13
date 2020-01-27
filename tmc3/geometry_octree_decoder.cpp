@@ -1085,7 +1085,6 @@ decodeGeometryOctree(
       node0.qp = decoder.decodeQpOffset() + sliceQp;
 
     int shiftBits = (node0.qp - 4) / 6;
-    int effectiveNodeMaxDimLog2 = nodeMaxDimLog2 - shiftBits;
     auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
     auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
@@ -1122,7 +1121,7 @@ decodeGeometryOctree(
     int occupancyPrediction = 0;
 
     // generate intra prediction
-    if (effectiveNodeMaxDimLog2 < gps.intra_pred_max_node_size_log2) {
+    if (nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2) {
       predictGeometryOccupancyIntra(
         occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
         &occupancyPrediction);
@@ -1240,8 +1239,7 @@ decodeGeometryOctree(
 
       bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
         && planarProb[0] * planarProb[1] * planarProb[2] <= th_idcm;
-      if (isDirectModeEligible(
-            idcmEnabled, effectiveNodeMaxDimLog2, node0, child)) {
+      if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
         int numPoints = decoder.decodeDirectPosition(
           gps.geom_unique_points_flag, effectiveChildSizeLog2, child,
           &pointCloud[processedPointCount]);
