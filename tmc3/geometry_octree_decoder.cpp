@@ -763,30 +763,19 @@ GeometryOctreeDecoder::decodeOccupancy(
     }
   }
 
-  uint32_t mapOccIsP =
-    mapGeometryOccupancy(occupancyIsPred, neighPattern, planarMaskZ);
-  uint32_t mapOccP =
-    mapGeometryOccupancy(occupancyPred, neighPattern, planarMaskZ);
-  uint32_t mapAdjGt0 =
-    mapGeometryOccupancy(occupancyAdjGt0, neighPattern, planarMaskZ);
-  uint32_t mapAdjGt1 =
-    mapGeometryOccupancy(occupancyAdjGt1, neighPattern, planarMaskZ);
-  uint32_t mapAdjUnocc =
-    mapGeometryOccupancy(occupancyAdjUnocc, neighPattern, planarMaskZ);
+  uint32_t mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
+  uint32_t mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
+  uint32_t mapAdjGt0 = mapGeometryOccupancy(occupancyAdjGt0, neighPattern);
+  uint32_t mapAdjGt1 = mapGeometryOccupancy(occupancyAdjGt1, neighPattern);
+  uint32_t mapAdjUnocc = mapGeometryOccupancy(occupancyAdjUnocc, neighPattern);
 
-  uint32_t mapPlanarMaskX =
-    mapGeometryOccupancy(planarMaskX, neighPattern, planarMaskZ);
-  uint32_t mapPlanarMaskY =
-    mapGeometryOccupancy(planarMaskY, neighPattern, planarMaskZ);
-  uint32_t mapPlanarMaskZ =
-    mapGeometryOccupancy(planarMaskZ, neighPattern, planarMaskZ);
+  uint32_t mapPlanarMaskX = mapGeometryOccupancy(planarMaskX, neighPattern);
+  uint32_t mapPlanarMaskY = mapGeometryOccupancy(planarMaskY, neighPattern);
+  uint32_t mapPlanarMaskZ = mapGeometryOccupancy(planarMaskZ, neighPattern);
 
-  uint32_t mapFixedMaskX0 =
-    mapGeometryOccupancy(0xf0, neighPattern, planarMaskZ);
-  uint32_t mapFixedMaskY0 =
-    mapGeometryOccupancy(0xcc, neighPattern, planarMaskZ);
-  uint32_t mapFixedMaskZ0 =
-    mapGeometryOccupancy(0xaa, neighPattern, planarMaskZ);
+  uint32_t mapFixedMaskX0 = mapGeometryOccupancy(0xf0, neighPattern);
+  uint32_t mapFixedMaskY0 = mapGeometryOccupancy(0xcc, neighPattern);
+  uint32_t mapFixedMaskZ0 = mapGeometryOccupancy(0xaa, neighPattern);
 
   uint32_t mappedOccupancy;
 
@@ -799,7 +788,7 @@ GeometryOctreeDecoder::decodeOccupancy(
   else
     mappedOccupancy = decodeOccupancyBytewise(neighPattern);
 
-  return mapGeometryOccupancyInv(mappedOccupancy, neighPattern, planarMaskZ);
+  return mapGeometryOccupancyInv(mappedOccupancy, neighPattern);
 }
 
 //-------------------------------------------------------------------------

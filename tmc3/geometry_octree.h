@@ -88,10 +88,8 @@ struct PCCOctree3Node {
 };
 
 //---------------------------------------------------------------------------
-uint8_t
-mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern, int planarMaskZ);
-uint8_t mapGeometryOccupancyInv(
-  uint8_t occupancy, uint8_t neighPattern, int planarMaskZ);
+uint8_t mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern);
+uint8_t mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern);
 
 void updateGeometryNeighState(
   bool siblingRestriction,

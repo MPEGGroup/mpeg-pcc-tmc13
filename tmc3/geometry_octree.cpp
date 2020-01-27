@@ -48,12 +48,8 @@ namespace pcc {
 // neighbour configuration @neighPattern.
 //
 uint8_t
-mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern, int planarMaskZ)
+mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern)
 {
-  if (planarMaskZ && !(planarMaskZ & 1)) {
-    occupancy = kOccMapMirrorXY[occupancy];
-  }
-
   switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
   case 1: occupancy = kOccMapRotateZ090[occupancy]; break;
   case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
@@ -83,8 +79,7 @@ mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern, int planarMaskZ)
 // neighbour configuration @neighPattern.
 //
 uint8_t
-mapGeometryOccupancyInv(
-  uint8_t occupancy, uint8_t neighPattern, int planarMaskZ)
+mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
 {
   switch (kOccMapRotateXIdFromPattern[neighPattern]) {
   case 1: occupancy = kOccMapRotateX270[occupancy]; break;
@@ -105,10 +100,6 @@ mapGeometryOccupancyInv(
   case 1: occupancy = kOccMapRotateZ270[occupancy]; break;
   case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
   case 3: occupancy = kOccMapRotateZ090[occupancy]; break;
-  }
-
-  if (planarMaskZ && !(planarMaskZ & 1)) {
-    occupancy = kOccMapMirrorXY[occupancy];
   }
 
   return occupancy;
