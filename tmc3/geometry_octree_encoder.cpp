@@ -1024,9 +1024,6 @@ encodeGeometryOctree(
   std::vector<int> pointIdxToDmIdx(int(pointCloud.getPointCount()), -1);
   int nextDmIdx = 0;
 
-  size_t processedPointCount = 0;
-  std::vector<uint32_t> values;
-
   auto fifoCurrLvlEnd = fifo.end();
 
   // represents the largest dimension of the current node
@@ -1294,19 +1291,16 @@ encodeGeometryOctree(
         for (auto idx = childStart; idx < childEnd; idx++)
           pointIdxToDmIdx[idx] = nextDmIdx++;
 
-        processedPointCount += childCounts[i];
         childStart = childEnd;
 
         // if the bitstream is configured to represent unique points,
         // no point count is sent.
         if (gps.geom_unique_points_flag) {
           assert(childCounts[i] == 1);
-          processedPointCount++;
           continue;
         }
 
         encoder.encodePositionLeafNumPoints(childCounts[i]);
-        processedPointCount += childCounts[i];
       }
 
       // leaf nodes do not get split
@@ -1385,7 +1379,6 @@ encodeGeometryOctree(
           // point reordering to match decoder's order
           for (auto idx = child.start; idx < child.end; idx++)
             pointIdxToDmIdx[idx] = nextDmIdx++;
-          processedPointCount += child.end - child.start;
 
           // NB: by definition, this is the only child node present
           assert(child.numSiblingsPlus1 == 1);
