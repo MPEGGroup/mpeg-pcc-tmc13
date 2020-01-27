@@ -438,10 +438,7 @@ write(
 
   if (gps.geom_scaling_enabled_flag) {
     bs.writeSe(gbh.geom_slice_qp_offset);
-    bs.write(gbh.geom_octree_qp_offset_enabled_flag);
-    if (gbh.geom_octree_qp_offset_enabled_flag) {
-      bs.writeUe(gbh.geom_octree_qp_offset_depth);
-    }
+    bs.writeUe(gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.geom_box_present_flag) {
@@ -495,12 +492,9 @@ parseGbh(
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
 
-  gbh.geom_octree_qp_offset_enabled_flag = false;
   if (gps.geom_scaling_enabled_flag) {
     bs.readSe(&gbh.geom_slice_qp_offset);
-    bs.read(&gbh.geom_octree_qp_offset_enabled_flag);
-    if (gbh.geom_octree_qp_offset_enabled_flag)
-      bs.readUe(&gbh.geom_octree_qp_offset_depth);
+    bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.geom_box_present_flag) {

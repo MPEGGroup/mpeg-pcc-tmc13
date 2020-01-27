@@ -282,10 +282,6 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   params->gps.geom_box_log2_scale_present_flag = true;
   params->gps.gps_geom_box_log2_scale = 0;
 
-  // don't enable octree qp offset signalling if disabled
-  params->gbh.geom_octree_qp_offset_enabled_flag =
-    params->gbh.geom_octree_qp_offset_depth >= 0;
-
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
     auto& attr_sps = params->sps.attributeSets[it.second];
@@ -474,8 +470,6 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   gbh.geom_num_points = int(pointCloud.getPointCount());
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
-  gbh.geom_octree_qp_offset_enabled_flag =
-    params->gbh.geom_octree_qp_offset_enabled_flag;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   write(*_sps, *_gps, gbh, buf);
 

@@ -1003,14 +1003,11 @@ decodeGeometryOctree(
     occupancyAtlas.clear();
   }
 
+  Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = -1;
-  Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
-
-  if (gbh.geom_octree_qp_offset_enabled_flag)
+  if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
-  else if (gps.geom_scaling_enabled_flag)
-    node00.qp = sliceQp;
 
   for (; !fifo.empty(); fifo.pop_front()) {
     if (fifo.begin() == fifoCurrLvlEnd) {

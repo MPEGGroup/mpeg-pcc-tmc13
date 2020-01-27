@@ -325,9 +325,6 @@ struct GeometryBrickHeader {
   // qp offset for geometry scaling (if enabled)
   int geom_slice_qp_offset;
 
-  // enables signalling of qp offsets within the octree
-  bool geom_octree_qp_offset_enabled_flag;
-
   // octree depth at which qp offsets whould be signalled
   int geom_octree_qp_offset_depth;
 

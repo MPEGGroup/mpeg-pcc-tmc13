@@ -1079,11 +1079,8 @@ encodeGeometryOctree(
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
   int numLvlsUntilQuantization = -1;
-  if (gps.geom_scaling_enabled_flag) {
-    numLvlsUntilQuantization = 0;
-    if (gbh.geom_octree_qp_offset_enabled_flag)
-      numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth;
-  }
+  if (gps.geom_scaling_enabled_flag)
+    numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth;
 
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
 
@@ -1160,8 +1157,7 @@ encodeGeometryOctree(
     PCCOctree3Node& node0 = fifo.front();
 
     // encode delta qp for each octree block
-    if (
-      numLvlsUntilQuantization == 0 && gbh.geom_octree_qp_offset_enabled_flag)
+    if (numLvlsUntilQuantization == 0)
       encoder.encodeQpOffset(node0.qp - sliceQp);
 
     int shiftBits = (node0.qp - 4) / 6;
