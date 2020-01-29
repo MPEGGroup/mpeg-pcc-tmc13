@@ -315,6 +315,28 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
 
 //---------------------------------------------------------------------------
 
+struct OctreePlanarState {
+  OctreePlanarState(const GeometryParameterSet&, const GeometryBrickHeader&);
+
+  OctreePlanarState(const OctreePlanarState&) = delete;
+  OctreePlanarState(OctreePlanarState&&) = delete;
+  OctreePlanarState& operator=(const OctreePlanarState&) = delete;
+  OctreePlanarState& operator=(OctreePlanarState&&) = delete;
+
+  static constexpr int kNumPlanarPlanes = 4;
+
+  std::vector<int> _planes3x3;
+  std::array<int*, 9> _planes;
+  std::array<int, 3> _rate{{128 * 8, 128 * 8, 128 * 8}};
+  int _localDensity = 1024 * 4;
+
+  std::array<int, 3> _rateThreshold;
+
+  void initPlanes(int planarDepth);
+  void updateRate(int occupancy, int numSiblings);
+  void isEligible(bool eligible[3]);
+};
+
 // determine if a 222 block is planar
 void isPlanarNode(
   PCCPointSet3& pointCloud,
@@ -324,19 +346,9 @@ void isPlanarNode(
   uint8_t& planePosBits,
   bool planarEligible[3]);
 
-void planarInitPlanes(
-  const int kNumPlanarPlanes, int depth, int* planes3x3, int* planes[9]);
-void updateplanarRate(
-  int planarRate[3], int occupancy, int& localDensity, int numSiblings);
-void eligilityPlanar(
-  bool planarEligible[3],
-  int plane_rate[3],
-  const int threshold[3],
-  int localDensity);
-
-int maskPlanarX(PCCOctree3Node& node0, bool activatable);
-int maskPlanarY(PCCOctree3Node& node0, bool activatable);
-int maskPlanarZ(PCCOctree3Node& node0, bool activatable);
+int maskPlanarX(const PCCOctree3Node& node0, bool activatable);
+int maskPlanarY(const PCCOctree3Node& node0, bool activatable);
+int maskPlanarZ(const PCCOctree3Node& node0, bool activatable);
 
 void maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip);
 

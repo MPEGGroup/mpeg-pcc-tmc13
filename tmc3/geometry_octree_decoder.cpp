@@ -50,9 +50,11 @@ namespace pcc {
 class GeometryOctreeDecoder {
 public:
   GeometryOctreeDecoder(
-    const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder);
+    const GeometryParameterSet& gps,
+    const GeometryBrickHeader& gbh,
+    EntropyDecoder* arithmeticDecoder);
 
-  void beginOctreeLevel();
+  void beginOctreeLevel(int planarDepth);
 
   int decodePositionLeafNumPoints();
 
@@ -119,7 +121,6 @@ public:
 
   void determinePlanarMode(
     int index,
-    const int kNumPlanarPlanes,
     PCCOctree3Node& child,
     int* plane1,
     int* plane2,
@@ -134,15 +135,12 @@ public:
 
   void determinePlanarMode(
     bool planarEligible[3],
-    const int kNumPlanarPlanes,
     PCCOctree3Node& child,
-    int* planes[9],
     uint8_t neighPattern,
     int x,
     int y,
     int z,
-    int planarProb[3],
-    int planarRate[3]);
+    int planarProb[3]);
 
   uint32_t decodeOccupancy(
     int neighPattern,
@@ -170,7 +168,7 @@ public:
     const PCCOctree3Node& node,
     OutputIt outputPoints);
 
-private:
+public:
   // selects between the bitwise and bytewise occupancy coders
   const bool _useBitwiseOccupancyCoder;
 
@@ -200,16 +198,22 @@ private:
 
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
+
+  // Planar state
+  OctreePlanarState _planar;
 };
 
 //============================================================================
 
 GeometryOctreeDecoder::GeometryOctreeDecoder(
-  const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder)
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  EntropyDecoder* arithmeticDecoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
   , _ctxOccupancy(gps.geom_occupancy_ctx_reduction_factor)
+  , _planar(gps, gbh)
 {
   if (!_useBitwiseOccupancyCoder) {
     for (int i = 0; i < 10; i++)
@@ -219,11 +223,14 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
 //============================================================================
 
 void
-GeometryOctreeDecoder::beginOctreeLevel()
+GeometryOctreeDecoder::beginOctreeLevel(int planarDepth)
 {
   for (int i = 0; i < 10; i++) {
     _bytewiseOccupancyCoder[i].resetLut();
   }
+
+  if (!_planar._planes3x3.empty())
+    _planar.initPlanes(planarDepth);
 }
 
 //============================================================================
@@ -295,7 +302,6 @@ GeometryOctreeDecoder::decodePlanarMode(
 void
 GeometryOctreeDecoder::determinePlanarMode(
   int planeId,
-  const int kNumPlanarPlanes,
   PCCOctree3Node& child,
   int* plane1,
   int* plane2,
@@ -308,6 +314,8 @@ GeometryOctreeDecoder::determinePlanarMode(
   int planarProb[3],
   int planarRate[3])
 {
+  auto kNumPlanarPlanes = OctreePlanarState::kNumPlanarPlanes;
+
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
   const int planeSelector = 1 << planeId;
@@ -363,37 +371,36 @@ GeometryOctreeDecoder::determinePlanarMode(
 void
 GeometryOctreeDecoder::determinePlanarMode(
   bool planarEligible[3],
-  const int kNumPlanarPlanes,
   PCCOctree3Node& child,
-  int* planes[9],
   uint8_t neighPattern,
   int x,
   int y,
   int z,
-  int planarProb[3],
-  int planarRate[3])
+  int planarProb[3])
 {
   int xx = child.pos[0];
   int yy = child.pos[1];
   int zz = child.pos[2];
 
+  auto planes = _planar._planes;
+
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, kNumPlanarPlanes, child, planes[1], planes[2], planes[0], yy, zz, xx,
-      neighPattern, x, planarProb, planarRate);
+      0, child, planes[1], planes[2], planes[0], yy, zz, xx, neighPattern, x,
+      planarProb, _planar._rate.data());
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, kNumPlanarPlanes, child, planes[3], planes[5], planes[4], xx, zz, yy,
-      neighPattern, y, planarProb, planarRate);
+      1, child, planes[3], planes[5], planes[4], xx, zz, yy, neighPattern, y,
+      planarProb, _planar._rate.data());
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, kNumPlanarPlanes, child, planes[6], planes[7], planes[8], xx, yy, zz,
-      neighPattern, z, planarProb, planarRate);
+      2, child, planes[6], planes[7], planes[8], xx, yy, zz, neighPattern, z,
+      planarProb, _planar._rate.data());
   }
 }
 
@@ -917,7 +924,7 @@ decodeGeometryOctree(
   EntropyDecoder* arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
-  GeometryOctreeDecoder decoder(gps, arithmeticDecoder);
+  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoder);
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -948,22 +955,7 @@ decodeGeometryOctree(
   auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, gbh);
   auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
-  // planar mode initialazation
   const int th_idcm = gps.geom_planar_idcm_threshold * 127 * 127;
-  const int kNumPlanarPlanes = 4;
-  std::vector<int> planes3x3;
-  int* planes[9];
-
-  if (gps.geom_planar_mode_enabled_flag) {
-    const int max_plane_size = kNumPlanarPlanes << nodeMaxDimLog2;
-    planes3x3.resize(max_plane_size * 9);
-  }
-
-  int planarRate[3] = {128 * 8, 128 * 8, 128 * 8};
-  int localDensity = 1024 * 4;
-  const int planarRateThreshold[3] = {gps.geom_planar_threshold0 << 4,
-                                      gps.geom_planar_threshold1 << 4,
-                                      gps.geom_planar_threshold2 << 4};
 
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
@@ -1007,13 +999,10 @@ decodeGeometryOctree(
       for (int k = 0; k < 3; k++)
         posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
 
-    if (gps.geom_planar_mode_enabled_flag) {
-      int depth = gbh.geomMaxNodeSizeLog2(gps)
-        - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
-      planarInitPlanes(kNumPlanarPlanes, depth, planes3x3.data(), planes);
-    }
+    int planarDepth = gbh.geomMaxNodeSizeLog2(gps)
+      - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
 
-    decoder.beginOctreeLevel();
+    decoder.beginOctreeLevel(planarDepth);
 
     // process all nodes within a single level
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
@@ -1100,9 +1089,8 @@ decodeGeometryOctree(
       bool planarEligible[3] = {false, false, false};
       if (gps.geom_planar_mode_enabled_flag) {
         // update the plane rate depending on the occupancy and local density
-        updateplanarRate(planarRate, occupancy, localDensity, numOccupied);
-        eligilityPlanar(
-          planarEligible, planarRate, planarRateThreshold, localDensity);
+        decoder._planar.updateRate(occupancy, numOccupied);
+        decoder._planar.isEligible(planarEligible);
         if (childOccupancySkip & 4)
           planarEligible[0] = false;
         if (childOccupancySkip & 2)
@@ -1173,12 +1161,9 @@ decodeGeometryOctree(
 
         // decode planarity if eligible
         int planarProb[3] = {127, 127, 127};
-        if (
-          gps.geom_planar_mode_enabled_flag
-          && (planarEligible[0] || planarEligible[1] || planarEligible[2]))
+        if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           decoder.determinePlanarMode(
-            planarEligible, kNumPlanarPlanes, child, planes,
-            node0.neighPattern, x, y, z, planarProb, planarRate);
+            planarEligible, child, node0.neighPattern, x, y, z, planarProb);
 
         bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
           && planarProb[0] * planarProb[1] * planarProb[2] <= th_idcm;

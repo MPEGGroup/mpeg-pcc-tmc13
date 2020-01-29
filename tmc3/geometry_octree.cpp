@@ -334,9 +334,20 @@ isPlanarNode(
 //============================================================================
 // intitialize planes for planar pred
 
+OctreePlanarState::OctreePlanarState(
+  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
+{
+  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
+  int maxPlaneSize = kNumPlanarPlanes << nodeMaxDimLog2;
+  _planes3x3.resize(maxPlaneSize * 9);
+
+  _rateThreshold[0] = gps.geom_planar_threshold0 << 4;
+  _rateThreshold[1] = gps.geom_planar_threshold1 << 4;
+  _rateThreshold[2] = gps.geom_planar_threshold2 << 4;
+}
+
 void
-planarInitPlanes(
-  const int kNumPlanarPlanes, int depth, int* planes3x3, int* planes[9])
+OctreePlanarState::initPlanes(int depth)
 {
   const int kPlanarInit[9] = {-2,    -1000, -1000, -1000, -2,
                               -1000, -1000, -1000, -2};
@@ -345,9 +356,9 @@ planarInitPlanes(
   const int planeSize = kNumPlanarPlanes << depth;
 
   for (int idxP = 0; idxP < 9; idxP++) {
-    int* plane = planes3x3 + shift;
+    int* plane = _planes3x3.data() + shift;
     shift += planeSize;
-    planes[idxP] = plane;
+    _planes[idxP] = plane;
     int v = kPlanarInit[idxP];
 
     for (int p = 0; p < planeSize; p++) {
@@ -360,68 +371,61 @@ planarInitPlanes(
 // update the plane rate depending on the occupancy
 
 void
-updateplanarRate(
-  int planarRate[3], int occupancy, int& localDensity, int numSiblings)
+OctreePlanarState::updateRate(int occupancy, int numSiblings)
 {
   bool isPlanarX = !((occupancy & 0xf0) && (occupancy & 0x0f));
   bool isPlanarY = !((occupancy & 0xcc) && (occupancy & 0x33));
   bool isPlanarZ = !((occupancy & 0x55) && (occupancy & 0xaa));
 
-  planarRate[0] = (255 * planarRate[0] + (isPlanarX ? 256 * 8 : 0) + 128) >> 8;
-  planarRate[1] = (255 * planarRate[1] + (isPlanarY ? 256 * 8 : 0) + 128) >> 8;
-  planarRate[2] = (255 * planarRate[2] + (isPlanarZ ? 256 * 8 : 0) + 128) >> 8;
+  _rate[0] = (255 * _rate[0] + (isPlanarX ? 256 * 8 : 0) + 128) >> 8;
+  _rate[1] = (255 * _rate[1] + (isPlanarY ? 256 * 8 : 0) + 128) >> 8;
+  _rate[2] = (255 * _rate[2] + (isPlanarZ ? 256 * 8 : 0) + 128) >> 8;
 
-  localDensity = (255 * localDensity + 1024 * numSiblings) >> 8;
+  _localDensity = (255 * _localDensity + 1024 * numSiblings) >> 8;
 }
 
 //============================================================================
 // planar eligbility
 
 void
-eligilityPlanar(
-  bool planarEligible[3],
-  int planarRate[3],
-  const int threshold[3],
-  int localDensity)
+OctreePlanarState::isEligible(bool eligible[3])
 {
-  planarEligible[0] = false;
-  planarEligible[1] = false;
-  planarEligible[2] = false;
-  if (localDensity >= 3 * 1024) {
+  eligible[0] = false;
+  eligible[1] = false;
+  eligible[2] = false;
+  if (_localDensity >= 3 * 1024) {
     return;
   }
 
-  if (planarRate[0] >= planarRate[1] && planarRate[0] >= planarRate[2]) {
+  if (_rate[0] >= _rate[1] && _rate[0] >= _rate[2]) {
     // planar x dominates
-    planarEligible[0] = planarRate[0] >= threshold[0];
-    if (planarRate[1] >= planarRate[2]) {
-      planarEligible[1] = planarRate[1] >= threshold[1];
-      planarEligible[2] = planarRate[2] >= threshold[2];
+    eligible[0] = _rate[0] >= _rateThreshold[0];
+    if (_rate[1] >= _rate[2]) {
+      eligible[1] = _rate[1] >= _rateThreshold[1];
+      eligible[2] = _rate[2] >= _rateThreshold[2];
     } else {
-      planarEligible[2] = planarRate[2] >= threshold[1];
-      planarEligible[1] = planarRate[1] >= threshold[2];
+      eligible[2] = _rate[2] >= _rateThreshold[1];
+      eligible[1] = _rate[1] >= _rateThreshold[2];
     }
-  } else if (
-    planarRate[1] >= planarRate[0] && planarRate[1] >= planarRate[2]) {
+  } else if (_rate[1] >= _rate[0] && _rate[1] >= _rate[2]) {
     // planar y dominates
-    planarEligible[1] = planarRate[1] >= threshold[0];
-    if (planarRate[0] >= planarRate[2]) {
-      planarEligible[0] = planarRate[0] >= threshold[1];
-      planarEligible[2] = planarRate[2] >= threshold[2];
+    eligible[1] = _rate[1] >= _rateThreshold[0];
+    if (_rate[0] >= _rate[2]) {
+      eligible[0] = _rate[0] >= _rateThreshold[1];
+      eligible[2] = _rate[2] >= _rateThreshold[2];
     } else {
-      planarEligible[2] = planarRate[2] >= threshold[1];
-      planarEligible[0] = planarRate[0] >= threshold[2];
+      eligible[2] = _rate[2] >= _rateThreshold[1];
+      eligible[0] = _rate[0] >= _rateThreshold[2];
     }
-  } else if (
-    planarRate[2] >= planarRate[0] && planarRate[2] >= planarRate[1]) {
+  } else if (_rate[2] >= _rate[0] && _rate[2] >= _rate[1]) {
     // planar z dominates
-    planarEligible[2] = planarRate[2] >= threshold[0];
-    if (planarRate[0] >= planarRate[1]) {
-      planarEligible[0] = planarRate[0] >= threshold[1];
-      planarEligible[1] = planarRate[1] >= threshold[2];
+    eligible[2] = _rate[2] >= _rateThreshold[0];
+    if (_rate[0] >= _rate[1]) {
+      eligible[0] = _rate[0] >= _rateThreshold[1];
+      eligible[1] = _rate[1] >= _rateThreshold[2];
     } else {
-      planarEligible[1] = planarRate[1] >= threshold[1];
-      planarEligible[0] = planarRate[0] >= threshold[2];
+      eligible[1] = _rate[1] >= _rateThreshold[1];
+      eligible[0] = _rate[0] >= _rateThreshold[2];
     }
   }
 }
@@ -430,7 +434,7 @@ eligilityPlanar(
 // directional mask depending on the planarity
 
 int
-maskPlanarX(PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarX(const PCCOctree3Node& node0, bool implicitSkip)
 {
   if (implicitSkip)
     return 0xf0;
@@ -444,7 +448,7 @@ maskPlanarX(PCCOctree3Node& node0, bool implicitSkip)
 //----------------------------------------------------------------------------
 
 int
-maskPlanarY(PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarY(const PCCOctree3Node& node0, bool implicitSkip)
 {
   if (implicitSkip)
     return 0xcc;
@@ -458,7 +462,7 @@ maskPlanarY(PCCOctree3Node& node0, bool implicitSkip)
 //----------------------------------------------------------------------------
 
 int
-maskPlanarZ(PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarZ(const PCCOctree3Node& node0, bool implicitSkip)
 {
   // QTBT does not split in this direction
   //   => infer the mask low for occupancy bit coding
