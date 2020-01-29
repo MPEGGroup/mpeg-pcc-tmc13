@@ -924,40 +924,6 @@ decodeGeometryOctree(
   //     and each point being isolated in the previous level.
   pcc::ringbuf<PCCOctree3Node> fifo(gbh.geom_num_points + 1);
 
-  // represents the largest dimension of the current node
-  // NB: this is equal to the total depth of the tree
-  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-
-  // size of the current node (each dimension can vary due to qtbt)
-  Vec3<int> nodeSizeLog2 = gbh.geomMaxNodeSizeLog2Xyz(gps);
-
-  // update implicit qtbt parameters
-  int maxNumImplicitQtbtBeforeOt = gps.max_num_implicit_qtbt_before_ot;
-  int minSizeImplicitQtbt = gps.min_implicit_qtbt_size_log2;
-  updateImplicitQtBtParameters(
-    nodeSizeLog2, gps.trisoup_node_size_log2, &maxNumImplicitQtbtBeforeOt,
-    &minSizeImplicitQtbt);
-
-  // Size of each child of the current node.
-  // NB: the child node sizes may be different due to transitions
-  // in the tree type (octree vs quadtree).
-
-  // implicit qtbt for child nodes
-  Vec3<int> childSizeLog2 = implicitQtBtDecision(
-    nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
-
-  // prepare parameters for partition and occupancy coding
-  int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
-  int occupancySkip = occupancySkipLevel;
-  int atlasShift = 7;
-
-  // implicit qtbt for grand-child node
-  Vec3<int> grandchildSizeLog2 = implicitQtBtDecision(
-    childSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
-  int childOccupancySkipLevel =
-    nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
-  int childOccupancySkip = childOccupancySkipLevel;
-
   // push the first node
   fifo.emplace_back();
   PCCOctree3Node& node00 = fifo.back();
@@ -974,33 +940,31 @@ decodeGeometryOctree(
   size_t processedPointCount = 0;
   std::vector<uint32_t> values;
 
-  auto fifoCurrLvlEnd = fifo.end();
+  // represents the largest dimension of the current node
+  // NB: this is equal to the total depth of the tree
+  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
+
+  // generate the list of the node size for each level in the tree
+  auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, gbh);
+  auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
   // planar mode initialazation
   const int th_idcm = gps.geom_planar_idcm_threshold * 127 * 127;
-
   const int kNumPlanarPlanes = 4;
   std::vector<int> planes3x3;
   int* planes[9];
-  int depth = 1;
 
   if (gps.geom_planar_mode_enabled_flag) {
     const int max_plane_size = kNumPlanarPlanes << nodeMaxDimLog2;
     planes3x3.resize(max_plane_size * 9);
-    depth = nodeMaxDimLog2;
-    planarInitPlanes(kNumPlanarPlanes, depth, planes3x3.data(), planes);
   }
+
   int planarRate[3] = {128 * 8, 128 * 8, 128 * 8};
   int localDensity = 1024 * 4;
   const int planarRateThreshold[3] = {gps.geom_planar_threshold0 << 4,
                                       gps.geom_planar_threshold1 << 4,
                                       gps.geom_planar_threshold2 << 4};
 
-  // this counter represents fifo.end() - fifoCurrLvlEnd().
-  // ie, the number of nodes added to the next level of the tree
-  int numNodesNextLvl = 0;
-
-  Vec3<int32_t> occupancyAtlasOrigin{-1};
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
@@ -1009,275 +973,247 @@ decodeGeometryOctree(
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
-  int numLvlsUntilQpOffset = -1;
+  int numLvlsUntilQpOffset = 0;
   if (gps.geom_scaling_enabled_flag)
-    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth;
+    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
 
-  for (; !fifo.empty(); fifo.pop_front()) {
-    if (fifo.begin() == fifoCurrLvlEnd) {
-      // transition to the next level
-      fifoCurrLvlEnd = fifo.end();
+  // the termination depth of the octree phase
+  int maxDepth =
+    nodeMaxDimLog2 - std::max(minNodeSizeLog2, gps.trisoup_node_size_log2);
+  for (int depth = 0; depth < maxDepth; depth++) {
+    // setup at the start of each level
+    auto fifoCurrLvlEnd = fifo.end();
+    int numNodesNextLvl = 0;
+    Vec3<int32_t> occupancyAtlasOrigin = 0xffffffff;
 
-      Vec3<int> parentNodeSizeLog2 = nodeSizeLog2;
-      // implicit qtbt for all nodes in current level
-      nodeSizeLog2 = implicitQtBtDecision(
-        nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+    // derive per-level node size related parameters
+    auto parentNodeSizeLog2 = nodeSizeLog2;
+    nodeSizeLog2 = lvlNodeSizeLog2[depth];
+    auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
+    auto grandchildSizeLog2 = lvlNodeSizeLog2[depth + 2];
 
-      // if one dimension is not split, atlasShift[k] = 0
-      atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
+    nodeMaxDimLog2 =
+      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
 
-      if (maxNumImplicitQtbtBeforeOt)
-        maxNumImplicitQtbtBeforeOt--;
+    // if one dimension is not split, atlasShift[k] = 0
+    int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
+    int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
+    int childOccupancySkipLevel =
+      nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
 
-      // if all dimensions have same size, then use octree for remaining nodes
-      if (
-        nodeSizeLog2[0] == nodeSizeLog2[1]
-        && nodeSizeLog2[1] == nodeSizeLog2[2])
-        minSizeImplicitQtbt = 0;
+    // record the node size when quantisation is signalled -- all subsequnt
+    // coded occupancy bits are quantised
+    if (!--numLvlsUntilQpOffset)
+      for (int k = 0; k < 3; k++)
+        posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
 
-      // implicit qtbt for child nodes
-      childSizeLog2 = implicitQtBtDecision(
-        nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
-      occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
-
-      // implicit qtbt for grand-child nodes
-      int minSizeImplicitQtbt2 = minSizeImplicitQtbt;
-      if (
-        childSizeLog2[0] == childSizeLog2[1]
-        && childSizeLog2[1] == childSizeLog2[2])
-        minSizeImplicitQtbt2 = 0;
-
-      grandchildSizeLog2 = implicitQtBtDecision(
-        childSizeLog2,
-        maxNumImplicitQtbtBeforeOt ? maxNumImplicitQtbtBeforeOt - 1 : 0,
-        minSizeImplicitQtbt2);
-
-      childOccupancySkipLevel =
-        nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
-
-      nodeMaxDimLog2--;
-      numNodesNextLvl = 0;
-      occupancyAtlasOrigin = 0xffffffff;
-
-      decoder.beginOctreeLevel();
-      if (gps.geom_planar_mode_enabled_flag) {
-        depth = gbh.geomMaxNodeSizeLog2(gps)
-          - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
-        planarInitPlanes(kNumPlanarPlanes, depth, planes3x3.data(), planes);
-      }
-
-      // allow partial tree encoding using trisoup
-      if (nodeMaxDimLog2 == gps.trisoup_node_size_log2)
-        break;
-
-      // allow partial tree decoding
-      if (nodeMaxDimLog2 == minNodeSizeLog2)
-        break;
-
-      // record the node size when quantisation is signalled -- all subsequnt
-      // coded occupancy bits are quantised
-      numLvlsUntilQpOffset--;
-      if (!numLvlsUntilQpOffset)
-        for (int k = 0; k < 3; k++)
-          posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
-    }
-
-    PCCOctree3Node& node0 = fifo.front();
-
-    if (numLvlsUntilQpOffset == 0)
-      node0.qp = decoder.decodeQpOffset() + sliceQp;
-
-    int shiftBits = (node0.qp - 4) / 6;
-    auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
-    auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
-
-    // make quantisation work with qtbt and planar.
-    occupancySkip = occupancySkipLevel;
-    childOccupancySkip = childOccupancySkipLevel;
-    if (shiftBits != 0) {
-      for (int k = 0; k < 3; k++) {
-        if (effectiveChildSizeLog2[k] < 0)
-          occupancySkip |= (4 >> k);
-        if (effectiveChildSizeLog2[k] < 1)
-          childOccupancySkip |= (4 >> k);
-      }
-    }
-
-    int occupancyAdjacencyGt0 = 0;
-    int occupancyAdjacencyGt1 = 0;
-    int occupancyAdjacencyUnocc = 0;
-
-    if (gps.neighbour_avail_boundary_log2) {
-      updateGeometryOccupancyAtlas(
-        node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
-        &occupancyAtlasOrigin);
-
-      GeometryNeighPattern gnp = makeGeometryNeighPattern(
-        gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-        atlasShift, occupancyAtlas);
-
-      node0.neighPattern = gnp.neighPattern;
-      occupancyAdjacencyGt0 = gnp.adjacencyGt0;
-      occupancyAdjacencyGt1 = gnp.adjacencyGt1;
-      occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
-    }
-
-    int occupancyIsPredicted = 0;
-    int occupancyPrediction = 0;
-
-    // generate intra prediction
-    if (nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2) {
-      predictGeometryOccupancyIntra(
-        occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
-        &occupancyPrediction);
-    }
-
-    uint8_t occupancy = 1;
-    if (!isLeafNode(effectiveNodeSizeLog2)) {
-      assert(occupancySkip != 7);
-
-      // planar mode for current node
-      // mask to be used for the occupancy coding
-      // (bit =1 => occupancy bit not coded due to not belonging to the plane)
-      int mask_planar[3] = {0, 0, 0};
-      maskPlanar(node0, mask_planar, occupancySkip);
-
-      occupancy = decoder.decodeOccupancy(
-        node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
-        occupancyAdjacencyGt0, occupancyAdjacencyGt1, occupancyAdjacencyUnocc,
-        mask_planar[0], mask_planar[1], mask_planar[2],
-        node0.planarPossible & 1, node0.planarPossible & 2,
-        node0.planarPossible & 4);
-    }
-
-    assert(occupancy > 0);
-
-    // update atlas for advanced neighbours
-    if (gps.neighbour_avail_boundary_log2) {
-      updateGeometryOccupancyAtlasOccChild(
-        node0.pos, occupancy, &occupancyAtlas);
-    }
-
-    // population count of occupancy for IDCM
-    int numOccupied = popcnt(occupancy);
-
-    // planar eligibility
-    bool planarEligible[3] = {false, false, false};
     if (gps.geom_planar_mode_enabled_flag) {
-      // update the plane rate depending on the occupancy and local density
-      updateplanarRate(planarRate, occupancy, localDensity, numOccupied);
-      eligilityPlanar(
-        planarEligible, planarRate, planarRateThreshold, localDensity);
-      if (childOccupancySkip & 4)
-        planarEligible[0] = false;
-      if (childOccupancySkip & 2)
-        planarEligible[1] = false;
-      if (childOccupancySkip & 1)
-        planarEligible[2] = false;
-
-      // avoid mismatch when the next level will apply quantization
-      if (numLvlsUntilQpOffset == 1) {
-        planarEligible[0] = false;
-        planarEligible[1] = false;
-        planarEligible[2] = false;
-      }
+      int depth = gbh.geomMaxNodeSizeLog2(gps)
+        - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
+      planarInitPlanes(kNumPlanarPlanes, depth, planes3x3.data(), planes);
     }
 
-    // nodeSizeLog2 > 1: for each child:
-    //  - determine elegibility for IDCM
-    //  - directly decode point positions if IDCM allowed and selected
-    //  - otherwise, insert split children into fifo while updating neighbour state
-    for (int i = 0; i < 8; i++) {
-      uint32_t mask = 1 << i;
-      if (!(occupancy & mask)) {
-        // child is empty: skip
-        continue;
+    decoder.beginOctreeLevel();
+
+    // process all nodes within a single level
+    for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
+      PCCOctree3Node& node0 = fifo.front();
+
+      if (numLvlsUntilQpOffset == 0)
+        node0.qp = decoder.decodeQpOffset() + sliceQp;
+
+      int shiftBits = (node0.qp - 4) / 6;
+      auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
+      auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
+
+      // make quantisation work with qtbt and planar.
+      auto occupancySkip = occupancySkipLevel;
+      auto childOccupancySkip = childOccupancySkipLevel;
+      if (shiftBits != 0) {
+        for (int k = 0; k < 3; k++) {
+          if (effectiveChildSizeLog2[k] < 0)
+            occupancySkip |= (4 >> k);
+          if (effectiveChildSizeLog2[k] < 1)
+            childOccupancySkip |= (4 >> k);
+        }
       }
 
-      int x = !!(i & 4);
-      int y = !!(i & 2);
-      int z = !!(i & 1);
+      int occupancyAdjacencyGt0 = 0;
+      int occupancyAdjacencyGt1 = 0;
+      int occupancyAdjacencyUnocc = 0;
 
-      // point counts for leaf nodes are coded immediately upon
-      // encountering the leaf node.
-      if (isLeafNode(effectiveChildSizeLog2)) {
-        int numPoints = 1;
+      if (gps.neighbour_avail_boundary_log2) {
+        updateGeometryOccupancyAtlas(
+          node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          &occupancyAtlasOrigin);
 
-        if (!gps.geom_unique_points_flag) {
-          numPoints = decoder.decodePositionLeafNumPoints();
+        GeometryNeighPattern gnp = makeGeometryNeighPattern(
+          gps.adjacent_child_contextualization_enabled_flag, node0.pos,
+          atlasShift, occupancyAtlas);
+
+        node0.neighPattern = gnp.neighPattern;
+        occupancyAdjacencyGt0 = gnp.adjacencyGt0;
+        occupancyAdjacencyGt1 = gnp.adjacencyGt1;
+        occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
+      }
+
+      int occupancyIsPredicted = 0;
+      int occupancyPrediction = 0;
+
+      // generate intra prediction
+      if (nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2) {
+        predictGeometryOccupancyIntra(
+          occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
+          &occupancyPrediction);
+      }
+
+      uint8_t occupancy = 1;
+      if (!isLeafNode(effectiveNodeSizeLog2)) {
+        assert(occupancySkip != 7);
+
+        // planar mode for current node
+        // mask to be used for the occupancy coding
+        // (bit =1 => occupancy bit not coded due to not belonging to the plane)
+        int mask_planar[3] = {0, 0, 0};
+        maskPlanar(node0, mask_planar, occupancySkip);
+
+        occupancy = decoder.decodeOccupancy(
+          node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
+          occupancyAdjacencyGt0, occupancyAdjacencyGt1,
+          occupancyAdjacencyUnocc, mask_planar[0], mask_planar[1],
+          mask_planar[2], node0.planarPossible & 1, node0.planarPossible & 2,
+          node0.planarPossible & 4);
+      }
+
+      assert(occupancy > 0);
+
+      // update atlas for advanced neighbours
+      if (gps.neighbour_avail_boundary_log2) {
+        updateGeometryOccupancyAtlasOccChild(
+          node0.pos, occupancy, &occupancyAtlas);
+      }
+
+      // population count of occupancy for IDCM
+      int numOccupied = popcnt(occupancy);
+
+      // planar eligibility
+      bool planarEligible[3] = {false, false, false};
+      if (gps.geom_planar_mode_enabled_flag) {
+        // update the plane rate depending on the occupancy and local density
+        updateplanarRate(planarRate, occupancy, localDensity, numOccupied);
+        eligilityPlanar(
+          planarEligible, planarRate, planarRateThreshold, localDensity);
+        if (childOccupancySkip & 4)
+          planarEligible[0] = false;
+        if (childOccupancySkip & 2)
+          planarEligible[1] = false;
+        if (childOccupancySkip & 1)
+          planarEligible[2] = false;
+
+        // avoid mismatch when the next level will apply quantization
+        if (numLvlsUntilQpOffset == 1) {
+          planarEligible[0] = false;
+          planarEligible[1] = false;
+          planarEligible[2] = false;
+        }
+      }
+
+      // nodeSizeLog2 > 1: for each child:
+      //  - determine elegibility for IDCM
+      //  - directly decode point positions if IDCM allowed and selected
+      //  - otherwise, insert split children into fifo while updating neighbour state
+      for (int i = 0; i < 8; i++) {
+        uint32_t mask = 1 << i;
+        if (!(occupancy & mask)) {
+          // child is empty: skip
+          continue;
         }
 
-        // the final bits from the leaf:
-        Vec3<int32_t> point{(node0.posQ[0] << !(occupancySkip & 4)) + x,
-                            (node0.posQ[1] << !(occupancySkip & 2)) + y,
-                            (node0.posQ[2] << !(occupancySkip & 1)) + z};
+        int x = !!(i & 4);
+        int y = !!(i & 2);
+        int z = !!(i & 1);
 
-        point = invQuantPosition(node0.qp, posQuantBitMasks, point);
+        // point counts for leaf nodes are coded immediately upon
+        // encountering the leaf node.
+        if (isLeafNode(effectiveChildSizeLog2)) {
+          int numPoints = 1;
 
-        for (int i = 0; i < numPoints; ++i)
-          pointCloud[processedPointCount++] = point;
-
-        // do not recurse into leaf nodes
-        continue;
-      }
-
-      // create & enqueue new child.
-      fifo.emplace_back();
-      auto& child = fifo.back();
-
-      child.qp = node0.qp;
-      // only shift position if an occupancy bit was coded for the axis
-      child.pos[0] = (node0.pos[0] << !(occupancySkipLevel & 4)) + x;
-      child.pos[1] = (node0.pos[1] << !(occupancySkipLevel & 2)) + y;
-      child.pos[2] = (node0.pos[2] << !(occupancySkipLevel & 1)) + z;
-      child.posQ[0] = (node0.posQ[0] << !(occupancySkip & 4)) + x;
-      child.posQ[1] = (node0.posQ[1] << !(occupancySkip & 2)) + y;
-      child.posQ[2] = (node0.posQ[2] << !(occupancySkip & 1)) + z;
-      child.numSiblingsPlus1 = numOccupied;
-      child.siblingOccupancy = occupancy;
-
-      // decode planarity if eligible
-      int planarProb[3] = {127, 127, 127};
-      if (
-        gps.geom_planar_mode_enabled_flag
-        && (planarEligible[0] || planarEligible[1] || planarEligible[2]))
-        decoder.determinePlanarMode(
-          planarEligible, kNumPlanarPlanes, child, planes, node0.neighPattern,
-          x, y, z, planarProb, planarRate);
-
-      bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
-        && planarProb[0] * planarProb[1] * planarProb[2] <= th_idcm;
-      if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
-        int numPoints = decoder.decodeDirectPosition(
-          gps.geom_unique_points_flag, effectiveChildSizeLog2, child,
-          &pointCloud[processedPointCount]);
-
-        for (int j = 0; j < numPoints; j++) {
-          auto& point = pointCloud[processedPointCount++];
-          for (int k = 0; k < 3; k++) {
-            int shift = std::max(0, effectiveChildSizeLog2[k]);
-            point[k] += child.posQ[k] << shift;
+          if (!gps.geom_unique_points_flag) {
+            numPoints = decoder.decodePositionLeafNumPoints();
           }
 
+          // the final bits from the leaf:
+          Vec3<int32_t> point{(node0.posQ[0] << !(occupancySkip & 4)) + x,
+                              (node0.posQ[1] << !(occupancySkip & 2)) + y,
+                              (node0.posQ[2] << !(occupancySkip & 1)) + z};
+
           point = invQuantPosition(node0.qp, posQuantBitMasks, point);
+
+          for (int i = 0; i < numPoints; ++i)
+            pointCloud[processedPointCount++] = point;
+
+          // do not recurse into leaf nodes
+          continue;
         }
 
-        if (numPoints > 0) {
-          // node fully decoded, do not split: discard child
-          fifo.pop_back();
+        // create & enqueue new child.
+        fifo.emplace_back();
+        auto& child = fifo.back();
 
-          // NB: no further siblings to decode by definition of IDCM
-          assert(child.numSiblingsPlus1 == 1);
-          break;
+        child.qp = node0.qp;
+        // only shift position if an occupancy bit was coded for the axis
+        child.pos[0] = (node0.pos[0] << !(occupancySkipLevel & 4)) + x;
+        child.pos[1] = (node0.pos[1] << !(occupancySkipLevel & 2)) + y;
+        child.pos[2] = (node0.pos[2] << !(occupancySkipLevel & 1)) + z;
+        child.posQ[0] = (node0.posQ[0] << !(occupancySkip & 4)) + x;
+        child.posQ[1] = (node0.posQ[1] << !(occupancySkip & 2)) + y;
+        child.posQ[2] = (node0.posQ[2] << !(occupancySkip & 1)) + z;
+        child.numSiblingsPlus1 = numOccupied;
+        child.siblingOccupancy = occupancy;
+
+        // decode planarity if eligible
+        int planarProb[3] = {127, 127, 127};
+        if (
+          gps.geom_planar_mode_enabled_flag
+          && (planarEligible[0] || planarEligible[1] || planarEligible[2]))
+          decoder.determinePlanarMode(
+            planarEligible, kNumPlanarPlanes, child, planes,
+            node0.neighPattern, x, y, z, planarProb, planarRate);
+
+        bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
+          && planarProb[0] * planarProb[1] * planarProb[2] <= th_idcm;
+        if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
+          int numPoints = decoder.decodeDirectPosition(
+            gps.geom_unique_points_flag, effectiveChildSizeLog2, child,
+            &pointCloud[processedPointCount]);
+
+          for (int j = 0; j < numPoints; j++) {
+            auto& point = pointCloud[processedPointCount++];
+            for (int k = 0; k < 3; k++) {
+              int shift = std::max(0, effectiveChildSizeLog2[k]);
+              point[k] += child.posQ[k] << shift;
+            }
+
+            point = invQuantPosition(node0.qp, posQuantBitMasks, point);
+          }
+
+          if (numPoints > 0) {
+            // node fully decoded, do not split: discard child
+            fifo.pop_back();
+
+            // NB: no further siblings to decode by definition of IDCM
+            assert(child.numSiblingsPlus1 == 1);
+            break;
+          }
         }
-      }
 
-      numNodesNextLvl++;
+        numNodesNextLvl++;
 
-      if (!gps.neighbour_avail_boundary_log2) {
-        updateGeometryNeighState(
-          gps.neighbour_context_restriction_flag, fifo.end(), numNodesNextLvl,
-          child, i, node0.neighPattern, occupancy);
+        if (!gps.neighbour_avail_boundary_log2) {
+          updateGeometryNeighState(
+            gps.neighbour_context_restriction_flag, fifo.end(),
+            numNodesNextLvl, child, i, node0.neighPattern, occupancy);
+        }
       }
     }
   }
@@ -1290,6 +1226,7 @@ decodeGeometryOctree(
   // return partial coding result
   //  - add missing levels to node positions and inverse quantise
   if (nodesRemaining) {
+    nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
       int quantRemovedBits = (node.qp - 4) / 6;
       for (int k = 0; k < 3; k++)

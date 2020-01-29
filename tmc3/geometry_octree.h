@@ -224,6 +224,12 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
 }
 
 //---------------------------------------------------------------------------
+// generate an array of node sizes according to subsequent qtbt decisions
+
+std::vector<Vec3<int>> mkQtBtNodeSizeList(
+  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh);
+
+//---------------------------------------------------------------------------
 
 inline Vec3<int>
 implicitQtBtDecision(

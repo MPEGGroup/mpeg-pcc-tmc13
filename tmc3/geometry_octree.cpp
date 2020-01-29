@@ -43,6 +43,51 @@
 
 namespace pcc {
 
+//============================================================================
+
+std::vector<Vec3<int>>
+mkQtBtNodeSizeList(
+  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
+{
+  std::vector<Vec3<int>> nodeSizeLog2List;
+
+  // represents the largest dimension of the current node
+  // NB: this is equal to the total depth of the tree
+  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
+
+  // size of the current node (each dimension can vary due to qtbt)
+  Vec3<int> nodeSizeLog2 = gbh.geomMaxNodeSizeLog2Xyz(gps);
+  nodeSizeLog2List.push_back(nodeSizeLog2);
+
+  // update implicit qtbt parameters
+  int maxNumImplicitQtbtBeforeOt = gps.max_num_implicit_qtbt_before_ot;
+  int minSizeImplicitQtbt = gps.min_implicit_qtbt_size_log2;
+  updateImplicitQtBtParameters(
+    nodeSizeLog2, gps.trisoup_node_size_log2, &maxNumImplicitQtbtBeforeOt,
+    &minSizeImplicitQtbt);
+
+  for (; nodeMaxDimLog2 > 0; nodeMaxDimLog2--) {
+    // implicit qtbt for current node
+    nodeSizeLog2 = implicitQtBtDecision(
+      nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+    nodeSizeLog2List.push_back(nodeSizeLog2);
+
+    if (maxNumImplicitQtbtBeforeOt)
+      maxNumImplicitQtbtBeforeOt--;
+
+    // if all dimensions have same size, then use octree for remaining nodes
+    if (
+      nodeSizeLog2[0] == nodeSizeLog2[1] && nodeSizeLog2[1] == nodeSizeLog2[2])
+      minSizeImplicitQtbt = 0;
+  }
+
+  // fake child and grandchild entries for the last tree level
+  nodeSizeLog2List.push_back({0});
+  nodeSizeLog2List.push_back({0});
+
+  return nodeSizeLog2List;
+}
+
 //-------------------------------------------------------------------------
 // map the @occupancy pattern bits to take into account symmetries in the
 // neighbour configuration @neighPattern.
