@@ -242,6 +242,41 @@ updateGeometryNeighState(
 
 //============================================================================
 
+CtxMapOctreeOccupancy::CtxMapOctreeOccupancy(const CtxMapOctreeOccupancy& rhs)
+  : CtxMapOctreeOccupancy()
+{
+  *this->map = *rhs.map;
+}
+
+//----------------------------------------------------------------------------
+
+CtxMapOctreeOccupancy::CtxMapOctreeOccupancy(CtxMapOctreeOccupancy&& rhs)
+{
+  std::swap(this->map, rhs.map);
+  std::swap(this->b, rhs.b);
+}
+
+//----------------------------------------------------------------------------
+
+CtxMapOctreeOccupancy&
+CtxMapOctreeOccupancy::operator=(const CtxMapOctreeOccupancy& rhs)
+{
+  *this->map = *rhs.map;
+  return *this;
+}
+
+//----------------------------------------------------------------------------
+
+CtxMapOctreeOccupancy&
+CtxMapOctreeOccupancy::operator=(CtxMapOctreeOccupancy&& rhs)
+{
+  std::swap(this->map, rhs.map);
+  std::swap(this->b, rhs.b);
+  return *this;
+}
+
+//----------------------------------------------------------------------------
+
 CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
 {
   map.reset(new CtxIdxMap);

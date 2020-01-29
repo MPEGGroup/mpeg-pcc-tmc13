@@ -195,6 +195,10 @@ public:
   };
 
   CtxMapOctreeOccupancy();
+  CtxMapOctreeOccupancy(const CtxMapOctreeOccupancy&);
+  CtxMapOctreeOccupancy(CtxMapOctreeOccupancy&&);
+  CtxMapOctreeOccupancy& operator=(const CtxMapOctreeOccupancy&);
+  CtxMapOctreeOccupancy& operator=(CtxMapOctreeOccupancy&&);
 
   const uint8_t* operator[](int bit) const { return b[bit]; }
 
@@ -205,7 +209,7 @@ public:
 
 private:
   std::unique_ptr<CtxIdxMap> map;
-  uint8_t* b[8];
+  std::array<uint8_t*, 8> b;
 };
 
 //----------------------------------------------------------------------------
