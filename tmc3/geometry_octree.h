@@ -153,9 +153,7 @@ isDirectModeEligible(
 //---------------------------------------------------------------------------
 // Select the neighbour pattern reduction table according to GPS config.
 
-using NeighPattern64toX = const uint8_t[64];
-
-inline NeighPattern64toX&
+inline const uint8_t*
 neighPattern64toR1(const GeometryParameterSet& gps)
 {
   if (!gps.neighbour_context_restriction_flag)

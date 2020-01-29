@@ -54,6 +54,11 @@ public:
     const GeometryBrickHeader& gbh,
     EntropyDecoder* arithmeticDecoder);
 
+  GeometryOctreeDecoder(const GeometryOctreeDecoder&) = default;
+  GeometryOctreeDecoder(GeometryOctreeDecoder&&) = default;
+  GeometryOctreeDecoder& operator=(const GeometryOctreeDecoder&) = default;
+  GeometryOctreeDecoder& operator=(GeometryOctreeDecoder&&) = default;
+
   void beginOctreeLevel(int planarDepth);
 
   int decodePositionLeafNumPoints();
@@ -170,9 +175,9 @@ public:
 
 public:
   // selects between the bitwise and bytewise occupancy coders
-  const bool _useBitwiseOccupancyCoder;
+  bool _useBitwiseOccupancyCoder;
 
-  const uint8_t (&_neighPattern64toR1)[64];
+  const uint8_t* _neighPattern64toR1;
 
   EntropyDecoder* _arithmeticDecoder;
   StaticBitModel _ctxEquiProb;
