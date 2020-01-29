@@ -322,10 +322,10 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
 struct OctreePlanarState {
   OctreePlanarState(const GeometryParameterSet&, const GeometryBrickHeader&);
 
-  OctreePlanarState(const OctreePlanarState&) = delete;
-  OctreePlanarState(OctreePlanarState&&) = delete;
-  OctreePlanarState& operator=(const OctreePlanarState&) = delete;
-  OctreePlanarState& operator=(OctreePlanarState&&) = delete;
+  OctreePlanarState(const OctreePlanarState&);
+  OctreePlanarState(OctreePlanarState&&);
+  OctreePlanarState& operator=(const OctreePlanarState&);
+  OctreePlanarState& operator=(OctreePlanarState&&);
 
   static constexpr int kNumPlanarPlanes = 4;
 

@@ -465,6 +465,50 @@ OctreePlanarState::isEligible(bool eligible[3])
   }
 }
 
+//----------------------------------------------------------------------------
+
+OctreePlanarState::OctreePlanarState(const OctreePlanarState& rhs)
+{
+  *this = rhs;
+}
+
+//----------------------------------------------------------------------------
+
+OctreePlanarState::OctreePlanarState(OctreePlanarState&& rhs)
+{
+  *this = std::move(rhs);
+}
+
+//----------------------------------------------------------------------------
+
+OctreePlanarState&
+OctreePlanarState::operator=(const OctreePlanarState& rhs)
+{
+  _planes3x3 = rhs._planes3x3;
+  _rate = rhs._rate;
+  _localDensity = rhs._localDensity;
+  _rateThreshold = rhs._rateThreshold;
+
+  // ensure that plane pointers point to the local planes backing store
+  for (int i = 0; i < 9; i++)
+    _planes[i] = _planes3x3.data() + (rhs._planes[i] - rhs._planes3x3.data());
+
+  return *this;
+}
+
+//----------------------------------------------------------------------------
+
+OctreePlanarState&
+OctreePlanarState::operator=(OctreePlanarState&& rhs)
+{
+  _planes3x3 = std::move(rhs._planes3x3);
+  _planes = std::move(rhs._planes);
+  _rate = std::move(rhs._rateThreshold);
+  _localDensity = std::move(rhs._localDensity);
+  _rateThreshold = std::move(rhs._rateThreshold);
+  return *this;
+}
+
 //============================================================================
 // directional mask depending on the planarity
 
