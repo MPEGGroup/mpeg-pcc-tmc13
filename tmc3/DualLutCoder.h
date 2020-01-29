@@ -72,6 +72,11 @@ public:
     int _maxHistogramCount = kMaxHistogramCount,
     const uint8_t buffer[_lutSize] = nullptr);
 
+  FrequencySortingLut(const FrequencySortingLut&) = default;
+  FrequencySortingLut(FrequencySortingLut&&) = default;
+  FrequencySortingLut& operator=(const FrequencySortingLut&) = default;
+  FrequencySortingLut& operator=(FrequencySortingLut&&) = default;
+
   void init(const uint8_t buffer[_lutSize]);
 
   void reset() { _reset = true; }
@@ -113,8 +118,8 @@ private:
   // mapping of LUT index to symbol
   uint8_t _toSymbol[_lutSize];
 
-  const int _maxHistogramCount;
-  const unsigned _maxUpdatePeriod;
+  int _maxHistogramCount;
+  unsigned _maxUpdatePeriod;
 
   unsigned _updatePeriod = kInitialUpdatePeriod;
   unsigned _symbolsUntilUpdate = kInitialUpdatePeriod;
@@ -137,6 +142,10 @@ public:
   static_assert(_cacheSize <= _alphabetSize, "LUT is larger than alphabet?");
 
   FrequentSymbolCache();
+  FrequentSymbolCache(const FrequentSymbolCache&) = default;
+  FrequentSymbolCache(FrequentSymbolCache&&) = default;
+  FrequentSymbolCache& operator=(const FrequentSymbolCache&) = default;
+  FrequentSymbolCache& operator=(FrequentSymbolCache&&) = default;
 
   void pushSymbol(int symbol);
 
@@ -179,6 +188,11 @@ class DualLutCoder {
 public:
   DualLutCoder();
   DualLutCoder(const uint8_t initTable[kLutSize]);
+
+  DualLutCoder(const DualLutCoder&) = default;
+  DualLutCoder(DualLutCoder&&) = default;
+  DualLutCoder& operator=(const DualLutCoder&) = default;
+  DualLutCoder& operator=(DualLutCoder&&) = default;
 
   void init(const uint8_t initTable[32]);
   void resetLut();
