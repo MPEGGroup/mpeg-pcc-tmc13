@@ -203,7 +203,7 @@ AttributeDecoder::decode(
   int abhSize;
   AttributeBrickHeader abh = parseAbh(attr_aps, payload, &abhSize);
 
-  QpSet qpSet = deriveQpSet(attr_aps, abh);
+  QpSet qpSet = deriveQpSet(attr_desc, attr_aps, abh);
 
   PCCResidualsDecoder decoder;
   decoder.start(sps, payload.data() + abhSize, payload.size() - abhSize);

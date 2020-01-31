@@ -43,6 +43,7 @@
 
 namespace pcc {
 
+struct AttributeDescription;
 struct AttributeParameterSet;
 struct AttributeBrickHeader;
 
@@ -120,6 +121,8 @@ struct QpRegionOffset {
 struct QpSet {
   QpLayers layers;
   QpRegionOffset regionOffset;
+  int maxQpPrimary;
+  int maxQpSecondary;
   int fixedPointQpOffset;
 
   // Derive the quantizers at a given layer after applying qpOffset
@@ -130,7 +133,8 @@ struct QpSet {
 
   int regionQpOffset(const Vec3<int32_t>& point) const;
 
-  int clipQp(int qp) const;
+  int clipQpP(int qp) const;
+  int clipQpS(int qp) const;
 };
 
 //============================================================================
@@ -150,7 +154,9 @@ QpRegionOffset deriveQpRegions(
 
 // Determine the Qp configuration for an attribute slice
 QpSet deriveQpSet(
-  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
+  const AttributeDescription& attrDesc,
+  const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh);
 
 //============================================================================
 // Quantisation methods for geometry

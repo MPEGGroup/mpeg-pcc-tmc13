@@ -118,11 +118,18 @@ deriveQpRegions(
 
 QpSet
 deriveQpSet(
-  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+  const AttributeDescription& attrDesc,
+  const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh)
 {
   QpSet qpset;
   qpset.layers = deriveLayerQps(attr_aps, abh);
   qpset.regionOffset = deriveQpRegions(attr_aps, abh);
+
+  // The mimimum Qp = 4 is always lossless; the maximum varies according to
+  // bitdepth.
+  qpset.maxQpPrimary = 51 + 6 * (attrDesc.bitdepth - 8);
+  qpset.maxQpSecondary = 51 + 6 * (attrDesc.bitdepthSecondary - 8);
 
   // the lifting transform has extra fractional bits that equate to
   // increasing the QP.
@@ -136,9 +143,17 @@ deriveQpSet(
 //============================================================================
 
 int
-QpSet::clipQp(int qp) const
+QpSet::clipQpP(int qp) const
 {
-  return PCCClip(qp, 4, 51);
+  return PCCClip(qp, 4, maxQpPrimary);
+}
+
+//----------------------------------------------------------------------------
+
+int
+QpSet::clipQpS(int qp) const
+{
+  return PCCClip(qp, 4, maxQpSecondary);
 }
 
 //============================================================================
@@ -146,8 +161,8 @@ QpSet::clipQp(int qp) const
 Quantizers
 QpSet::quantizers(int qpLayer, int qpOffset) const
 {
-  auto qp0 = clipQp(layers[qpLayer][0] + qpOffset) + fixedPointQpOffset;
-  auto qp1 = clipQp(layers[qpLayer][1] + qpOffset) + fixedPointQpOffset;
+  auto qp0 = clipQpP(layers[qpLayer][0] + qpOffset) + fixedPointQpOffset;
+  auto qp1 = clipQpS(layers[qpLayer][1] + qpOffset) + fixedPointQpOffset;
 
   return {Quantizer(qp0), Quantizer(qp1)};
 }
