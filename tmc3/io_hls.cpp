@@ -96,7 +96,9 @@ write(const SequenceParameterSet& sps)
     bs.writeUe(attr.attr_num_dimensions);
     bs.writeUe(attr.attr_instance_id);
     bs.writeUe(attr.attr_bitdepth);
-    bs.writeUe(attr.attr_bitdepth_secondary);
+    if (attr.attr_num_dimensions > 1)
+      bs.writeUe(attr.attr_bitdepth_secondary);
+
     bs.writeUe(attr.cicp_colour_primaries_idx);
     bs.writeUe(attr.cicp_transfer_characteristics_idx);
     bs.writeUe(attr.cicp_matrix_coefficients_idx);
@@ -158,7 +160,9 @@ parseSps(const PayloadBuffer& buf)
     bs.readUe(&attr.attr_num_dimensions);
     bs.readUe(&attr.attr_instance_id);
     bs.readUe(&attr.attr_bitdepth);
-    bs.readUe(&attr.attr_bitdepth_secondary);
+    if (attr.attr_num_dimensions > 1)
+      bs.readUe(&attr.attr_bitdepth_secondary);
+
     bs.readUe(&attr.cicp_colour_primaries_idx);
     bs.readUe(&attr.cicp_transfer_characteristics_idx);
     bs.readUe(&attr.cicp_matrix_coefficients_idx);
