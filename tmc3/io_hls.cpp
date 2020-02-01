@@ -398,8 +398,13 @@ write(const AttributeParameterSet& aps)
           }
         } else {
           for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-            // todo(??): is this an appropriate encoding?
-            bs.writeUe64(aps.dist2[idx]);
+            auto numerator = aps.dist2[idx];
+            auto denominator = idx > 0 ? aps.dist2[idx - 1] : 1;
+            int lod_sampling_scale_minus1 = (numerator / denominator) - 1;
+            int lod_sampling_offset = numerator % denominator;
+            bs.writeUe(lod_sampling_scale_minus1);
+            if (idx > 0)
+              bs.writeUe(lod_sampling_offset);
           }
         }
       }
@@ -471,7 +476,18 @@ parseAps(const PayloadBuffer& buf)
         } else {
           aps.dist2.resize(aps.num_detail_levels);
           for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-            bs.readUe(&aps.dist2[idx]);
+            int lod_sampling_scale_minus1;
+            int lod_sampling_offset = 0;
+            bs.readUe(&lod_sampling_scale_minus1);
+            if (idx == 0)
+              aps.dist2[idx] = lod_sampling_scale_minus1 + 1;
+            else {
+              int lod_sampling_offset;
+              bs.readUe(&lod_sampling_offset);
+              aps.dist2[idx] =
+                aps.dist2[idx - 1] * (lod_sampling_scale_minus1 + 1)
+                + lod_sampling_offset;
+            }
           }
         }
       }
