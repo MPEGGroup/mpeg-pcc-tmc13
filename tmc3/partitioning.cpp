@@ -155,6 +155,9 @@ partitionByUniformGeom(
 
     sliceNum *= 2;
     sliceSize = maxEdge / sliceNum;
+    if (sliceSize % partitionBoundary) {
+      sliceSize = (1 + sliceSize / partitionBoundary) * partitionBoundary;
+    }
   }
 
   // Delete the slice that with no points
