@@ -62,7 +62,7 @@ categories:
          - !conditional '${has_refl}'
          - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
          - qp:
-             r01: 52
+             r01: 51
              r02: 46
              r03: 40
              r04: 34
@@ -77,7 +77,7 @@ categories:
          - !conditional '${has_colour}'
          - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
          - qp:
-             r01: 52
+             r01: 51
              r02: 46
              r03: 40
              r04: 34

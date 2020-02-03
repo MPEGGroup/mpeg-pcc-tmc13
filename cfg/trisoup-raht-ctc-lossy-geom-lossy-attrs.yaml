@@ -35,7 +35,7 @@ categories:
      -
        - !conditional '${has_colour}'
        - qp:
-           r01: 52
+           r01: 51
            r02: 46
            r03: 40
            r04: 34
