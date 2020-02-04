@@ -67,32 +67,34 @@ PCCTMC3Encoder3::compress(
   // start of frame
   _frameCounter++;
 
-  fixupParameterSets(params);
+  if (_frameCounter == 0) {
+    fixupParameterSets(params);
 
-  // Determine input bounding box (for SPS metadata) if not manually set
-  if (params->sps.seq_bounding_box_whd == Vec3<int>{0}) {
-    const auto& bbox = inputPointCloud.computeBoundingBox();
-    for (int k = 0; k < 3; k++) {
-      params->sps.seq_bounding_box_xyz0[k] = int(bbox.min[k]);
+    // Determine input bounding box (for SPS metadata) if not manually set
+    if (params->sps.seq_bounding_box_whd == Vec3<int>{0}) {
+      const auto& bbox = inputPointCloud.computeBoundingBox();
+      for (int k = 0; k < 3; k++) {
+        params->sps.seq_bounding_box_xyz0[k] = int(bbox.min[k]);
 
-      // somehow determine the decoder's reconstructed points bounding box
-      // and update sps accordingly.
-      auto max_k = bbox.max[k] - bbox.min[k];
-      max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
-      max_k = std::round(max_k / params->sps.seq_source_geom_scale_factor);
+        // somehow determine the decoder's reconstructed points bounding box
+        // and update sps accordingly.
+        auto max_k = bbox.max[k] - bbox.min[k];
+        max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
+        max_k = std::round(max_k / params->sps.seq_source_geom_scale_factor);
 
-      // NB: plus one to convert to range
-      params->sps.seq_bounding_box_whd[k] = int(max_k) + 1;
+        // NB: plus one to convert to range
+        params->sps.seq_bounding_box_whd[k] = int(max_k) + 1;
+      }
     }
-  }
 
-  // Determine the ladar head position relative to the sequence bounding box
-  // NB: currently the sps box offset is unscaled
-  if (params->gps.geom_angular_mode_enabled_flag) {
-    auto origin = params->sps.seq_bounding_box_xyz0;
-    auto scale = params->sps.seq_source_geom_scale_factor;
-    params->gps.geom_angular_lidar_head_position -= origin;
-    params->gps.geom_angular_lidar_head_position *= scale;
+    // Determine the ladar head position relative to the sequence bounding box
+    // NB: currently the sps box offset is unscaled
+    if (params->gps.geom_angular_mode_enabled_flag) {
+      auto origin = params->sps.seq_bounding_box_xyz0;
+      auto scale = params->sps.seq_source_geom_scale_factor;
+      params->gps.geom_angular_lidar_head_position -= origin;
+      params->gps.geom_angular_lidar_head_position *= scale;
+    }
   }
 
   // placeholder to "activate" the parameter sets
