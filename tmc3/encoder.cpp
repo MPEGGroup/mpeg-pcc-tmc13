@@ -37,6 +37,7 @@
 
 #include <cassert>
 #include <set>
+#include <stdexcept>
 
 #include "Attribute.h"
 #include "pointset_processing.h"
@@ -403,6 +404,14 @@ PCCTMC3Encoder3::compressPartition(
 
     callback->onOutputBuffer(payload);
   }
+
+  // verify that the per-level slice constraint has been met
+  // todo(df): avoid hard coded value here (should be level dependent)
+  if (params->enforceLevelLimits)
+    if (pointCloud.getPointCount() > 1100000)
+      throw std::runtime_error(
+        std::string("level slice point count limit (1100000) exceeded: ")
+        + std::to_string(pointCloud.getPointCount()));
 
   // recolouring
 

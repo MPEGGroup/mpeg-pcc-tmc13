@@ -504,6 +504,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.disableAttributeCoding, false,
     "Ignore attribute coding configuration")
 
+  ("enforceLevelLimits",
+    params.encoder.enforceLevelLimits, true,
+    "Abort if level limits exceeded")
+
   (po::Section("Geometry"))
 
   ("implicitQtBtEnabled",
