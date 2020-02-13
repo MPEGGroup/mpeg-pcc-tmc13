@@ -634,7 +634,7 @@ refineSlicesByAdjacentInfo(
   //find adjacent slice
   for (int i = 0; i < list.size();) {
     int minLidx = -1;
-    double mindist = 1.0;
+    double mindist = maxPoints;
     for (int n = 0; n < list[i].nodes.size(); n++) {
       int xIdxP = list[i].nodes[n].idx / yNum;
       int yIdxP = list[i].nodes[n].idx % yNum;
