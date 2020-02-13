@@ -137,6 +137,11 @@ void refineSlicesByAdjacentInfo(
   const PCCPointSet3& inputPointCloud,
   std::vector<Partition>& slices);
 
+void refineSlices(
+  const PartitionParams& params,
+  const PCCPointSet3& inputPointCloud,
+  std::vector<Partition>& slices);
+
 //============================================================================
 
 }  // namespace pcc

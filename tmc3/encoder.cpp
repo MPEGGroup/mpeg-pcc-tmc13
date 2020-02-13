@@ -258,8 +258,11 @@ PCCTMC3Encoder3::compress(
       // Adjust the point number of each slice
       // to the range between sliceMaxPoints and sliceMinPoints
       // by merge small slices and split large ones.
-      refineSlicesByAdjacentInfo(
-        params->partition, quantizedInputCloud, curSlices);
+      if (partitionMethod == PartitionMethod::kUniformSquare)
+        refineSlicesByAdjacentInfo(
+          params->partition, quantizedInputCloud, curSlices);
+      else
+        refineSlices(params->partition, quantizedInputCloud, curSlices);
 
       partitions.slices.insert(
         partitions.slices.end(), curSlices.begin(), curSlices.end());
