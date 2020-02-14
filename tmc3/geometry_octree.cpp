@@ -305,65 +305,30 @@ CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
 
 void
 isPlanarNode(
-  PCCPointSet3& pointCloud,
-  PCCOctree3Node& node0,
+  const PCCPointSet3& pointCloud,
+  const PCCOctree3Node& node0,
   const Vec3<int>& nodeSizeLog2Minus1,
   uint8_t& planarMode,
   uint8_t& planePosBits,
-  bool planarEligible[3])
+  const bool planarEligible[3])
 {
-  planarMode = 0;
-  planePosBits = 0;
+  const point_t occupMask{planarEligible[0] << nodeSizeLog2Minus1[0],
+                          planarEligible[1] << nodeSizeLog2Minus1[1],
+                          planarEligible[2] << nodeSizeLog2Minus1[2]};
 
-  bool occupX[2] = {false, false};
-  bool occupY[2] = {false, false};
-  bool occupZ[2] = {false, false};
-
-  bool notPlanar[3] = {!planarEligible[0], !planarEligible[1],
-                       !planarEligible[2]};
-
+  point_t occup = 0;
   // find occupancy N xyz-planes
   for (int k = node0.start; k < node0.end; k++) {
-    if (!notPlanar[0]) {
-      uint32_t px = pointCloud[k][0];
-      px = (px & (1 << nodeSizeLog2Minus1[0])) >> nodeSizeLog2Minus1[0];
-      occupX[px] = true;
-      if (occupX[1 - px])
-        notPlanar[0] = true;
-    }
-
-    if (!notPlanar[1]) {
-      uint32_t py = pointCloud[k][1];
-      py = (py & (1 << nodeSizeLog2Minus1[1])) >> nodeSizeLog2Minus1[1];
-      occupY[py] = true;
-      if (occupY[1 - py])
-        notPlanar[1] = true;
-    }
-
-    if (!notPlanar[2]) {
-      uint32_t pz = pointCloud[k][2];
-      pz = (pz & (1 << nodeSizeLog2Minus1[2])) >> nodeSizeLog2Minus1[2];
-      occupZ[pz] = true;
-      if (occupZ[1 - pz])
-        notPlanar[2] = true;
-    }
+    occup[0] |= planarEligible[0] << bool(pointCloud[k][0] & occupMask[0]);
+    occup[1] |= planarEligible[1] << bool(pointCloud[k][1] & occupMask[1]);
+    occup[2] |= planarEligible[2] << bool(pointCloud[k][2] & occupMask[2]);
   }
 
   // determine planar
-  if (!(occupX[0] && occupX[1])) {
-    planarMode |= 1;
-    planePosBits |= occupX[1] ? 1 : 0;
-  }
-
-  if (!(occupY[0] && occupY[1])) {
-    planarMode |= 2;
-    planePosBits |= occupY[1] ? 2 : 0;
-  }
-
-  if (!(occupZ[0] && occupZ[1])) {
-    planarMode |= 4;
-    planePosBits |= occupZ[1] ? 4 : 0;
-  }
+  planarMode =
+    (occup[0] != 3) | ((occup[1] != 3) << 1) | ((occup[2] != 3) << 2);
+  planePosBits =
+    (occup[0] == 2) | ((occup[1] == 2) << 1) | ((occup[2] == 2) << 2);
 }
 
 //============================================================================
