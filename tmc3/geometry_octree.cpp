@@ -405,14 +405,99 @@ isPlanarNode(
 }
 
 //============================================================================
+// :: Default planar buffer methods
+
+OctreePlanarBuffer::OctreePlanarBuffer() = default;
+OctreePlanarBuffer::OctreePlanarBuffer(OctreePlanarBuffer&& rhs) = default;
+OctreePlanarBuffer::~OctreePlanarBuffer() = default;
+
+OctreePlanarBuffer& OctreePlanarBuffer::
+operator=(OctreePlanarBuffer&& rhs) = default;
+
+//----------------------------------------------------------------------------
+// :: Copying the planar buffer
+
+OctreePlanarBuffer::OctreePlanarBuffer(const OctreePlanarBuffer& rhs)
+{
+  *this = rhs;
+}
+
+//----------------------------------------------------------------------------
+
+OctreePlanarBuffer&
+OctreePlanarBuffer::operator=(const OctreePlanarBuffer& rhs)
+{
+  _buf = rhs._buf;
+  _col = rhs._col;
+  // Afjust the column offsets to the new base address
+  auto oldBase = _col[0];
+  auto newBase = reinterpret_cast<Row*>(&_buf.front());
+  for (auto& ptr : _col)
+    ptr = ptr - oldBase + newBase;
+  return *this;
+}
+
+//----------------------------------------------------------------------------
+// :: Planar buffer management
+
+void
+OctreePlanarBuffer::reserve(Vec3<int> maxNumBufferRows)
+{
+  // compared like this to not overflow (maskC + 1) in case it is equal
+  // to max possible value
+  if (maskC < maxNumBufferRows[0])
+    maxNumBufferRows[0] = maskC + 1;
+  if (maskC < maxNumBufferRows[1])
+    maxNumBufferRows[1] = maskC + 1;
+  if (maskC < maxNumBufferRows[2])
+    maxNumBufferRows[2] = maskC + 1;
+
+  int size = maxNumBufferRows[0] + maxNumBufferRows[1] + maxNumBufferRows[2];
+  _buf.reserve(rowSize * size);
+}
+
+//----------------------------------------------------------------------------
+
+void
+OctreePlanarBuffer::resize(Vec3<int> numBufferRows)
+{
+  if (maskC < numBufferRows[0])
+    numBufferRows[0] = maskC + 1;
+  if (maskC < numBufferRows[1])
+    numBufferRows[1] = maskC + 1;
+  if (maskC < numBufferRows[2])
+    numBufferRows[2] = maskC + 1;
+
+  int size = numBufferRows[0] + numBufferRows[1] + numBufferRows[2];
+  _buf.clear();
+  _buf.resize(rowSize * size, Elmt{0, -2, 0});
+
+  // NB: the flat backing buffer is cast with a row stride for access
+  _col[0] = reinterpret_cast<Row*>(&_buf.front());
+  _col[1] = _col[0] + numBufferRows[0];
+  _col[2] = _col[1] + numBufferRows[1];
+}
+
+//----------------------------------------------------------------------------
+
+void
+OctreePlanarBuffer::clear()
+{
+  _buf.clear();
+  _col = {nullptr, nullptr, nullptr};
+}
+
+//============================================================================
 // intitialize planes for planar pred
 
 OctreePlanarState::OctreePlanarState(
   const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
 {
   if (gps.geom_planar_mode_enabled_flag && !gps.planar_buffer_disabled_flag) {
-    int maxPlaneSize = kNumPlanarPlanes << gbh.maxRootNodeDimLog2;
-    _planes3x3.resize(maxPlaneSize * 9);
+    Vec3<int> maxNumBufferRows = {1 << gbh.rootNodeSizeLog2[0],
+                                  1 << gbh.rootNodeSizeLog2[1],
+                                  1 << gbh.rootNodeSizeLog2[2]};
+    _planarBuffer.reserve(maxNumBufferRows);
   }
 
   _rateThreshold[0] = gps.geom_planar_threshold0 << 4;
@@ -421,30 +506,14 @@ OctreePlanarState::OctreePlanarState(
 }
 
 void
-OctreePlanarState::initPlanes(int depth)
+OctreePlanarState::initPlanes(const Vec3<int>& depthXyz)
 {
-  if (_planes3x3.empty()) {
-    for (auto& plane : _planes)
-      plane = nullptr;
+  if (!_planarBuffer)
     return;
-  }
 
-  const int kPlanarInit[9] = {-2,    -1000, -1000, -1000, -2,
-                              -1000, -1000, -1000, -2};
-
-  int shift = 0;
-  const int planeSize = kNumPlanarPlanes << depth;
-
-  for (int idxP = 0; idxP < 9; idxP++) {
-    int* plane = _planes3x3.data() + shift;
-    shift += planeSize;
-    _planes[idxP] = plane;
-    int v = kPlanarInit[idxP];
-
-    for (int p = 0; p < planeSize; p++) {
-      plane[p] = v;
-    }
-  }
+  Vec3<int> numBufferRows = {1 << depthXyz[0], 1 << depthXyz[1],
+                             1 << depthXyz[2]};
+  _planarBuffer.resize(numBufferRows);
 }
 
 //============================================================================
@@ -529,15 +598,10 @@ OctreePlanarState::OctreePlanarState(OctreePlanarState&& rhs)
 OctreePlanarState&
 OctreePlanarState::operator=(const OctreePlanarState& rhs)
 {
-  _planes3x3 = rhs._planes3x3;
+  _planarBuffer = rhs._planarBuffer;
   _rate = rhs._rate;
   _localDensity = rhs._localDensity;
   _rateThreshold = rhs._rateThreshold;
-
-  // ensure that plane pointers point to the local planes backing store
-  for (int i = 0; i < 9; i++)
-    _planes[i] = _planes3x3.data() + (rhs._planes[i] - rhs._planes3x3.data());
-
   return *this;
 }
 
@@ -546,8 +610,7 @@ OctreePlanarState::operator=(const OctreePlanarState& rhs)
 OctreePlanarState&
 OctreePlanarState::operator=(OctreePlanarState&& rhs)
 {
-  _planes3x3 = std::move(rhs._planes3x3);
-  _planes = std::move(rhs._planes);
+  _planarBuffer = std::move(rhs._planarBuffer);
   _rate = std::move(rhs._rateThreshold);
   _localDensity = std::move(rhs._localDensity);
   _rateThreshold = std::move(rhs._rateThreshold);

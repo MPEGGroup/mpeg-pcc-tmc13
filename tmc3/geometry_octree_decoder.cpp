@@ -59,7 +59,7 @@ public:
   GeometryOctreeDecoder& operator=(const GeometryOctreeDecoder&) = default;
   GeometryOctreeDecoder& operator=(GeometryOctreeDecoder&&) = default;
 
-  void beginOctreeLevel(int planarDepth);
+  void beginOctreeLevel(const Vec3<int>& planarDepth);
 
   int decodePositionLeafNumPoints();
 
@@ -126,11 +126,9 @@ public:
     int contextAngle);
 
   void determinePlanarMode(
-    int index,
+    int planeId,
     PCCOctree3Node& child,
-    int* plane1,
-    int* plane2,
-    int* plane3,
+    OctreePlanarBuffer::Row* planeBuffer,
     int coord1,
     int coord2,
     int coord3,
@@ -141,7 +139,7 @@ public:
     int contextAngle);
 
   void determinePlanarMode(
-    bool planarEligible[3],
+    const bool planarEligible[3],
     PCCOctree3Node& child,
     uint8_t neighPattern,
     int x,
@@ -245,7 +243,7 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
 //============================================================================
 
 void
-GeometryOctreeDecoder::beginOctreeLevel(int planarDepth)
+GeometryOctreeDecoder::beginOctreeLevel(const Vec3<int>& planarDepth)
 {
   for (int i = 0; i < 10; i++) {
     _bytewiseOccupancyCoder[i].resetLut();
@@ -290,7 +288,7 @@ GeometryOctreeDecoder::decodePlanarMode(
   const int mask1[3] = {6, 5, 3};
 
   // decode planar mode
-  int discreteDist = dist <= 2 ? 0 : 1;
+  int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
   bool isPlanar =
     _arithmeticDecoder->decode(_ctxPlanarMode[planeId][neighb][discreteDist]);
   node0.planarMode |= isPlanar ? mask0 : 0;
@@ -309,7 +307,7 @@ GeometryOctreeDecoder::decodePlanarMode(
       h =
         approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
     } else {
-      discreteDist += (dist <= 16 ? 0 : 1);
+      discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       int lastIndexPlane2d = planeZ + (discreteDist << 1);
       planeBit = _arithmeticDecoder->decode(
         _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posz]);
@@ -334,9 +332,7 @@ void
 GeometryOctreeDecoder::determinePlanarMode(
   int planeId,
   PCCOctree3Node& child,
-  int* plane1,
-  int* plane2,
-  int* plane3,
+  OctreePlanarBuffer::Row* planeBuffer,
   int coord1,
   int coord2,
   int coord3,
@@ -346,36 +342,35 @@ GeometryOctreeDecoder::determinePlanarMode(
   int planarRate[3],
   int contextAngle)
 {
-  auto kNumPlanarPlanes = OctreePlanarState::kNumPlanarPlanes;
-
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
   const int planeSelector = 1 << planeId;
 
-  int* localPlane1;
-  int* localPlane2;
-  int* localPlane3;
-
+  OctreePlanarBuffer::Elmt* row;
+  int rowLen = OctreePlanarBuffer::rowSize;
   int closestPlanarFlag;
   int closestDist;
 
-  if (!plane1) {
+  if (!planeBuffer) {
     // angular: buffer disabled
     closestPlanarFlag = 0;
     closestDist = 0;
   } else {
-    const int shift = coord3 * kNumPlanarPlanes;
-    localPlane1 = plane1 + shift;
-    localPlane2 = plane2 + shift;
-    localPlane3 = plane3 + shift;
+    coord1 =
+      (coord1 & OctreePlanarBuffer::maskAb) >> OctreePlanarBuffer::shiftAb;
+    coord2 =
+      (coord2 & OctreePlanarBuffer::maskAb) >> OctreePlanarBuffer::shiftAb;
+    coord3 = coord3 & OctreePlanarBuffer::maskC;
 
-    int minDist = std::abs(coord1 - localPlane1[kNumPlanarPlanes - 1])
-      + std::abs(coord2 - localPlane2[kNumPlanarPlanes - 1]);
-    int idxMinDist = kNumPlanarPlanes - 1;
+    row = planeBuffer[coord3];
 
-    for (int idxP = 0; idxP < kNumPlanarPlanes - 1; idxP++) {
-      int dist0 = std::abs(coord1 - localPlane1[idxP])
-        + std::abs(coord2 - localPlane2[idxP]);
+    int minDist = std::abs(coord1 - int(row[rowLen - 1].a))
+      + std::abs(coord2 - int(row[rowLen - 1].b));
+    int idxMinDist = rowLen - 1;
+
+    for (int idxP = 0; idxP < rowLen - 1; idxP++) {
+      int dist0 = std::abs(coord1 - int(row[idxP].a))
+        + std::abs(coord2 - int(row[idxP].b));
       if (dist0 < minDist) {
         idxMinDist = idxP;
         minDist = dist0;
@@ -383,18 +378,13 @@ GeometryOctreeDecoder::determinePlanarMode(
     }
 
     // push closest point front
-    localPlane1[kNumPlanarPlanes - 1] = localPlane1[idxMinDist];
-    localPlane2[kNumPlanarPlanes - 1] = localPlane2[idxMinDist];
-    localPlane3[kNumPlanarPlanes - 1] = localPlane3[idxMinDist];
+    row[rowLen - 1] = row[idxMinDist];
 
-    closestPlanarFlag = localPlane3[kNumPlanarPlanes - 1];
+    closestPlanarFlag = row[idxMinDist].planeIdx;
     closestDist = minDist;
 
-    for (int idxP = 0; idxP < kNumPlanarPlanes - 1;
-         idxP++, localPlane1++, localPlane2++, localPlane3++) {
-      *localPlane1 = *(localPlane1 + 1);
-      *localPlane2 = *(localPlane2 + 1);
-      *localPlane3 = *(localPlane3 + 1);
+    for (int idxP = 0; idxP < rowLen - 1; idxP++) {
+      row[idxP] = row[idxP + 1];
     }
   }
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
@@ -408,10 +398,8 @@ GeometryOctreeDecoder::determinePlanarMode(
   planarRate[planeId] =
     (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
 
-  if (plane1) {
-    *localPlane1 = coord1;
-    *localPlane2 = coord2;
-    *localPlane3 = planeBit;
+  if (planeBuffer) {
+    row[rowLen - 1] = {unsigned(coord1), planeBit, unsigned(coord2)};
   }
 }
 
@@ -419,7 +407,7 @@ GeometryOctreeDecoder::determinePlanarMode(
 
 void
 GeometryOctreeDecoder::determinePlanarMode(
-  bool planarEligible[3],
+  const bool planarEligible[3],
   PCCOctree3Node& child,
   uint8_t neighPattern,
   int x,
@@ -432,24 +420,24 @@ GeometryOctreeDecoder::determinePlanarMode(
   int yy = child.pos[1];
   int zz = child.pos[2];
 
-  auto planes = _planar._planes;
+  auto& planeBuffer = _planar._planarBuffer;
 
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, child, planes[1], planes[2], planes[0], yy, zz, xx, neighPattern, x,
+      0, child, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern, x,
       planarProb, _planar._rate.data(), -1);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, child, planes[3], planes[5], planes[4], xx, zz, yy, neighPattern, y,
+      1, child, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern, y,
       planarProb, _planar._rate.data(), -1);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, child, planes[6], planes[7], planes[8], xx, yy, zz, neighPattern, z,
+      2, child, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern, z,
       planarProb, _planar._rate.data(), contextAngle);
   }
 }
@@ -1202,9 +1190,7 @@ decodeGeometryOctree(
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }
 
-    int planarDepth = gbh.maxRootNodeDimLog2
-      - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
-
+    auto planarDepth = lvlNodeSizeLog2[0] - childSizeLog2;
     decoder.beginOctreeLevel(planarDepth);
 
     // process all nodes within a single level

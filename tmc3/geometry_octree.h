@@ -261,7 +261,61 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
   return indicator;
 }
 
-//---------------------------------------------------------------------------
+//============================================================================
+
+struct OctreePlanarBuffer {
+  static constexpr unsigned numBitsC = 14;
+  static constexpr unsigned numBitsAb = 7;
+  static constexpr unsigned rowSize = 1;
+  static_assert(numBitsC >= 0 && numBitsC <= 32, "0 <= numBitsC <= 32");
+  static_assert(numBitsAb >= 0 && numBitsAb <= 32, "0 <= numBitsAb <= 32");
+  static_assert(rowSize > 0, "rowSize must be greater than 0");
+  static constexpr unsigned shiftAb = 1;
+  static constexpr int maskAb = ((1 << numBitsAb) - 1) << shiftAb;
+  static constexpr int maskC = (1 << numBitsC) - 1;
+
+#pragma pack(push)
+#pragma pack(1)
+  struct Elmt {
+    // (a, b) are (s, t) for planar v,
+    //            (s, v) for planar t, and
+    //            (t, v) for planar s
+    unsigned int a : numBitsAb;
+
+    // -2: not used, -1: not planar, 0: plane 0, 1: plane 1
+    int planeIdx : 2;
+    unsigned int b : numBitsAb;
+  };
+#pragma pack(pop)
+
+  typedef Elmt Row[rowSize];
+
+  OctreePlanarBuffer();
+  OctreePlanarBuffer(const OctreePlanarBuffer& rhs);
+  OctreePlanarBuffer(OctreePlanarBuffer&& rhs);
+  ~OctreePlanarBuffer();
+
+  OctreePlanarBuffer& operator=(const OctreePlanarBuffer& rhs);
+  OctreePlanarBuffer& operator=(OctreePlanarBuffer&& rhs);
+
+  void reserve(Vec3<int> maxNumBufferRows);
+  void resize(Vec3<int> numBufferRows);
+  void clear();
+
+  // Access to a particular buffer column (dimension)
+  Row* getBuffer(int dim) { return _col[dim]; }
+
+  bool operator!() const { return _buf.empty(); }
+
+private:
+  // Backing storage for the underlying buffer
+  std::vector<Elmt> _buf;
+
+  // Base pointers for the first, second and third position components.
+  std::array<Row*, 3> _col = {{nullptr, nullptr, nullptr}};
+};
+
+//============================================================================
 
 struct OctreePlanarState {
   OctreePlanarState(const GeometryParameterSet&, const GeometryBrickHeader&);
@@ -271,16 +325,14 @@ struct OctreePlanarState {
   OctreePlanarState& operator=(const OctreePlanarState&);
   OctreePlanarState& operator=(OctreePlanarState&&);
 
-  static constexpr int kNumPlanarPlanes = 4;
+  OctreePlanarBuffer _planarBuffer;
 
-  std::vector<int> _planes3x3;
-  std::array<int*, 9> _planes;
   std::array<int, 3> _rate{{128 * 8, 128 * 8, 128 * 8}};
   int _localDensity = 1024 * 4;
 
   std::array<int, 3> _rateThreshold;
 
-  void initPlanes(int planarDepth);
+  void initPlanes(const Vec3<int>& planarDepth);
   void updateRate(int occupancy, int numSiblings);
   void isEligible(bool eligible[3]);
 };
