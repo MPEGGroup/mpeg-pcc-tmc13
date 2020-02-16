@@ -1183,7 +1183,9 @@ encodeGeometryOctree(
   auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, gbh);
   auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
-  const int idcmThreshold = gps.geom_planar_idcm_threshold * 127 * 127;
+  const int idcmThreshold = gps.geom_planar_mode_enabled_flag
+    ? gps.geom_planar_idcm_threshold * 127 * 127
+    : 127 * 127 * 127;
 
   //  Lidar angles for planar prediction
   const int numLasers = gps.geom_angular_num_lidar_lasers();
