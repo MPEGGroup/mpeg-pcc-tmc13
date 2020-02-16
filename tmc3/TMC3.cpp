@@ -607,7 +607,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable in-loop quantisation of positions")
 
   ("positionBaseQp",
-    params.encoder.gps.geom_base_qp, 4,
+    // NB: this is adjusted with minus 4 after the arguments are parsed
+    params.encoder.gps.geom_base_qp_minus4, 4,
     "Base QP used in position quantisation")
 
   ("positionSliceQpOffset",
@@ -831,6 +832,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     po::doHelp(std::cout, opts, 78);
     return false;
   }
+
+  // fix the representation of base qp
+  params.encoder.gps.geom_base_qp_minus4 -= 4;
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)

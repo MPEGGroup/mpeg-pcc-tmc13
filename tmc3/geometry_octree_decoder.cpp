@@ -1145,7 +1145,7 @@ decodeGeometryOctree(
   }
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
-  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
+  int sliceQp = 4 + gps.geom_base_qp_minus4 + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = 0;
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;

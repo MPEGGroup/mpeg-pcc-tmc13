@@ -245,7 +245,7 @@ write(const GeometryParameterSet& gps)
   bs.writeUe(gps.trisoup_node_size_log2);
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
-    bs.writeUe(gps.geom_base_qp);
+    bs.writeUe(gps.geom_base_qp_minus4);
 
   if (gps.implicit_qtbt_enabled_flag)
     if (!gps.trisoup_node_size_log2) {
@@ -327,7 +327,7 @@ parseGps(const PayloadBuffer& buf)
 
   bs.read(&gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
-    bs.readUe(&gps.geom_base_qp);
+    bs.readUe(&gps.geom_base_qp_minus4);
 
   gps.max_num_implicit_qtbt_before_ot = 0;
   gps.min_implicit_qtbt_size_log2 = 0;

@@ -1210,7 +1210,7 @@ encodeGeometryOctree(
 
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
-  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
+  int sliceQp = 4 + gps.geom_base_qp_minus4 + gbh.geom_slice_qp_offset;
   int numLvlsUntilQuantization = 0;
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
@@ -1252,7 +1252,8 @@ encodeGeometryOctree(
       if (!depth)
         fifo.front().qp = sliceQp;
       else
-        calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
+        calculateNodeQps(
+          4 + gps.geom_base_qp_minus4, fifo.begin(), fifoCurrLvlEnd);
     }
 
     // save context infor. for parallel coding
