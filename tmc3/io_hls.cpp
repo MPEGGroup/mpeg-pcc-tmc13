@@ -490,11 +490,6 @@ write(
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
 
-  if (gps.geom_scaling_enabled_flag) {
-    bs.writeSe(gbh.geom_slice_qp_offset);
-    bs.writeUe(gbh.geom_octree_qp_offset_depth);
-  }
-
   if (gps.geom_box_present_flag) {
     int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
     int geom_box_origin_x = gbh.geomBoxOrigin.x() >> geomBoxLog2Scale;
@@ -537,6 +532,11 @@ write(
     }
   }
 
+  if (gps.geom_scaling_enabled_flag) {
+    bs.writeSe(gbh.geom_slice_qp_offset);
+    bs.writeUe(gbh.geom_octree_qp_offset_depth);
+  }
+
   bs.writeUe(gbh.geom_num_points);
   bs.byteAlign();
 }
@@ -558,11 +558,6 @@ parseGbh(
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
-
-  if (gps.geom_scaling_enabled_flag) {
-    bs.readSe(&gbh.geom_slice_qp_offset);
-    bs.readUe(&gbh.geom_octree_qp_offset_depth);
-  }
 
   if (gps.geom_box_present_flag) {
     if (gps.geom_box_log2_scale_present_flag)
@@ -612,6 +607,11 @@ parseGbh(
       int width = gbh.geom_octree_parallel_max_offset_log2;
       bs.readUn(width, &gbh.geom_octree_parallel_bitstream_offsets[i]);
     }
+  }
+
+  if (gps.geom_scaling_enabled_flag) {
+    bs.readSe(&gbh.geom_slice_qp_offset);
+    bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
   bs.readUe(&gbh.geom_num_points);
