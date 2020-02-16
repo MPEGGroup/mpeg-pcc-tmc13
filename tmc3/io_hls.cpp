@@ -485,6 +485,7 @@ write(
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
+  bs.writeUn(24, gbh.geom_num_points);
   bs.writeUe(gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
@@ -537,7 +538,6 @@ write(
     bs.writeUe(gbh.geom_octree_qp_offset_depth);
   }
 
-  bs.writeUe(gbh.geom_num_points);
   bs.byteAlign();
 }
 
@@ -554,6 +554,7 @@ parseGbh(
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  bs.readUn(24, &gbh.geom_num_points);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
@@ -614,7 +615,6 @@ parseGbh(
     bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
-  bs.readUe(&gbh.geom_num_points);
   bs.byteAlign();
 
   if (bytesRead)
@@ -632,6 +632,7 @@ parseGbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  bs.readUn(24, &gbh.geom_num_points);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
