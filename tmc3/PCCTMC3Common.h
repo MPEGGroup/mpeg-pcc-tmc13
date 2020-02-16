@@ -820,8 +820,7 @@ subsampleByOctree(
   int startIdx = 0;
   if (indexCount > 0) {
     auto mortonCode = packedVoxel[input[0]].mortonCode;
-    endIdx =
-      mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
+    endIdx = mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
   }
 
   for (int i = 1; i < indexCount; ++i) {
@@ -1010,8 +1009,8 @@ buildPredictorsFast(
 
             computeNearestNeighbors(
               aps, pointCloud, packedVoxel, retained, divided_startIndex,
-              divided_endIndex, lod + minGeomNodeSizeLog2, indexes,
-              predictors, pointIndexToPredictorIndex, predIndex, bBoxes);
+              divided_endIndex, lod + minGeomNodeSizeLog2, indexes, predictors,
+              pointIndexToPredictorIndex, predIndex, bBoxes);
           }
         }
       }
