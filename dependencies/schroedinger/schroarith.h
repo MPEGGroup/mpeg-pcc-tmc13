@@ -110,9 +110,21 @@ _schro_arith_encode_bit (SchroArith *arith, uint16_t *probability, int value)
     if (arith->cntr == 8) {
       if (arith->range[0] < (1<<24) &&
           (arith->range[0] + arith->range[1]) >= (1<<24)) {
+        // NB: carry cannot occur on the first byte since:
+        //  - requires initial low=ff80, range=8000 for seq of False
+        //  - requires initial low=8000, range=8000 for seq of True
+        //  - requires initial low=0001, range=ffff for seq of True
         arith->carry++;
       } else {
         if (arith->range[0] >= (1<<24)) {
+          // NB: output_byte is always valid here since:
+          //  - given the initial value of low = 0, range = ffff
+          //  - the largest value of low after the first bit=1 is ff00 (p=ff01)
+          //  - coding subsequent symbols cannot cause low > 7fff00
+          // => minimum initial value of low that can trigger this = 2
+          //    (this is not a valid initial condition)
+          //  - with range = 8000 (the maximum renormalised range)
+          //  - minimum initial value of low to trigger = 8080
           arith->output_byte++;
           while (arith->carry) {
             arith->write(arith->output_byte, arith->io_priv);

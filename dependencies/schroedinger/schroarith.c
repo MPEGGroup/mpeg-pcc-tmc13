@@ -189,13 +189,15 @@ schro_arith_flush (SchroArith * arith)
 
   if (arith->range[0] >= (1 << 24)) {
     arith->output_byte++;
-    arith->write(arith->output_byte, arith->io_priv);
+    if (!arith->first_byte)
+      arith->write(arith->output_byte, arith->io_priv);
     while (arith->carry) {
       arith->write(0x00, arith->io_priv);
       arith->carry--;
     }
   } else {
-    arith->write(arith->output_byte, arith->io_priv);
+    if (!arith->first_byte)
+      arith->write(arith->output_byte, arith->io_priv);
     while (arith->carry) {
       arith->write(0xff, arith->io_priv);
       arith->carry--;
