@@ -394,7 +394,8 @@ PCCTMC3Encoder3::compressPartition(
   }
 
   // todo(df): don't update maxBound if something is forcing the value?
-  _sliceBoxWhd = maxBound;
+  // NB: size is max - min + 1
+  _sliceBoxWhd = maxBound + 1;
 
   // geometry encoding
   if (1) {
@@ -519,15 +520,15 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_box_log2_scale = 0;
 
   if (!_gps->implicit_qtbt_enabled_flag) {
-    // todo(df): confirm minimum of 1 isn't needed
-    int32_t maxBB =
-      std::max({1, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
-    gbh.geom_max_node_size_log2 = ceillog2(maxBB + 1);
+    // NB: A minimum whd of 2 means there is always at least 1 tree level
+    int32_t maxWhd =
+      std::max({2, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
+    gbh.geom_max_node_size_log2 = ceillog2(maxWhd);
   } else {
     // different node dimension for xyz, for the purpose of implicit qtbt
-    gbh.geom_max_node_size_log2_xyz[0] = ceillog2(_sliceBoxWhd[0] + 1);
-    gbh.geom_max_node_size_log2_xyz[1] = ceillog2(_sliceBoxWhd[1] + 1);
-    gbh.geom_max_node_size_log2_xyz[2] = ceillog2(_sliceBoxWhd[2] + 1);
+    for (int k = 0; k < 3; k++)
+      gbh.geom_max_node_size_log2_xyz[k] =
+        ceillog2(std::max(2, _sliceBoxWhd[k]));
   }
 
   gbh.geom_num_points = int(pointCloud.getPointCount());
@@ -662,7 +663,8 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   }
 
   // todo(df): don't update maxBound if something is forcing the value?
-  _sliceBoxWhd = maxBound;
+  // NB: size is max - min + 1
+  _sliceBoxWhd = maxBound + 1;
   return pointCloud0;
 }
 

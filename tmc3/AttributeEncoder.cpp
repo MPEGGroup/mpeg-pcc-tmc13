@@ -1125,6 +1125,10 @@ estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2)
 {
   constexpr auto kIdealRatio = 0.25;
 
+  // Protect against the node size being too small
+  if (maxNodeSizeLog2 <= 0)
+    return 1;
+
   // simulate the full octree process to generate per-level node counts.
   // an indirect set of point indexes are used, which also serve as the
   // input to the lod subsampler.
