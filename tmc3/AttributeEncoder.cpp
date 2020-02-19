@@ -1158,6 +1158,10 @@ estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2)
       break;
   }
 
+  // Too few points to have any meaning, set dist2 to a large value
+  if (initDist == numNodesWithSize.size())
+    return 1 << (2 * maxNodeSizeLog2);
+
   // two points on a line
   float x0 = initDist - 1;
   float x1 = initDist;
