@@ -263,6 +263,29 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
 
 //============================================================================
 
+class AzimuthalPhiZi {
+public:
+  AzimuthalPhiZi(int numLasers, const std::vector<int>& numPhi)
+    : _delta(numLasers), _invDelta(numLasers)
+  {
+    for (int laserIndex = 0; laserIndex < numLasers; laserIndex++) {
+      constexpr int k2pi = 6588397;  // 2**20 * 2 * pi
+      _delta[laserIndex] = k2pi / numPhi[laserIndex];
+      _invDelta[laserIndex] =
+        int64_t((int64_t(numPhi[laserIndex]) << 30) / k2pi);
+    }
+  }
+
+  const int delta(size_t idx) const { return _delta[idx]; }
+  const int64_t invDelta(size_t idx) const { return _invDelta[idx]; }
+
+private:
+  std::vector<int> _delta;
+  std::vector<int64_t> _invDelta;
+};
+
+//============================================================================
+
 struct OctreePlanarBuffer {
   static constexpr unsigned numBitsC = 14;
   static constexpr unsigned numBitsAb = 7;
@@ -358,7 +381,12 @@ int determineContextAngleForPlanar(
   const int* thetaLaser,
   const int numLasers,
   int deltaAngle,
-  bool* angularIdcm);
+  const AzimuthalPhiZi& phiZi,
+  bool* angularIdcm,
+  int* phiBuffer,
+  int* contextAnglePhiX,
+  int* contextAnglePhiY);
+;
 
 //---------------------------------------------------------------------------
 

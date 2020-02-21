@@ -356,6 +356,10 @@ the LiDAR head position.
 The software will convert the floating point offsets to a three bit
 fixed point representation.
 
+### `--lasersNumPhiPerTurn=INT-VALUE-LIST`
+The maximum number of samples that can be acquired during a full rotation of
+each known laser used by the angular mode.
+
 ### `--planarBufferDisabled=0|1`
 Controls the deactivation of the planar mode buffer for angular mode.
 

@@ -641,6 +641,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.lasersZ, {},
     "Vertical laser offset in angular mode")
 
+  ("lasersNumPhiPerTurn",
+    params.encoder.gps.geom_angular_num_phi_per_turn, {},
+    "Number of sampling poisitions in a complete laser turn in angular mode")
+
   ("planarBufferDisabled",
     params.encoder.gps.planar_buffer_disabled_flag, false,
     "Disable planar buffer (when angular mode is enabled)")
@@ -1021,6 +1025,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       params.encoder.gps.geom_angular_z_laser.size()
       != params.encoder.numLasers)
       err.error() << "lasersTheta.size() != numLasers\n";
+
+    if (
+      params.encoder.gps.geom_angular_num_phi_per_turn.size()
+      != params.encoder.numLasers)
+      err.error() << "lasersNumPhiPerTurn.size() != numLasers\n";
 
     if (params.encoder.gps.qtbt_enabled_flag) {
       params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =

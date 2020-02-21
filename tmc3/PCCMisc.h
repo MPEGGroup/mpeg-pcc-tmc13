@@ -185,6 +185,11 @@ uint32_t isqrt(uint64_t x) __attribute__((const));
 uint64_t irsqrt(uint64_t a64) __attribute__((const));
 
 //---------------------------------------------------------------------------
+// Compute an approximation of atan2
+
+int iatan2(int y, int x);
+
+//---------------------------------------------------------------------------
 // Decrement the @axis-th dimension of 3D morton code @x.
 //
 inline int64_t

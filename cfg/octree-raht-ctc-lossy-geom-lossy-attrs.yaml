@@ -25,6 +25,7 @@ categories:
        - numLasers: '${numLasers}'
        - lasersTheta: '${lasersTheta}'
        - lasersZ: '${lasersZ}'
+       - lasersNumPhiPerTurn:  '${lasersNumPhiPerTurn}'
        - planarBufferDisabled: 1
 
      # default qtbt and planar with cat3-frame exception

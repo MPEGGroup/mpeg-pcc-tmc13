@@ -276,6 +276,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     for (int i = 0; i < gps.geom_angular_num_lidar_lasers(); i++) {
       bs.writeUe(gps.geom_angular_theta_laser[i] + 1048576);
       bs.writeUe(gps.geom_angular_z_laser[i] + 1048576);
+      bs.writeUe(gps.geom_angular_num_phi_per_turn[i]);
     }
     bs.write(gps.planar_buffer_disabled_flag);
   }
@@ -342,9 +343,11 @@ parseGps(const PayloadBuffer& buf)
     bs.readUe(&geom_angular_num_lidar_lasers);
     gps.geom_angular_theta_laser.resize(geom_angular_num_lidar_lasers);
     gps.geom_angular_z_laser.resize(geom_angular_num_lidar_lasers);
+    gps.geom_angular_num_phi_per_turn.resize(geom_angular_num_lidar_lasers);
     for (int i = 0; i < geom_angular_num_lidar_lasers; i++) {
       bs.readUe(&gps.geom_angular_theta_laser[i]);
       bs.readUe(&gps.geom_angular_z_laser[i]);
+      bs.readUe(&gps.geom_angular_num_phi_per_turn[i]);
       gps.geom_angular_theta_laser[i] -= 1048576;
       gps.geom_angular_z_laser[i] -= 1048576;
     }

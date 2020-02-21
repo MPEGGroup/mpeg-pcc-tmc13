@@ -673,16 +673,20 @@ determineContextAngleForPlanar(
   const int* thetaLaser,
   const int numLasers,
   int deltaAngle,
-  bool* angularIdcm)
+  const AzimuthalPhiZi& phiZi,
+  bool* angularIdcm,
+  int* phiBuffer,
+  int* contextAnglePhiX,
+  int* contextAnglePhiY)
 {
   Vec3<int64_t> absPos = {child.pos[0] << childSizeLog2[0],
                           child.pos[1] << childSizeLog2[1],
                           child.pos[2] << childSizeLog2[2]};
 
   // eligibility
-  Vec3<int64_t> midNode = {1 << (childSizeLog2[0] - 1),
-                           1 << (childSizeLog2[1] - 1),
-                           1 << (childSizeLog2[2] - 1)};
+  Vec3<int64_t> midNode = {1 << (childSizeLog2[0] ? childSizeLog2[0] - 1 : 0),
+                           1 << (childSizeLog2[1] ? childSizeLog2[1] - 1 : 0),
+                           1 << (childSizeLog2[2] ? childSizeLog2[2] - 1 : 0)};
   uint64_t xLidar =
     std::abs(((absPos[0] - headPos[0] + midNode[0]) << 8) - 128);
   uint64_t yLidar =
@@ -715,10 +719,57 @@ determineContextAngleForPlanar(
       }
     }
     child.laserIndex = uint8_t(laserIndex);
-  } else {
-    *angularIdcm = true;
   }
 
+  if (deltaAngleR > (midNode[2] << (26 + 1)))
+    *angularIdcm = true;
+
+  // -- PHI  --
+  //angles
+  int posx = absPos[0] - headPos[0];
+  int posy = absPos[1] - headPos[1];
+  int phiNode = iatan2(posy + midNode[1], posx + midNode[0]);
+  int phiNode0 = iatan2(posy, posx);
+
+  // find predictor
+  int predPhi = phiBuffer[laserIndex];
+  if (predPhi == 0x80000000)
+    predPhi = phiNode;
+
+  // use predictor
+  if (predPhi != 0x80000000) {
+    // elementary shift predictor
+    int Nshift =
+      ((predPhi - phiNode) * phiZi.invDelta(laserIndex) + 536870912) >> 30;
+    predPhi -= phiZi.delta(laserIndex) * Nshift;
+
+    // ctx azimutal x or y
+    int angleL = phiNode0 - predPhi;
+    int angleR = phiNode - predPhi;
+    int contextAnglePhi =
+      (angleL >= 0 && angleR >= 0) || (angleL < 0 && angleR < 0) ? 2 : 0;
+    angleL = std::abs(angleL);
+    angleR = std::abs(angleR);
+    if (angleL > angleR) {
+      contextAnglePhi++;
+      int temp = angleL;
+      angleL = angleR;
+      angleR = temp;
+    }
+    if (angleR > (angleL << 1))
+      contextAnglePhi += 4;
+    if (angleR > (angleL << 2))
+      contextAnglePhi += 4;
+    if (angleR > (angleL << 4))
+      contextAnglePhi += 4;
+
+    if (std::abs(posx) <= std::abs(posy))
+      *contextAnglePhiX = contextAnglePhi;
+    else
+      *contextAnglePhiY = contextAnglePhi;
+  }
+
+  // -- THETA --
   int thetaLaserDelta = thetaLaser[laserIndex] - theta32;
   int64_t hr = zLaser[laserIndex] * rInv;
   thetaLaserDelta += hr >= 0 ? -(hr >> 17) : ((-hr) >> 17);
