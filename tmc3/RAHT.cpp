@@ -608,9 +608,9 @@ uraht_process(
   std::vector<UrahtNode> weightsParent;
   weightsParent.reserve(numPoints);
 
-  std::vector<int> numParentNiegh, numGrandParentNeigh;
-  numParentNiegh.reserve(numPoints);
-  numGrandParentNeigh.reserve(numPoints);
+  std::vector<int> numParentNeigh, numGrandParentNeigh;
+  numParentNeigh.resize(numPoints);
+  numGrandParentNeigh.resize(numPoints);
 
   // quant layer selection
   auto qpLayerIt = qpLayers.begin();
@@ -650,7 +650,7 @@ uraht_process(
     //  previous reconstruction -> attrRecParent
     std::swap(attrRec, attrRecParent);
     std::swap(attrRecUs, attrRecParentUs);
-    std::swap(numParentNiegh, numGrandParentNeigh);
+    std::swap(numParentNeigh, numGrandParentNeigh);
     auto attrRecParentUsIt = attrRecParentUs.cbegin();
     auto attrRecParentIt = attrRecParent.cbegin();
     auto weightsParentIt = weightsParent.cbegin();
@@ -690,7 +690,7 @@ uraht_process(
         for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
           if (!weights[nodeIdx])
             continue;
-          numParentNiegh[j++] = 19;
+          numParentNeigh[j++] = 19;
         }
       }
 
@@ -726,7 +726,7 @@ uraht_process(
         for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
           if (!weights[nodeIdx])
             continue;
-          numParentNiegh[j++] = parentNeighCount;
+          numParentNeigh[j++] = parentNeighCount;
         }
       }
 
