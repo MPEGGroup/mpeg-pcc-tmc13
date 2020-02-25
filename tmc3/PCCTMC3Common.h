@@ -215,43 +215,6 @@ struct PCCPredictor {
       neighbors, 0,
       sizeof(PCCNeighborInfo) * kAttributePredictionMaxNeighbourCount);
   }
-
-  void insertNeighbor(
-    const uint32_t reference,
-    const uint64_t weight,
-    const int maxNeighborCountMinus1,
-    const uint32_t insertIndex)
-  {
-    bool sort = false;
-    assert(
-      maxNeighborCountMinus1 >= 0
-      && maxNeighborCountMinus1 < kAttributePredictionMaxNeighbourCount);
-    if (neighborCount <= maxNeighborCountMinus1) {
-      PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
-      neighborInfo.weight = weight;
-      neighborInfo.predictorIndex = reference;
-      neighborInfo.insertIndex = insertIndex;
-      ++neighborCount;
-      sort = true;
-    } else {
-      PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCountMinus1];
-      if (
-        weight < neighborInfo.weight
-        || (weight == neighborInfo.weight
-            && insertIndex < neighborInfo.insertIndex)) {
-        neighborInfo.weight = weight;
-        neighborInfo.predictorIndex = reference;
-        neighborInfo.insertIndex = insertIndex;
-        sort = true;
-      }
-    }
-    for (int32_t k = neighborCount - 1; k > 0 && sort; --k) {
-      if (neighbors[k] < neighbors[k - 1])
-        std::swap(neighbors[k], neighbors[k - 1]);
-      else
-        return;
-    }
-  }
 };
 
 //---------------------------------------------------------------------------
@@ -528,10 +491,44 @@ clacIntermediatePosition(
 
 //---------------------------------------------------------------------------
 
-inline int
-indexTieBreaker(int a, int b)
+inline void
+insertNeighbour(
+  const uint32_t reference,
+  const uint64_t weight,
+  const uint32_t maxNeighborCountMinus1,
+  const uint32_t insertIndex,
+  uint32_t& neighborCount,
+  PCCNeighborInfo* neighbors)
 {
-  return a > b ? ((a - b) << 1) - 1 : ((b - a) << 1);
+  bool sort = false;
+  assert(
+    maxNeighborCountMinus1 >= 0
+    && maxNeighborCountMinus1 < kAttributePredictionMaxNeighbourCount);
+  if (neighborCount <= maxNeighborCountMinus1) {
+    PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
+    neighborInfo.weight = weight;
+    neighborInfo.predictorIndex = reference;
+    neighborInfo.insertIndex = insertIndex;
+    ++neighborCount;
+    sort = true;
+  } else {
+    PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCountMinus1];
+    if (
+      weight < neighborInfo.weight
+      || (weight == neighborInfo.weight
+          && insertIndex < neighborInfo.insertIndex)) {
+      neighborInfo.weight = weight;
+      neighborInfo.predictorIndex = reference;
+      neighborInfo.insertIndex = insertIndex;
+      sort = true;
+    }
+  }
+  for (int32_t k = neighborCount - 1; k > 0 && sort; --k) {
+    if (neighbors[k] < neighbors[k - 1])
+      std::swap(neighbors[k], neighbors[k - 1]);
+    else
+      return;
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -544,20 +541,22 @@ updateNearestNeighbor(
   const int32_t nodeSizeLog2,
   const int32_t predictorIndex,
   const point_t& point,
-  PCCPredictor& predictor)
+  uint32_t& neighborCount,
+  PCCNeighborInfo* neighbors)
 {
   const int32_t pointIndex1 = packedVoxel[predictorIndex].index;
   const auto point1 = clacIntermediatePosition(
     aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex1]);
 
-  double norm2 = times(point - point1, aps.lodNeighBias).getNorm2<double>();
+  double norm1 = times(point - point1, aps.lodNeighBias).getNorm1();
 
   if (nodeSizeLog2 > 0 && point == point1) {
-    norm2 = double(1 << (nodeSizeLog2 - 1));
-    norm2 = norm2 * norm2;
+    norm1 = double(1 << (nodeSizeLog2 - 1));
   }
-  predictor.insertNeighbor(
-    pointIndex1, norm2, aps.num_pred_nearest_neighbours_minus1, 0);
+
+  insertNeighbour(
+    pointIndex1, norm1, aps.num_pred_nearest_neighbours_minus1, 0,
+    neighborCount, neighbors);
 }
 
 //---------------------------------------------------------------------------
@@ -633,26 +632,29 @@ computeNearestNeighbors(
 
     predictor.init();
 
+    PCCNeighborInfo localNeighbors[kAttributePredictionMaxNeighbourCount];
+    uint32_t localNeighborCount = 0;
+
     const int32_t k0 = std::max(0, j - aps.search_range);
     const int32_t k1 = std::min(retainedSize - 1, j + aps.search_range);
 
     if (retainedSize)
       updateNearestNeighbor(
         aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
-        predictor);
+        localNeighborCount, localNeighbors);
 
     for (int32_t n = 1; n <= searchRangeNear; ++n) {
       const int32_t kp = j + n;
       if (kp <= k1) {
         updateNearestNeighbor(
           aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kp], point,
-          predictor);
+          localNeighborCount, localNeighbors);
       }
       const int32_t kn = j - n;
       if (kn >= k0) {
         updateNearestNeighbor(
           aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kn], point,
-          predictor);
+          localNeighborCount, localNeighbors);
       }
     }
 
@@ -663,16 +665,16 @@ computeNearestNeighbors(
     for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
          ++bucketIndex) {
       if (
-        predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
-        || bBoxes[bucketIndex].getDist2<int64_t>(point)
-          <= predictor.neighbors[index0].weight) {
+        localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
+        || bBoxes[bucketIndex].getDist1(point)
+          <= localNeighbors[index0].weight) {
         const int32_t indexBucketAligned = bucketIndex * bucketSize;
         const int32_t h0 = std::max(p1, indexBucketAligned);
         const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize - 1);
         for (int32_t k = h0; k <= h1; ++k) {
           updateNearestNeighbor(
             aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
-            predictor);
+            localNeighborCount, localNeighbors);
         }
       }
     }
@@ -682,16 +684,16 @@ computeNearestNeighbors(
     for (int32_t bucketIndex = p0 / bucketSize; bucketIndex >= bucketIndex0;
          --bucketIndex) {
       if (
-        predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
-        || bBoxes[bucketIndex].getDist2<int64_t>(point)
-          <= predictor.neighbors[index0].weight) {
+        localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
+        || bBoxes[bucketIndex].getDist1(point)
+          <= localNeighbors[index0].weight) {
         const int32_t indexBucketAligned = bucketIndex * bucketSize;
         const int32_t h0 = std::max(k0, indexBucketAligned);
         const int32_t h1 = std::min(p0, indexBucketAligned + bucketSize - 1);
         for (int32_t k = h1; k >= h0; --k) {
           updateNearestNeighbor(
             aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
-            predictor);
+            localNeighborCount, localNeighbors);
         }
       }
     }
@@ -702,7 +704,7 @@ computeNearestNeighbors(
       for (int32_t k = k00; k <= k01; ++k) {
         updateNearestNeighbor(
           aps, pointCloud, packedVoxel, nodeSizeLog2, indexes[k], point,
-          predictor);
+          localNeighborCount, localNeighbors);
       }
 
       const int32_t k0 = k01 + 1 - startIndex;
@@ -713,9 +715,9 @@ computeNearestNeighbors(
       for (int32_t bucketIndex = bucketIndex0; bucketIndex < bucketIndex1;
            ++bucketIndex) {
         if (
-          predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
-          || bBoxesI[bucketIndex].getDist2<int64_t>(point)
-            <= predictor.neighbors[index0].weight) {
+          localNeighborCount < aps.num_pred_nearest_neighbours_minus1
+          || bBoxesI[bucketIndex].getDist1(point)
+            <= localNeighbors[index0].weight) {
           const int32_t indexBucketAligned = bucketIndex * bucketSize;
           const int32_t h0 = std::max(k0, indexBucketAligned);
           const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize);
@@ -723,13 +725,34 @@ computeNearestNeighbors(
             const int32_t k = startIndex + h;
             updateNearestNeighbor(
               aps, pointCloud, packedVoxel, nodeSizeLog2, indexes[k], point,
-              predictor);
+              localNeighborCount, localNeighbors);
           }
         }
       }
     }
+
     assert(
       predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1 + 1);
+
+    predictor.neighborCount = localNeighborCount;
+    for (int i = 0; i < predictor.neighborCount; ++i) {
+      predictor.neighbors[i] = localNeighbors[i];
+
+      // use L2 norm for the final weight
+      const int32_t pointIndex1 = localNeighbors[i].predictorIndex;
+      const auto point1 = clacIntermediatePosition(
+        aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+        pointCloud[pointIndex1]);
+
+      double norm2 =
+        times(point - point1, aps.lodNeighBias).getNorm2<double>();
+
+      if (nodeSizeLog2 > 0 && point == point1) {
+        norm2 = (double)(1 << (nodeSizeLog2 - 1));
+        norm2 = norm2 * norm2;
+      }
+      predictor.neighbors[i].weight = norm2;
+    }
   }
 }
 

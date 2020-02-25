@@ -92,6 +92,8 @@ public:
     return Vec3<ResultT>(*this) * Vec3<ResultT>(*this);
   }
 
+  T getNorm1() const { return abs(data[0]) + abs(data[1]) + abs(data[2]); }
+
   T getNormInf() const
   {
     return std::max(data[2], std::max(abs(data[0]), abs(data[1])));
@@ -414,6 +416,14 @@ struct Box3 {
     U dy = U(std::max(std::max(min[1] - point[1], T()), point[1] - max[1]));
     U dz = U(std::max(std::max(min[2] - point[2], T()), point[2] - max[2]));
     return dx * dx + dy * dy + dz * dz;
+  }
+
+  T getDist1(const Vec3<T>& point) const
+  {
+    T dx = T(std::max(std::max(min[0] - point[0], T()), point[0] - max[0]));
+    T dy = T(std::max(std::max(min[1] - point[1], T()), point[1] - max[1]));
+    T dz = T(std::max(std::max(min[2] - point[2], T()), point[2] - max[2]));
+    return dx + dy + dz;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const Box3& box)
