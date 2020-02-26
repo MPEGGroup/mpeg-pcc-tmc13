@@ -946,4 +946,46 @@ convertYCbCrBt709ToGbr(PCCPointSet3& cloud)
 
 //============================================================================
 
+std::vector<int>
+orderByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
+{
+  // build a list of inxdexes to sort
+  auto pointCount = end - start;
+  std::vector<int> order(pointCount);
+  for (int i = 0; i < pointCount; i++)
+    order[i] = start + i;
+
+  std::sort(order.begin(), order.end(), [&](int a, int b) {
+    auto aT = atan2(cloud[a][0] - origin[0], cloud[a][1] - origin[1]);
+    auto bT = atan2(cloud[b][0] - origin[0], cloud[b][1] - origin[1]);
+    // NB: the a < b comparison adds some stability to the sort.  It is not
+    // required in an actual implementation.  Either slightly more performance
+    // can be achieved by sorting by a second data dependent dimension, or
+    // efficiency can be improved by removing the stability (at a cost of
+    // being able to reproduce the exact same bitstream).
+    return aT != bT ? aT < bT : a < b;
+  });
+
+  return order;
+}
+
+//============================================================================
+
+void
+sortByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
+{
+  auto pointCount = end - start;
+  auto order = orderByAzimuth(cloud, start, end, origin);
+
+  // inefficiently reorder the point cloud
+  for (int i = 0; i < pointCount; i++) {
+    while (order[i] - start != i) {
+      cloud.swapPoints(order[i], order[order[i] - start]);
+      std::swap(order[i], order[order[i] - start]);
+    }
+  }
+}
+
+//============================================================================
+
 }  // namespace pcc

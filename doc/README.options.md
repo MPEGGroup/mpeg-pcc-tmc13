@@ -169,6 +169,11 @@ point cloud.
 This option instructs the encoder to ignore all options relating to
 attribute coding, as if they had never been configured.
 
+### `--sortInputByAzimuth=0|1`
+Pre-sort the input point cloud according to azimuth angle with the
+origin `lidarHeadPosition`.  Pre-sorting occurs prior to tile/slice
+partitioning.
+
 ### `--partitionMethod=0|2|3|4`
 Selects the partitioning method to map points to tiles and slices:
 

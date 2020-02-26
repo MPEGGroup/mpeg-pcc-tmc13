@@ -87,6 +87,9 @@ struct Parameters {
 
   // todo(df): this should be per-attribute
   int reflectanceScale;
+
+  // resort the input points by azimuth angle
+  bool sortInputByAzimuth;
 };
 
 //----------------------------------------------------------------------------
@@ -106,6 +109,9 @@ protected:
 
 private:
   ply::PropertyNameMap _plyAttrNames;
+
+  // The raw origin used for input sorting
+  Vec3<int> _angularOrigin;
 
   Parameters* params;
   PCCTMC3Encoder3 encoder;
@@ -451,6 +457,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     " skipLayerNum indicates the number of skipped lod layers from leaf lod.")
 
   (po::Section("Encoder"))
+
+  ("sortInputByAzimuth",
+    params.sortInputByAzimuth, false,
+    "Sort input points by azimuth angle")
 
   ("geometry_axis_order",
     params.encoder.sps.geometry_axis_order, AxisOrder::kXYZ,
@@ -1199,6 +1209,9 @@ SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
   // determine the naming (ordering) of ply properties
   _plyAttrNames.position =
     axisOrderToPropertyNames(params->encoder.sps.geometry_axis_order);
+
+  // NB: this is the raw origin before the encoder tweaks it
+  _angularOrigin = params->encoder.gps.geomAngularOrigin;
 }
 
 //----------------------------------------------------------------------------
@@ -1236,6 +1249,11 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
+
+  // Some evaluations wish to scan the points in azimuth order to simulate
+  // real-time acquisition (since the input has lost its original order).
+  if (params->sortInputByAzimuth)
+    sortByAzimuth(pointCloud, 0, pointCloud.getPointCount(), _angularOrigin);
 
   // Sanitise the input point cloud
   // todo(df): remove the following with generic handling of properties
