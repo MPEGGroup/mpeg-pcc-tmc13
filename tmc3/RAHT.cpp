@@ -306,12 +306,19 @@ intraDcPred(
                                         3,   12, 5,   10, 48,  192, 80,
                                         160, 17, 34,  68, 136};
 
-  static const FixedPoint predWeight[19] = {3.8, 2,   2,   2,   2,   2,   2,
-                                            0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7,
-                                            0.7, 0.7, 0.7, 0.7, 0.7};
+  static const int predWeight[19] = {4, 2, 2, 2, 2, 2, 2, 1, 1, 1,
+                                     1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-  FixedPoint weightSum[8] = {};
+  static const int kDivisors[25] = {8192, 6554, 5461, 4681, 4096, 3641, 3277,
+                                    2979, 2731, 2521, 2341, 2185, 2048, 1928,
+                                    1820, 1725, 1638, 1560, 1489, 1425, 1365,
+                                    1311, 1260, 1214, 1170};
+
+  int weightSum[8] = {-4, -4, -4, -4, -4, -4, -4, -4};
+
   std::fill_n(&predBuf[0][0], 8 * numAttrs, FixedPoint(0));
+
+  int64_t neighValue[3];
 
   for (int i = 0; i < 19; i++) {
     if (neighIdx[i] == -1)
@@ -319,30 +326,28 @@ intraDcPred(
 
     // apply weighted neighbour value to masked positions
     auto neighValueIt = std::next(first, numAttrs * neighIdx[i]);
-    FixedPoint neighValue[3];
-    for (int k = 0; k < numAttrs; k++) {
-      neighValue[k] = *neighValueIt++;
-      neighValue[k] *= predWeight[i];
-    }
+    for (int k = 0; k < numAttrs; k++)
+      neighValue[k] =
+        (*neighValueIt++) * (predWeight[i] << pcc::FixedPoint::kFracBits);
 
-    uint8_t mask = predMasks[i] & occupancy;
-    for (int j = 0; j < 8; j++) {
-      if (!(mask & (1 << j)))
-        continue;
-
-      weightSum[j] += predWeight[i];
-      for (int k = 0; k < numAttrs; k++)
-        predBuf[k][j] += neighValue[k];
+    int mask = predMasks[i] & occupancy;
+    for (int j = 0; mask; j++, mask >>= 1) {
+      if (mask & 1) {
+        weightSum[j] += predWeight[i];
+        for (int k = 0; k < numAttrs; k++)
+          predBuf[k][j].val += neighValue[k];
+      }
     }
   }
 
   // normalise
-  for (int i = 0; i < 8; i++) {
-    if (!(occupancy & (1 << i)))
-      continue;
-
-    for (int k = 0; k < numAttrs; k++)
-      predBuf[k][i] /= weightSum[i];
+  FixedPoint div;
+  for (int i = 0; i < 8; i++, occupancy >>= 1) {
+    if (occupancy & 1) {
+      div.val = kDivisors[weightSum[i]];
+      for (int k = 0; k < numAttrs; k++)
+        predBuf[k][i] *= div;
+    }
   }
 }
 
@@ -353,9 +358,12 @@ class RahtKernel {
 public:
   RahtKernel(int weightLeft, int weightRight)
   {
-    int w = weightLeft + weightRight;
-    _a.val = isqrt((int64_t(weightLeft) << (2 * _a.kFracBits)) / w);
-    _b.val = isqrt((int64_t(weightRight) << (2 * _b.kFracBits)) / w);
+    uint64_t w = weightLeft + weightRight;
+    uint64_t isqrtW = irsqrt(w);
+    _a.val =
+      (isqrt(uint64_t(weightLeft) << (2 * _a.kFracBits)) * isqrtW) >> 40;
+    _b.val =
+      (isqrt(uint64_t(weightRight) << (2 * _b.kFracBits)) * isqrtW) >> 40;
   }
 
   void fwdTransform(
@@ -738,18 +746,24 @@ uraht_process(
         if (weights[childIdx] <= 1)
           continue;
 
-        FixedPoint sqrtWeight;
-        sqrtWeight.val =
-          isqrt(uint64_t(weights[childIdx]) << (2 * FixedPoint::kFracBits));
-
         // Summed attribute values
         if (isEncoder) {
-          for (int k = 0; k < numAttrs; k++)
-            transformBuf[k][childIdx] /= sqrtWeight;
+          FixedPoint rsqrtWeight;
+          uint64_t w = weights[childIdx];
+          int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
+            + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+          rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
+          for (int k = 0; k < numAttrs; k++) {
+            transformBuf[k][childIdx].val >>= shift;
+            transformBuf[k][childIdx] *= rsqrtWeight;
+          }
         }
 
         // Predicted attribute values
         if (enablePrediction) {
+          FixedPoint sqrtWeight;
+          sqrtWeight.val =
+            isqrt(uint64_t(weights[childIdx]) << (2 * FixedPoint::kFracBits));
           for (int k = 0; k < numAttrs; k++)
             transformPredBuf[k][childIdx] *= sqrtWeight;
         }
@@ -820,11 +834,15 @@ uraht_process(
 
         // scale values for next level
         if (weights[nodeIdx] > 1) {
-          FixedPoint sqrtWeight;
-          sqrtWeight.val =
-            isqrt(uint64_t(weights[nodeIdx]) << (2 * FixedPoint::kFracBits));
-          for (int k = 0; k < numAttrs; k++)
-            transformPredBuf[k][nodeIdx] /= sqrtWeight;
+          FixedPoint rsqrtWeight;
+          uint64_t w = weights[nodeIdx];
+          int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
+            + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+          rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
+          for (int k = 0; k < numAttrs; k++) {
+            transformPredBuf[k][nodeIdx].val >>= shift;
+            transformPredBuf[k][nodeIdx] *= rsqrtWeight;
+          }
         }
 
         for (int k = 0; k < numAttrs; k++)
@@ -865,9 +883,13 @@ uraht_process(
       attrRecDc[k] *= sqrtWeight;
     }
 
+    FixedPoint rsqrtWeight;
     for (int w = weight - 1; w > 0; w--) {
       RahtKernel kernel(w, 1);
-      sqrtWeight.val = isqrt(uint64_t(w) << (2 * FixedPoint::kFracBits));
+      int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
+        + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+      if (isEncoder)
+        rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
 
       auto quantizers = qpset.quantizers(qpLayer, nodeQp);
       for (int k = 0; k < numAttrs; k++) {
@@ -882,7 +904,8 @@ uraht_process(
           transformBuf[0] = attrSum[k];
 
           // NB: weight of transformBuf[1] is by construction 1.
-          transformBuf[0] /= sqrtWeight;
+          transformBuf[0].val >>= shift;
+          transformBuf[0] *= rsqrtWeight;
 
           kernel.fwdTransform(
             transformBuf[0], transformBuf[1], &transformBuf[0],
