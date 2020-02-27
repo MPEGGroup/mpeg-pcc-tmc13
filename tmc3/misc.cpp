@@ -136,37 +136,12 @@ static const int8_t kSqrtLut[256] = {
 uint32_t
 isqrt(uint64_t x)
 {
-  uint32_t a;
-
-  // Initial guess
-  if (x >= ((int64_t)0x1 << 32)) {
-    if (x >= ((int64_t)0x1 << 48)) {
-      if (x >= ((int64_t)0x1 << 56))
-        a = (kSqrtLut[x >> 56] << 28) - 1;
-      else
-        a = kSqrtLut[x >> 48] << 24;
-    } else {
-      if (x >= ((int64_t)0x1 << 40))
-        a = kSqrtLut[x >> 40] << 20;
-      else
-        a = kSqrtLut[x >> 32] << 16;
-    }
-  } else {
-    if (x >= ((int64_t)0x1 << 16)) {
-      if (x >= ((int64_t)0x1 << 24))
-        a = kSqrtLut[x >> 24] << 12;
-      else
-        a = kSqrtLut[x >> 16] << 8;
-    } else {
-      if (x >= ((int64_t)0x1 << 8))
-        a = kSqrtLut[x >> 8] << 4;
-      else
-        return kSqrtLut[x];
-    }
+  if (x <= (uint64_t(1) << 46))
+    return 1 + ((x * irsqrt(x)) >> 40);
+  else {
+    uint64_t x0 = (x + 65536) >> 16;
+    return 1 + ((x0 * irsqrt(x0)) >> 32);
   }
-
-  a = (a + x / a) >> 1;
-  return (a + x / a + 1) >> 1;
 }
 
 //============================================================================
@@ -218,7 +193,6 @@ irsqrt(uint64_t a64)
   if (!a64)
     return 0;
 
-  const uint64_t th32 = (uint64_t(1) << 31);
   int shift = -3;
   while (a64 & 0xffffffff00000000) {
     a64 >>= 2;
