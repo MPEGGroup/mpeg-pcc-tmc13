@@ -104,7 +104,6 @@ decodeGeometryTrisoup(
 
   int blockWidth = 1 << gps.trisoup_node_size_log2;
 
-  uint32_t symbolCount;
   AdaptiveBitModel ctxTemp;
   StaticBitModel ctxBypass;
 
@@ -113,22 +112,25 @@ decodeGeometryTrisoup(
   // Decode segind from bitstream.
   samplingValue =
     1 + arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
-  symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
+  int num_unique_segments_minus1 =
+    arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
 
   //AdaptiveMAryModel multiSymbolSegindModel0(256);
   AdaptiveBitModel ctxTempSeg;
 
   std::vector<bool> segind;
-  for (uint32_t i = 0; i < symbolCount; i++) {
+  for (int i = 0; i <= num_unique_segments_minus1; i++) {
     bool c = !!(arithmeticDecoder->decode(ctxTempSeg));
     segind.push_back(c);
   }
 
   // Decode vertices from bitstream.
-  symbolCount = arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
+  int num_vertices_minus1 =
+    arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
+
   AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
   std::vector<uint8_t> vertices;
-  for (uint32_t i = 0; i < symbolCount; i++) {
+  for (int i = 0; i <= num_vertices_minus1; i++) {
     const uint8_t c = arithmeticDecoder->decode(multiSymbolVerticesModel0);
     vertices.push_back(c);
   }
