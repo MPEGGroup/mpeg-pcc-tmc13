@@ -361,7 +361,7 @@ AttributeEncoder::encode(
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(attr_aps, pointCloud.getPointCount(), 0, pointCloud);
 
-  if (desc.attr_num_dimensions == 1) {
+  if (desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeReflectancesTransformRaht(
@@ -376,7 +376,7 @@ AttributeEncoder::encode(
       encodeReflectancesLift(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
     }
-  } else if (desc.attr_num_dimensions == 3) {
+  } else if (desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeColorsTransformRaht(desc, attr_aps, qpSet, pointCloud, encoder);
@@ -391,7 +391,9 @@ AttributeEncoder::encode(
       break;
     }
   } else {
-    assert(desc.attr_num_dimensions == 1 || desc.attr_num_dimensions == 3);
+    assert(
+      desc.attr_num_dimensions_minus1 == 0
+      || desc.attr_num_dimensions_minus1 == 2);
   }
 
   uint32_t acDataLen = encoder.stop();

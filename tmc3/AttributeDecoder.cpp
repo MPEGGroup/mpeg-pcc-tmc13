@@ -213,7 +213,7 @@ AttributeDecoder::decode(
     _lods.generate(
       attr_aps, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud);
 
-  if (attr_desc.attr_num_dimensions == 1) {
+  if (attr_desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       decodeReflectancesRaht(attr_desc, attr_aps, qpSet, decoder, pointCloud);
@@ -229,7 +229,7 @@ AttributeDecoder::decode(
         minGeomNodeSizeLog2, decoder, pointCloud);
       break;
     }
-  } else if (attr_desc.attr_num_dimensions == 3) {
+  } else if (attr_desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       decodeColorsRaht(attr_desc, attr_aps, qpSet, decoder, pointCloud);
@@ -247,8 +247,8 @@ AttributeDecoder::decode(
     }
   } else {
     assert(
-      attr_desc.attr_num_dimensions == 1
-      || attr_desc.attr_num_dimensions == 3);
+      attr_desc.attr_num_dimensions_minus1 == 0
+      || attr_desc.attr_num_dimensions_minus1 == 2);
   }
 
   decoder.stop();

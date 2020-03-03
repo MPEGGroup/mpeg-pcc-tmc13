@@ -163,7 +163,7 @@ enum class ColourMatrix : uint8_t
 
 // invariant properties
 struct AttributeDescription {
-  int attr_num_dimensions;
+  int attr_num_dimensions_minus1;
   int attr_instance_id;
   int attr_bitdepth;
   int attr_bitdepth_secondary;

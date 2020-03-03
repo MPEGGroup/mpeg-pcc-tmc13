@@ -91,11 +91,10 @@ write(const SequenceParameterSet& sps)
   int num_attribute_sets = int(sps.attributeSets.size());
   bs.writeUe(num_attribute_sets);
   for (const auto& attr : sps.attributeSets) {
-    // todo(df): should be attr_num_dimensions_minus1
-    bs.writeUe(attr.attr_num_dimensions);
+    bs.writeUe(attr.attr_num_dimensions_minus1);
     bs.writeUe(attr.attr_instance_id);
     bs.writeUe(attr.attr_bitdepth);
-    if (attr.attr_num_dimensions > 1)
+    if (attr.attr_num_dimensions_minus1)
       bs.writeUe(attr.attr_bitdepth_secondary);
 
     bs.writeUe(attr.cicp_colour_primaries_idx);
@@ -155,10 +154,10 @@ parseSps(const PayloadBuffer& buf)
   for (int i = 0; i < num_attribute_sets; i++) {
     sps.attributeSets.emplace_back();
     auto& attr = sps.attributeSets.back();
-    bs.readUe(&attr.attr_num_dimensions);
+    bs.readUe(&attr.attr_num_dimensions_minus1);
     bs.readUe(&attr.attr_instance_id);
     bs.readUe(&attr.attr_bitdepth);
-    if (attr.attr_num_dimensions > 1)
+    if (attr.attr_num_dimensions_minus1)
       bs.readUe(&attr.attr_bitdepth_secondary);
 
     bs.readUe(&attr.cicp_colour_primaries_idx);

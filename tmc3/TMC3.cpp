@@ -885,12 +885,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
       // There is no matrix for reflectace
       attr_sps.cicp_matrix_coefficients_idx = ColourMatrix::kUnspecified;
-      attr_sps.attr_num_dimensions = 1;
+      attr_sps.attr_num_dimensions_minus1 = 0;
       attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
     }
 
     if (it.first == "color") {
-      attr_sps.attr_num_dimensions = 3;
+      attr_sps.attr_num_dimensions_minus1 = 2;
       attr_sps.attributeLabel = KnownAttributeLabel::kColour;
     }
 
