@@ -45,7 +45,7 @@ namespace pcc {
 void
 AttributeLods::generate(
   const AttributeParameterSet& aps,
-  int geom_num_points,
+  int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   const PCCPointSet3& cloud)
 {
@@ -55,7 +55,7 @@ AttributeLods::generate(
     assert(aps.scalable_lifting_enabled_flag);
 
   buildPredictorsFast(
-    aps, cloud, minGeomNodeSizeLog2, geom_num_points, predictors,
+    aps, cloud, minGeomNodeSizeLog2, geom_num_points_minus1, predictors,
     numPointsInLod, indexes);
 
   assert(predictors.size() == cloud.getPointCount());

@@ -533,7 +533,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
         ceillog2(std::max(2, _sliceBoxWhd[k]));
   }
 
-  gbh.geom_num_points = int(pointCloud.getPointCount());
+  gbh.geom_num_points_minus1 = int(pointCloud.getPointCount()) - 1;
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_octree_parallel_max_node_size_log2 =
@@ -557,12 +557,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   } else {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
-    gbh.geom_num_points = params->partition.sliceMaxPoints;
+    gbh.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
     encodeGeometryTrisoup(*_gps, gbh, pointCloud, arithmeticEncoders);
   }
 
   // update the header with the actual number of points coded
-  gbh.geom_num_points = pointCloud.getPointCount();
+  gbh.geom_num_points_minus1 = pointCloud.getPointCount() - 1;
 
   // determine the length of each sub-stream
   for (auto& arithmeticEncoder : arithmeticEncoders) {

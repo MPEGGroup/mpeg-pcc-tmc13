@@ -487,7 +487,7 @@ write(
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
-  bs.writeUn(24, gbh.geom_num_points);
+  bs.writeUn(24, gbh.geom_num_points_minus1);
   bs.writeUe(gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
@@ -556,7 +556,7 @@ parseGbh(
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(24, &gbh.geom_num_points);
+  bs.readUn(24, &gbh.geom_num_points_minus1);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
@@ -634,7 +634,7 @@ parseGbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(24, &gbh.geom_num_points);
+  bs.readUn(24, &gbh.geom_num_points_minus1);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);

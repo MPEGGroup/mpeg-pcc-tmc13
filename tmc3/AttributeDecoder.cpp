@@ -195,7 +195,7 @@ AttributeDecoder::decode(
   const SequenceParameterSet& sps,
   const AttributeDescription& attr_desc,
   const AttributeParameterSet& attr_aps,
-  int geom_num_points,
+  int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   const PayloadBuffer& payload,
   PCCPointSet3& pointCloud)
@@ -210,7 +210,8 @@ AttributeDecoder::decode(
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
-    _lods.generate(attr_aps, geom_num_points, minGeomNodeSizeLog2, pointCloud);
+    _lods.generate(
+      attr_aps, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud);
 
   if (attr_desc.attr_num_dimensions == 1) {
     switch (attr_aps.attr_encoding) {
@@ -224,8 +225,8 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kLiftingTransform:
       decodeReflectancesLift(
-        attr_desc, attr_aps, qpSet, geom_num_points, minGeomNodeSizeLog2,
-        decoder, pointCloud);
+        attr_desc, attr_aps, qpSet, geom_num_points_minus1,
+        minGeomNodeSizeLog2, decoder, pointCloud);
       break;
     }
   } else if (attr_desc.attr_num_dimensions == 3) {
@@ -240,8 +241,8 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kLiftingTransform:
       decodeColorsLift(
-        attr_desc, attr_aps, qpSet, geom_num_points, minGeomNodeSizeLog2,
-        decoder, pointCloud);
+        attr_desc, attr_aps, qpSet, geom_num_points_minus1,
+        minGeomNodeSizeLog2, decoder, pointCloud);
       break;
     }
   } else {
@@ -579,7 +580,7 @@ AttributeDecoder::decodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
-  int geom_num_points,
+  int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
@@ -591,7 +592,7 @@ AttributeDecoder::decodeColorsLift(
     PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      _lods.predictors, _lods.numPointsInLod, geom_num_points,
+      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1,
       minGeomNodeSizeLog2, weights);
   }
 
@@ -602,7 +603,7 @@ AttributeDecoder::decodeColorsLift(
   // NB: when partially decoding, the truncated unary limit for zero_run
   // must be the original value.  geom_num_points may be the case.  However,
   // the encoder does lie sometimes, and there are actually more points.
-  int zeroCntLimit = std::max(geom_num_points, int(pointCount));
+  int zeroCntLimit = std::max(geom_num_points_minus1 + 1, int(pointCount));
 
   // decompress
   int zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
@@ -667,7 +668,7 @@ AttributeDecoder::decodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
-  int geom_num_points,
+  int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
@@ -679,7 +680,7 @@ AttributeDecoder::decodeReflectancesLift(
     PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      _lods.predictors, _lods.numPointsInLod, geom_num_points,
+      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1,
       minGeomNodeSizeLog2, weights);
   }
 
@@ -690,7 +691,7 @@ AttributeDecoder::decodeReflectancesLift(
   // NB: when partially decoding, the truncated unary limit for zero_run
   // must be the original value.  geom_num_points may be the case.  However,
   // the encoder does lie sometimes, and there are actually more points.
-  int zeroCntLimit = std::max(geom_num_points, int(pointCount));
+  int zeroCntLimit = std::max(geom_num_points_minus1 + 1, int(pointCount));
 
   // decompress
   int zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);

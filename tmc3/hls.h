@@ -327,7 +327,7 @@ struct GeometryBrickHeader {
   // todo(df): minus1?
   int geom_max_node_size_log2;
   Vec3<int> geom_max_node_size_log2_xyz;
-  int geom_num_points;
+  int geom_num_points_minus1;
 
   int geomMaxNodeSizeLog2(const GeometryParameterSet& gps) const
   {

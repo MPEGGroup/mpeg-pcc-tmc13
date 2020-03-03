@@ -1092,7 +1092,7 @@ decodeGeometryOctree(
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
-  pcc::ringbuf<PCCOctree3Node> fifo(gbh.geom_num_points + 1);
+  pcc::ringbuf<PCCOctree3Node> fifo(gbh.geom_num_points_minus1 + 2);
 
   // push the first node
   fifo.emplace_back();
@@ -1415,7 +1415,6 @@ decodeGeometryOctree(
 
   // NB: the point cloud needs to be resized if partially decoded
   // OR: if geometry quantisation has changed the number of points
-  // todo(df): this breaks the current definition of geom_num_points
   pointCloud.resize(processedPointCount);
 
   // return partial coding result

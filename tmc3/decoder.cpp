@@ -253,7 +253,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   }
 
   if (_gps->trisoup_node_size_log2 == 0) {
-    _currentPointCloud.resize(_gbh.geom_num_points);
+    _currentPointCloud.resize(_gbh.geom_num_points_minus1 + 1);
 
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
@@ -311,7 +311,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   clock_user.start();
   _attrDecoder->decode(
-    *_sps, attr_sps, attr_aps, _gbh.geom_num_points,
+    *_sps, attr_sps, attr_aps, _gbh.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
   clock_user.stop();
 

@@ -53,7 +53,7 @@ public:
     const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    int geom_num_points,
+    int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
     const PayloadBuffer&,
     PCCPointSet3& pointCloud) = 0;

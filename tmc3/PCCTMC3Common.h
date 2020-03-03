@@ -443,7 +443,7 @@ inline void
 computeQuantizationWeightsScalable(
   const std::vector<PCCPredictor>& predictors,
   const std::vector<uint32_t>& numberOfPointsPerLOD,
-  size_t geom_num_points,
+  size_t numPoints,
   int32_t minGeomNodeSizeLog2,
   std::vector<uint64_t>& quantizationWeights)
 {
@@ -463,7 +463,7 @@ computeQuantizationWeightsScalable(
     for (size_t index = 0; index < predictorCount; ++index) {
       const size_t predictorIndex = index + startIndex;
       const double currentQuantWeight =
-        ((geom_num_points - startIndex) / predictorCount);
+        ((numPoints - startIndex) / predictorCount);
 
       if (!minGeomNodeSizeLog2 && (lodIndex == lodCount - 1)) {
         quantizationWeights[predictorIndex] = (1 << kFixedPointWeightShift);
@@ -933,7 +933,7 @@ buildPredictorsFast(
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   int32_t minGeomNodeSizeLog2,
-  int geom_num_points,
+  int geom_num_points_minus1,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
   std::vector<uint32_t>& indexes)
@@ -992,7 +992,7 @@ buildPredictorsFast(
         for (int32_t i = startIndex; i < endIndex; i++)
           indexesOfSubsample[i] = indexes[i];
 
-        const int32_t numOfPointInSkipped = geom_num_points - pointCount;
+        int32_t numOfPointInSkipped = geom_num_points_minus1 + 1 - pointCount;
         if (endIndex - startIndex <= startIndex + numOfPointInSkipped) {
           concatenateLayers = false;
         } else {
