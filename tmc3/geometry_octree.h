@@ -168,14 +168,11 @@ neighPattern64toR1(const GeometryParameterSet& gps)
 
 struct CtxModelOctreeOccupancy {
   AdaptiveBitModelFast contexts[256];
-  int ctxFactorShift;
-
-  CtxModelOctreeOccupancy(int ctxFactorShift) : ctxFactorShift(ctxFactorShift)
-  {}
+  static const int kCtxFactorShift = 3;
 
   AdaptiveBitModelFast& operator[](int idx)
   {
-    return contexts[idx >> ctxFactorShift];
+    return contexts[idx >> kCtxFactorShift];
   }
 };
 

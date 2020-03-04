@@ -285,7 +285,6 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.writeUe(gps.implicit_qtbt_angular_max_diff_to_split_z);
   }
 
-  bs.writeUe(gps.geom_occupancy_ctx_reduction_factor);
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
   bs.writeUe(gps.trisoup_node_size_log2);
@@ -370,7 +369,6 @@ parseGps(const PayloadBuffer& buf)
     bs.readUe(&gps.implicit_qtbt_angular_max_diff_to_split_z);
   }
 
-  bs.readUe(&gps.geom_occupancy_ctx_reduction_factor);
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);
   bs.readUe(&gps.trisoup_node_size_log2);

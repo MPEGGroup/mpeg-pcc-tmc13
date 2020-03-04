@@ -235,7 +235,6 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
-  , _ctxOccupancy(gps.geom_occupancy_ctx_reduction_factor)
   , _planar(gps, gbh)
 {
   if (!_useBitwiseOccupancyCoder) {

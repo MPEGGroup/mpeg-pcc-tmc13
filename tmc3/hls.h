@@ -291,10 +291,6 @@ struct GeometryParameterSet {
   // children in neighbouring nodes.
   bool adjacent_child_contextualization_enabled_flag;
 
-  // Experimental knob to control the number of contexts used
-  // for occupancy coding.
-  int geom_occupancy_ctx_reduction_factor;
-
   // Maximum node size where intra prediction is enabled
   int intra_pred_max_node_size_log2;
 

@@ -10,7 +10,6 @@ categories:
      # geometry parameters (octree)
      - trisoup_node_size_log2: 0
      - mergeDuplicatedPoints: 1
-     - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - positionQuantizationScale:

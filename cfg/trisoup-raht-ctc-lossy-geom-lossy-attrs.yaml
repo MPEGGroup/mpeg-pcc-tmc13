@@ -9,7 +9,6 @@ categories:
 
      ##
      # geometry parameters (trisoup)
-     - ctxOccupancyReductionFactor: 3
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - inferredDirectCodingMode: 0

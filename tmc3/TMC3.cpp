@@ -592,10 +592,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Degree (0-127) of IDCM activation when planar mode is enabled.\n"
     "  0 => never, 127 => always")
 
-  ("ctxOccupancyReductionFactor",
-     params.encoder.gps.geom_occupancy_ctx_reduction_factor, 3,
-     "Adjusts the number of contexts used in occupancy coding")
-
   ("trisoup_node_size_log2",
     params.encoder.gps.trisoup_node_size_log2, 0,
     "Size of nodes for surface triangulation.\n"
