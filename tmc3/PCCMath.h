@@ -79,6 +79,13 @@ public:
   const T& y() const { return data[1]; }
   const T& z() const { return data[2]; }
 
+  T& s() { return data[0]; }
+  T& t() { return data[1]; }
+  T& v() { return data[2]; }
+  const T& s() const { return data[0]; }
+  const T& t() const { return data[1]; }
+  const T& v() const { return data[2]; }
+
   template<typename ResultT>
   ResultT getNorm2() const
   {

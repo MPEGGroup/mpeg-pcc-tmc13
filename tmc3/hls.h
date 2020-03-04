@@ -141,6 +141,40 @@ enum class AxisOrder
   kXYZ_7 = 7,
 };
 
+// Permute the internal STV axes to XYZ order.
+template<typename T>
+Vec3<T>
+toXyz(AxisOrder order, const Vec3<T>& stv)
+{
+  switch (order) {
+  case AxisOrder::kZYX: return {stv.v(), stv.t(), stv.s()};
+  case AxisOrder::kXYZ: return {stv.s(), stv.t(), stv.v()};
+  case AxisOrder::kXZY: return {stv.s(), stv.v(), stv.t()};
+  case AxisOrder::kYZX: return {stv.v(), stv.s(), stv.t()};
+  case AxisOrder::kZYX_4: return {stv.v(), stv.t(), stv.s()};
+  case AxisOrder::kZXY: return {stv.t(), stv.v(), stv.s()};
+  case AxisOrder::kYXZ: return {stv.t(), stv.s(), stv.v()};
+  case AxisOrder::kXYZ_7: return {stv.s(), stv.t(), stv.v()};
+  }
+}
+
+// Permute the an XYZ axis order to the internal STV order.
+template<typename T>
+Vec3<T>
+fromXyz(AxisOrder order, const Vec3<T>& xyz)
+{
+  switch (order) {
+  case AxisOrder::kZYX: return {xyz.z(), xyz.y(), xyz.x()};
+  case AxisOrder::kXYZ: return {xyz.x(), xyz.y(), xyz.z()};
+  case AxisOrder::kXZY: return {xyz.x(), xyz.z(), xyz.y()};
+  case AxisOrder::kYZX: return {xyz.y(), xyz.z(), xyz.x()};
+  case AxisOrder::kZYX_4: return {xyz.z(), xyz.y(), xyz.x()};
+  case AxisOrder::kZXY: return {xyz.z(), xyz.x(), xyz.y()};
+  case AxisOrder::kYXZ: return {xyz.y(), xyz.x(), xyz.z()};
+  case AxisOrder::kXYZ_7: return {xyz.x(), xyz.y(), xyz.z()};
+  }
+}
+
 //============================================================================
 // ISO/IEC 23001-8 codec independent code points
 enum class ColourMatrix : uint8_t
@@ -191,8 +225,11 @@ struct SequenceParameterSet {
   ProfileCompatibility profileCompatibility;
   int level;
 
+  // the bounding box origin (in stv axis order).
   Vec3<int> seqBoundingBoxOrigin;
-  Vec3<int> seq_bounding_box_whd;
+
+  // the size of the bounding box (in stv axis order).
+  Vec3<int> seqBoundingBoxSize;
 
   // A value describing the scaling of the source positions prior to encoding.
   float seq_source_geom_scale_factor;
@@ -447,6 +484,10 @@ struct TileInventory {
   };
   std::vector<Entry> tiles;
 };
+
+//============================================================================
+
+void convertXyzToStv(SequenceParameterSet*);
 
 //============================================================================
 

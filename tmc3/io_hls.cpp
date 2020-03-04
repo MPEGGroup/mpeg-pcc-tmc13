@@ -77,7 +77,9 @@ write(const SequenceParameterSet& sps)
   bool seq_bounding_box_present_flag = true;
   bs.write(seq_bounding_box_present_flag);
   if (seq_bounding_box_present_flag) {
-    const auto& sps_bounding_box_offset_xyz = sps.seqBoundingBoxOrigin;
+    auto sps_bounding_box_offset_xyz =
+      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxOrigin);
+
     bs.writeSe(sps_bounding_box_offset_xyz.x());
     bs.writeSe(sps_bounding_box_offset_xyz.y());
     bs.writeSe(sps_bounding_box_offset_xyz.z());
@@ -85,9 +87,12 @@ write(const SequenceParameterSet& sps)
     int seq_bounding_box_offset_log2_scale = 0;
     bs.writeUe(seq_bounding_box_offset_log2_scale);
 
-    bs.writeUe(sps.seq_bounding_box_whd.x());
-    bs.writeUe(sps.seq_bounding_box_whd.y());
-    bs.writeUe(sps.seq_bounding_box_whd.z());
+    auto seq_bounding_box_whd =
+      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize);
+
+    bs.writeUe(seq_bounding_box_whd.x());
+    bs.writeUe(seq_bounding_box_whd.y());
+    bs.writeUe(seq_bounding_box_whd.z());
   }
   // todo(df): determine encoding of scale factor
   bs.writeF(sps.seq_source_geom_scale_factor);
@@ -155,12 +160,16 @@ parseSps(const PayloadBuffer& buf)
 
     int seq_bounding_box_offset_log2_scale;
     bs.readUe(&seq_bounding_box_offset_log2_scale);
-    sps.seqBoundingBoxOrigin =
-      seq_bounding_box_offset * (1 << seq_bounding_box_offset_log2_scale);
+    seq_bounding_box_offset *= 1 << seq_bounding_box_offset_log2_scale;
 
-    bs.readUe(&sps.seq_bounding_box_whd.x());
-    bs.readUe(&sps.seq_bounding_box_whd.y());
-    bs.readUe(&sps.seq_bounding_box_whd.z());
+    Vec3<int> seq_bounding_box_whd;
+    bs.readUe(&seq_bounding_box_whd.x());
+    bs.readUe(&seq_bounding_box_whd.y());
+    bs.readUe(&seq_bounding_box_whd.z());
+
+    // NB: these are in XYZ axis order until the SPS is converted to STV
+    sps.seqBoundingBoxOrigin = seq_bounding_box_offset;
+    sps.seqBoundingBoxSize = seq_bounding_box_whd;
   }
   bs.readF(&sps.seq_source_geom_scale_factor);
 
@@ -210,6 +219,19 @@ parseSps(const PayloadBuffer& buf)
   bs.byteAlign();
 
   return sps;
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertXyzToStv(SequenceParameterSet* sps)
+{
+  // permute the bounding box from xyz to internal stv order
+  sps->seqBoundingBoxOrigin =
+    fromXyz(sps->geometry_axis_order, sps->seqBoundingBoxOrigin);
+
+  sps->seqBoundingBoxSize =
+    fromXyz(sps->geometry_axis_order, sps->seqBoundingBoxSize);
 }
 
 //============================================================================

@@ -459,13 +459,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  3: (yzx)\n  4: (zyx)\n  5: (zxy)\n"
     "  6: (yxz)\n  7: (xyz)")
 
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
   ("seq_bounding_box_xyz0",
     params.encoder.sps.seqBoundingBoxOrigin, {0},
-    "Origin of the sequence bounding box. "
+    "Origin (x,y,z) of the sequence bounding box. "
     "NB: seq_bounding_box_whd must be set for paramter to have an effect")
 
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
   ("seq_bounding_box_whd",
-    params.encoder.sps.seq_bounding_box_whd, {0},
+    params.encoder.sps.seqBoundingBoxSize, {0},
     "seq_bounding_box_whd")
 
   ("positionQuantizationScale",
@@ -840,6 +844,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
   }
+
+  // convert coordinate systems if the coding order is different from xyz
+  convertXyzToStv(&params.encoder.sps);
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)

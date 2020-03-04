@@ -47,6 +47,12 @@ PayloadBuffer write(const GeometryParameterSet& gps);
 PayloadBuffer write(const AttributeParameterSet& aps);
 PayloadBuffer write(const TileInventory& inventory);
 
+//----------------------------------------------------------------------------
+// NB: parseSps returns values using XYZ axes.
+//     These must be converted to STV prior to use by the codec.
+//     This is not done during parsing to emphasise that there is no parsing
+//     dependency on the SPS.
+
 SequenceParameterSet parseSps(const PayloadBuffer& buf);
 GeometryParameterSet parseGps(const PayloadBuffer& buf);
 AttributeParameterSet parseAps(const PayloadBuffer& buf);

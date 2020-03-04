@@ -95,7 +95,12 @@ PCCTMC3Decoder3::decompress(
   }
 
   switch (buf->type) {
-  case PayloadType::kSequenceParameterSet: storeSps(parseSps(*buf)); return 0;
+  case PayloadType::kSequenceParameterSet: {
+    auto sps = parseSps(*buf);
+    convertXyzToStv(&sps);
+    storeSps(std::move(sps));
+    return 0;
+  }
 
   case PayloadType::kGeometryParameterSet: storeGps(parseGps(*buf)); return 0;
 

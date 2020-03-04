@@ -72,7 +72,7 @@ PCCTMC3Encoder3::compress(
     fixupParameterSets(params);
 
     // Determine input bounding box (for SPS metadata) if not manually set
-    if (params->sps.seq_bounding_box_whd == Vec3<int>{0}) {
+    if (params->sps.seqBoundingBoxSize == Vec3<int>{0}) {
       const auto& bbox = inputPointCloud.computeBoundingBox();
       for (int k = 0; k < 3; k++) {
         params->sps.seqBoundingBoxOrigin[k] = int(bbox.min[k]);
@@ -84,7 +84,7 @@ PCCTMC3Encoder3::compress(
         max_k = std::round(max_k / params->sps.seq_source_geom_scale_factor);
 
         // NB: plus one to convert to range
-        params->sps.seq_bounding_box_whd[k] = int(max_k) + 1;
+        params->sps.seqBoundingBoxSize[k] = int(max_k) + 1;
       }
     }
 
@@ -626,17 +626,17 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   pointCloud0.clear();
   quantizedToOrigin.clear();
 
-  // Currently the sequence width/height/depth must be set
-  assert(_sps->seq_bounding_box_whd != Vec3<int>{0});
+  // Currently the sequence bounding box size must be set
+  assert(_sps->seqBoundingBoxSize != Vec3<int>{0});
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
   // and quantisation.
   Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-  if (_sps->seq_bounding_box_whd != Vec3<int>{0}) {
+  if (_sps->seqBoundingBoxSize != Vec3<int>{0}) {
     // todo(df): this is icky (not to mention rounding issues)
     // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
-    // NB: minus 1 to convert to max x/y/z position
-    clampBox = Box3<int32_t>{{0, 0, 0}, _sps->seq_bounding_box_whd};
+    // NB: minus 1 to convert to max s/t/v position
+    clampBox = Box3<int32_t>{{0, 0, 0}, _sps->seqBoundingBoxSize};
     for (int k = 0; k < 3; k++)
       clampBox.max[k] =
         int(ceil(clampBox.max[k] * _sps->seq_source_geom_scale_factor)) - 1;
