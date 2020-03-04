@@ -113,7 +113,16 @@ PCCTMC3Decoder3::decompress(
     return 0;
   }
 
-  case PayloadType::kAttributeParameterSet: storeAps(parseAps(*buf)); return 0;
+  case PayloadType::kAttributeParameterSet: {
+    auto aps = parseAps(*buf);
+    // HACK: assume that an SPS has been received prior to the APS.
+    // This is not required, and parsing of the APS is independent of the SPS.
+    // todo(df): move APS fixup to activation process
+    _sps = &_spss.cbegin()->second;
+    convertXyzToStv(*_sps, &aps);
+    storeAps(std::move(aps));
+    return 0;
+  }
 
   // the frame boundary marker flushes the current frame.
   // NB: frame counter is reset to avoid outputing a runt point cloud

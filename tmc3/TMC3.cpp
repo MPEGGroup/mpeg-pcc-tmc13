@@ -704,9 +704,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.search_range, 128,
     "Range for nearest neighbor search")
 
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
   ("lod_neigh_bias",
-    params_attr.aps.lod_neigh_bias, {1, 1, 1},
-    "Attribute's intra prediction weight for Z axis")
+    params_attr.aps.lodNeighBias, {1, 1, 1},
+    "Attribute's (x, y, z) component intra prediction weights")
 
   ("lodDecimation",
     params_attr.aps.lod_decimation_enabled_flag, false,
@@ -850,6 +852,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);
   convertXyzToStv(params.encoder.sps, &params.encoder.gps);
+  for (auto& aps : params.encoder.aps)
+    convertXyzToStv(params.encoder.sps, &aps);
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)

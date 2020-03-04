@@ -201,7 +201,7 @@ AttributeDecoder::decode(
   PCCPointSet3& pointCloud)
 {
   int abhSize;
-  AttributeBrickHeader abh = parseAbh(attr_aps, payload, &abhSize);
+  AttributeBrickHeader abh = parseAbh(sps, attr_aps, payload, &abhSize);
 
   QpSet qpSet = deriveQpSet(attr_desc, attr_aps, abh);
 

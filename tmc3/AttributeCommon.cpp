@@ -91,7 +91,7 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
   if (_aps.num_detail_levels != aps.num_detail_levels)
     return false;
 
-  if (_aps.lod_neigh_bias != aps.lod_neigh_bias)
+  if (_aps.lodNeighBias != aps.lodNeighBias)
     return false;
 
   // until this feature is stable, always generate LoDs.

@@ -409,7 +409,7 @@ convertXyzToStv(const SequenceParameterSet& sps, GeometryParameterSet* gps)
 //============================================================================
 
 PayloadBuffer
-write(const AttributeParameterSet& aps)
+write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
 {
   PayloadBuffer buf(PayloadType::kAttributeParameterSet);
   auto bs = makeBitWriter(std::back_inserter(buf));
@@ -425,9 +425,11 @@ write(const AttributeParameterSet& aps)
   if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
     bs.writeUe(aps.search_range);
-    bs.writeUe(aps.lod_neigh_bias.x());
-    bs.writeUe(aps.lod_neigh_bias.y());
-    bs.writeUe(aps.lod_neigh_bias.z());
+
+    auto lod_neigh_bias = toXyz(sps.geometry_axis_order, aps.lodNeighBias);
+    bs.writeUe(lod_neigh_bias.x());
+    bs.writeUe(lod_neigh_bias.y());
+    bs.writeUe(lod_neigh_bias.z());
 
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
       bs.write(aps.scalable_lifting_enabled_flag);
@@ -499,9 +501,13 @@ parseAps(const PayloadBuffer& buf)
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.search_range);
-    bs.readUe(&aps.lod_neigh_bias.x());
-    bs.readUe(&aps.lod_neigh_bias.y());
-    bs.readUe(&aps.lod_neigh_bias.z());
+
+    Vec3<int> lod_neigh_bias;
+    bs.readUe(&lod_neigh_bias.x());
+    bs.readUe(&lod_neigh_bias.y());
+    bs.readUe(&lod_neigh_bias.z());
+    // NB: this is in XYZ axis order until the GPS is converted to STV
+    aps.lodNeighBias = lod_neigh_bias;
 
     aps.scalable_lifting_enabled_flag = false;
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
@@ -564,6 +570,14 @@ parseAps(const PayloadBuffer& buf)
   bs.byteAlign();
 
   return aps;
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertXyzToStv(const SequenceParameterSet& sps, AttributeParameterSet* aps)
+{
+  aps->lodNeighBias = toXyz(sps.geometry_axis_order, aps->lodNeighBias);
 }
 
 //============================================================================
@@ -737,6 +751,7 @@ parseGbhIds(const PayloadBuffer& buf)
 
 void
 write(
+  const SequenceParameterSet& sps,
   const AttributeParameterSet& aps,
   const AttributeBrickHeader& abh,
   PayloadBuffer* buf)
@@ -766,12 +781,17 @@ write(
 
   bs.write(abh.attr_region_qp_present_flag);
   if (abh.attr_region_qp_present_flag) {
-    bs.writeUe(abh.attr_region_qp_origin.x());
-    bs.writeUe(abh.attr_region_qp_origin.y());
-    bs.writeUe(abh.attr_region_qp_origin.z());
-    bs.writeUe(abh.attr_region_qp_whd.x());
-    bs.writeUe(abh.attr_region_qp_whd.y());
-    bs.writeUe(abh.attr_region_qp_whd.z());
+    auto attr_region_qp_origin =
+      toXyz(sps.geometry_axis_order, abh.regionQpOrigin);
+
+    auto attr_region_qp_whd = toXyz(sps.geometry_axis_order, abh.regionQpSize);
+
+    bs.writeUe(attr_region_qp_origin.x());
+    bs.writeUe(attr_region_qp_origin.y());
+    bs.writeUe(attr_region_qp_origin.z());
+    bs.writeUe(attr_region_qp_whd.x());
+    bs.writeUe(attr_region_qp_whd.y());
+    bs.writeUe(attr_region_qp_whd.z());
     bs.writeSe(abh.attr_region_qp_delta);
   }
   bs.byteAlign();
@@ -800,7 +820,10 @@ parseAbhIds(const PayloadBuffer& buf)
 
 AttributeBrickHeader
 parseAbh(
-  const AttributeParameterSet& aps, const PayloadBuffer& buf, int* bytesRead)
+  const SequenceParameterSet& sps,
+  const AttributeParameterSet& aps,
+  const PayloadBuffer& buf,
+  int* bytesRead)
 {
   AttributeBrickHeader abh;
   assert(buf.type == PayloadType::kAttributeBrick);
@@ -830,12 +853,18 @@ parseAbh(
 
   bs.read(&abh.attr_region_qp_present_flag);
   if (abh.attr_region_qp_present_flag) {
-    bs.readUe(&abh.attr_region_qp_origin.x());
-    bs.readUe(&abh.attr_region_qp_origin.y());
-    bs.readUe(&abh.attr_region_qp_origin.z());
-    bs.readUe(&abh.attr_region_qp_whd.x());
-    bs.readUe(&abh.attr_region_qp_whd.y());
-    bs.readUe(&abh.attr_region_qp_whd.z());
+    Vec3<int> attr_region_qp_origin;
+    bs.readUe(&attr_region_qp_origin.x());
+    bs.readUe(&attr_region_qp_origin.y());
+    bs.readUe(&attr_region_qp_origin.z());
+    abh.regionQpOrigin = toXyz(sps.geometry_axis_order, attr_region_qp_origin);
+
+    Vec3<int> attr_region_qp_whd;
+    bs.readUe(&attr_region_qp_whd.x());
+    bs.readUe(&attr_region_qp_whd.y());
+    bs.readUe(&attr_region_qp_whd.z());
+    abh.regionQpSize = toXyz(sps.geometry_axis_order, attr_region_qp_whd);
+
     bs.readSe(&abh.attr_region_qp_delta);
   }
 

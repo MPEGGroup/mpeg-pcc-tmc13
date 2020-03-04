@@ -428,7 +428,10 @@ struct AttributeParameterSet {
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
   int search_range;
-  Vec3<int32_t> lod_neigh_bias;
+
+  // NB: in stv order
+  Vec3<int32_t> lodNeighBias;
+
   bool intra_lod_prediction_enabled_flag;
   bool inter_component_prediction_enabled_flag;
 
@@ -473,8 +476,9 @@ struct AttributeBrickHeader {
     return attr_layer_qp_delta_luma.size() - 1;
   }
 
-  Vec3<int> attr_region_qp_origin;
-  Vec3<int> attr_region_qp_whd;
+  // NB: in stv order
+  Vec3<int> regionQpOrigin;
+  Vec3<int> regionQpSize;
   int attr_region_qp_delta;
   bool attr_region_qp_present_flag;
 };
@@ -493,6 +497,7 @@ struct TileInventory {
 
 void convertXyzToStv(SequenceParameterSet*);
 void convertXyzToStv(const SequenceParameterSet&, GeometryParameterSet*);
+void convertXyzToStv(const SequenceParameterSet&, AttributeParameterSet*);
 
 //============================================================================
 

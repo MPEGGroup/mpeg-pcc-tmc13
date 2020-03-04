@@ -105,11 +105,8 @@ deriveQpRegions(
   qpRegionOffset.valid = abh.attr_region_qp_present_flag;
   if (qpRegionOffset.valid) {
     qpRegionOffset.qpOffset = abh.attr_region_qp_delta;
-    for (int i = 0; i < 3; i++) {
-      qpRegionOffset.region.min[i] = abh.attr_region_qp_origin[i];
-      qpRegionOffset.region.max[i] =
-        abh.attr_region_qp_origin[i] + abh.attr_region_qp_whd[i];
-    }
+    qpRegionOffset.region.min = abh.regionQpOrigin;
+    qpRegionOffset.region.max = abh.regionQpOrigin + abh.regionQpSize;
   }
   return qpRegionOffset;
 }

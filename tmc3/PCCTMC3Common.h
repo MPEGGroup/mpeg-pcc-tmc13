@@ -550,7 +550,7 @@ updateNearestNeighbor(
   const auto point1 = clacIntermediatePosition(
     aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex1]);
 
-  double norm2 = times(point - point1, aps.lod_neigh_bias).getNorm2<double>();
+  double norm2 = times(point - point1, aps.lodNeighBias).getNorm2<double>();
 
   if (nodeSizeLog2 > 0 && point == point1) {
     norm2 = double(1 << (nodeSizeLog2 - 1));
