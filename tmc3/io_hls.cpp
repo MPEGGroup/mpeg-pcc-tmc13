@@ -237,7 +237,7 @@ convertXyzToStv(SequenceParameterSet* sps)
 //============================================================================
 
 PayloadBuffer
-write(const GeometryParameterSet& gps)
+write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 {
   PayloadBuffer buf(PayloadType::kGeometryParameterSet);
   auto bs = makeBitWriter(std::back_inserter(buf));
@@ -267,9 +267,11 @@ write(const GeometryParameterSet& gps)
   }
 
   if (gps.geom_angular_mode_enabled_flag) {
-    bs.writeUe(gps.geom_angular_lidar_head_position[0]);
-    bs.writeUe(gps.geom_angular_lidar_head_position[1]);
-    bs.writeUe(gps.geom_angular_lidar_head_position[2]);
+    auto geom_angular_origin =
+      toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
+    bs.writeUe(geom_angular_origin.x());
+    bs.writeUe(geom_angular_origin.y());
+    bs.writeUe(geom_angular_origin.z());
     bs.writeUe(gps.geom_angular_num_lidar_lasers());
     for (int i = 0; i < gps.geom_angular_num_lidar_lasers(); i++) {
       bs.writeUe(gps.geom_angular_theta_laser[i] + 1048576);
@@ -340,9 +342,13 @@ parseGps(const PayloadBuffer& buf)
 
   gps.planar_buffer_disabled_flag = false;
   if (gps.geom_angular_mode_enabled_flag) {
-    bs.readUe(&gps.geom_angular_lidar_head_position[0]);
-    bs.readUe(&gps.geom_angular_lidar_head_position[1]);
-    bs.readUe(&gps.geom_angular_lidar_head_position[2]);
+    Vec3<int> geom_angular_origin;
+    bs.readUe(&geom_angular_origin.x());
+    bs.readUe(&geom_angular_origin.y());
+    bs.readUe(&geom_angular_origin.z());
+
+    // NB: this is in XYZ axis order until the GPS is converted to STV
+    gps.geomAngularOrigin = geom_angular_origin;
 
     int geom_angular_num_lidar_lasers;
     bs.readUe(&geom_angular_num_lidar_lasers);
@@ -389,6 +395,15 @@ parseGps(const PayloadBuffer& buf)
   bs.byteAlign();
 
   return gps;
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertXyzToStv(const SequenceParameterSet& sps, GeometryParameterSet* gps)
+{
+  gps->geomAngularOrigin =
+    fromXyz(sps.geometry_axis_order, gps->geomAngularOrigin);
 }
 
 //============================================================================
@@ -571,31 +586,32 @@ write(
 
   if (gps.geom_box_present_flag) {
     int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
-    int geom_box_origin_x = gbh.geomBoxOrigin.x() >> geomBoxLog2Scale;
-    int geom_box_origin_y = gbh.geomBoxOrigin.y() >> geomBoxLog2Scale;
-    int geom_box_origin_z = gbh.geomBoxOrigin.z() >> geomBoxLog2Scale;
+    auto geom_box_origin = toXyz(sps.geometry_axis_order, gbh.geomBoxOrigin);
+    geom_box_origin.x() >>= geomBoxLog2Scale;
+    geom_box_origin.y() >>= geomBoxLog2Scale;
+    geom_box_origin.z() >>= geomBoxLog2Scale;
 
     if (gps.geom_box_log2_scale_present_flag)
       bs.writeUe(gbh.geom_box_log2_scale);
-    bs.writeUe(geom_box_origin_x);
-    bs.writeUe(geom_box_origin_y);
-    bs.writeUe(geom_box_origin_z);
+    bs.writeUe(geom_box_origin.x());
+    bs.writeUe(geom_box_origin.y());
+    bs.writeUe(geom_box_origin.z());
   }
 
   if (!gps.implicit_qtbt_enabled_flag) {
     bs.writeUe(gbh.geom_max_node_size_log2);
   } else {
-    auto& geom_max_node_size_log2_x = gbh.geom_max_node_size_log2_xyz[0];
+    auto& geom_max_node_size_log2_s = gbh.geom_max_node_size_log2_stv[0];
 
-    int geom_max_node_size_log2_delta_y =
-      gbh.geom_max_node_size_log2_xyz[1] - gbh.geom_max_node_size_log2_xyz[0];
+    int geom_max_node_size_log2_delta_t =
+      gbh.geom_max_node_size_log2_stv[1] - gbh.geom_max_node_size_log2_stv[0];
 
-    int geom_max_node_size_log2_delta_z =
-      gbh.geom_max_node_size_log2_xyz[2] - gbh.geom_max_node_size_log2_xyz[1];
+    int geom_max_node_size_log2_delta_v =
+      gbh.geom_max_node_size_log2_stv[2] - gbh.geom_max_node_size_log2_stv[1];
 
-    bs.writeUe(geom_max_node_size_log2_x);
-    bs.writeSe(geom_max_node_size_log2_delta_y);
-    bs.writeSe(geom_max_node_size_log2_delta_z);
+    bs.writeUe(geom_max_node_size_log2_s);
+    bs.writeSe(geom_max_node_size_log2_delta_t);
+    bs.writeSe(geom_max_node_size_log2_delta_v);
   }
 
   if (gbh.geom_octree_parallel_max_node_size_log2 == 0)
@@ -642,36 +658,32 @@ parseGbh(
     if (gps.geom_box_log2_scale_present_flag)
       bs.readUe(&gbh.geom_box_log2_scale);
 
-    int geom_box_origin_x;
-    int geom_box_origin_y;
-    int geom_box_origin_z;
-    bs.readUe(&geom_box_origin_x);
-    bs.readUe(&geom_box_origin_y);
-    bs.readUe(&geom_box_origin_z);
-    int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
-    gbh.geomBoxOrigin.x() = geom_box_origin_x << geomBoxLog2Scale;
-    gbh.geomBoxOrigin.y() = geom_box_origin_y << geomBoxLog2Scale;
-    gbh.geomBoxOrigin.z() = geom_box_origin_z << geomBoxLog2Scale;
+    Vec3<int> geom_box_origin;
+    bs.readUe(&geom_box_origin.x());
+    bs.readUe(&geom_box_origin.y());
+    bs.readUe(&geom_box_origin.z());
+    gbh.geomBoxOrigin = fromXyz(sps.geometry_axis_order, geom_box_origin);
+    gbh.geomBoxOrigin *= 1 << gbh.geomBoxLog2Scale(gps);
   }
 
   if (!gps.implicit_qtbt_enabled_flag) {
     bs.readUe(&gbh.geom_max_node_size_log2);
   } else {
-    int geom_max_node_size_log2_x;
-    int geom_max_node_size_log2_delta_y;
-    int geom_max_node_size_log2_delta_z;
+    int geom_max_node_size_log2_s;
+    int geom_max_node_size_log2_delta_t;
+    int geom_max_node_size_log2_delta_v;
 
-    bs.readUe(&geom_max_node_size_log2_x);
-    bs.readSe(&geom_max_node_size_log2_delta_y);
-    bs.readSe(&geom_max_node_size_log2_delta_z);
+    bs.readUe(&geom_max_node_size_log2_s);
+    bs.readSe(&geom_max_node_size_log2_delta_t);
+    bs.readSe(&geom_max_node_size_log2_delta_v);
 
-    gbh.geom_max_node_size_log2_xyz[0] = geom_max_node_size_log2_x;
+    gbh.geom_max_node_size_log2_stv[0] = geom_max_node_size_log2_s;
 
-    gbh.geom_max_node_size_log2_xyz[1] =
-      geom_max_node_size_log2_delta_y + gbh.geom_max_node_size_log2_xyz[0];
+    gbh.geom_max_node_size_log2_stv[1] =
+      geom_max_node_size_log2_delta_t + gbh.geom_max_node_size_log2_stv[0];
 
-    gbh.geom_max_node_size_log2_xyz[2] =
-      geom_max_node_size_log2_delta_z + gbh.geom_max_node_size_log2_xyz[1];
+    gbh.geom_max_node_size_log2_stv[2] =
+      geom_max_node_size_log2_delta_v + gbh.geom_max_node_size_log2_stv[1];
   }
 
   bs.readUe(&gbh.geom_octree_parallel_max_node_size_log2);

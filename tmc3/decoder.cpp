@@ -102,7 +102,16 @@ PCCTMC3Decoder3::decompress(
     return 0;
   }
 
-  case PayloadType::kGeometryParameterSet: storeGps(parseGps(*buf)); return 0;
+  case PayloadType::kGeometryParameterSet: {
+    auto gps = parseGps(*buf);
+    // HACK: assume that an SPS has been received prior to the GPS.
+    // This is not required, and parsing of the GPS is independent of the SPS.
+    // todo(df): move GPS fixup to activation process
+    _sps = &_spss.cbegin()->second;
+    convertXyzToStv(*_sps, &gps);
+    storeGps(std::move(gps));
+    return 0;
+  }
 
   case PayloadType::kAttributeParameterSet: storeAps(parseAps(*buf)); return 0;
 

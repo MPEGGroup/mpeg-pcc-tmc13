@@ -331,7 +331,10 @@ struct GeometryParameterSet {
 
   // Controls the use of xyz-planar mode
   bool geom_angular_mode_enabled_flag;
-  Vec3<int> geom_angular_lidar_head_position;
+
+  // Sequence bounding box relative origin for angular mode computations
+  // (in stv axis order).
+  Vec3<int> geomAngularOrigin;
 
   int geom_angular_num_lidar_lasers() const
   {
@@ -357,28 +360,29 @@ struct GeometryBrickHeader {
   int geom_slice_id;
   int frame_idx;
 
-  // derived from geom_box_origin_{x,y,z} * (1 << geom_box_log2_scale)
+  // Origin of the reconstructed geometry, relative to sequence bounding box
+  // (in stv axis order).
   Vec3<int> geomBoxOrigin;
   int geom_box_log2_scale;
 
   // todo(df): minus1?
   int geom_max_node_size_log2;
-  Vec3<int> geom_max_node_size_log2_xyz;
+  Vec3<int> geom_max_node_size_log2_stv;
   int geom_num_points_minus1;
 
   int geomMaxNodeSizeLog2(const GeometryParameterSet& gps) const
   {
     if (gps.implicit_qtbt_enabled_flag)
-      return std::max({geom_max_node_size_log2_xyz[0],
-                       geom_max_node_size_log2_xyz[1],
-                       geom_max_node_size_log2_xyz[2]});
+      return std::max({geom_max_node_size_log2_stv[0],
+                       geom_max_node_size_log2_stv[1],
+                       geom_max_node_size_log2_stv[2]});
     return geom_max_node_size_log2;
   }
 
-  Vec3<int> geomMaxNodeSizeLog2Xyz(const GeometryParameterSet& gps) const
+  Vec3<int> geomMaxNodeSizeLog2Stv(const GeometryParameterSet& gps) const
   {
     if (gps.implicit_qtbt_enabled_flag)
-      return geom_max_node_size_log2_xyz;
+      return geom_max_node_size_log2_stv;
     return geom_max_node_size_log2;
   }
 
@@ -488,6 +492,7 @@ struct TileInventory {
 //============================================================================
 
 void convertXyzToStv(SequenceParameterSet*);
+void convertXyzToStv(const SequenceParameterSet&, GeometryParameterSet*);
 
 //============================================================================
 

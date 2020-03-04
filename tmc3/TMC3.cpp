@@ -627,8 +627,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_mode_enabled_flag, false,
     "Controls angular contextualisation of occupancy")
 
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
   ("lidarHeadPosition",
-    params.encoder.lidarHeadPosition, {0, 0, 0},
+    params.encoder.gps.geomAngularOrigin, {0, 0, 0},
     "laser head position (x, y, z) in angular mode")
 
   ("numLasers",
@@ -847,6 +849,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);
+  convertXyzToStv(params.encoder.sps, &params.encoder.gps);
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)
@@ -984,13 +987,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (!params.encoder.gps.geom_planar_mode_enabled_flag) {
       err.error() << "planar mode must be enabled with angular mode\n";
     }
-
-    params.encoder.gps.geom_angular_lidar_head_position[0] =
-      params.encoder.lidarHeadPosition[0];
-    params.encoder.gps.geom_angular_lidar_head_position[1] =
-      params.encoder.lidarHeadPosition[1];
-    params.encoder.gps.geom_angular_lidar_head_position[2] =
-      params.encoder.lidarHeadPosition[2];
 
     for (auto val : params.encoder.lasersTheta) {
       int one = 1 << 18;

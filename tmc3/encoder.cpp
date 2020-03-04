@@ -93,8 +93,8 @@ PCCTMC3Encoder3::compress(
     if (params->gps.geom_angular_mode_enabled_flag) {
       auto origin = params->sps.seqBoundingBoxOrigin;
       auto scale = params->sps.seq_source_geom_scale_factor;
-      params->gps.geom_angular_lidar_head_position -= origin;
-      params->gps.geom_angular_lidar_head_position *= scale;
+      params->gps.geomAngularOrigin -= origin;
+      params->gps.geomAngularOrigin *= scale;
     }
   }
 
@@ -154,7 +154,7 @@ PCCTMC3Encoder3::compress(
 
   // write out all parameter sets prior to encoding
   callback->onOutputBuffer(write(*_sps));
-  callback->onOutputBuffer(write(*_gps));
+  callback->onOutputBuffer(write(*_sps, *_gps));
   for (const auto aps : _aps) {
     callback->onOutputBuffer(write(*aps));
   }
@@ -529,7 +529,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   } else {
     // different node dimension for xyz, for the purpose of implicit qtbt
     for (int k = 0; k < 3; k++)
-      gbh.geom_max_node_size_log2_xyz[k] =
+      gbh.geom_max_node_size_log2_stv[k] =
         ceillog2(std::max(2, _sliceBoxWhd[k]));
   }
 

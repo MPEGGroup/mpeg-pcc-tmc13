@@ -56,7 +56,7 @@ mkQtBtNodeSizeList(
   int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
 
   // size of the current node (each dimension can vary due to qtbt)
-  Vec3<int> nodeSizeLog2 = gbh.geomMaxNodeSizeLog2Xyz(gps);
+  Vec3<int> nodeSizeLog2 = gbh.geomMaxNodeSizeLog2Stv(gps);
   nodeSizeLog2List.push_back(nodeSizeLog2);
 
   // update implicit qtbt parameters
