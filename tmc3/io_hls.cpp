@@ -388,12 +388,20 @@ write(const AttributeParameterSet& aps)
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.writeUe(aps.num_detail_levels);
-      if (aps.num_detail_levels > 0)
+      if (aps.num_detail_levels > 0) {
         bs.write(aps.lod_decimation_enabled_flag);
 
-      for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-        // todo(??): is this an appropriate encoding?
-        bs.writeUe64(aps.dist2[idx]);
+        if (aps.lod_decimation_enabled_flag) {
+          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+            auto lod_sampling_period_minus2 = aps.lodSamplingPeriod[idx] - 2;
+            bs.writeUe(lod_sampling_period_minus2);
+          }
+        } else {
+          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+            // todo(??): is this an appropriate encoding?
+            bs.writeUe64(aps.dist2[idx]);
+          }
+        }
       }
     }
   }
@@ -450,12 +458,22 @@ parseAps(const PayloadBuffer& buf)
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.readUe(&aps.num_detail_levels);
-      if (aps.num_detail_levels > 0)
+      if (aps.num_detail_levels > 0) {
         bs.read(&aps.lod_decimation_enabled_flag);
 
-      aps.dist2.resize(aps.num_detail_levels);
-      for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-        bs.readUe(&aps.dist2[idx]);
+        if (aps.lod_decimation_enabled_flag) {
+          aps.lodSamplingPeriod.resize(aps.num_detail_levels);
+          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+            int lod_sampling_period_minus2;
+            bs.readUe(&lod_sampling_period_minus2);
+            aps.lodSamplingPeriod[idx] = lod_sampling_period_minus2 + 2;
+          }
+        } else {
+          aps.dist2.resize(aps.num_detail_levels);
+          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+            bs.readUe(&aps.dist2[idx]);
+          }
+        }
       }
     }
   }

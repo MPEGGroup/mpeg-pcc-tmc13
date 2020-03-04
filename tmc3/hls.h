@@ -395,6 +395,7 @@ struct AttributeParameterSet {
 
   // NB: derived from num_detail_levels_minus1
   int num_detail_levels;
+  std::vector<int> lodSamplingPeriod;
   std::vector<int64_t> dist2;
 
   // NB: these parameters are shared by all transform implementations

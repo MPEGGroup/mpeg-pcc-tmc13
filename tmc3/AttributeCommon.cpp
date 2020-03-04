@@ -104,6 +104,9 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
   if (_aps.dist2 != aps.dist2)
     return false;
 
+  if (_aps.lodSamplingPeriod != aps.lodSamplingPeriod)
+    return false;
+
   if (
     _aps.intra_lod_prediction_enabled_flag
     != aps.intra_lod_prediction_enabled_flag)

@@ -848,16 +848,18 @@ subsampleByOctree(
 inline void
 subsampleByDecimation(
   const std::vector<uint32_t>& input,
+  int lodSamplingPeriod,
   std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  static const int kLodUniformQuant = 4;
   const int indexCount = int(input.size());
-  for (int i = 0; i < indexCount; ++i) {
-    if (i % kLodUniformQuant == 0)
-      retained.push_back(input[i]);
-    else
+  for (int i = 0, j = 1; i < indexCount; ++i) {
+    if (--j)
       indexes.push_back(input[i]);
+    else {
+      retained.push_back(input[i]);
+      j = lodSamplingPeriod;
+    }
   }
 }
 
@@ -878,7 +880,8 @@ subsample(
     subsampleByOctree(
       pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes);
   } else if (aps.lod_decimation_enabled_flag) {
-    subsampleByDecimation(input, retained, indexes);
+    auto samplingPeriod = aps.lodSamplingPeriod[lodIndex];
+    subsampleByDecimation(input, samplingPeriod, retained, indexes);
   } else {
     double radius2 = aps.dist2[lodIndex];
     subsampleByDistance(

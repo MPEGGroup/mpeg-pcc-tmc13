@@ -706,7 +706,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.lod_decimation_enabled_flag, false,
     "Controls LoD generation method:\n"
     " 0: distance based subsampling\n"
-    " 1: decimation by 1:3")
+    " 1: periodic subsampling using lodSamplingPeriod")
 
   ("max_num_direct_predictors",
     params_attr.aps.max_num_direct_predictors, 3,
@@ -719,9 +719,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("dist2",
     params_attr.aps.dist2, {},
-    "Attribute's list of squared distances.\n"
+    "List of per LoD squared distances used in LoD generation.\n"
     " 0 entries: derive base value automatically\n"
     ">0 entries: derive subsequent values automatically")
+
+  ("lodSamplingPeriod",
+    params_attr.aps.lodSamplingPeriod, {4},
+    "List of per LoD sampling periods used in LoD generation.\n")
 
   ("intraLodPredictionEnabled",
     params_attr.aps.intra_lod_prediction_enabled_flag, false,
@@ -938,6 +942,19 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         dist2 = int64_t(std::round(pqs2 * dist2));
     }
 
+    // derive samplingPeriod values based on initial value
+    if (
+      !attr_aps.lodParametersPresent()
+      || !attr_aps.lod_decimation_enabled_flag) {
+      attr_aps.lodSamplingPeriod.clear();
+    } else if (!attr_aps.lodSamplingPeriod.empty()) {
+      auto i = attr_aps.lodSamplingPeriod.size();
+      attr_aps.lodSamplingPeriod.resize(attr_aps.num_detail_levels);
+      // add any extra values as required
+      for (; i < attr_aps.num_detail_levels; i++)
+        attr_aps.lodSamplingPeriod[i] = attr_aps.lodSamplingPeriod[i - 1];
+    }
+
     // Set default threshold based on bitdepth
     if (attr_aps.adaptive_prediction_threshold == -1) {
       attr_aps.adaptive_prediction_threshold = 1 << (attr_sps.bitdepth - 2);
@@ -1049,6 +1066,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       if (!attr_aps.dist2.empty() && attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod
                     << " entries\n";
+      }
+
+      if (
+        attr_aps.lod_decimation_enabled_flag
+        && attr_aps.lodSamplingPeriod.empty()) {
+        err.error() << it.first
+                    << ".lodSamplingPeriod must contain at least one entry\n";
+      }
+
+      for (auto samplingPeriod : attr_aps.lodSamplingPeriod) {
+        if (samplingPeriod < 2)
+          err.error() << it.first << ".lodSamplingPeriod values must be > 1\n";
       }
 
       if (attr_aps.adaptive_prediction_threshold < 0) {

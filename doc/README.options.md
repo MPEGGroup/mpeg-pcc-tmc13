@@ -494,10 +494,10 @@ attribute prediction.
 ### `--lodDecimation=0|1`
 Controls the level-of-detail generation method:
 
-  | Value | Description                     |
-  |:-----:| ------------------------------- |
-  | 0     | Euclidean distance thresholding |
-  | 1     | Decimation by 1:3               |
+  | Value | Description                             |
+  |:-----:| --------------------------------------- |
+  | 0     | Euclidean distance thresholding (dist2) |
+  | 1     | Decimation by lodSubsamplingPeriod      |
 
 ### `--intraLodPredictionEnabled=0|1`
 Part of LoD attribute coding.  Permits (1) points to be predicted from
@@ -512,9 +512,12 @@ and `trisoup_node_size_log2=0`.
 Attribute's number of levels of detail.
 
 ### `--dist2=INT-VALUE|INT-VALUE-LIST`
-Attribute's list of squared distances, or initial value for automatic
-derivation.  If an empty-list is used, an initial value is automatically
-determined.
+A list of squared distances used to generate successive levels of detail.
+If an empty-list is used, an initial value is automatically determined.
+If a single value is provided, subsequent values are derived automatically.
+
+### `--lodSubsamplingPeriod=INT-VALUE|INT-VALUE-LIST`
+A list of sampling periods used to generate successive levels of detail.
 
 ### `--lod_neigh_bias=INT-VALUE-LIST`
 A set of three bias factors corresponding to the first, second and third
