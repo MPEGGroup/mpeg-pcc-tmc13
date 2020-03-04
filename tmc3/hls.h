@@ -165,8 +165,10 @@ enum class ColourMatrix : uint8_t
 struct AttributeDescription {
   int attr_num_dimensions_minus1;
   int attr_instance_id;
-  int attr_bitdepth;
-  int attr_bitdepth_secondary;
+
+  int bitdepth;
+  int bitdepthSecondary;
+
   int cicp_colour_primaries_idx;
   int cicp_transfer_characteristics_idx;
   ColourMatrix cicp_matrix_coefficients_idx;

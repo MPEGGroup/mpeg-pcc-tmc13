@@ -653,7 +653,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "following attribute parameters)")
 
   ("bitdepth",
-    params_attr.desc.attr_bitdepth, 8,
+    params_attr.desc.bitdepth, 8,
     "Attribute bitdepth")
 
   // todo(df): this should be per-attribute
@@ -897,11 +897,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     // Derive the secondary bitdepth
     // todo(df): this needs to be a command line argument
     //  -- but there are a few edge cases to handle
-    attr_sps.attr_bitdepth_secondary = attr_sps.attr_bitdepth;
+    attr_sps.bitdepthSecondary = attr_sps.bitdepth;
 
     // Assume that YCgCo is actually YCgCoR for now
     if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
-      attr_sps.attr_bitdepth_secondary++;
+      attr_sps.bitdepthSecondary++;
 
     // derive the dist2 values based on an initial value
     if (attr_aps.lodParametersPresent()) {
@@ -934,8 +934,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     // Set default threshold based on bitdepth
     if (attr_aps.adaptive_prediction_threshold == -1) {
-      attr_aps.adaptive_prediction_threshold = 1
-        << (attr_sps.attr_bitdepth - 2);
+      attr_aps.adaptive_prediction_threshold = 1 << (attr_sps.bitdepth - 2);
     }
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
@@ -1027,10 +1026,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       }
     }
 
-    if (attr_sps.attr_bitdepth > 16)
+    if (attr_sps.bitdepth > 16)
       err.error() << it.first << ".bitdepth must be less than 17\n";
 
-    if (attr_sps.attr_bitdepth_secondary > 16)
+    if (attr_sps.bitdepthSecondary > 16)
       err.error() << it.first << ".bitdepth_secondary must be less than 17\n";
 
     if (attr_aps.lodParametersPresent()) {
@@ -1406,7 +1405,7 @@ convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 
   case ColourMatrix::kYCgCo:
     // todo(df): select YCgCoR vs YCgCo
-    convertYCgCoRToGbr(attrDesc->attr_bitdepth, cloud);
+    convertYCgCoRToGbr(attrDesc->bitdepth, cloud);
     break;
 
   default: break;
@@ -1427,7 +1426,7 @@ convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 
   case ColourMatrix::kYCgCo:
     // todo(df): select YCgCoR vs YCgCo
-    convertGbrToYCgCoR(attrDesc->attr_bitdepth, cloud);
+    convertGbrToYCgCoR(attrDesc->bitdepth, cloud);
     break;
 
   default: break;

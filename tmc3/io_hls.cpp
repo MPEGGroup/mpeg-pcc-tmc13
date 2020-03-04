@@ -93,9 +93,14 @@ write(const SequenceParameterSet& sps)
   for (const auto& attr : sps.attributeSets) {
     bs.writeUe(attr.attr_num_dimensions_minus1);
     bs.writeUe(attr.attr_instance_id);
-    bs.writeUe(attr.attr_bitdepth);
-    if (attr.attr_num_dimensions_minus1)
-      bs.writeUe(attr.attr_bitdepth_secondary);
+
+    int attr_bitdepth_minus1 = attr.bitdepth - 1;
+    bs.writeUe(attr_bitdepth_minus1);
+
+    if (attr.attr_num_dimensions_minus1) {
+      int attr_bitdepth_secondary_minus1 = attr.bitdepthSecondary - 1;
+      bs.writeUe(attr_bitdepth_secondary_minus1);
+    }
 
     bs.writeUe(attr.cicp_colour_primaries_idx);
     bs.writeUe(attr.cicp_transfer_characteristics_idx);
@@ -156,9 +161,16 @@ parseSps(const PayloadBuffer& buf)
     auto& attr = sps.attributeSets.back();
     bs.readUe(&attr.attr_num_dimensions_minus1);
     bs.readUe(&attr.attr_instance_id);
-    bs.readUe(&attr.attr_bitdepth);
-    if (attr.attr_num_dimensions_minus1)
-      bs.readUe(&attr.attr_bitdepth_secondary);
+
+    int attr_bitdepth_minus1;
+    bs.readUe(&attr_bitdepth_minus1);
+    attr.bitdepth = attr_bitdepth_minus1 + 1;
+
+    if (attr.attr_num_dimensions_minus1) {
+      int attr_bitdepth_secondary_minus1 = 0;
+      bs.readUe(&attr_bitdepth_secondary_minus1);
+      attr.bitdepthSecondary = attr_bitdepth_secondary_minus1 + 1;
+    }
 
     bs.readUe(&attr.cicp_colour_primaries_idx);
     bs.readUe(&attr.cicp_transfer_characteristics_idx);

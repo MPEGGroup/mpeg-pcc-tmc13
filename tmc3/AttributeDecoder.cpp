@@ -307,7 +307,7 @@ AttributeDecoder::decodeReflectancesPred(
   PCCPointSet3& pointCloud)
 {
   const size_t pointCount = pointCloud.getPointCount();
-  const int64_t maxReflectance = (1ll << desc.attr_bitdepth) - 1;
+  const int64_t maxReflectance = (1ll << desc.bitdepth) - 1;
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -388,9 +388,9 @@ AttributeDecoder::decodeColorsPred(
 {
   const size_t pointCount = pointCloud.getPointCount();
 
-  Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
-                        (1 << desc.attr_bitdepth_secondary) - 1,
-                        (1 << desc.attr_bitdepth_secondary) - 1};
+  Vec3<int64_t> clipMax{(1 << desc.bitdepth) - 1,
+                        (1 << desc.bitdepthSecondary) - 1,
+                        (1 << desc.bitdepthSecondary) - 1};
 
   uint32_t values[3];
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
@@ -482,7 +482,7 @@ AttributeDecoder::decodeReflectancesRaht(
     mortonCode, attributes, attribCount, voxelCount, coefficients,
     regionQPOffset);
 
-  const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
+  const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
   for (int n = 0; n < voxelCount; n++) {
     int64_t val = attributes[attribCount * n];
@@ -552,9 +552,9 @@ AttributeDecoder::decodeColorsRaht(
     mortonCode, attributes, attribCount, voxelCount, coefficients,
     regionQPOffset);
 
-  Vec3<int> clipMax{(1 << desc.attr_bitdepth) - 1,
-                    (1 << desc.attr_bitdepth_secondary) - 1,
-                    (1 << desc.attr_bitdepth_secondary) - 1};
+  Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
+                    (1 << desc.bitdepthSecondary) - 1,
+                    (1 << desc.bitdepthSecondary) - 1};
 
   for (int n = 0; n < voxelCount; n++) {
     const int r = attributes[attribCount * n];
@@ -646,9 +646,9 @@ AttributeDecoder::decodeColorsLift(
     PCCLiftPredict(_lods.predictors, startIndex, endIndex, false, colors);
   }
 
-  Vec3<int64_t> clipMax{(1 << desc.attr_bitdepth) - 1,
-                        (1 << desc.attr_bitdepth_secondary) - 1,
-                        (1 << desc.attr_bitdepth_secondary) - 1};
+  Vec3<int64_t> clipMax{(1 << desc.bitdepth) - 1,
+                        (1 << desc.bitdepthSecondary) - 1,
+                        (1 << desc.bitdepthSecondary) - 1};
 
   for (size_t f = 0; f < pointCount; ++f) {
     const auto color0 =
@@ -727,7 +727,7 @@ AttributeDecoder::decodeReflectancesLift(
     PCCLiftPredict(
       _lods.predictors, startIndex, endIndex, false, reflectances);
   }
-  const int64_t maxReflectance = (1 << desc.attr_bitdepth) - 1;
+  const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
     const auto refl =
       divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
