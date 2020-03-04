@@ -43,7 +43,6 @@ namespace pcc {
 //============================================================================
 
 PayloadBuffer write(const SequenceParameterSet& sps);
-PayloadBuffer write(const TileInventory& inventory);
 
 PayloadBuffer
 write(const SequenceParameterSet& sps, const GeometryParameterSet& gps);
@@ -51,8 +50,12 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps);
 PayloadBuffer
 write(const SequenceParameterSet& sps, const AttributeParameterSet& aps);
 
+PayloadBuffer
+write(const SequenceParameterSet& sps, const TileInventory& inventory);
+
 //----------------------------------------------------------------------------
-// NB: parseSps, parseGps, and parseAps return values using XYZ axes.
+// NB: parseSps, parseGps, parseAps, and parseTileInventory return values
+//     using XYZ axes.
 //     These must be converted to STV prior to use by the codec.
 //     This is not done during parsing to emphasise that there is no parsing
 //     dependency on the SPS.

@@ -487,8 +487,11 @@ struct AttributeBrickHeader {
 
 struct TileInventory {
   struct Entry {
-    Vec3<int> tile_bounding_box_xyz0;
-    Vec3<int> tile_bounding_box_whd;
+    // NB: in stv order
+    Vec3<int> tileOrigin;
+
+    // NB: in stv order
+    Vec3<int> tileSize;
   };
   std::vector<Entry> tiles;
 };
@@ -498,6 +501,7 @@ struct TileInventory {
 void convertXyzToStv(SequenceParameterSet*);
 void convertXyzToStv(const SequenceParameterSet&, GeometryParameterSet*);
 void convertXyzToStv(const SequenceParameterSet&, AttributeParameterSet*);
+void convertXyzToStv(const SequenceParameterSet&, TileInventory*);
 
 //============================================================================
 

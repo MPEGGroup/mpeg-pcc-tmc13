@@ -149,6 +149,8 @@ PCCTMC3Decoder3::decompress(
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
 
   case PayloadType::kTileInventory:
+    // NB: the tile inventory is decoded in xyz order.  It may need
+    //     conversion if it is used (it currently isn't).
     storeTileInventory(parseTileInventory(*buf));
     return 0;
   }

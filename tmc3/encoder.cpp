@@ -176,9 +176,8 @@ PCCTMC3Encoder3::compress(
 
       auto& tileIvt = partitions.tileInventory.tiles[t];
       for (int k = 0; k < 3; k++) {
-        tileIvt.tile_bounding_box_whd[k] = bbox.max[k] - bbox.min[k];
-        tileIvt.tile_bounding_box_xyz0[k] =
-          bbox.min[k] - _sps->seqBoundingBoxOrigin[k];
+        tileIvt.tileSize[k] = bbox.max[k] - bbox.min[k] + 1;
+        tileIvt.tileOrigin[k] = bbox.min[k] - _sps->seqBoundingBoxOrigin[k];
       }
     }
   } else {
@@ -273,7 +272,7 @@ PCCTMC3Encoder3::compress(
   if (partitions.tileInventory.tiles.size() > 1) {
     assert(partitions.tileInventory.tiles.size() == tileMaps.size());
     std::cout << "Tile number: " << tileMaps.size() << std::endl;
-    callback->onOutputBuffer(write(partitions.tileInventory));
+    callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
   }
 
   // Encode each partition:

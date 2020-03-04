@@ -879,7 +879,7 @@ parseAbh(
 //============================================================================
 
 PayloadBuffer
-write(const TileInventory& inventory)
+write(const SequenceParameterSet& sps, const TileInventory& inventory)
 {
   PayloadBuffer buf(PayloadType::kTileInventory);
   auto bs = makeBitWriter(std::back_inserter(buf));
@@ -891,8 +891,8 @@ write(const TileInventory& inventory)
   int maxVal = 1;
   for (const auto& entry : inventory.tiles) {
     for (int k = 0; k < 3; k++) {
-      maxVal = std::max(maxVal, entry.tile_bounding_box_xyz0[k]);
-      maxVal = std::max(maxVal, entry.tile_bounding_box_whd[k]);
+      maxVal = std::max(maxVal, entry.tileOrigin[k]);
+      maxVal = std::max(maxVal, entry.tileSize[k]);
     }
   }
 
@@ -900,12 +900,15 @@ write(const TileInventory& inventory)
   bs.writeUn(8, tile_bounding_box_bits);
 
   for (const auto& entry : inventory.tiles) {
-    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.x());
-    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.y());
-    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.z());
-    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.x());
-    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.y());
-    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.z());
+    auto tile_origin = toXyz(sps.geometry_axis_order, entry.tileOrigin);
+    bs.writeSn(tile_bounding_box_bits, tile_origin.x());
+    bs.writeSn(tile_bounding_box_bits, tile_origin.y());
+    bs.writeSn(tile_bounding_box_bits, tile_origin.z());
+
+    auto tile_size = toXyz(sps.geometry_axis_order, entry.tileSize);
+    bs.writeUn(tile_bounding_box_bits, tile_size.x());
+    bs.writeUn(tile_bounding_box_bits, tile_size.y());
+    bs.writeUn(tile_bounding_box_bits, tile_size.z());
   }
 
   bs.byteAlign();
@@ -929,19 +932,36 @@ parseTileInventory(const PayloadBuffer& buf)
   bs.readUn(8, &tile_bounding_box_bits);
 
   for (int i = 0; i < num_tiles; i++) {
+    Vec3<int> tile_origin;
+    bs.readSn(tile_bounding_box_bits, &tile_origin.x());
+    bs.readSn(tile_bounding_box_bits, &tile_origin.y());
+    bs.readSn(tile_bounding_box_bits, &tile_origin.z());
+    Vec3<int> tile_size;
+    bs.readUn(tile_bounding_box_bits, &tile_size.x());
+    bs.readUn(tile_bounding_box_bits, &tile_size.y());
+    bs.readUn(tile_bounding_box_bits, &tile_size.z());
+
+    // NB: this is in XYZ axis order until the inventory is converted to STV
     TileInventory::Entry entry;
-    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.x());
-    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.y());
-    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.z());
-    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.x());
-    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.y());
-    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.z());
+    entry.tileOrigin = tile_origin;
+    entry.tileSize = tile_size;
     inventory.tiles.push_back(entry);
   }
 
   bs.byteAlign();
 
   return inventory;
+}
+
+//----------------------------------------------------------------------------
+
+void
+convertXyzToStv(const SequenceParameterSet& sps, TileInventory* inventory)
+{
+  for (auto& tile : inventory->tiles) {
+    tile.tileOrigin = fromXyz(sps.geometry_axis_order, tile.tileOrigin);
+    tile.tileSize = fromXyz(sps.geometry_axis_order, tile.tileSize);
+  }
 }
 
 //============================================================================
