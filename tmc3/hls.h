@@ -191,10 +191,8 @@ struct SequenceParameterSet {
   ProfileCompatibility profileCompatibility;
   int level;
 
-  // todo(df): encode the following
-  Vec3<int> seq_bounding_box_xyz0;
+  Vec3<int> seqBoundingBoxOrigin;
   Vec3<int> seq_bounding_box_whd;
-  //int seq_bounding_box_scale_log2;
 
   // A value describing the scaling of the source positions prior to encoding.
   float seq_source_geom_scale_factor;

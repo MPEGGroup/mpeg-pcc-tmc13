@@ -75,7 +75,7 @@ PCCTMC3Encoder3::compress(
     if (params->sps.seq_bounding_box_whd == Vec3<int>{0}) {
       const auto& bbox = inputPointCloud.computeBoundingBox();
       for (int k = 0; k < 3; k++) {
-        params->sps.seq_bounding_box_xyz0[k] = int(bbox.min[k]);
+        params->sps.seqBoundingBoxOrigin[k] = int(bbox.min[k]);
 
         // somehow determine the decoder's reconstructed points bounding box
         // and update sps accordingly.
@@ -91,7 +91,7 @@ PCCTMC3Encoder3::compress(
     // Determine the ladar head position relative to the sequence bounding box
     // NB: currently the sps box offset is unscaled
     if (params->gps.geom_angular_mode_enabled_flag) {
-      auto origin = params->sps.seq_bounding_box_xyz0;
+      auto origin = params->sps.seqBoundingBoxOrigin;
       auto scale = params->sps.seq_source_geom_scale_factor;
       params->gps.geom_angular_lidar_head_position -= origin;
       params->gps.geom_angular_lidar_head_position *= scale;
@@ -178,7 +178,7 @@ PCCTMC3Encoder3::compress(
       for (int k = 0; k < 3; k++) {
         tileIvt.tile_bounding_box_whd[k] = bbox.max[k] - bbox.min[k];
         tileIvt.tile_bounding_box_xyz0[k] =
-          bbox.min[k] - _sps->seq_bounding_box_xyz0[k];
+          bbox.min[k] - _sps->seqBoundingBoxOrigin[k];
       }
     }
   } else {
@@ -437,7 +437,7 @@ PCCTMC3Encoder3::compressPartition(
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
         attr_sps, params->recolour, originPartCloud,
-        _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
+        _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin,
         _sliceOrigin, &pointCloud);
     }
   }
@@ -644,12 +644,12 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
-      _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
-      clampBox, inputPointCloud, &pointCloud0, quantizedToOrigin);
+      _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
+      inputPointCloud, &pointCloud0, quantizedToOrigin);
   } else {
     quantizePositions(
-      _sps->seq_source_geom_scale_factor, _sps->seq_bounding_box_xyz0,
-      clampBox, inputPointCloud, &pointCloud0);
+      _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
+      inputPointCloud, &pointCloud0);
   }
 
   // Offset the point cloud to account for (preset) _sliceOrigin.

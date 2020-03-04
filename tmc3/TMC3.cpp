@@ -460,9 +460,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  6: (yxz)\n  7: (xyz)")
 
   ("seq_bounding_box_xyz0",
-    params.encoder.sps.seq_bounding_box_xyz0, {0},
-    "seq_bounding_box_xyz0.  NB: seq_bounding_box_whd must be set for this "
-    "parameter to have an effect")
+    params.encoder.sps.seqBoundingBoxOrigin, {0},
+    "Origin of the sequence bounding box. "
+    "NB: seq_bounding_box_whd must be set for paramter to have an effect")
 
   ("seq_bounding_box_whd",
     params.encoder.sps.seq_bounding_box_whd, {0},
@@ -1270,7 +1270,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     ply::write(
       *reconPointCloud, _plyAttrNames,
       1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seq_bounding_box_xyz0, recName,
+      params->encoder.sps.seqBoundingBoxOrigin, recName,
       !params->outputBinaryPly);
   }
 
@@ -1301,7 +1301,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
     ply::write(
       cloud, _plyAttrNames,
       1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seq_bounding_box_xyz0, plyName,
+      params->encoder.sps.seqBoundingBoxOrigin, plyName,
       !params->outputBinaryPly);
     return;
   }
@@ -1311,7 +1311,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   ply::write(
     tmpCloud, _plyAttrNames,
     1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-    params->encoder.sps.seq_bounding_box_xyz0, plyName,
+    params->encoder.sps.seqBoundingBoxOrigin, plyName,
     !params->outputBinaryPly);
 }
 
@@ -1394,7 +1394,7 @@ SequenceDecoder::onOutputCloud(
     ply::write(
       pointCloud, attrNames,
       1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seq_bounding_box_xyz0, params->preInvScalePath,
+      params->encoder.sps.seqBoundingBoxOrigin, params->preInvScalePath,
       !params->outputBinaryPly);
   }
 
@@ -1403,7 +1403,7 @@ SequenceDecoder::onOutputCloud(
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
   if (!ply::write(
         pointCloud, attrNames, 1.0 / sps.seq_source_geom_scale_factor,
-        sps.seq_bounding_box_xyz0, decName, !params->outputBinaryPly)) {
+        sps.seqBoundingBoxOrigin, decName, !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
 

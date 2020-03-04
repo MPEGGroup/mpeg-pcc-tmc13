@@ -76,11 +76,14 @@ write(const SequenceParameterSet& sps)
   bool seq_bounding_box_present_flag = true;
   bs.write(seq_bounding_box_present_flag);
   if (seq_bounding_box_present_flag) {
-    bs.writeSe(sps.seq_bounding_box_xyz0.x());
-    bs.writeSe(sps.seq_bounding_box_xyz0.y());
-    bs.writeSe(sps.seq_bounding_box_xyz0.z());
-    int seq_bounding_box_scale = 1;
-    bs.writeUe(seq_bounding_box_scale);
+    const auto& sps_bounding_box_offset_xyz = sps.seqBoundingBoxOrigin;
+    bs.writeSe(sps_bounding_box_offset_xyz.x());
+    bs.writeSe(sps_bounding_box_offset_xyz.y());
+    bs.writeSe(sps_bounding_box_offset_xyz.z());
+
+    int seq_bounding_box_offset_log2_scale = 0;
+    bs.writeUe(seq_bounding_box_offset_log2_scale);
+
     bs.writeUe(sps.seq_bounding_box_whd.x());
     bs.writeUe(sps.seq_bounding_box_whd.y());
     bs.writeUe(sps.seq_bounding_box_whd.z());
@@ -144,11 +147,16 @@ parseSps(const PayloadBuffer& buf)
 
   bool seq_bounding_box_present_flag = bs.read();
   if (seq_bounding_box_present_flag) {
-    bs.readSe(&sps.seq_bounding_box_xyz0.x());
-    bs.readSe(&sps.seq_bounding_box_xyz0.y());
-    bs.readSe(&sps.seq_bounding_box_xyz0.z());
-    int seq_bounding_box_scale;
-    bs.readUe(&seq_bounding_box_scale);
+    Vec3<int> seq_bounding_box_offset;
+    bs.readSe(&seq_bounding_box_offset.x());
+    bs.readSe(&seq_bounding_box_offset.y());
+    bs.readSe(&seq_bounding_box_offset.z());
+
+    int seq_bounding_box_offset_log2_scale;
+    bs.readUe(&seq_bounding_box_offset_log2_scale);
+    sps.seqBoundingBoxOrigin =
+      seq_bounding_box_offset * (1 << seq_bounding_box_offset_log2_scale);
+
     bs.readUe(&sps.seq_bounding_box_whd.x());
     bs.readUe(&sps.seq_bounding_box_whd.y());
     bs.readUe(&sps.seq_bounding_box_whd.z());
