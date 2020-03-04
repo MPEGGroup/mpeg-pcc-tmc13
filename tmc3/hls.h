@@ -385,7 +385,7 @@ struct AttributeParameterSet {
   //--- lifting/predicting transform parameters
 
   bool lod_decimation_enabled_flag;
-  int num_pred_nearest_neighbours;
+  int num_pred_nearest_neighbours_minus1;
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
   int search_range;

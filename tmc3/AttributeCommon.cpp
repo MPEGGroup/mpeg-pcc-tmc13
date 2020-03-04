@@ -80,7 +80,9 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
   // NB: the following comparison order needs to be the same as the i/o
   // order otherwise comparisons may involve undefined values
 
-  if (_aps.num_pred_nearest_neighbours != aps.num_pred_nearest_neighbours)
+  if (
+    _aps.num_pred_nearest_neighbours_minus1
+    != aps.num_pred_nearest_neighbours_minus1)
     return false;
 
   if (_aps.search_range != aps.search_range)

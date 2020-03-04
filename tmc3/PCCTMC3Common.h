@@ -219,14 +219,14 @@ struct PCCPredictor {
   void insertNeighbor(
     const uint32_t reference,
     const uint64_t weight,
-    const uint32_t maxNeighborCount,
+    const int maxNeighborCountMinus1,
     const uint32_t insertIndex)
   {
     bool sort = false;
     assert(
-      maxNeighborCount > 0
-      && maxNeighborCount <= kAttributePredictionMaxNeighbourCount);
-    if (neighborCount < maxNeighborCount) {
+      maxNeighborCountMinus1 >= 0
+      && maxNeighborCountMinus1 < kAttributePredictionMaxNeighbourCount);
+    if (neighborCount <= maxNeighborCountMinus1) {
       PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
       neighborInfo.weight = weight;
       neighborInfo.predictorIndex = reference;
@@ -234,7 +234,7 @@ struct PCCPredictor {
       ++neighborCount;
       sort = true;
     } else {
-      PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCount - 1];
+      PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCountMinus1];
       if (
         weight < neighborInfo.weight
         || (weight == neighborInfo.weight
@@ -557,7 +557,7 @@ updateNearestNeighbor(
     norm2 = norm2 * norm2;
   }
   predictor.insertNeighbor(
-    pointIndex1, norm2, aps.num_pred_nearest_neighbours, 0);
+    pointIndex1, norm2, aps.num_pred_nearest_neighbours_minus1, 0);
 }
 
 //---------------------------------------------------------------------------
@@ -616,7 +616,7 @@ computeNearestNeighbors(
     }
   }
 
-  const int32_t index0 = aps.num_pred_nearest_neighbours - 1;
+  const int32_t index0 = aps.num_pred_nearest_neighbours_minus1;
 
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     const int32_t index = indexes[i];
@@ -663,7 +663,7 @@ computeNearestNeighbors(
     for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
          ++bucketIndex) {
       if (
-        predictor.neighborCount < aps.num_pred_nearest_neighbours
+        predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
         || bBoxes[bucketIndex].getDist2<int64_t>(point)
           <= predictor.neighbors[index0].weight) {
         const int32_t indexBucketAligned = bucketIndex * bucketSize;
@@ -682,7 +682,7 @@ computeNearestNeighbors(
     for (int32_t bucketIndex = p0 / bucketSize; bucketIndex >= bucketIndex0;
          --bucketIndex) {
       if (
-        predictor.neighborCount < aps.num_pred_nearest_neighbours
+        predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
         || bBoxes[bucketIndex].getDist2<int64_t>(point)
           <= predictor.neighbors[index0].weight) {
         const int32_t indexBucketAligned = bucketIndex * bucketSize;
@@ -713,7 +713,7 @@ computeNearestNeighbors(
       for (int32_t bucketIndex = bucketIndex0; bucketIndex < bucketIndex1;
            ++bucketIndex) {
         if (
-          predictor.neighborCount < aps.num_pred_nearest_neighbours
+          predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1
           || bBoxesI[bucketIndex].getDist2<int64_t>(point)
             <= predictor.neighbors[index0].weight) {
           const int32_t indexBucketAligned = bucketIndex * bucketSize;
@@ -728,7 +728,8 @@ computeNearestNeighbors(
         }
       }
     }
-    assert(predictor.neighborCount <= aps.num_pred_nearest_neighbours);
+    assert(
+      predictor.neighborCount <= aps.num_pred_nearest_neighbours_minus1 + 1);
   }
 }
 

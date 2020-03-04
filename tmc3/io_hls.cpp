@@ -377,7 +377,7 @@ write(const AttributeParameterSet& aps)
   bs.write(aps.aps_slice_qp_deltas_present_flag);
 
   if (aps.lodParametersPresent()) {
-    bs.writeUe(aps.num_pred_nearest_neighbours);
+    bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
     bs.writeUe(aps.search_range);
     bs.writeUe(aps.lod_neigh_bias.x());
     bs.writeUe(aps.lod_neigh_bias.y());
@@ -438,7 +438,7 @@ parseAps(const PayloadBuffer& buf)
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
   if (aps.lodParametersPresent()) {
-    bs.readUe(&aps.num_pred_nearest_neighbours);
+    bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.search_range);
     bs.readUe(&aps.lod_neigh_bias.x());
     bs.readUe(&aps.lod_neigh_bias.y());

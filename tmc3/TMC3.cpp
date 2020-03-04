@@ -683,8 +683,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.raht_prediction_threshold1, 6,
     "Parent threshold for early transform-domain prediction termination")
 
+  // NB: the cli option sets +1, the minus1 will be applied later
   ("numberOfNearestNeighborsInPrediction",
-    params_attr.aps.num_pred_nearest_neighbours, 3,
+    params_attr.aps.num_pred_nearest_neighbours_minus1, 3,
     "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("adaptivePredictionThreshold",
@@ -828,8 +829,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
-  // fix the representation of base qp
+  // fix the representation of various options
   params.encoder.gps.geom_base_qp_minus4 -= 4;
+  for (auto& attr_aps : params.encoder.aps)
+    attr_aps.num_pred_nearest_neighbours_minus1--;
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)
@@ -1051,8 +1054,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       }
 
       if (
-        attr_aps.num_pred_nearest_neighbours
-        > kAttributePredictionMaxNeighbourCount) {
+        attr_aps.num_pred_nearest_neighbours_minus1
+        >= kAttributePredictionMaxNeighbourCount) {
         err.error() << it.first
                     << ".numberOfNearestNeighborsInPrediction must be <= "
                     << kAttributePredictionMaxNeighbourCount << "\n";
