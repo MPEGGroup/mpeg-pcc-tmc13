@@ -518,7 +518,7 @@ void
 uraht_process(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Qps>& qpLayers,
+  const QpSet& qpset,
   int numPoints,
   int numAttrs,
   int64_t* positions,
@@ -535,12 +535,10 @@ uraht_process(
   };
 
   if (numPoints == 1) {
-    // quant layer selection
-    const auto& qp = *qpLayers.begin();
-
+    auto quantizers = qpset.quantizers(0, regionQpOffset[0]);
     for (int k = 0; k < numAttrs; k++) {
-      auto q =
-        Quantizer(qp[std::min(k, int(qp.size()) - 1)] + regionQpOffset[0]);
+      auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
+
       if (isEncoder) {
         auto coeff = attributes[k];
         assert(coeff <= INT_MAX && coeff >= INT_MIN);
@@ -613,7 +611,7 @@ uraht_process(
   numGrandParentNeigh.resize(numPoints);
 
   // quant layer selection
-  auto qpLayerIt = qpLayers.begin();
+  auto qpLayer = 0;
 
   // descend tree
   weightsLf.resize(1);
@@ -642,9 +640,7 @@ uraht_process(
     isFirst = 0;
 
     // select quantiser according to transform layer
-    const auto& qp = *qpLayerIt;
-    if (std::next(qpLayerIt) != qpLayers.end())
-      qpLayerIt++;
+    qpLayer = std::min(qpLayer + 1, int(qpset.layers.size()) - 1);
 
     // prepare reconstruction buffers
     //  previous reconstruction -> attrRecParent
@@ -786,10 +782,9 @@ uraht_process(
         }
 
         // The RAHT transform
+        auto quantizers = qpset.quantizers(qpLayer, nodeQp[idx]);
         for (int k = 0; k < numAttrs; k++) {
-          // todo: hoist to preallocated array
-          auto q =
-            Quantizer(qp[std::min(k, int(qp.size()) - 1)] + nodeQp[idx]);
+          auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
           if (isEncoder) {
             auto coeff = transformBuf[k][idx].round();
@@ -850,7 +845,6 @@ uraht_process(
   std::swap(attrRec, attrRecParent);
   auto attrRecParentIt = attrRecParent.cbegin();
   auto attrsHfIt = attrsHf.cbegin();
-  const auto& qp = qpLayers.back();
 
   for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
     int weight = weightsLf[i].weight;
@@ -879,8 +873,9 @@ uraht_process(
       RahtKernel kernel(w, 1);
       sqrtWeight.val = isqrt(uint64_t(w) << (2 * FixedPoint::kFracBits));
 
+      auto quantizers = qpset.quantizers(qpLayer, nodeQp);
       for (int k = 0; k < numAttrs; k++) {
-        auto q = Quantizer(qp[std::min(k, int(qp.size()) - 1)] + nodeQp);
+        auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
         FixedPoint transformBuf[2];
         if (isEncoder) {
@@ -955,7 +950,7 @@ void
 regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Qps>& qpLayers,
+  const QpSet& qpset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -964,7 +959,7 @@ regionAdaptiveHierarchicalTransform(
   int* regionQPOffset)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, predictionThreshold, qpLayers, voxelCount,
+    raht_prediction_enabled_flag, predictionThreshold, qpset, voxelCount,
     attribCount, mortonCode, attributes, coefficients, regionQPOffset);
 }
 
@@ -989,7 +984,7 @@ void
 regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Qps>& qpLayers,
+  const QpSet& qpset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -998,7 +993,7 @@ regionAdaptiveHierarchicalInverseTransform(
   int* regionQPOffset)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, predictionThreshold, qpLayers, voxelCount,
+    raht_prediction_enabled_flag, predictionThreshold, qpset, voxelCount,
     attribCount, mortonCode, attributes, coefficients, regionQPOffset);
 }
 

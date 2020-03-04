@@ -47,7 +47,7 @@ namespace pcc {
 void regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Qps>& qpLayers,
+  const QpSet& qpset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
@@ -58,7 +58,7 @@ void regionAdaptiveHierarchicalTransform(
 void regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
-  const std::vector<Qps>& qpLayers,
+  const QpSet& qpset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,

@@ -812,9 +812,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet.layers,
-    mortonCode, attributes, attribCount, voxelCount, coefficients,
-    regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
+    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
 
   // Entropy encode.
   int zero_cnt = 0;
@@ -889,9 +888,8 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet.layers,
-    mortonCode, attributes, attribCount, voxelCount, coefficients,
-    regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
+    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
 
   // Entropy encode.
   uint32_t values[attribCount];

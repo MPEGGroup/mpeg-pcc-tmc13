@@ -67,14 +67,6 @@ deriveQps(
     sliceQpChroma += abh.attr_qp_delta_chroma;
   }
 
-  // the lifting transform has extra fractional bits that equate to
-  // increasing the QP.
-  if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
-    int fixedPointQpOffset = (kFixedPointWeightShift / 2) * 6;
-    sliceQpLuma += fixedPointQpOffset;
-    sliceQpChroma += fixedPointQpOffset;
-  }
-
   if (abh.attr_layer_qp_present_flag()) {
     sliceQpLuma += abh.attr_layer_qp_delta_luma[qpLayer];
     sliceQpChroma += abh.attr_layer_qp_delta_chroma[qpLayer];
@@ -128,11 +120,40 @@ QpSet
 deriveQpSet(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
 {
-  return {deriveLayerQps(attr_aps, abh), deriveQpRegions(attr_aps, abh)};
+  QpSet qpset;
+  qpset.layers = deriveLayerQps(attr_aps, abh);
+  qpset.regionOffset = deriveQpRegions(attr_aps, abh);
+
+  // the lifting transform has extra fractional bits that equate to
+  // increasing the QP.
+  qpset.fixedPointQpOffset = 0;
+  if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform)
+    qpset.fixedPointQpOffset = (kFixedPointWeightShift / 2) * 6;
+
+  return qpset;
 }
 
 //============================================================================
-//for PredLift
+
+int
+QpSet::clipQp(int qp) const
+{
+  return PCCClip(qp, 4, 51);
+}
+
+//============================================================================
+// Determines the quantizers at a given layer
+Quantizers
+QpSet::quantizers(int qpLayer, int qpOffset) const
+{
+  auto qp0 = clipQp(layers[qpLayer][0] + qpOffset) + fixedPointQpOffset;
+  auto qp1 = clipQp(layers[qpLayer][1] + qpOffset) + fixedPointQpOffset;
+
+  return {Quantizer(qp0), Quantizer(qp1)};
+}
+
+//============================================================================
+// Determines the quantizers for a point at a given layer
 Quantizers
 QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 {
@@ -140,8 +161,8 @@ QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
   if (regionOffset.valid && regionOffset.region.contains(point)) {
     qpRegionOffset = regionOffset.qpOffset;
   }
-  return {Quantizer(layers[qpLayer][0] + qpRegionOffset),
-          Quantizer(layers[qpLayer][1] + qpRegionOffset)};
+
+  return quantizers(qpLayer, qpRegionOffset);
 }
 
 //============================================================================

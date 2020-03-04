@@ -120,11 +120,17 @@ struct QpRegionOffset {
 struct QpSet {
   QpLayers layers;
   QpRegionOffset regionOffset;
+  int fixedPointQpOffset;
 
-  // Lookup the quantizer for a point at a particular layer
+  // Derive the quantizers at a given layer after applying qpOffset
+  Quantizers quantizers(int qpLayer, int qpOffset) const;
+
+  // Derive the quantizer for a point at a particular layer
   Quantizers quantizers(const Vec3<int32_t>& point, int qpLayer) const;
 
   int regionQpOffset(const Vec3<int32_t>& point) const;
+
+  int clipQp(int qp) const;
 };
 
 //============================================================================

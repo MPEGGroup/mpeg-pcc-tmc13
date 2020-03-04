@@ -478,9 +478,8 @@ AttributeDecoder::decodeReflectancesRaht(
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet.layers,
-    mortonCode, attributes, attribCount, voxelCount, coefficients,
-    regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
+    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -548,9 +547,8 @@ AttributeDecoder::decodeColorsRaht(
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet.layers,
-    mortonCode, attributes, attribCount, voxelCount, coefficients,
-    regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
+    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
 
   Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
                     (1 << desc.bitdepthSecondary) - 1,
