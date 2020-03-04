@@ -35,6 +35,7 @@
 
 #include "BitReader.h"
 #include "BitWriter.h"
+#include "PCCMisc.h"
 #include "hls.h"
 #include "io_hls.h"
 
@@ -821,14 +822,27 @@ write(const TileInventory& inventory)
   auto bs = makeBitWriter(std::back_inserter(buf));
 
   int num_tiles = inventory.tiles.size();
-  bs.writeUe(num_tiles);
+  bs.writeUn(16, num_tiles);
+
+  // calculate the maximum size of any values
+  int maxVal = 1;
   for (const auto& entry : inventory.tiles) {
-    bs.writeSe(entry.tile_bounding_box_xyz0.x());
-    bs.writeSe(entry.tile_bounding_box_xyz0.y());
-    bs.writeSe(entry.tile_bounding_box_xyz0.z());
-    bs.writeUe(entry.tile_bounding_box_whd.x());
-    bs.writeUe(entry.tile_bounding_box_whd.y());
-    bs.writeUe(entry.tile_bounding_box_whd.z());
+    for (int k = 0; k < 3; k++) {
+      maxVal = std::max(maxVal, entry.tile_bounding_box_xyz0[k]);
+      maxVal = std::max(maxVal, entry.tile_bounding_box_whd[k]);
+    }
+  }
+
+  int tile_bounding_box_bits = ceillog2(uint32_t(maxVal));
+  bs.writeUn(8, tile_bounding_box_bits);
+
+  for (const auto& entry : inventory.tiles) {
+    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.x());
+    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.y());
+    bs.writeSn(tile_bounding_box_bits, entry.tile_bounding_box_xyz0.z());
+    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.x());
+    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.y());
+    bs.writeUn(tile_bounding_box_bits, entry.tile_bounding_box_whd.z());
   }
 
   bs.byteAlign();
@@ -846,15 +860,19 @@ parseTileInventory(const PayloadBuffer& buf)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   int num_tiles;
-  bs.readUe(&num_tiles);
+  bs.readUn(16, &num_tiles);
+
+  int tile_bounding_box_bits;
+  bs.readUn(8, &tile_bounding_box_bits);
+
   for (int i = 0; i < num_tiles; i++) {
     TileInventory::Entry entry;
-    bs.readSe(&entry.tile_bounding_box_xyz0.x());
-    bs.readSe(&entry.tile_bounding_box_xyz0.y());
-    bs.readSe(&entry.tile_bounding_box_xyz0.z());
-    bs.readUe(&entry.tile_bounding_box_whd.x());
-    bs.readUe(&entry.tile_bounding_box_whd.y());
-    bs.readUe(&entry.tile_bounding_box_whd.z());
+    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.x());
+    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.y());
+    bs.readSn(tile_bounding_box_bits, &entry.tile_bounding_box_xyz0.z());
+    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.x());
+    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.y());
+    bs.readUn(tile_bounding_box_bits, &entry.tile_bounding_box_whd.z());
     inventory.tiles.push_back(entry);
   }
 
