@@ -59,8 +59,8 @@ deriveQps(
   const AttributeBrickHeader& abh,
   int qpLayer)
 {
-  int sliceQpLuma = attr_aps.init_qp;
-  int sliceQpChroma = attr_aps.init_qp + attr_aps.aps_chroma_qp_offset;
+  int sliceQpLuma = attr_aps.init_qp_minus4 + 4;
+  int sliceQpChroma = sliceQpLuma + attr_aps.aps_chroma_qp_offset;
 
   if (attr_aps.aps_slice_qp_deltas_present_flag) {
     sliceQpLuma += abh.attr_qp_delta_luma;

@@ -737,7 +737,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable scalable attritube coding")
 
   ("qp",
-    params_attr.aps.init_qp, 4,
+    // NB: this is adjusted with minus 4 after the arguments are parsed
+    params_attr.aps.init_qp_minus4, 4,
     "Attribute's luma quantisation parameter")
 
   ("qpChromaOffset",
@@ -831,8 +832,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   // fix the representation of various options
   params.encoder.gps.geom_base_qp_minus4 -= 4;
-  for (auto& attr_aps : params.encoder.aps)
+  for (auto& attr_aps : params.encoder.aps) {
+    attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
+  }
 
   // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
   if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)
@@ -1078,12 +1081,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       }
     }
 
-    if (attr_aps.init_qp < 4)
+    if (attr_aps.init_qp_minus4 < 0)
       err.error() << it.first << ".qp must be greater than 3\n";
 
-    if (attr_aps.init_qp + attr_aps.aps_chroma_qp_offset < 4) {
+    if (attr_aps.init_qp_minus4 + attr_aps.aps_chroma_qp_offset < 0) {
       err.error() << it.first << ".qpChromaOffset must be greater than "
-                  << attr_aps.init_qp - 5 << "\n";
+                  << attr_aps.init_qp_minus4 - 1 << "\n";
     }
   }
 

@@ -398,7 +398,7 @@ struct AttributeParameterSet {
   std::vector<int64_t> dist2;
 
   // NB: these parameters are shared by all transform implementations
-  int init_qp;
+  int init_qp_minus4;
   int aps_chroma_qp_offset;
   bool aps_slice_qp_deltas_present_flag;
 
