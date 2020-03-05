@@ -198,6 +198,10 @@ enum class ColourMatrix : uint8_t
 // invariant properties
 struct AttributeDescription {
   int attr_num_dimensions_minus1;
+
+  // NB: the instance id is not the attribute id / attrId used in the decoding
+  // process.  The instance id is used to distinguish between, in the decoded
+  // output, multiple attributes with the same label.  Eg, rgb0 and rgb1.
   int attr_instance_id;
 
   int bitdepth;

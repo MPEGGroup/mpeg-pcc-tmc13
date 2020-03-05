@@ -340,7 +340,6 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_sps = params->sps.attributeSets[it.second];
     auto& attr_aps = params->aps[it.second];
     auto& attr_enc = params->attr[it.second];
-    attr_sps.attr_instance_id = it.second;
 
     // the encoder options may not specify sufficient offsets for the number
     // of layers used by the sytax: extend with last value as appropriate

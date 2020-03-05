@@ -894,6 +894,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     auto& attr_enc = params.encoder.attr[it.second];
 
     // default values for attribute
+    attr_sps.attr_instance_id = 0;
     attr_sps.cicp_colour_primaries_idx = 2;
     attr_sps.cicp_transfer_characteristics_idx = 2;
     attr_sps.cicp_video_full_range_flag = true;
