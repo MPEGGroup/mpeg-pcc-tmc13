@@ -559,6 +559,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     encodeGeometryTrisoup(*_gps, gbh, pointCloud, arithmeticEncoders);
   }
 
+  // update the header with the actual number of points coded
+  gbh.geom_num_points = pointCloud.getPointCount();
+
   // determine the length of each sub-stream
   for (auto& arithmeticEncoder : arithmeticEncoders) {
     auto dataLen = arithmeticEncoder->stop();
