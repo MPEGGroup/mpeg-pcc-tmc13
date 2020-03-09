@@ -575,7 +575,7 @@ parseAps(const PayloadBuffer& buf)
 void
 convertXyzToStv(const SequenceParameterSet& sps, AttributeParameterSet* aps)
 {
-  aps->lodNeighBias = toXyz(sps.geometry_axis_order, aps->lodNeighBias);
+  aps->lodNeighBias = fromXyz(sps.geometry_axis_order, aps->lodNeighBias);
 }
 
 //============================================================================
@@ -855,13 +855,13 @@ parseAbh(
     bs.readUe(&attr_region_qp_origin.x());
     bs.readUe(&attr_region_qp_origin.y());
     bs.readUe(&attr_region_qp_origin.z());
-    abh.regionQpOrigin = toXyz(sps.geometry_axis_order, attr_region_qp_origin);
+    abh.regionQpOrigin = fromXyz(sps.geometry_axis_order, attr_region_qp_origin);
 
     Vec3<int> attr_region_qp_whd;
     bs.readUe(&attr_region_qp_whd.x());
     bs.readUe(&attr_region_qp_whd.y());
     bs.readUe(&attr_region_qp_whd.z());
-    abh.regionQpSize = toXyz(sps.geometry_axis_order, attr_region_qp_whd);
+    abh.regionQpSize = fromXyz(sps.geometry_axis_order, attr_region_qp_whd);
 
     bs.readSe(&abh.attr_region_qp_delta);
   }
