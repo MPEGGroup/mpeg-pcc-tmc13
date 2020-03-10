@@ -803,10 +803,6 @@ uraht_process(
 
       // replace DC coefficient with parent if inheritable
       if (inheritDc) {
-        FixedPoint sqrtWeight;
-        sqrtWeight.val =
-          isqrt(uint64_t(parentWeight) << (2 * FixedPoint::kFracBits));
-
         for (int k = 0; k < numAttrs; k++) {
           attrRecParentIt++;
           transformPredBuf[k][0] = *attrRecParentUsIt++;
