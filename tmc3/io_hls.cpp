@@ -286,7 +286,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   bs.writeUe(gps.trisoup_node_size_log2);
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
-    bs.writeUe(gps.geom_base_qp_minus4);
+    bs.writeUe(gps.geom_base_qp);
 
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
@@ -359,7 +359,7 @@ parseGps(const PayloadBuffer& buf)
 
   bs.read(&gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
-    bs.readUe(&gps.geom_base_qp_minus4);
+    bs.readUe(&gps.geom_base_qp);
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {

@@ -1162,7 +1162,7 @@ invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
   //   |pppppssssssss| <  after scaling (s = scale(q))
 
   QuantizerGeom quantizer(qp);
-  int shiftBits = (qp - 4) / 6;
+  int shiftBits = qp >> 2;
   Vec3<int32_t> recon;
   for (int k = 0; k < 3; k++) {
     int lowPart = pos[k] & (quantMasks[k] >> shiftBits);
@@ -1200,7 +1200,7 @@ decodeGeometryOctree(
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
-  node00.qp = 4;
+  node00.qp = 0;
   node00.planarMode = 0;
 
   size_t processedPointCount = 0;
@@ -1234,7 +1234,7 @@ decodeGeometryOctree(
   }
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
-  int sliceQp = 4 + gps.geom_base_qp_minus4 + gbh.geom_slice_qp_offset;
+  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQpOffset = 0;
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
@@ -1317,7 +1317,7 @@ decodeGeometryOctree(
       if (numLvlsUntilQpOffset == 0)
         node0.qp = decoder.decodeQpOffset() + sliceQp;
 
-      int shiftBits = (node0.qp - 4) / 6;
+      int shiftBits = node0.qp >> 2;
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
@@ -1540,7 +1540,7 @@ decodeGeometryOctree(
   if (nodesRemaining) {
     nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
-      int quantRemovedBits = (node.qp - 4) / 6;
+      int quantRemovedBits = node.qp >> 2;
       for (int k = 0; k < 3; k++)
         node.pos[k] <<= nodeSizeLog2[k] - quantRemovedBits;
       node.pos = invQuantPosition(node.qp, posQuantBitMasks, node.pos);

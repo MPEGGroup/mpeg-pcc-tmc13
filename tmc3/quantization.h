@@ -166,9 +166,9 @@ public:
   // Derives step sizes from qp
   QuantizerGeom(int qp)
   {
-    int qpShift = qp / 6;
-    _stepSize = kQpStep[qp % 6] << qpShift;
-    _stepSizeRecip = kQpStepRecip[qp % 6] >> qpShift;
+    int qpShift = qp / 4;
+    _stepSize = (4 + (qp % 4)) << qpShift;
+    _stepSizeRecip = kQpStepRecip[qp % 4] >> qpShift;
   }
 
   QuantizerGeom(const QuantizerGeom&) = default;
@@ -191,10 +191,9 @@ private:
   int _stepSizeRecip;
 
   static const int _shift = 20;
-  static const int64_t _offset = 1 << (_shift - 1);
 
-  static const int32_t kQpStep[6];
-  static const int32_t kQpStepRecip[6];
+  static const int32_t kQpStep[4];
+  static const int32_t kQpStepRecip[4];
 };
 
 //---------------------------------------------------------------------------
@@ -202,10 +201,8 @@ private:
 inline int64_t
 QuantizerGeom::quantize(int64_t x) const
 {
-  if (x >= 0) {
-    return (x * _stepSizeRecip + _offset) >> _shift;
-  }
-  return -((_offset - x * _stepSizeRecip) >> _shift);
+  // NB: geometry positions are only ever positive
+  return (x * _stepSizeRecip + (1 << 19)) >> _shift;
 }
 
 //---------------------------------------------------------------------------
@@ -213,7 +210,7 @@ QuantizerGeom::quantize(int64_t x) const
 inline int64_t
 QuantizerGeom::scale(int64_t x) const
 {
-  return (x * _stepSize + _offset) >> _shift;
+  return (x * _stepSize + 2) >> 2;
 }
 
 //============================================================================

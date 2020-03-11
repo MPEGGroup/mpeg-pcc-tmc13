@@ -607,9 +607,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable in-loop quantisation of positions")
 
   ("positionBaseQp",
-    // NB: this is adjusted with minus 4 after the arguments are parsed
-    params.encoder.gps.geom_base_qp_minus4, 4,
-    "Base QP used in position quantisation")
+    params.encoder.gps.geom_base_qp, 0,
+    "Base QP used in position quantisation (0 = lossless)")
 
   ("positionSliceQpOffset",
     params.encoder.gbh.geom_slice_qp_offset, 0,
@@ -851,7 +850,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   }
 
   // fix the representation of various options
-  params.encoder.gps.geom_base_qp_minus4 -= 4;
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;

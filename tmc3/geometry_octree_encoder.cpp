@@ -1050,9 +1050,9 @@ void
 calculateNodeQps(int baseQp, It nodesBegin, It nodesEnd)
 {
   // determine delta qp for each node based on the point density
-  int lowQp = baseQp - 4 >= 4 ? baseQp - 4 : 4;
+  int lowQp = std::max(0, baseQp - 4);
   int mediumQp = baseQp;
-  int highQp = baseQp + 6;
+  int highQp = baseQp + 4;
   std::vector<int> numPointsInNode;
   std::vector<double> cum_prob;
   int32_t numPointsInLvl = 0;
@@ -1090,7 +1090,7 @@ geometryQuantization(
   PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> nodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
-  int qpShift = (node.qp - 4) / 6;
+  int qpShift = node.qp >> 2;
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << nodeSizeLog2[k]) - 1;
@@ -1115,7 +1115,7 @@ geometryScale(
   PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> quantNodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
-  int qpShift = (node.qp - 4) / 6;
+  int qpShift = node.qp >> 2;
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
@@ -1284,7 +1284,7 @@ encodeGeometryOctree(
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
-  node00.qp = 4;
+  node00.qp = 0;
   node00.planarMode = 0;
 
   // map of pointCloud idx to DM idx, used to reorder the points
@@ -1324,7 +1324,7 @@ encodeGeometryOctree(
 
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
-  int sliceQp = 4 + gps.geom_base_qp_minus4 + gbh.geom_slice_qp_offset;
+  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
   int numLvlsUntilQuantization = 0;
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
@@ -1392,8 +1392,7 @@ encodeGeometryOctree(
       if (!depth)
         fifo.front().qp = sliceQp;
       else
-        calculateNodeQps(
-          4 + gps.geom_base_qp_minus4, fifo.begin(), fifoCurrLvlEnd);
+        calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
     }
 
     // save context infor. for parallel coding
@@ -1417,7 +1416,7 @@ encodeGeometryOctree(
       if (numLvlsUntilQuantization == 0)
         encoder.encodeQpOffset(node0.qp - sliceQp);
 
-      int shiftBits = (node0.qp - 4) / 6;
+      int shiftBits = node0.qp >> 2;
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 

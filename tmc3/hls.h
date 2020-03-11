@@ -310,7 +310,7 @@ struct GeometryParameterSet {
   bool geom_scaling_enabled_flag;
 
   // intial qp for geometry scaling
-  int geom_base_qp_minus4;
+  int geom_base_qp;
 
   // Enables/disables non-cubic geometry nodes
   bool qtbt_enabled_flag;

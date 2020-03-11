@@ -242,7 +242,7 @@ position scaling due to `positionQuantizationScale`.
 The quantisation parameter used to quantise geometry positions.  The
 effective QP may be varied according to `positionSliceQpOffset` and
 `positionQuantisationOctreeDepth`.
-A QP equal to 4 results in a scale factor of 1.
+A QP equal to 0 results in a scale factor of 1.
 
 ### `--positionSliceQpOffset=INT-VALUE`
 A per-slice offset to be applied to `positionBaseQp`.
