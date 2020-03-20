@@ -452,6 +452,7 @@ struct AttributeParameterSet {
 
   //--- lifting parameters
   bool scalable_lifting_enabled_flag;
+  int max_neigh_range;
 };
 
 //============================================================================

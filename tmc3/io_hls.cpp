@@ -429,8 +429,11 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     bs.writeUe(lod_neigh_bias.y());
     bs.writeUe(lod_neigh_bias.z());
 
-    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       bs.write(aps.scalable_lifting_enabled_flag);
+      if (aps.scalable_lifting_enabled_flag)
+        bs.writeUe(aps.max_neigh_range);
+    }
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.writeUe(aps.num_detail_levels);
@@ -508,8 +511,11 @@ parseAps(const PayloadBuffer& buf)
     aps.lodNeighBias = lod_neigh_bias;
 
     aps.scalable_lifting_enabled_flag = false;
-    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       bs.read(&aps.scalable_lifting_enabled_flag);
+      if (aps.scalable_lifting_enabled_flag)
+        bs.readUe(&aps.max_neigh_range);
+    }
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.readUe(&aps.num_detail_levels);

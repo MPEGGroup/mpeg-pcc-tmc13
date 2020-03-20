@@ -744,6 +744,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.scalable_lifting_enabled_flag, false,
     "Enable scalable attritube coding")
 
+  ("max_neigh_range",
+    params_attr.aps.max_neigh_range, 5,
+    "maximum nearest neighbour range for scalable lifting")
+
   ("qp",
     // NB: this is adjusted with minus 4 after the arguments are parsed
     params_attr.aps.init_qp_minus4, 4,

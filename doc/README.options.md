@@ -502,6 +502,11 @@ Enable spatially scalable attribute encoding.
 The option is only valid when `transformType=2`, `lodDecimation=0`,
 and `trisoup_node_size_log2=0`.
 
+### `--max_neigh_range=INT-VALUE`
+Limits the distance between a point and the neighbours used for its
+prediction. The maximum distance is expressed in units of node diagonals
+and is scaled according to the current level of detail.
+
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 

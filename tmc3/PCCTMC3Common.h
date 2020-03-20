@@ -49,6 +49,9 @@
 
 namespace pcc {
 
+point_t clacIntermediatePosition(
+  bool enabled, int32_t nodeSizeLog2, const point_t& point);
+
 // Structure for sorting weights.
 struct WeightWithIndex {
   float weight;
@@ -197,6 +200,40 @@ struct PCCPredictor {
       neighbors[0].weight = uint32_t(w0);
       neighbors[1].weight = uint32_t(w1);
       neighbors[2].weight = uint32_t(w2);
+    }
+  }
+
+  void pruneDistanceGt(uint64_t maxDistance)
+  {
+    for (int i = 1; i < neighborCount; i++) {
+      if (neighbors[i].weight > maxDistance) {
+        neighborCount = i;
+        break;
+      }
+    }
+  }
+
+  void pruneDistanceGt(
+    uint64_t maxDistance,
+    const int32_t nodeSizeLog2,
+    const PCCPointSet3& pointCloud,
+    const int32_t pointIndex)
+  {
+    // NB: this assumes scalable attribute coding
+    const auto point =
+      clacIntermediatePosition(true, nodeSizeLog2, pointCloud[pointIndex]);
+    for (int i = 1; i < neighborCount; i++) {
+      const auto point1 = clacIntermediatePosition(
+        true, nodeSizeLog2, pointCloud[neighbors[i].predictorIndex]);
+      double norm2 = (point - point1).getNorm2<double>();
+      if (nodeSizeLog2 > 0 && point == point1) {
+        norm2 = 1 << 2 * (nodeSizeLog2 - 1);
+      }
+
+      if (norm2 > maxDistance) {
+        neighborCount = i;
+        break;
+      }
     }
   }
 
@@ -673,6 +710,22 @@ computeNearestNeighbors(
         norm2 = norm2 * norm2;
       }
       predictor.neighbors[i].weight = norm2;
+    }
+  }
+
+  if (aps.scalable_lifting_enabled_flag) {
+    uint64_t maxDistance = 3ll * aps.max_neigh_range << 2 * nodeSizeLog2;
+    if (aps.lodNeighBias == 1) {
+      for (int32_t i = startIndex, j = 0; i < endIndex; ++i, ++j) {
+        auto& predictor = predictors[predIndex + j];
+        predictor.pruneDistanceGt(maxDistance);
+      }
+    } else {
+      for (int32_t i = endIndex - 1, j = 0; i >= startIndex; --i, ++j) {
+        auto& predictor = predictors[predIndex + j];
+        predictor.pruneDistanceGt(
+          maxDistance, nodeSizeLog2, pointCloud, indexes[i]);
+      }
     }
   }
 }
