@@ -1464,8 +1464,18 @@ decodeGeometryOctreeScalable(
     pointCloud.resize(size + nodes.size());
     size_t processedPointCount = size;
 
-    for (auto node0 : nodes)
-      pointCloud[processedPointCount++] = node0.pos;
+    if (minGeomNodeSizeLog2 > 1) {
+      uint32_t mask = uint32_t(-1) << minGeomNodeSizeLog2;
+      for (auto node0 : nodes) {
+        for (int k = 0; k < 3; k++)
+          node0.pos[k] &= mask;
+        node0.pos += 1 << (minGeomNodeSizeLog2 - 1);
+        pointCloud[processedPointCount++] = node0.pos;
+      }
+    } else {
+      for (auto node0 : nodes)
+        pointCloud[processedPointCount++] = node0.pos;
+    }
   }
 }
 
