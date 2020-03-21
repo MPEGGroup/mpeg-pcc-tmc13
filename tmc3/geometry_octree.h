@@ -240,6 +240,9 @@ implicitQtBtDecision(
   int maxNumImplicitQtbtBeforeOt,
   int minDepthImplicitQtbt)
 {
+  if (!gps.implicit_qtbt_enabled_flag)
+    return nodeSizeLog2 - 1;
+
   int maxNodeMinDimLog2ToSplitZ =
     gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z;
   int maxDiffToSplitZ = gps.implicit_qtbt_angular_max_diff_to_split_z;
