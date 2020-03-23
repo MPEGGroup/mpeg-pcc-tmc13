@@ -948,15 +948,26 @@ orderByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
   for (int i = 0; i < pointCount; i++)
     order[i] = start + i;
 
-  std::sort(order.begin(), order.end(), [&](int a, int b) {
-    auto aT = atan2(cloud[a][0] - origin[0], cloud[a][1] - origin[1]);
-    auto bT = atan2(cloud[b][0] - origin[0], cloud[b][1] - origin[1]);
+  std::sort(order.begin(), order.end(), [&](int aIdx, int bIdx) {
+    auto a = cloud[aIdx] - origin;
+    auto b = cloud[bIdx] - origin;
+
+    double rA = hypot(a[0], a[1]);
+    double phiA = atan2(a[1], a[0]);
+    double tanThetaA = a[2] / rA;
+
+    double rB = hypot(b[0], b[1]);
+    double phiB = atan2(b[1], b[0]);
+    double tanThetaB = b[2] / rB;
+
     // NB: the a < b comparison adds some stability to the sort.  It is not
     // required in an actual implementation.  Either slightly more performance
     // can be achieved by sorting by a second data dependent dimension, or
     // efficiency can be improved by removing the stability (at a cost of
     // being able to reproduce the exact same bitstream).
-    return aT != bT ? aT < bT : a < b;
+
+    return phiB != phiA ? phiA < phiB
+                        : rA != rB ? rA < rB : tanThetaA < tanThetaB;
   });
 
   return order;
