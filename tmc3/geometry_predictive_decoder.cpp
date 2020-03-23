@@ -65,13 +65,15 @@ public:
    * decodes a single predictive geometry tree.
    * @returns the number of points decoded.
    */
-  int decodeTree(Vec3<int32_t>* outputPoints);
+  int decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB);
 
 private:
   int decodeNumDuplicatePoints();
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   Vec3<int32_t> decodeResidual();
+  Vec3<int32_t> decodeResidual2();
+  int32_t decodePhiMultiplier(GPredicter::Mode mode);
   int32_t decodeQpOffset();
 
 private:
@@ -79,6 +81,12 @@ private:
   std::vector<int32_t> _stack;
   std::vector<int32_t> _nodeIdxToParentIdx;
   bool _geom_unique_points_flag;
+
+  bool _geom_angular_mode_enabled_flag;
+  Vec3<int32_t> origin;
+  int numLasers;
+  SphericalToCartesian _sphToCartesian;
+  int _geom_angular_azimuth_speed;
 
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
@@ -93,6 +101,11 @@ PredGeomDecoder::PredGeomDecoder(
   EntropyDecoder* aed)
   : _aed(aed)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
+  , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
+  , origin()
+  , numLasers(gps.geom_angular_theta_laser.size())
+  , _sphToCartesian(gps)
+  , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
 {
@@ -102,6 +115,9 @@ PredGeomDecoder::PredGeomDecoder(
       gps.geom_qp_offset_intvl_log2 + gbh.geom_qp_offset_intvl_log2_delta;
     _qpOffsetInterval = (1 << qpIntervalLog2) - 1;
   }
+
+  if (gps.geom_angular_mode_enabled_flag)
+    origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
 
   _stack.reserve(1024);
 }
@@ -135,6 +151,64 @@ PredGeomDecoder::decodePredMode()
   int mode = _aed->decode(_ctxPredMode[0]);
   mode += _aed->decode(_ctxPredMode[1 + mode]) << 1;
   return GPredicter::Mode(mode);
+}
+
+//----------------------------------------------------------------------------
+
+Vec3<int32_t>
+PredGeomDecoder::decodeResidual2()
+{
+  Vec3<int32_t> residual;
+  for (int k = 0; k < 3; ++k) {
+    if (_aed->decode(_ctxIsZero2[k])) {
+      residual[k] = 0;
+      continue;
+    }
+
+    auto sign = _aed->decode(_ctxSign2[k]);
+
+    if (_aed->decode(_ctxIsOne2[k])) {
+      residual[k] = sign ? 1 : -1;
+      continue;
+    }
+
+    auto& ctxs = _ctxResidual2[k];
+    int32_t value = _aed->decode(ctxs[0]);
+    value += _aed->decode(ctxs[1 + (value & 1)]) << 1;
+    value += _aed->decode(ctxs[3 + (value & 3)]) << 2;
+    value += _aed->decode(ctxs[7 + (value & 7)]) << 3;
+    if (value == 15)
+      value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
+
+    residual[k] = sign ? (value + 2) : -(value + 2);
+  }
+  return residual;
+}
+
+//----------------------------------------------------------------------------
+
+int32_t
+PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
+{
+  if (!_geom_angular_mode_enabled_flag || mode != GPredicter::Mode::Delta)
+    return 0;
+
+  if (_aed->decode(_ctxIsZeroPhi))
+    return 0;
+
+  const auto sign = _aed->decode(_ctxSignPhi);
+  if (_aed->decode(_ctxIsOnePhi))
+    return sign ? 1 : -1;
+
+  auto& ctxs = _ctxResidualPhi;
+  int32_t value = _aed->decode(ctxs[0]);
+  value += _aed->decode(ctxs[1 + (value & 1)]) << 1;
+  value += _aed->decode(ctxs[3 + (value & 3)]) << 2;
+  value += _aed->decode(ctxs[7 + (value & 7)]) << 3;
+  if (value == 15)
+    value += _aed->decodeExpGolomb(0, _ctxEGPhi);
+
+  return sign ? (value + 2) : -(value + 2);
 }
 
 //----------------------------------------------------------------------------
@@ -173,7 +247,7 @@ PredGeomDecoder::decodeResidual()
     numBits += _aed->decode(ctxs[7 + numBits]) << 3;
     numBits += _aed->decode(ctxs[15 + numBits]) << 4;
 
-    if (!k)
+    if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
 
     int32_t res = 0;
@@ -195,7 +269,7 @@ PredGeomDecoder::decodeResidual()
 //----------------------------------------------------------------------------
 
 int
-PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
+PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
 {
   QuantizerGeom quantizer(_sliceQp);
   int nodesUntilQpOffset = 0;
@@ -222,18 +296,45 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
       numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
+    int qphi = decodePhiMultiplier(mode);
+
     auto residual = decodeResidual();
-    for (int k = 0; k < 3; k++)
-      residual[k] = int32_t(quantizer.scale(residual[k]));
+    if (!_geom_angular_mode_enabled_flag)
+      for (int k = 0; k < 3; k++)
+        residual[k] = int32_t(quantizer.scale(residual[k]));
 
     auto predicter = makePredicter(
       curNodeIdx, mode, [&](int idx) { return _nodeIdxToParentIdx[idx]; });
 
-    auto pred = predicter.predict(outputPoints, mode);
-    outputPoints[curNodeIdx] = pred + residual;
+    auto pred = predicter.predict(outA, mode);
+    if (_geom_angular_mode_enabled_flag)
+      if (mode == GPredicter::Mode::Delta)
+        pred[1] += qphi * _geom_angular_azimuth_speed;
 
-    for (int i = 0; i < numDuplicatePoints; i++)
-      outputPoints[nodeCount++] = outputPoints[curNodeIdx];
+    auto pos = pred + residual;
+    if (!_geom_angular_mode_enabled_flag)
+      for (int k = 0; k < 3; k++)
+        pos[k] = std::max(0, pos[k]);
+    outA[curNodeIdx] = pos;
+
+    // convert pos from spherical to cartesian, add secondary residual
+    if (_geom_angular_mode_enabled_flag) {
+      residual = decodeResidual2();
+      for (int k = 0; k < 3; k++)
+        residual[k] = int32_t(quantizer.scale(residual[k]));
+
+      assert(pos[2] < numLasers && pos[2] >= 0);
+      pred = origin + _sphToCartesian(pos);
+      outB[curNodeIdx] = pred + residual;
+      for (int k = 0; k < 3; k++)
+        outB[curNodeIdx][k] = std::max(0, outB[curNodeIdx][k]);
+    }
+
+    // copy duplicate point output
+    for (int i = 0; i < numDuplicatePoints; i++, nodeCount++) {
+      outA[nodeCount] = outA[curNodeIdx];
+      outB[nodeCount] = outB[curNodeIdx];
+    }
 
     for (int i = 0; i < numChildren; i++)
       _stack.push_back(curNodeIdx);
@@ -249,10 +350,20 @@ PredGeomDecoder::decode(int numPoints, Vec3<int32_t>* outputPoints)
 {
   _nodeIdxToParentIdx.resize(numPoints);
 
+  // An intermediate buffer used for reconstruction of the spherical
+  // co-ordinates.
+  auto* reconA = outputPoints;
+  std::vector<Vec3<int32_t>> sphericalPos;
+  if (_geom_angular_mode_enabled_flag) {
+    sphericalPos.resize(numPoints);
+    reconA = sphericalPos.data();
+  }
+
   int32_t pointCount = 0;
   while (pointCount < numPoints) {
-    auto numSubtreePoints = decodeTree(outputPoints);
+    auto numSubtreePoints = decodeTree(reconA, outputPoints);
     outputPoints += numSubtreePoints;
+    reconA += numSubtreePoints;
     pointCount += numSubtreePoints;
   }
 

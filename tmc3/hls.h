@@ -413,6 +413,13 @@ struct GeometryParameterSet {
 
   // block size (i.e. number of points per block) in predictive geometry coding
   int geom_qp_offset_intvl_log2;
+
+  // scale factor for azimuth in coding predictive geometry coding
+  int geom_angular_azimuth_scale_log2;
+  int geom_angular_azimuth_speed;
+
+  // inverse scale factor for radius coding in predictive geometry coding
+  int geom_angular_radius_inv_scale_log2;
 };
 
 //============================================================================

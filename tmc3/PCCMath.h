@@ -657,6 +657,66 @@ divApproxRoundHalfInf(
 
 //---------------------------------------------------------------------------
 
+inline int32_t
+isin0(const int32_t x, const int32_t log2Scale)
+{
+  assert(log2Scale >= kLog2ISineAngleScale);
+  assert(x >= 0);
+  assert(x <= (1 << (log2Scale - 2)));
+  const auto ds = log2Scale - kLog2ISineAngleScale;
+  const auto b = (1 << ds);
+  const auto i0 = (x >> ds);
+  const auto x0 = i0 << ds;
+  const auto x1 = x0 + b;
+  const auto d0 = x1 - x;
+  const auto d1 = x - x0;
+  assert(i0 <= (1 << kLog2ISineAngleScale) >> 2);
+  return (d0 * kISine[i0] + d1 * kISine[i0 + 1] + (b >> 1)) >> ds;
+}
+
+//---------------------------------------------------------------------------
+
+inline int32_t
+icos0(const int32_t x, const int32_t log2Scale)
+{
+  assert(x >= 0);
+  assert(x <= (1 << (log2Scale - 2)));
+  return isin0((1 << (log2Scale - 2)) - x, log2Scale);
+}
+
+//---------------------------------------------------------------------------
+
+inline int32_t
+isin(int32_t x, const int32_t log2Scale)
+{
+  const auto L = 1 << (log2Scale - 1);
+  x = std::min(std::max(x, -L), L);
+  assert(abs(x) <= (1 << (log2Scale - 1)));
+  const auto Q0 = 1 << (log2Scale - 2);
+  if (x >= Q0) {
+    return isin0((1 << (log2Scale - 1)) - x, log2Scale);
+  } else if (x >= 0) {
+    return isin0(x, log2Scale);
+  } else if (x >= -Q0) {
+    return -isin0(-x, log2Scale);
+  } else {
+    return -isin0((1 << (log2Scale - 1)) + x, log2Scale);
+  }
+}
+
+//---------------------------------------------------------------------------
+
+inline int32_t
+icos(int32_t x, const int32_t log2Scale)
+{
+  const auto Q0 = 1 << (log2Scale - 2);
+  const auto ax = std::min(abs(x), (1 << (log2Scale - 1)));
+  return ax <= Q0 ? icos0(ax, log2Scale)
+                  : -icos0((1 << (log2Scale - 1)) - ax, log2Scale);
+}
+
+//---------------------------------------------------------------------------
+
 } /* namespace pcc */
 
 #endif /* PCCMath_h */

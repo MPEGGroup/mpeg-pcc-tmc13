@@ -112,4 +112,9 @@ extern const int32_t kQpStepRecip[6];
 
 //============================================================================
 
+// LUT for sine function
+const int32_t kLog2ISineScale = 24;
+const int32_t kLog2ISineAngleScale = 12;
+extern const int32_t kISine[1026];
+
 } /* namespace pcc */

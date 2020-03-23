@@ -730,6 +730,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.planar_buffer_disabled_flag, false,
     "Disable planar buffer (when angular mode is enabled)")
 
+  ("positionAzimuthScaleLog2",
+    params.encoder.gps.geom_angular_azimuth_scale_log2, 17,
+    "Scale factor applied to azimuth angle in predictive geometry coding")
+
+  ("positionAzimuthSpeed",
+    params.encoder.gps.geom_angular_azimuth_speed, 363,
+    "Scale factor applied to azimuth angle in predictive geometry coding")
+
+  ("positionRadiusInvScaleLog2",
+    params.encoder.gps.geom_angular_radius_inv_scale_log2, 0,
+    "Inverse scale factor applied to radius in predictive geometry coding")
+
   ("predGeomSort",
     params.encoder.predGeom.sortMode, PredGeomEncOpts::kSortMorton,
     "Predictive geometry tree construction order")

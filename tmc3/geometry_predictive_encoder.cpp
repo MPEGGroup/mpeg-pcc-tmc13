@@ -89,10 +89,15 @@ public:
   int qpSelector(const GNode& node) const { return _sliceQp; }
 
   void encode(
-    Vec3<int32_t>* cloud, const GNode* nodes, int numNodes, int* codedOrder);
+    const Vec3<int32_t>* cloudA,
+    Vec3<int32_t>* cloudB,
+    const GNode* nodes,
+    int numNodes,
+    int* codedOrder);
 
   int encodeTree(
-    Vec3<int32_t>* cloud,
+    const Vec3<int32_t>* cloudA,
+    Vec3<int32_t>* cloudB,
     const GNode* nodes,
     int numNodes,
     int rootIdx,
@@ -102,6 +107,8 @@ public:
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
   void encodeResidual(const Vec3<int32_t>& residual);
+  void encodeResidual2(const Vec3<int32_t>& residual);
+  void encodePhiMultiplier(const int32_t multiplier);
   void encodeQpOffset(int dqp);
 
   float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
@@ -110,6 +117,11 @@ private:
   EntropyEncoder* _aec;
   std::vector<int32_t> _stack;
   bool _geom_unique_points_flag;
+
+  bool _geom_angular_mode_enabled_flag;
+  Vec3<int32_t> origin;
+  SphericalToCartesian _sphToCartesian;
+  int _geom_angular_azimuth_speed;
 
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
@@ -124,6 +136,10 @@ PredGeomEncoder::PredGeomEncoder(
   EntropyEncoder* aec)
   : _aec(aec)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
+  , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
+  , origin()
+  , _sphToCartesian(gps)
+  , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
 {
@@ -133,6 +149,9 @@ PredGeomEncoder::PredGeomEncoder(
       gps.geom_qp_offset_intvl_log2 + gbh.geom_qp_offset_intvl_log2_delta;
     _qpOffsetInterval = (1 << qpIntervalLog2) - 1;
   }
+
+  if (gps.geom_angular_mode_enabled_flag)
+    origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
 
   _stack.reserve(1024);
 }
@@ -190,12 +209,82 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
     _aec->encode((numBits >> 3) & 1, ctxs[7 + (numBits & 7)]);
     _aec->encode((numBits >> 4) & 1, ctxs[15 + (numBits & 15)]);
 
-    if (!k)
+    if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
 
     --numBits;
     for (int32_t i = 0; i < numBits; ++i)
       _aec->encode((value >> i) & 1);
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
+{
+  for (int k = 0; k < 3; k++) {
+    const auto res = residual[k];
+    const bool isZero = res == 0;
+    _aec->encode(isZero, _ctxIsZero2[k]);
+    if (isZero)
+      continue;
+
+    _aec->encode(res > 0, _ctxSign2[k]);
+
+    const bool isOne = res == 1 || res == -1;
+    _aec->encode(isOne, _ctxIsOne2[k]);
+    if (isOne)
+      continue;
+
+    int32_t value = abs(res) - 2;
+    auto& ctxs = _ctxResidual2[k];
+    if (value < 15) {
+      _aec->encode(value & 1, ctxs[0]);
+      _aec->encode((value >> 1) & 1, ctxs[1 + (value & 1)]);
+      _aec->encode((value >> 2) & 1, ctxs[3 + (value & 3)]);
+      _aec->encode((value >> 3) & 1, ctxs[7 + (value & 7)]);
+    } else {
+      _aec->encode(1, ctxs[0]);
+      _aec->encode(1, ctxs[2]);
+      _aec->encode(1, ctxs[6]);
+      _aec->encode(1, ctxs[14]);
+      _aec->encodeExpGolomb(value - 15, 0, _ctxEG2[k]);
+    }
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
+{
+  bool isZero = multiplier == 0;
+  _aec->encode(isZero, _ctxIsZeroPhi);
+  if (isZero)
+    return;
+
+  _aec->encode(multiplier > 0, _ctxSignPhi);
+
+  int32_t value = abs(multiplier) - 1;
+  bool isOne = !value;
+  _aec->encode(isOne, _ctxIsOnePhi);
+  if (isOne)
+    return;
+
+  value--;
+  auto& ctxs = _ctxResidualPhi;
+  if (value < 15) {
+    _aec->encode(value & 1, ctxs[0]);
+    _aec->encode((value >> 1) & 1, ctxs[1 + (value & 1)]);
+    _aec->encode((value >> 2) & 1, ctxs[3 + (value & 3)]);
+    _aec->encode((value >> 3) & 1, ctxs[7 + (value & 7)]);
+  } else {
+    _aec->encode(1, ctxs[0]);
+    _aec->encode(1, ctxs[2]);
+    _aec->encode(1, ctxs[6]);
+    _aec->encode(1, ctxs[14]);
+    _aec->encodeExpGolomb(value - 15, 0, _ctxEGPhi);
   }
 }
 
@@ -244,7 +333,7 @@ PredGeomEncoder::estimateBits(
     bits += estimate((numBits >> 3) & 1, ctxs[7 + (numBits & 7)]);
     bits += estimate((numBits >> 4) & 1, ctxs[15 + (numBits & 15)]);
 
-    if (!k)
+    if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
 
     bits += numBits - 1;
@@ -257,7 +346,8 @@ PredGeomEncoder::estimateBits(
 
 int
 PredGeomEncoder::encodeTree(
-  Vec3<int32_t>* cloud,
+  const Vec3<int32_t>* srcPts,
+  Vec3<int32_t>* reconPts,
   const GNode* nodes,
   int numNodes,
   int rootIdx,
@@ -273,7 +363,7 @@ PredGeomEncoder::encodeTree(
     _stack.pop_back();
 
     const auto& node = nodes[nodeIdx];
-    const auto point = cloud[nodeIdx];
+    const auto point = srcPts[nodeIdx];
 
     struct {
       float bits;
@@ -290,6 +380,7 @@ PredGeomEncoder::encodeTree(
     }
 
     // mode decision to pick best prediction from available set
+    int qphi;
     for (int iMode = 0; iMode < 4; iMode++) {
       GPredicter::Mode mode = GPredicter::Mode(iMode);
       GPredicter predicter = makePredicter(
@@ -298,10 +389,26 @@ PredGeomEncoder::encodeTree(
       if (!predicter.isValid(mode))
         continue;
 
-      auto pred = predicter.predict(&cloud[0], mode);
+      auto pred = predicter.predict(&srcPts[0], mode);
+      if (_geom_angular_mode_enabled_flag) {
+        if (iMode == GPredicter::Mode::Delta) {
+          int32_t phi0 = srcPts[predicter.index[0]][1];
+          int32_t phi1 = point[1];
+          int32_t deltaPhi = phi1 - phi0;
+          qphi = deltaPhi >= 0
+            ? (deltaPhi + (_geom_angular_azimuth_speed >> 1))
+              / _geom_angular_azimuth_speed
+            : -(-deltaPhi + (_geom_angular_azimuth_speed >> 1))
+              / _geom_angular_azimuth_speed;
+          pred[1] += qphi * _geom_angular_azimuth_speed;
+        }
+      }
+
+      // The residual in the spherical domain is loesslessly coded
       auto residual = point - pred;
-      for (int k = 0; k < 3; k++)
-        residual[k] = int32_t(quantizer.quantize(residual[k]));
+      if (!_geom_angular_mode_enabled_flag)
+        for (int k = 0; k < 3; k++)
+          residual[k] = int32_t(quantizer.quantize(residual[k]));
 
       auto bits = estimateBits(mode, residual);
 
@@ -318,12 +425,30 @@ PredGeomEncoder::encodeTree(
       encodeNumDuplicatePoints(node.numDups);
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
+
+    if (
+      _geom_angular_mode_enabled_flag && best.mode == GPredicter::Mode::Delta)
+      encodePhiMultiplier(qphi);
+
     encodeResidual(best.residual);
+
+    // convert spherical prediction to cartesian and re-calculate residual
+    if (_geom_angular_mode_enabled_flag) {
+      best.prediction = origin + _sphToCartesian(point);
+      best.residual = reconPts[nodeIdx] - best.prediction;
+      for (int k = 0; k < 3; k++)
+        best.residual[k] = int32_t(quantizer.quantize(best.residual[k]));
+
+      encodeResidual2(best.residual);
+    }
 
     // write the reconstructed position back to the point cloud
     for (int k = 0; k < 3; k++)
       best.residual[k] = int32_t(quantizer.scale(best.residual[k]));
-    cloud[nodeIdx] = best.prediction + best.residual;
+    reconPts[nodeIdx] = best.prediction + best.residual;
+
+    for (int k = 0; k < 3; k++)
+      reconPts[nodeIdx][k] = std::max(0, reconPts[nodeIdx][k]);
 
     // NB: the coded order of duplicate points assumes that the duplicates
     // are consecutive -- in order that the correct attributes are coded.
@@ -343,7 +468,11 @@ PredGeomEncoder::encodeTree(
 
 void
 PredGeomEncoder::encode(
-  Vec3<int32_t>* cloud, const GNode* nodes, int numNodes, int32_t* codedOrder)
+  const Vec3<int32_t>* cloudA,
+  Vec3<int32_t>* cloudB,
+  const GNode* nodes,
+  int numNodes,
+  int32_t* codedOrder)
 {
   int32_t processedNodes = 0;
   for (int32_t rootIdx = 0; rootIdx < numNodes; rootIdx++) {
@@ -351,8 +480,8 @@ PredGeomEncoder::encode(
     if (nodes[rootIdx].parent >= 0)
       continue;
 
-    int numSubtreeNodes =
-      encodeTree(cloud, nodes, numNodes, rootIdx, codedOrder + processedNodes);
+    int numSubtreeNodes = encodeTree(
+      cloudA, cloudB, nodes, numNodes, rootIdx, codedOrder + processedNodes);
     processedNodes += numSubtreeNodes;
   }
   assert(processedNodes == numNodes);
@@ -363,7 +492,6 @@ PredGeomEncoder::encode(
 std::vector<GNode>
 generateGeomPredictionTree(
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
   const Vec3<int32_t>* begin,
   const Vec3<int32_t>* end)
 {
@@ -460,6 +588,75 @@ generateGeomPredictionTree(
   return nodes;
 }
 
+//----------------------------------------------------------------------------
+
+std::vector<GNode>
+generateGeomPredictionTreeAngular(
+  const GeometryParameterSet& gps,
+  const Vec3<int32_t> origin,
+  const Vec3<int32_t>* begin,
+  const Vec3<int32_t>* end,
+  Vec3<int32_t>* beginSph)
+{
+  int32_t pointCount = std::distance(begin, end);
+  int32_t numLasers = gps.geom_angular_num_lidar_lasers();
+
+  // the prediction tree, one node for each point
+  std::vector<GNode> nodes(pointCount);
+  std::vector<int32_t> prevNodes(numLasers, -1);
+  std::vector<int32_t> firstNodes(numLasers, -1);
+
+  CartesianToSpherical cartToSpherical(gps);
+
+  for (int nodeIdx = 0, nodeIdxN; nodeIdx < pointCount; nodeIdx = nodeIdxN) {
+    auto& node = nodes[nodeIdx];
+    auto curPoint = begin[nodeIdx];
+    node.childrenCount = 0;
+
+    // scan for duplicate points
+    // NB: the tree coder assumes that duplicate point indices are consecutive
+    // If this guarantee is changed, then the tree coder must be modified too.
+    node.numDups = 0;
+    for (nodeIdxN = nodeIdx + 1; nodeIdxN < pointCount; nodeIdxN++) {
+      if (curPoint != begin[nodeIdxN])
+        break;
+      node.numDups++;
+    }
+
+    // cartesian to spherical coordinates
+    const auto carPos = curPoint - origin;
+    auto& sphPos = beginSph[nodeIdx] = cartToSpherical(carPos);
+    auto thetaIdx = sphPos[2];
+
+    node.parent = prevNodes[thetaIdx];
+    if (node.parent != -1) {
+      auto& pnode = nodes[prevNodes[thetaIdx]];
+      pnode.children[pnode.childrenCount++] = nodeIdx;
+    } else
+      firstNodes[thetaIdx] = nodeIdx;
+
+    prevNodes[thetaIdx] = nodeIdx;
+  }
+
+  int32_t n0 = 0;
+  while (firstNodes[n0] == -1)
+    ++n0;
+
+  for (int32_t n = n0 + 1, parentIdx = firstNodes[n0]; n < numLasers; ++n) {
+    auto nodeIdx = firstNodes[n];
+    if (nodeIdx < 0)
+      continue;
+
+    auto& pnode = nodes[parentIdx];
+    if (pnode.childrenCount < GNode::MaxChildrenCount) {
+      nodes[nodeIdx].parent = parentIdx;
+      pnode.children[pnode.childrenCount++] = nodeIdx;
+    }
+    parentIdx = nodeIdx;
+  }
+  return nodes;
+}
+
 //============================================================================
 
 static void
@@ -496,6 +693,11 @@ encodePredictiveGeometry(
   outCloud.addRemoveAttributes(cloud.hasColors(), cloud.hasReflectances());
   outCloud.resize(numPoints);
 
+  // storage for spherical point co-ordinates determined in angular mode
+  std::vector<Vec3<int32_t>> sphericalPos;
+  if (gps.geom_angular_mode_enabled_flag)
+    sphericalPos.resize(numPoints);
+
   // src indexes in coded order
   std::vector<int32_t> codedOrder(numPoints, -1);
 
@@ -503,10 +705,11 @@ encodePredictiveGeometry(
   // by maxPtsPerTree.
   PredGeomEncoder enc(gps, gbh, arithmeticEncoder);
   int maxPtsPerTree = std::min(opt.maxPtsPerTree, int(numPoints));
-  ;
+
   for (int i = 0; i < numPoints;) {
     int iEnd = std::min(i + maxPtsPerTree, int(numPoints));
     auto* begin = &cloud[i];
+    auto* beginSph = &sphericalPos[i];
     auto* end = &cloud[0] + iEnd;
 
     // first, put the points in this tree into a sorted order
@@ -519,8 +722,14 @@ encodePredictiveGeometry(
       sortByRadius(cloud, i, iEnd, origin);
 
     // then build and encode the tree
-    auto nodes = generateGeomPredictionTree(gps, gbh, begin, end);
-    enc.encode(begin, nodes.data(), nodes.size(), codedOrder.data() + i);
+    auto nodes = gps.geom_angular_mode_enabled_flag
+      ? generateGeomPredictionTreeAngular(gps, origin, begin, end, beginSph)
+      : generateGeomPredictionTree(gps, begin, end);
+
+    auto* a = gps.geom_angular_mode_enabled_flag ? beginSph : begin;
+    auto* b = begin;
+
+    enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i);
 
     // put points in output cloud in decoded order
     for (auto iBegin = i; i < iEnd; i++) {

@@ -35,10 +35,12 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 #include "entropy.h"
 #include "PCCMath.h"
+#include "hls.h"
 
 namespace pcc {
 
@@ -81,9 +83,22 @@ struct PredGeomCodec {
   AdaptiveBitModel _ctxNumDupPointsGt0;
   AdaptiveBitModel _ctxNumDupPoints;
 
+  AdaptiveBitModel _ctxIsZero2[3];
+  AdaptiveBitModel _ctxIsOne2[3];
+  AdaptiveBitModel _ctxSign2[3];
+  AdaptiveBitModel _ctxEG2[3];
+
+  AdaptiveBitModel _ctxResidual2[3][15];
+
   AdaptiveBitModel _ctxQpOffsetIsZero;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
+
+  AdaptiveBitModel _ctxIsZeroPhi;
+  AdaptiveBitModel _ctxIsOnePhi;
+  AdaptiveBitModel _ctxSignPhi;
+  AdaptiveBitModel _ctxEGPhi;
+  AdaptiveBitModel _ctxResidualPhi[15];
 };
 
 //============================================================================
@@ -155,6 +170,104 @@ GPredicter::predict(const Vec3<int32_t>* points, GPredicter::Mode mode)
   }
   return pred;
 }
+
+//============================================================================
+
+class SphericalToCartesian {
+public:
+  SphericalToCartesian(const GeometryParameterSet& gps)
+    : log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
+    , log2ScalePhi(gps.geom_angular_azimuth_scale_log2)
+    , tanThetaLaser(gps.geom_angular_theta_laser.data())
+    , zLaser(gps.geom_angular_z_laser.data())
+  {}
+
+  Vec3<int32_t> operator()(Vec3<int32_t> sph)
+  {
+    int64_t r = sph[0] << log2ScaleRadius;
+    int64_t z = divExp2RoundHalfInf(
+      tanThetaLaser[sph[2]] * r << 2, log2ScaleTheta - log2ScaleZ);
+
+    return Vec3<int32_t>(Vec3<int64_t>{
+      divExp2RoundHalfInf(r * icos(sph[1], log2ScalePhi), kLog2ISineScale),
+      divExp2RoundHalfInf(r * isin(sph[1], log2ScalePhi), kLog2ISineScale),
+      divExp2RoundHalfInf(z - zLaser[sph[2]], log2ScaleZ)});
+  }
+
+private:
+  static constexpr int log2ScaleZ = 3;
+  static constexpr int log2ScaleTheta = 20;
+  int log2ScaleRadius;
+  int log2ScalePhi;
+  const int* tanThetaLaser;
+  const int* zLaser;
+};
+
+//============================================================================
+
+class CartesianToSpherical {
+public:
+  CartesianToSpherical(const GeometryParameterSet& gps)
+    : sphToCartesian(gps)
+    , log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
+    , scalePhi(1 << gps.geom_angular_azimuth_scale_log2)
+    , numLasers(gps.geom_angular_theta_laser.size())
+    , tanThetaLaser(gps.geom_angular_theta_laser.data())
+    , zLaser(gps.geom_angular_z_laser.data())
+  {}
+
+  Vec3<int32_t> operator()(Vec3<int32_t> xyz)
+  {
+    int64_t r0 = int64_t(std::round(hypot(xyz[0], xyz[1])));
+    int32_t thetaIdx = 0;
+    int32_t minError = std::numeric_limits<int32_t>::max();
+    for (int idx = 0; idx < numLasers; ++idx) {
+      int64_t z = divExp2RoundHalfInf(
+        tanThetaLaser[idx] * r0 << 2, log2ScaleTheta - log2ScaleZ);
+      int64_t z1 = divExp2RoundHalfInf(z - zLaser[idx], log2ScaleZ);
+      int32_t err = abs(z1 - xyz[2]);
+      if (err < minError) {
+        thetaIdx = idx;
+        minError = err;
+      }
+    }
+
+    auto phi0 = std::round((atan2(xyz[1], xyz[0]) / (2.0 * M_PI)) * scalePhi);
+
+    Vec3<int32_t> sphPos{int32_t(divExp2RoundHalfUp(r0, log2ScaleRadius)),
+                         int32_t(phi0), thetaIdx};
+
+    // local optmization
+    auto minErr = (sphToCartesian(sphPos) - xyz).getNorm1();
+    int32_t dt0 = 0;
+    int32_t dr0 = 0;
+    for (int32_t dt = -2; dt <= 2 && minErr; ++dt) {
+      for (int32_t dr = -2; dr <= 2; ++dr) {
+        auto sphPosCand = sphPos + Vec3<int32_t>{dr, dt, 0};
+        auto err = (sphToCartesian(sphPosCand) - xyz).getNorm1();
+        if (err < minErr) {
+          minErr = err;
+          dt0 = dt;
+          dr0 = dr;
+        }
+      }
+    }
+    sphPos[0] += dr0;
+    sphPos[1] += dt0;
+
+    return sphPos;
+  }
+
+private:
+  SphericalToCartesian sphToCartesian;
+  static constexpr int32_t log2ScaleZ = 3;
+  static constexpr int32_t log2ScaleTheta = 20;
+  int32_t log2ScaleRadius;
+  int32_t scalePhi;
+  int numLasers;
+  const int* tanThetaLaser;
+  const int* zLaser;
+};
 
 //============================================================================
 

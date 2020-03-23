@@ -550,38 +550,49 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeUe(gps.geom_planar_threshold2);
       bs.writeUe(gps.geom_planar_idcm_threshold);
     }
+  }
 
-    bs.write(gps.geom_angular_mode_enabled_flag);
-    if (gps.geom_angular_mode_enabled_flag) {
-      auto geom_angular_origin =
-        toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
-      bs.writeUe(geom_angular_origin.x());
-      bs.writeUe(geom_angular_origin.y());
-      bs.writeUe(geom_angular_origin.z());
-      bs.writeUe(gps.geom_angular_num_lidar_lasers());
+  bs.write(gps.geom_angular_mode_enabled_flag);
+  if (gps.geom_angular_mode_enabled_flag) {
+    if (gps.predgeom_enabled_flag) {
+      bs.writeUe(gps.geom_angular_azimuth_scale_log2);
+      bs.writeUe(gps.geom_angular_azimuth_speed);
+      bs.writeUe(gps.geom_angular_radius_inv_scale_log2);
+    }
+    auto geom_angular_origin =
+      toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
+    bs.writeUe(geom_angular_origin.x());
+    bs.writeUe(geom_angular_origin.y());
+    bs.writeUe(geom_angular_origin.z());
+    bs.writeUe(gps.geom_angular_num_lidar_lasers());
 
-      if (gps.geom_angular_num_lidar_lasers()) {
-        bs.writeSe(gps.geom_angular_theta_laser[0]);
-        bs.writeSe(gps.geom_angular_z_laser[0]);
+    if (gps.geom_angular_num_lidar_lasers()) {
+      bs.writeSe(gps.geom_angular_theta_laser[0]);
+      bs.writeSe(gps.geom_angular_z_laser[0]);
+      if (!gps.predgeom_enabled_flag)
         bs.writeUe(gps.geom_angular_num_phi_per_turn[0]);
-      }
-
-      for (int i = 1; i < gps.geom_angular_num_lidar_lasers(); i++) {
-        int geom_angular_theta_laser_diff = gps.geom_angular_theta_laser[i]
-          - gps.geom_angular_theta_laser[i - 1];
-
-        int geom_angular_z_laser_diff =
-          gps.geom_angular_z_laser[i] - gps.geom_angular_z_laser[i - 1];
-
-        // NB: angles must be in increasing monotonic order
-        assert(geom_angular_theta_laser_diff >= 0);
-        bs.writeUe(geom_angular_theta_laser_diff);
-        bs.writeSe(geom_angular_z_laser_diff);
-        bs.writeUe(gps.geom_angular_num_phi_per_turn[i]);
-      }
-      bs.write(gps.planar_buffer_disabled_flag);
     }
 
+    for (int i = 1; i < gps.geom_angular_num_lidar_lasers(); i++) {
+      int geom_angular_theta_laser_diff =
+        gps.geom_angular_theta_laser[i] - gps.geom_angular_theta_laser[i - 1];
+
+      int geom_angular_z_laser_diff =
+        gps.geom_angular_z_laser[i] - gps.geom_angular_z_laser[i - 1];
+
+      // NB: angles must be in increasing monotonic order
+      assert(geom_angular_theta_laser_diff >= 0);
+      bs.writeUe(geom_angular_theta_laser_diff);
+      bs.writeSe(geom_angular_z_laser_diff);
+      if (!gps.predgeom_enabled_flag)
+        bs.writeUe(gps.geom_angular_num_phi_per_turn[i]);
+    }
+
+    if (!gps.predgeom_enabled_flag)
+      bs.write(gps.planar_buffer_disabled_flag);
+  }
+
+  if (!gps.predgeom_enabled_flag) {
     bs.writeUe(gps.neighbour_avail_boundary_log2);
     bs.writeUe(gps.intra_pred_max_node_size_log2);
     bs.writeUe(gps.trisoup_node_size_log2);
@@ -639,46 +650,58 @@ parseGps(const PayloadBuffer& buf)
     }
     if (gps.inferred_direct_coding_mode > 1)
       gps.geom_planar_idcm_threshold = 127;
+  }
 
-    gps.planar_buffer_disabled_flag = false;
-    bs.read(&gps.geom_angular_mode_enabled_flag);
-    if (gps.geom_angular_mode_enabled_flag) {
-      Vec3<int> geom_angular_origin;
-      bs.readUe(&geom_angular_origin.x());
-      bs.readUe(&geom_angular_origin.y());
-      bs.readUe(&geom_angular_origin.z());
-
-      // NB: this is in XYZ axis order until the GPS is converted to STV
-      gps.geomAngularOrigin = geom_angular_origin;
-
-      int geom_angular_num_lidar_lasers;
-      bs.readUe(&geom_angular_num_lidar_lasers);
-      gps.geom_angular_theta_laser.resize(geom_angular_num_lidar_lasers);
-      gps.geom_angular_z_laser.resize(geom_angular_num_lidar_lasers);
-      gps.geom_angular_num_phi_per_turn.resize(geom_angular_num_lidar_lasers);
-
-      if (geom_angular_num_lidar_lasers) {
-        bs.readSe(&gps.geom_angular_theta_laser[0]);
-        bs.readSe(&gps.geom_angular_z_laser[0]);
-        bs.readUe(&gps.geom_angular_num_phi_per_turn[0]);
-      }
-
-      for (int i = 1; i < geom_angular_num_lidar_lasers; i++) {
-        int geom_angular_theta_laser_diff;
-        int geom_angular_z_laser_diff;
-        bs.readUe(&geom_angular_theta_laser_diff);
-        bs.readSe(&geom_angular_z_laser_diff);
-        bs.readUe(&gps.geom_angular_num_phi_per_turn[i]);
-
-        gps.geom_angular_theta_laser[i] =
-          gps.geom_angular_theta_laser[i - 1] + geom_angular_theta_laser_diff;
-
-        gps.geom_angular_z_laser[i] =
-          gps.geom_angular_z_laser[i - 1] + geom_angular_z_laser_diff;
-      }
-      bs.read(&gps.planar_buffer_disabled_flag);
+  gps.planar_buffer_disabled_flag = false;
+  bs.read(&gps.geom_angular_mode_enabled_flag);
+  if (gps.geom_angular_mode_enabled_flag) {
+    if (gps.predgeom_enabled_flag) {
+      bs.readUe(&gps.geom_angular_azimuth_scale_log2);
+      bs.readUe(&gps.geom_angular_azimuth_speed);
+      bs.readUe(&gps.geom_angular_radius_inv_scale_log2);
     }
 
+    Vec3<int> geom_angular_origin;
+    bs.readUe(&geom_angular_origin.x());
+    bs.readUe(&geom_angular_origin.y());
+    bs.readUe(&geom_angular_origin.z());
+
+    // NB: this is in XYZ axis order until the GPS is converted to STV
+    gps.geomAngularOrigin = geom_angular_origin;
+
+    int geom_angular_num_lidar_lasers;
+    bs.readUe(&geom_angular_num_lidar_lasers);
+    gps.geom_angular_theta_laser.resize(geom_angular_num_lidar_lasers);
+    gps.geom_angular_z_laser.resize(geom_angular_num_lidar_lasers);
+    gps.geom_angular_num_phi_per_turn.resize(geom_angular_num_lidar_lasers);
+
+    if (geom_angular_num_lidar_lasers) {
+      bs.readSe(&gps.geom_angular_theta_laser[0]);
+      bs.readSe(&gps.geom_angular_z_laser[0]);
+      if (!gps.predgeom_enabled_flag)
+        bs.readUe(&gps.geom_angular_num_phi_per_turn[0]);
+    }
+
+    for (int i = 1; i < geom_angular_num_lidar_lasers; i++) {
+      int geom_angular_theta_laser_diff;
+      int geom_angular_z_laser_diff;
+      bs.readUe(&geom_angular_theta_laser_diff);
+      bs.readSe(&geom_angular_z_laser_diff);
+      if (!gps.predgeom_enabled_flag)
+        bs.readUe(&gps.geom_angular_num_phi_per_turn[i]);
+
+      gps.geom_angular_theta_laser[i] =
+        gps.geom_angular_theta_laser[i - 1] + geom_angular_theta_laser_diff;
+
+      gps.geom_angular_z_laser[i] =
+        gps.geom_angular_z_laser[i - 1] + geom_angular_z_laser_diff;
+    }
+
+    if (!gps.predgeom_enabled_flag)
+      bs.read(&gps.planar_buffer_disabled_flag);
+  }
+
+  if (!gps.predgeom_enabled_flag) {
     bs.readUe(&gps.neighbour_avail_boundary_log2);
     bs.readUe(&gps.intra_pred_max_node_size_log2);
     bs.readUe(&gps.trisoup_node_size_log2);
