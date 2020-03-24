@@ -38,24 +38,16 @@
 namespace pcc {
 
 //============================================================================
+// Mapping of neighbour influence to affected (childIdx + 1).
+// NB: zero indicates no influence.
 
-static const int8_t LUT_dist[26][8] = {
-  {2, 4, 4, 6, 4, 6, 6, 7}, {1, 1, 3, 3, 3, 3, 5, 5}, {4, 2, 6, 4, 6, 4, 7, 6},
-  {1, 3, 1, 3, 3, 5, 3, 5}, {0, 0, 0, 0, 2, 2, 2, 2}, {3, 1, 3, 1, 5, 3, 5, 3},
-  {4, 6, 2, 4, 6, 7, 4, 6}, {3, 3, 1, 1, 5, 5, 3, 3}, {6, 4, 4, 2, 7, 6, 6, 4},
-  {1, 3, 3, 5, 1, 3, 3, 5}, {0, 0, 2, 2, 0, 0, 2, 2}, {3, 1, 5, 3, 3, 1, 5, 3},
-  {0, 2, 0, 2, 0, 2, 0, 2}, {2, 0, 2, 0, 2, 0, 2, 0}, {3, 5, 1, 3, 3, 5, 1, 3},
-  {2, 2, 0, 0, 2, 2, 0, 0}, {5, 3, 3, 1, 5, 3, 3, 1}, {4, 6, 6, 7, 2, 4, 4, 6},
-  {3, 3, 5, 5, 1, 1, 3, 3}, {6, 4, 7, 6, 4, 2, 6, 4}, {3, 5, 3, 5, 1, 3, 1, 3},
-  {2, 2, 2, 2, 0, 0, 0, 0}, {5, 3, 5, 3, 3, 1, 3, 1}, {6, 7, 4, 6, 4, 6, 2, 4},
-  {5, 5, 3, 3, 3, 3, 1, 1}, {7, 6, 6, 4, 6, 4, 4, 2}};
-
-//----------------------------------------------------------------------------
-
-static const int LUT1[8] = {27, 39, 20, 8, 18, 4, 11, 18};
-static const int LUT0[8] = {-1, -6, 12, 20, 14, 28, 22, 12};
-static const int LUT_th0[5] = {62, 60, 61, 59, 59};
-static const int LUT_th1[5] = {67, 66, 65, 66, 64};
+static const int8_t kNeighToChildIdx[26][4] = {
+  {1, 0, 0, 0}, {1, 2, 0, 0}, {2, 0, 0, 0}, {1, 3, 0, 0}, {1, 2, 3, 4},
+  {2, 4, 0, 0}, {3, 0, 0, 0}, {3, 4, 0, 0}, {4, 0, 0, 0}, {1, 5, 0, 0},
+  {1, 2, 5, 6}, {2, 6, 0, 0}, {1, 3, 5, 7}, {2, 4, 6, 8}, {3, 7, 0, 0},
+  {3, 4, 7, 8}, {4, 8, 0, 0}, {5, 0, 0, 0}, {5, 6, 0, 0}, {6, 0, 0, 0},
+  {5, 7, 0, 0}, {5, 6, 7, 8}, {6, 8, 0, 0}, {7, 0, 0, 0}, {7, 8, 0, 0},
+  {8, 0, 0, 0}};
 
 //============================================================================
 
@@ -73,9 +65,9 @@ predictGeometryOccupancyIntra(
   int32_t z = pos[2] & mask;
 
   int score[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  const int8_t* kNeigh = &kNeighToChildIdx[0][0];
   int numOccupied = 0;
 
-  const int8_t* p = &LUT_dist[0][0];
   if (atlasShift == 0) {
     for (int dx = -1; dx <= 1; dx++) {
       for (int dy = -1; dy <= 1; dy++) {
@@ -87,15 +79,15 @@ predictGeometryOccupancyIntra(
           bool occupied = occupancyAtlas.getWithCheck(x + dx, y + dy, z + dz);
 
           if (occupied) {
-            for (int i = 0; i < 8; i++)
-              score[i] += LUT1[p[i]];
             numOccupied++;
-          } else {
-            for (int i = 0; i < 8; i++)
-              score[i] += LUT0[p[i]];
+            for (int i = 0; i < 4; i++) {
+              if (!kNeigh[i])
+                break;
+              score[kNeigh[i] - 1]++;
+            }
           }
           // next pattern
-          p += 8;
+          kNeigh += 4;
         }
       }
     }
@@ -115,42 +107,29 @@ predictGeometryOccupancyIntra(
             x + dx, y + dy, z + dz, shiftX, shiftY, shiftZ);
 
           if (occupied) {
-            for (int i = 0; i < 8; i++)
-              score[i] += LUT1[p[i]];
             numOccupied++;
-          } else {
-            for (int i = 0; i < 8; i++)
-              score[i] += LUT0[p[i]];
+            for (int i = 0; i < 4; i++) {
+              if (!kNeigh[i])
+                break;
+              score[kNeigh[i] - 1]++;
+            }
           }
-
           // next pattern
-          p += 8;
+          kNeigh += 4;
         }
       }
     }
   }
 
-  if (numOccupied <= 8) {
-    *occupancyIsPredicted = 0;
-    *occupancyPrediction = 0;
-    return;
-  }
-
-  numOccupied -= 9;
-  if (numOccupied >= 4)
-    numOccupied = 4;
-
-  int th0 = LUT_th0[numOccupied] * 26;
-  int th1 = LUT_th1[numOccupied] * 26;
-
+  int th0 = 2;
+  int th1 = numOccupied < 14 ? 4 : 5;
   int occIsPredicted = 0;
   int occPrediction = 0;
 
   for (int i = 0; i < 8; i++) {
-    int score_i = score[i] << 2;
-    if (score_i <= th0) {
+    if (score[i] <= th0)
       occIsPredicted |= 1 << i;
-    } else if (score_i >= th1) {
+    else if (score[i] >= th1) {
       occIsPredicted |= 1 << i;
       occPrediction |= 1 << i;
     }
