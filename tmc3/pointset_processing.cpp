@@ -65,10 +65,18 @@ quantizePositionsUniq(
   PCCPointSet3* dst,
   std::multimap<Vec3<int32_t>, int32_t>& mapQuantisedPosToIndexes)
 {
+  int numSrcPoints = src.getPointCount();
+
+  // prepare output storage: this will be overallocated and resized afterwards.
+  if (&src != dst) {
+    dst->clear();
+  }
+  dst->resize(numSrcPoints);
+
   // Determine the set of unique quantised points
   std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
   std::set<Vec3<int32_t>> uniquePoints;
-  int numSrcPoints = src.getPointCount();
+  int dstIdx = 0;
   for (int i = 0; i < numSrcPoints; ++i) {
     const auto& point = src[i];
 
@@ -78,22 +86,20 @@ quantizePositionsUniq(
       quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
     }
 
-    uniquePoints.insert(quantizedPoint);
+    // NB: only add quantised point to output if it is the first unique point
     intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
+    auto insertion = uniquePoints.insert(quantizedPoint);
+    if (insertion.second)
+      (*dst)[dstIdx++] = quantizedPoint;
   }
 
-  // Populate output point cloud
-
+  // Trim output and add attribute storage to match src
+  dst->resize(dstIdx);
   if (&src != dst) {
-    dst->clear();
     dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
   }
-  dst->resize(uniquePoints.size());
-  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
 
-  int idx = 0;
-  for (const auto& point : uniquePoints)
-    (*dst)[idx++] = point;
+  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
 }
 
 //============================================================================
