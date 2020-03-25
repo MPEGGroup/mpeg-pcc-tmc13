@@ -1015,19 +1015,22 @@ AttributeEncoder::encodeColorsLift(
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
-    const int64_t quantWeight = weights[predictorIndex];
+    const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
+    const int64_t quantWeight =
+      (weights[predictorIndex] * iQuantWeight + (1UL << 39)) >> 40;
+
     auto& color = colors[predictorIndex];
     const int64_t delta = quant[0].quantize(color[0] * quantWeight);
     auto detail = delta;
     const int64_t reconstructedDelta = quant[0].scale(delta);
-    color[0] = reconstructedDelta / quantWeight;
+    color[0] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     int values[3];
     values[0] = detail;
     for (size_t d = 1; d < 3; ++d) {
       const int64_t delta = quant[1].quantize(color[d] * quantWeight);
       const auto detail = delta;
       const int64_t reconstructedDelta = quant[1].scale(delta);
-      color[d] = reconstructedDelta / quantWeight;
+      color[d] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
       values[d] = detail;
     }
     if (!values[0] && !values[1] && !values[2])
@@ -1114,12 +1117,15 @@ AttributeEncoder::encodeReflectancesLift(
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
-    const int64_t quantWeight = weights[predictorIndex];
+    const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
+    const int64_t quantWeight =
+      (weights[predictorIndex] * iQuantWeight + (1UL << 39)) >> 40;
+
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = quant[0].quantize(reflectance * quantWeight);
     const auto detail = delta;
     const int64_t reconstructedDelta = quant[0].scale(delta);
-    reflectance = reconstructedDelta / quantWeight;
+    reflectance = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     if (!detail)
       ++zero_cnt;
     else {

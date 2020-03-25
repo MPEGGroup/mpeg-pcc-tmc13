@@ -657,15 +657,15 @@ AttributeDecoder::decodeColorsLift(
       zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
     }
 
-    const int64_t quantWeight = weights[predictorIndex];
+    const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
     const int64_t delta = values[0];
     const int64_t reconstructedDelta = quant[0].scale(delta);
-    color[0] = reconstructedDelta / quantWeight;
+    color[0] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     for (size_t d = 1; d < 3; ++d) {
       const int64_t delta = values[d];
       const int64_t reconstructedDelta = quant[1].scale(delta);
-      color[d] = reconstructedDelta / quantWeight;
+      color[d] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     }
   }
 
@@ -743,11 +743,11 @@ AttributeDecoder::decodeReflectancesLift(
       detail = decoder.decode();
       zero_cnt = decoder.decodeZeroCnt(zeroCntLimit);
     }
-    const int64_t quantWeight = weights[predictorIndex];
+    const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = detail;
     const int64_t reconstructedDelta = quant[0].scale(delta);
-    reflectance = reconstructedDelta / quantWeight;
+    reflectance = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
   }
 
   // reconstruct

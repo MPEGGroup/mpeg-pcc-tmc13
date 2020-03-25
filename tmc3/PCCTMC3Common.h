@@ -275,8 +275,9 @@ PCCLiftUpdate(
     const auto currentQuantWeight = quantizationWeights[predictorIndex];
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
       const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
-      const uint64_t weight =
-        predictor.neighbors[i].weight * currentQuantWeight;
+      const auto weight = divExp2RoundHalfInf(
+        predictor.neighbors[i].weight * currentQuantWeight,
+        kFixedPointWeightShift);
       assert(neighborPredIndex < startIndex);
       updateWeights[neighborPredIndex] += weight;
       updates[neighborPredIndex] += weight * attributes[predictorIndex];
@@ -322,9 +323,6 @@ PCCComputeQuantizationWeights(
         weight * currentQuantWeight, kFixedPointWeightShift);
     }
   }
-  for (auto& w : quantizationWeights) {
-    w = isqrt(w);
-  }
 }
 
 //---------------------------------------------------------------------------
@@ -362,10 +360,6 @@ computeQuantizationWeightsScalable(
           currentQuantWeight * (1 << kFixedPointWeightShift);
       }
     }
-  }
-
-  for (auto& w : quantizationWeights) {
-    w = isqrt(w);
   }
 }
 
