@@ -75,7 +75,6 @@ quantizePositionsUniq(
 
   // Determine the set of unique quantised points
   std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
-  std::set<Vec3<int32_t>> uniquePoints;
   int dstIdx = 0;
   for (int i = 0; i < numSrcPoints; ++i) {
     const auto& point = src[i];
@@ -87,9 +86,8 @@ quantizePositionsUniq(
     }
 
     // NB: only add quantised point to output if it is the first unique point
-    intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
-    auto insertion = uniquePoints.insert(quantizedPoint);
-    if (insertion.second)
+    auto it = intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
+    if (it == intQuantizedToOrigin.begin() || (--it)->first != quantizedPoint)
       (*dst)[dstIdx++] = quantizedPoint;
   }
 
