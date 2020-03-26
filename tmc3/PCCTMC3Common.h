@@ -716,29 +716,63 @@ subsampleByDistance(
 
 //---------------------------------------------------------------------------
 
-inline void
-partitionRange(
+inline int32_t
+subsampleByOctreeWithCentroid(
+  const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
-  const std::vector<uint32_t>& input,
-  std::vector<uint32_t>& retained,
-  std::vector<uint32_t>& indexes,
-  int start,
-  int end,
-  bool retainFirst)
+  int32_t octreeNodeSizeLog2,
+  const bool backward,
+  const std::vector<uint32_t>& voxels)
 {
-  int range = end - start;
+  int32_t nnIndex = backward ? voxels.size() - 1 : 0;
 
-  if (retainFirst) {
-    retained.push_back(input[start]);
-    for (int i = 1; i < range; ++i)
-      indexes.push_back(input[start + i]);
-  } else {
-    // last index
-    range--;
-    for (int i = 0; i < range; ++i)
-      indexes.push_back(input[start + i]);
-    retained.push_back(input[start + range]);
+  if (2 < voxels.size() && voxels.size() < 8) {
+    const auto v = voxels.front();
+
+    point_t centroid(0);
+    int count = 0;
+    for (const auto t : voxels) {
+      // forward direction
+      point_t pos = clacIntermediatePosition(
+        true, octreeNodeSizeLog2, pointCloud[packedVoxel[t].index]);
+
+      centroid += pos;
+      count++;
+    }
+
+    int64_t minNorm2 = std::numeric_limits<int64_t>::max();
+
+    if (backward) {
+      int num = voxels.size() - 1;
+      for (auto t = voxels.rbegin(), e = voxels.rend(); t != e; t++) {
+        // backward direction
+        point_t pos = clacIntermediatePosition(
+          true, octreeNodeSizeLog2, pointCloud[packedVoxel[*t].index]);
+        pos *= count;
+        int64_t m = (pos - centroid).getNorm1();
+        if (minNorm2 > m) {
+          minNorm2 = m;
+          nnIndex = num;
+        }
+        num--;
+      }
+    } else {
+      int num = 0;
+      for (const auto t : voxels) {
+        // forward direction
+        point_t pos = clacIntermediatePosition(
+          true, octreeNodeSizeLog2, pointCloud[packedVoxel[t].index]);
+        pos *= count;
+        int64_t m = (pos - centroid).getNorm1();
+        if (minNorm2 > m) {
+          minNorm2 = m;
+          nnIndex = num;
+        }
+        num++;
+      }
+    }
   }
+  return voxels[nnIndex];
 }
 
 //---------------------------------------------------------------------------
@@ -752,38 +786,40 @@ subsampleByOctree(
   std::vector<uint32_t>& retained,
   std::vector<uint32_t>& indexes)
 {
-  if (input.size() == 1) {
+  const int indexCount = int(input.size());
+  if (indexCount == 1) {
     indexes.push_back(input[0]);
     return;
   }
 
-  bool retainFirst = !(octreeNodeSizeLog2 % 2);
-  uint64_t kLodUniformQuant = pow(8, octreeNodeSizeLog2 + 1);
-  const int indexCount = int(input.size());
-  uint64_t endIdx = 0;
-  uint64_t parentIdx = 0;
-  int startIdx = 0;
-  if (indexCount > 0) {
-    auto mortonCode = packedVoxel[input[0]].mortonCode;
-    endIdx = mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
-  }
+  bool direction = octreeNodeSizeLog2 & 1;
+  uint64_t lodUniformQuant = 3 * (octreeNodeSizeLog2 + 1);
+  uint64_t currVoxelPos;
 
-  for (int i = 1; i < indexCount; ++i) {
-    int index = input[i];
-    auto mortonCode = packedVoxel[index].mortonCode;
-    if (mortonCode >= endIdx) {
-      partitionRange(
-        packedVoxel, input, retained, indexes, startIdx, i, retainFirst);
-      startIdx = i;
-      endIdx =
-        mortonCode + (kLodUniformQuant - (mortonCode % kLodUniformQuant));
+  std::vector<uint32_t> voxels;
+  voxels.reserve(8);
+
+  for (int i = 0; i < indexCount; ++i) {
+    uint64_t nextVoxelPos = currVoxelPos =
+      (packedVoxel[input[i]].mortonCode >> lodUniformQuant);
+
+    if (i < indexCount - 1)
+      nextVoxelPos = (packedVoxel[input[i + 1]].mortonCode >> lodUniformQuant);
+
+    voxels.push_back(input[i]);
+
+    if (i == (indexCount - 1) || currVoxelPos < nextVoxelPos) {
+      uint32_t picked = subsampleByOctreeWithCentroid(
+        pointCloud, packedVoxel, octreeNodeSizeLog2, direction, voxels);
+
+      for (const auto idx : voxels) {
+        if (picked == idx)
+          retained.push_back(idx);
+        else
+          indexes.push_back(idx);
+      }
+      voxels.clear();
     }
-  }
-
-  if (startIdx < indexCount) {
-    partitionRange(
-      packedVoxel, input, retained, indexes, startIdx, indexCount,
-      retainFirst);
   }
 }
 
