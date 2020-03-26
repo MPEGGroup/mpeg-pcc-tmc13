@@ -590,7 +590,7 @@ AttributeDecoder::decodeColorsLift(
     PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1,
+      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1 + 1,
       minGeomNodeSizeLog2, weights);
   }
 
@@ -678,7 +678,7 @@ AttributeDecoder::decodeReflectancesLift(
     PCCComputeQuantizationWeights(_lods.predictors, weights);
   } else {
     computeQuantizationWeightsScalable(
-      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1,
+      _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1 + 1,
       minGeomNodeSizeLog2, weights);
   }
 
