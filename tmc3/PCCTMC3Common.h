@@ -181,7 +181,7 @@ struct PCCPredictor {
       const uint64_t d0 = neighbors[0].weight;
       const uint64_t d1 = neighbors[1].weight;
       const uint64_t sum = d1 + d0;
-      const uint64_t w1 = (d0 << kFixedPointWeightShift) / sum;
+      const uint64_t w1 = divApprox(d0, sum, kFixedPointWeightShift);
       const uint64_t w0 = shift - w1;
       neighbors[0].weight = uint32_t(w0);
       neighbors[1].weight = uint32_t(w1);
@@ -191,8 +191,8 @@ struct PCCPredictor {
       const uint64_t d1 = neighbors[1].weight;
       const uint64_t d2 = neighbors[2].weight;
       const uint64_t sum = d1 * d2 + d0 * d2 + d0 * d1;
-      const uint64_t w2 = ((d0 * d1) << kFixedPointWeightShift) / sum;
-      const uint64_t w1 = ((d0 * d2) << kFixedPointWeightShift) / sum;
+      const uint64_t w2 = divApprox(d0 * d1, sum, kFixedPointWeightShift);
+      const uint64_t w1 = divApprox(d0 * d2, sum, kFixedPointWeightShift);
       const uint64_t w0 = shift - (w1 + w2);
       neighbors[0].weight = uint32_t(w0);
       neighbors[1].weight = uint32_t(w1);
@@ -287,7 +287,7 @@ PCCLiftUpdate(
     const uint32_t sumWeights = updateWeights[predictorIndex];
     if (sumWeights) {
       auto& update = updates[predictorIndex];
-      update = (update + sumWeights / 2) / sumWeights;
+      update = divApprox(update, sumWeights, 0);
       auto& attribute = attributes[predictorIndex];
       if (direct) {
         attribute += update;

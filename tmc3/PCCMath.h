@@ -567,6 +567,73 @@ divExp2RoundHalfInf(Vec3<T> vec, int shift)
 
 //---------------------------------------------------------------------------
 
+extern const uint16_t kDivApproxDivisor[256];
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+divInvDivisorApprox(const uint64_t b, int32_t& log2InvScale)
+{
+  assert(b > 0);
+  const int32_t lutSizeLog2 = 8;
+
+  const auto n = std::max(0, ilog2(b) + 1 - lutSizeLog2);
+  const auto index = (b + ((1 << n) >> 1)) >> n;
+  assert(unsigned(index) <= (1 << lutSizeLog2));
+  log2InvScale = n + (lutSizeLog2 << 1);
+  return kDivApproxDivisor[index - 1] + 1;
+}
+
+//---------------------------------------------------------------------------
+
+inline int64_t
+divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
+{
+  assert(abs(a) < (1UL << 46));
+  int32_t log2InvScale;
+  const int64_t invB = divInvDivisorApprox(b, log2InvScale);
+  return (invB * a) >> (log2InvScale - log2Scale);
+}
+
+//---------------------------------------------------------------------------
+
+inline Vec3<int64_t>
+divApprox(const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
+{
+  assert(abs(a[0]) < (1UL << 46));
+  assert(abs(a[1]) < (1UL << 46));
+  assert(abs(a[2]) < (1UL << 46));
+  int32_t log2InvScale;
+  const int64_t invB = divInvDivisorApprox(b, log2InvScale);
+  const int32_t n = log2InvScale - log2Scale;
+  Vec3<int64_t> res;
+  res[0] = (invB * a[0]) >> n;
+  res[1] = (invB * a[1]) >> n;
+  res[2] = (invB * a[2]) >> n;
+  return res;
+}
+
+//---------------------------------------------------------------------------
+
+inline Vec3<int64_t>
+divApproxRoundHalfInf(
+  const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
+{
+  assert(abs(a[0]) < (1UL << 46));
+  assert(abs(a[1]) < (1UL << 46));
+  assert(abs(a[2]) < (1UL << 46));
+  int32_t log2InvScale;
+  const int64_t invB = divInvDivisorApprox(b, log2InvScale);
+  const int32_t n = log2InvScale - log2Scale;
+  Vec3<int64_t> res;
+  res[0] = divExp2RoundHalfInf(invB * a[0], n);
+  res[1] = divExp2RoundHalfInf(invB * a[1], n);
+  res[2] = divExp2RoundHalfInf(invB * a[2], n);
+  return res;
+}
+
+//---------------------------------------------------------------------------
+
 } /* namespace pcc */
 
 #endif /* PCCMath_h */
