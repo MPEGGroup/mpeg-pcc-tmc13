@@ -518,6 +518,16 @@ If a single value is provided, subsequent values are derived automatically.
 ### `--lodSubsamplingPeriod=INT-VALUE|INT-VALUE-LIST`
 A list of sampling periods used to generate successive levels of detail.
 
+### `--canonical_point_order_flag=0|1`
+Controls the order used for attribute coding.  The canonical (geometry
+decoding order) is usable only with LoD attribute coding and
+`levelOfDtailCount=0`.
+
+  | Value | Description                        |
+  |:-----:| ---------------------------------- |
+  | 0     | Morton order                       |
+  | 1     | Decoded geometry (canonical) order |
+
 ### `--lod_neigh_bias=INT-VALUE-LIST`
 A set of three bias factors corresponding to the first, second and third
 geometry axes used to weight nearest neighbours during the LoD generation

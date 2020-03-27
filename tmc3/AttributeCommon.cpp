@@ -142,6 +142,9 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
     != aps.intra_lod_prediction_enabled_flag)
     return false;
 
+  if (_aps.canonical_point_order_flag != aps.canonical_point_order_flag)
+    return false;
+
   return true;
 }
 

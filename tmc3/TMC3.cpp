@@ -740,6 +740,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Use primary attribute component to predict values of subsequent "
     "components")
 
+  ("canonical_point_order_flag",
+    params_attr.aps.canonical_point_order_flag, false,
+    "Enable skipping morton sort in case of number of LoD equal to 1")
+
   ("aps_scalable_enable_flag",
     params_attr.aps.scalable_lifting_enabled_flag, false,
     "Enable scalable attritube coding")
@@ -1074,6 +1078,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       if (!attr_aps.dist2.empty() && attr_aps.dist2.size() != lod) {
         err.error() << it.first << ".dist2 does not have " << lod
                     << " entries\n";
+      }
+
+      if (lod > 0 && attr_aps.canonical_point_order_flag) {
+        err.error() << it.first
+                    << "when levelOfDetailCount > 0, "
+                       "canonicalPointOrder must be 0\n";
       }
 
       if (

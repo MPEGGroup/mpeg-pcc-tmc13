@@ -926,7 +926,7 @@ subsample(
 //---------------------------------------------------------------------------
 
 inline void
-computeMortonCodes(
+computeMortonCodesUnsorted(
   const PCCPointSet3& pointCloud,
   std::vector<MortonCodeWithIndex>& packedVoxel)
 {
@@ -938,7 +938,6 @@ computeMortonCodes(
       int32_t(position[0]), int32_t(position[1]), int32_t(position[2]));
     packedVoxel[n].index = n;
   }
-  sort(packedVoxel.begin(), packedVoxel.end());
 }
 
 //---------------------------------------------------------------------------
@@ -979,7 +978,9 @@ buildPredictorsFast(
   assert(pointCount);
 
   std::vector<MortonCodeWithIndex> packedVoxel;
-  computeMortonCodes(pointCloud, packedVoxel);
+  computeMortonCodesUnsorted(pointCloud, packedVoxel);
+  if (!aps.canonical_point_order_flag)
+    std::sort(packedVoxel.begin(), packedVoxel.end());
 
   std::vector<uint32_t> retained, input, pointIndexToPredictorIndex;
   pointIndexToPredictorIndex.resize(pointCount);
