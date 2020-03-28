@@ -819,7 +819,11 @@ uraht_process(
       if (inheritDc) {
         for (int k = 0; k < numAttrs; k++) {
           attrRecParentIt++;
-          transformPredBuf[k][0] = *attrRecParentUsIt++;
+          int64_t val = *attrRecParentUsIt++;
+          if (val > 0)
+            transformPredBuf[k][0].val = val << (15 - 2);
+          else
+            transformPredBuf[k][0].val = -((-val) << (15 - 2));
         }
       }
 
@@ -829,8 +833,11 @@ uraht_process(
         if (!weights[nodeIdx])
           continue;
 
-        for (int k = 0; k < numAttrs; k++)
-          attrRecUs[j * numAttrs + k] = transformPredBuf[k][nodeIdx].round();
+        for (int k = 0; k < numAttrs; k++) {
+          FixedPoint temp = transformPredBuf[k][nodeIdx];
+          temp.val <<= 2;
+          attrRecUs[j * numAttrs + k] = temp.round();
+        }
 
         // scale values for next level
         if (weights[nodeIdx] > 1) {
