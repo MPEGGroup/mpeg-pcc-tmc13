@@ -36,6 +36,7 @@
 #include "geometry_predictive.h"
 #include "geometry.h"
 #include "pointset_processing.h"
+#include "quantization.h"
 
 #include "PCCMisc.h"
 
@@ -80,16 +81,18 @@ public:
   PredGeomEncoder(const PredGeomEncoder&) = delete;
   PredGeomEncoder& operator=(const PredGeomEncoder&) = delete;
 
-  PredGeomEncoder(const GeometryParameterSet&, EntropyEncoder* aec);
+  PredGeomEncoder(
+    const GeometryParameterSet&,
+    const GeometryBrickHeader&,
+    EntropyEncoder* aec);
+
+  int qpSelector(const GNode& node) const { return _sliceQp; }
 
   void encode(
-    const Vec3<int32_t>* cloud,
-    const GNode* nodes,
-    int numNodes,
-    int* codedOrder);
+    Vec3<int32_t>* cloud, const GNode* nodes, int numNodes, int* codedOrder);
 
   int encodeTree(
-    const Vec3<int32_t>* cloud,
+    Vec3<int32_t>* cloud,
     const GNode* nodes,
     int numNodes,
     int rootIdx,
@@ -99,6 +102,7 @@ public:
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
   void encodeResidual(const Vec3<int32_t>& residual, GPredicter::Mode mode);
+  void encodeQpOffset(int dqp);
 
   float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
 
@@ -106,14 +110,30 @@ private:
   EntropyEncoder* _aec;
   std::vector<int32_t> _stack;
   bool _geom_unique_points_flag;
+
+  bool _geom_scaling_enabled_flag;
+  int _sliceQp;
+  int _qpOffsetInterval;
 };
 
 //============================================================================
 
 PredGeomEncoder::PredGeomEncoder(
-  const GeometryParameterSet& gps, EntropyEncoder* aec)
-  : _aec(aec), _geom_unique_points_flag(gps.geom_unique_points_flag)
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  EntropyEncoder* aec)
+  : _aec(aec)
+  , _geom_unique_points_flag(gps.geom_unique_points_flag)
+  , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
+  , _sliceQp(0)
 {
+  if (gps.geom_scaling_enabled_flag) {
+    _sliceQp = gbh.sliceQp(gps);
+    int qpIntervalLog2 =
+      gps.geom_qp_offset_intvl_log2 + gbh.geom_qp_offset_intvl_log2_delta;
+    _qpOffsetInterval = (1 << qpIntervalLog2) - 1;
+  }
+
   _stack.reserve(1024);
 }
 
@@ -185,6 +205,19 @@ PredGeomEncoder::encodeResidual(
 
 //----------------------------------------------------------------------------
 
+void
+PredGeomEncoder::encodeQpOffset(int dqp)
+{
+  _aec->encode(dqp == 0, _ctxQpOffsetIsZero);
+  if (dqp == 0) {
+    return;
+  }
+  _aec->encode(dqp > 0, _ctxQpOffsetSign);
+  _aec->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
+}
+
+//----------------------------------------------------------------------------
+
 float
 PredGeomEncoder::estimateBits(
   GPredicter::Mode mode, const Vec3<int32_t>& residual)
@@ -228,12 +261,14 @@ PredGeomEncoder::estimateBits(
 
 int
 PredGeomEncoder::encodeTree(
-  const Vec3<int32_t>* cloud,
+  Vec3<int32_t>* cloud,
   const GNode* nodes,
   int numNodes,
   int rootIdx,
   int* codedOrder)
 {
+  QuantizerGeom quantizer(_sliceQp);
+  int nodesUntilQpOffset = 0;
   int processedNodes = 0;
 
   _stack.push_back(rootIdx);
@@ -248,7 +283,15 @@ PredGeomEncoder::encodeTree(
       float bits;
       GPredicter::Mode mode;
       Vec3<int32_t> residual;
+      Vec3<int32_t> prediction;
     } best;
+
+    if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
+      int qp = qpSelector(node);
+      quantizer = QuantizerGeom(qp);
+      encodeQpOffset(qp - _sliceQp);
+      nodesUntilQpOffset = _qpOffsetInterval;
+    }
 
     // mode decision to pick best prediction from available set
     for (int iMode = 0; iMode < 4; iMode++) {
@@ -261,9 +304,13 @@ PredGeomEncoder::encodeTree(
 
       auto pred = predicter.predict(&cloud[0], mode);
       auto residual = point - pred;
+      for (int k = 0; k < 3; k++)
+        residual[k] = int32_t(quantizer.quantize(residual[k]));
+
       auto bits = estimateBits(mode, residual);
 
       if (iMode == 0 || bits < best.bits) {
+        best.prediction = pred;
         best.residual = residual;
         best.mode = mode;
         best.bits = bits;
@@ -276,6 +323,11 @@ PredGeomEncoder::encodeTree(
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
     encodeResidual(best.residual, best.mode);
+
+    // write the reconstructed position back to the point cloud
+    for (int k = 0; k < 3; k++)
+      best.residual[k] = int32_t(quantizer.scale(best.residual[k]));
+    cloud[nodeIdx] = best.prediction + best.residual;
 
     // NB: the coded order of duplicate points assumes that the duplicates
     // are consecutive -- in order that the correct attributes are coded.
@@ -295,10 +347,7 @@ PredGeomEncoder::encodeTree(
 
 void
 PredGeomEncoder::encode(
-  const Vec3<int32_t>* cloud,
-  const GNode* nodes,
-  int numNodes,
-  int32_t* codedOrder)
+  Vec3<int32_t>* cloud, const GNode* nodes, int numNodes, int32_t* codedOrder)
 {
   int32_t processedNodes = 0;
   for (int32_t rootIdx = 0; rootIdx < numNodes; rootIdx++) {
@@ -456,7 +505,7 @@ encodePredictiveGeometry(
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
-  PredGeomEncoder enc(gps, arithmeticEncoder);
+  PredGeomEncoder enc(gps, gbh, arithmeticEncoder);
   int maxPtsPerTree = std::min(opt.maxPtsPerTree, int(numPoints));
   ;
   for (int i = 0; i < numPoints;) {

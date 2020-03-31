@@ -691,6 +691,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gbh.geom_octree_qp_offset_depth, -1,
     "Octree depth used for signalling position QP offsets (-1 => disabled)")
 
+  ("positionBaseQpFreqLog2",
+    params.encoder.gps.geom_qp_offset_intvl_log2, 8,
+    "Frequency of sending QP offsets in predictive geometry coding")
+
+  // NB: this will be corrected to be relative to base value later
+  ("positionSliceQpFreqLog2",
+    params.encoder.gbh.geom_qp_offset_intvl_log2_delta, 0,
+    "Frequency of sending QP offsets in predictive geometry coding")
+
   ("angularEnabled",
     params.encoder.gps.geom_angular_mode_enabled_flag, false,
     "Controls angular contextualisation of occupancy")
@@ -958,6 +967,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
   }
+
+  // Config options are absolute, but signalling is relative
+  params.encoder.gbh.geom_qp_offset_intvl_log2_delta -=
+    params.encoder.gps.geom_qp_offset_intvl_log2;
 
   // set default output resolution (this works for the decoder too)
   if (params.outputResolution < 0)

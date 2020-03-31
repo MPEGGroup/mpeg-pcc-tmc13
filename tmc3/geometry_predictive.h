@@ -80,6 +80,10 @@ struct PredGeomCodec {
   AdaptiveBitModel _ctxNumBits[12][3][31];
   AdaptiveBitModel _ctxNumDupPointsGt0;
   AdaptiveBitModel _ctxNumDupPoints;
+
+  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetSign;
+  AdaptiveBitModel _ctxQpOffsetAbsEgl;
 };
 
 //============================================================================

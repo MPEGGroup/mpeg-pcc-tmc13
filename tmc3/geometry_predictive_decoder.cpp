@@ -37,6 +37,7 @@
 #include "geometry_predictive.h"
 #include "geometry.h"
 #include "hls.h"
+#include "quantization.h"
 
 #include <vector>
 
@@ -49,7 +50,10 @@ public:
   PredGeomDecoder(const PredGeomDecoder&) = delete;
   PredGeomDecoder& operator=(const PredGeomDecoder&) = delete;
 
-  PredGeomDecoder(const GeometryParameterSet&, EntropyDecoder* aed);
+  PredGeomDecoder(
+    const GeometryParameterSet&,
+    const GeometryBrickHeader& gbh,
+    EntropyDecoder* aed);
 
   /**
    * decodes a sequence of decoded geometry trees.
@@ -68,20 +72,37 @@ private:
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   Vec3<int32_t> decodeResidual(GPredicter::Mode mode);
+  int32_t decodeQpOffset();
 
 private:
   EntropyDecoder* _aed;
   std::vector<int32_t> _stack;
   std::vector<int32_t> _nodeIdxToParentIdx;
   bool _geom_unique_points_flag;
+
+  bool _geom_scaling_enabled_flag;
+  int _sliceQp;
+  int _qpOffsetInterval;
 };
 
 //============================================================================
 
 PredGeomDecoder::PredGeomDecoder(
-  const GeometryParameterSet& gps, EntropyDecoder* aed)
-  : _aed(aed), _geom_unique_points_flag(gps.geom_unique_points_flag)
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  EntropyDecoder* aed)
+  : _aed(aed)
+  , _geom_unique_points_flag(gps.geom_unique_points_flag)
+  , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
+  , _sliceQp(0)
 {
+  if (gps.geom_scaling_enabled_flag) {
+    _sliceQp = gbh.sliceQp(gps);
+    int qpIntervalLog2 =
+      gps.geom_qp_offset_intvl_log2 + gbh.geom_qp_offset_intvl_log2_delta;
+    _qpOffsetInterval = (1 << qpIntervalLog2) - 1;
+  }
+
   _stack.reserve(1024);
 }
 
@@ -114,6 +135,20 @@ PredGeomDecoder::decodePredMode()
   int mode = _aed->decode(_ctxPredMode[0]);
   mode += _aed->decode(_ctxPredMode[1 + mode]) << 1;
   return GPredicter::Mode(mode);
+}
+
+//----------------------------------------------------------------------------
+
+int32_t
+PredGeomDecoder::decodeQpOffset()
+{
+  int dqp = 0;
+  if (!_aed->decode(_ctxQpOffsetIsZero)) {
+    int dqp_sign = _aed->decode(_ctxQpOffsetSign);
+    dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+    dqp = dqp_sign ? dqp : -dqp;
+  }
+  return dqp;
 }
 
 //----------------------------------------------------------------------------
@@ -162,12 +197,21 @@ PredGeomDecoder::decodeResidual(GPredicter::Mode mode)
 int
 PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
 {
+  QuantizerGeom quantizer(_sliceQp);
+  int nodesUntilQpOffset = 0;
   int nodeCount = 0;
   _stack.push_back(-1);
 
   while (!_stack.empty()) {
     auto parentNodeIdx = _stack.back();
     _stack.pop_back();
+
+    if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
+      int qpOffset = decodeQpOffset();
+      int qp = _sliceQp + qpOffset;
+      quantizer = QuantizerGeom(qp);
+      nodesUntilQpOffset = _qpOffsetInterval;
+    }
 
     // allocate point in traversal order (depth first)
     auto curNodeIdx = nodeCount++;
@@ -179,6 +223,8 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
     auto residual = decodeResidual(mode);
+    for (int k = 0; k < 3; k++)
+      residual[k] = int32_t(quantizer.scale(residual[k]));
 
     auto predicter = makePredicter(
       curNodeIdx, mode, [&](int idx) { return _nodeIdxToParentIdx[idx]; });
@@ -222,7 +268,7 @@ decodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   EntropyDecoder* aed)
 {
-  PredGeomDecoder dec(gps, aed);
+  PredGeomDecoder dec(gps, gbh, aed);
   dec.decode(gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0]);
 }
 

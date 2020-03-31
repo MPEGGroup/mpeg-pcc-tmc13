@@ -466,6 +466,15 @@ Maximum number of points per predictive geometry tree.  A slice may contain
 more than one predictive geometry tree.
 Requires `geomTreeType=1`.
 
+### `--positionBaseQpFreqLog2=INT-VALUE`
+Controls the number of predictive geometry tree nodes scaled by the same
+QP offset instance.  QP offsets are signalled every $2^n$ nodes in tree
+traversal order.  This configuration applies to all slices.
+Requires `positionQuantisationEnabled=1`.
+
+### `--positionSliceQpFreqLog2=INT-VALUE`
+Identical to `positionBaseQpFreqLog2`, but controls per-slice configuration.
+
 
 Attribute coding
 ----------------

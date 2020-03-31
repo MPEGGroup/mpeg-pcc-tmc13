@@ -585,12 +585,16 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.writeUe(gps.neighbour_avail_boundary_log2);
     bs.writeUe(gps.intra_pred_max_node_size_log2);
     bs.writeUe(gps.trisoup_node_size_log2);
-    bs.write(gps.geom_scaling_enabled_flag);
-    if (gps.geom_scaling_enabled_flag) {
-      bs.writeUe(gps.geom_base_qp);
-      bs.writeUn(2, gps.geom_qp_multiplier_log2);
+  }
+
+  bs.write(gps.geom_scaling_enabled_flag);
+  if (gps.geom_scaling_enabled_flag) {
+    bs.writeUe(gps.geom_base_qp);
+    bs.writeUn(2, gps.geom_qp_multiplier_log2);
+    if (gps.predgeom_enabled_flag)
+      bs.writeUe(gps.geom_qp_offset_intvl_log2);
+    else
       bs.writeSe(gps.geom_idcm_qp_offset);
-    }
   }
 
   bool gps_extension_flag = false;
@@ -678,16 +682,19 @@ parseGps(const PayloadBuffer& buf)
     bs.readUe(&gps.neighbour_avail_boundary_log2);
     bs.readUe(&gps.intra_pred_max_node_size_log2);
     bs.readUe(&gps.trisoup_node_size_log2);
+  }
 
-    gps.geom_base_qp = 0;
-    gps.geom_qp_multiplier_log2 = 0;
-    gps.geom_idcm_qp_offset = 0;
-    bs.read(&gps.geom_scaling_enabled_flag);
-    if (gps.geom_scaling_enabled_flag) {
-      bs.readUe(&gps.geom_base_qp);
-      bs.readUn(2, &gps.geom_qp_multiplier_log2);
+  gps.geom_base_qp = 0;
+  gps.geom_qp_multiplier_log2 = 0;
+  gps.geom_idcm_qp_offset = 0;
+  bs.read(&gps.geom_scaling_enabled_flag);
+  if (gps.geom_scaling_enabled_flag) {
+    bs.readUe(&gps.geom_base_qp);
+    bs.readUn(2, &gps.geom_qp_multiplier_log2);
+    if (gps.predgeom_enabled_flag)
+      bs.readUe(&gps.geom_qp_offset_intvl_log2);
+    else
       bs.readSe(&gps.geom_idcm_qp_offset);
-    }
   }
 
   bool gps_extension_flag = bs.read();
@@ -932,17 +939,21 @@ write(
       for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
         bs.writeUn(gbh.geom_stream_len_bits, gbh.geom_stream_len[i]);
     }
+  }
 
-    if (gps.geom_scaling_enabled_flag) {
-      bs.writeSe(gbh.geom_slice_qp_offset);
+  if (gps.geom_scaling_enabled_flag) {
+    bs.writeSe(gbh.geom_slice_qp_offset);
+    if (gps.predgeom_enabled_flag)
+      bs.writeUe(gbh.geom_qp_offset_intvl_log2_delta);
+    else
       bs.writeUe(gbh.geom_octree_qp_offset_depth);
-    }
+  }
 
+  if (!gps.predgeom_enabled_flag)
     if (gps.trisoup_node_size_log2) {
       bs.writeUe(gbh.trisoup_sampling_value_minus1);
       bs.writeUe(gbh.num_unique_segments_minus1);
     }
-  }
 
   bs.byteAlign();
 }
@@ -993,17 +1004,22 @@ parseGbh(
       for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
         bs.readUn(gbh.geom_stream_len_bits, &gbh.geom_stream_len[i]);
     }
+  }
 
-    if (gps.geom_scaling_enabled_flag) {
-      bs.readSe(&gbh.geom_slice_qp_offset);
+  gbh.geom_slice_qp_offset = 0;
+  if (gps.geom_scaling_enabled_flag) {
+    bs.readSe(&gbh.geom_slice_qp_offset);
+    if (gps.predgeom_enabled_flag)
+      bs.readUe(&gbh.geom_qp_offset_intvl_log2_delta);
+    else
       bs.readUe(&gbh.geom_octree_qp_offset_depth);
-    }
+  }
 
+  if (!gps.predgeom_enabled_flag)
     if (gps.trisoup_node_size_log2) {
       bs.readUe(&gbh.trisoup_sampling_value_minus1);
       bs.readUe(&gbh.num_unique_segments_minus1);
     }
-  }
 
   bs.byteAlign();
 

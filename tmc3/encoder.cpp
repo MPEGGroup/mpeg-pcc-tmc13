@@ -573,6 +573,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
 
+  gbh.geom_qp_offset_intvl_log2_delta =
+    params->gbh.geom_qp_offset_intvl_log2_delta;
+
   // inform the geometry coder what the root node size is
   for (int k = 0; k < 3; k++) {
     // NB: A minimum whd of 2 means there is always at least 1 tree level

@@ -410,6 +410,9 @@ struct GeometryParameterSet {
 
   // disable the use of planar buffer when angular mode is enabled
   bool planar_buffer_disabled_flag;
+
+  // block size (i.e. number of points per block) in predictive geometry coding
+  int geom_qp_offset_intvl_log2;
 };
 
 //============================================================================
@@ -453,6 +456,9 @@ struct GeometryBrickHeader {
 
   // octree depth at which qp offsets whould be signalled
   int geom_octree_qp_offset_depth;
+
+  // block size offset for predictive geometry coding (if enabled)
+  int geom_qp_offset_intvl_log2_delta;
 
   // number of entropy streams used to encode the octree
   int geom_stream_cnt_minus1;
