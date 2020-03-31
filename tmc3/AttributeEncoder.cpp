@@ -57,7 +57,7 @@ struct PCCResidualsEncoder {
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
-  AdaptiveBitModel ctxZeroCnt[3];
+  AdaptiveBitModel ctxRunLen[5];
   AdaptiveBitModel binaryModelIsOne[7];
   AdaptiveBitModel ctxSymbolBit[2];
   AdaptiveBitModel ctxSetIdx[2][16];
@@ -65,7 +65,7 @@ struct PCCResidualsEncoder {
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
   void encodePredMode(int value, int max);
-  void encodeZeroCnt(int value, int max);
+  void encodeRunLength(int runLength);
   void encodeInterval(int value, int k3);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
   void encode(int32_t value0, int32_t value1, int32_t value2);
@@ -144,21 +144,30 @@ PCCResidualsEncoder::encodePredMode(int mode, int maxMode)
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encodeZeroCnt(int mode, int maxMode)
+PCCResidualsEncoder::encodeRunLength(int runLength)
 {
-  // max = 0 => no direct predictors are used
-  if (maxMode == 0)
+  auto* ctx = ctxRunLen;
+  for (int i = 0; i < std::min(3, runLength); i++, ctx++)
+    arithmeticEncoder.encode(1, *ctx);
+
+  if (runLength < 3) {
+    arithmeticEncoder.encode(0, *ctx);
     return;
-
-  int ctxIdx = 0;
-  for (int i = 0; i < mode; i++) {
-    arithmeticEncoder.encode(1, ctxZeroCnt[ctxIdx]);
-    ctxIdx = (ctxIdx == 0 ? 1 : 2);
   }
+  runLength -= 3;
 
-  // Truncated unary
-  if (mode != maxMode)
-    arithmeticEncoder.encode(0, ctxZeroCnt[ctxIdx]);
+  auto prefix = runLength >> 1;
+  for (int i = 0; i < std::min(4, prefix); i++)
+    arithmeticEncoder.encode(1, *ctx);
+
+  if (runLength < 8) {
+    arithmeticEncoder.encode(0, *ctx);
+    arithmeticEncoder.encode(runLength & 1);
+    return;
+  }
+  runLength -= 8;
+
+  arithmeticEncoder.encodeExpGolomb(runLength, 2, *++ctx);
 }
 
 //----------------------------------------------------------------------------
@@ -588,7 +597,7 @@ AttributeEncoder::encodeReflectancesPred(
 
   zerorun.push_back(zero_cnt);
   int run_index = 0;
-  encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+  encoder.encodeRunLength(zerorun[run_index]);
   zero_cnt = zerorun[run_index++];
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -603,7 +612,7 @@ AttributeEncoder::encodeReflectancesPred(
     else {
       encoder.encode(residual[predictorIndex]);
       if (predictorIndex != pointCount - 1)
-        encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+        encoder.encodeRunLength(zerorun[run_index]);
       zero_cnt = zerorun[run_index++];
     }
   }
@@ -799,7 +808,7 @@ AttributeEncoder::encodeColorsPred(
 
   zerorun.push_back(zero_cnt);
   int run_index = 0;
-  encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+  encoder.encodeRunLength(zerorun[run_index]);
   zero_cnt = zerorun[run_index++];
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -816,7 +825,7 @@ AttributeEncoder::encodeColorsPred(
 
       encoder.encode(values[0], values[1], values[2]);
       if (predictorIndex != pointCount - 1)
-        encoder.encodeZeroCnt(zerorun[run_index], pointCount);
+        encoder.encodeRunLength(zerorun[run_index]);
       zero_cnt = zerorun[run_index++];
     }
   }
@@ -870,12 +879,12 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     if (!value)
       ++zero_cnt;
     else {
-      encoder.encodeZeroCnt(zero_cnt, voxelCount);
+      encoder.encodeRunLength(zero_cnt);
       encoder.encode(value);
       zero_cnt = 0;
     }
   }
-  encoder.encodeZeroCnt(zero_cnt, voxelCount);
+  encoder.encodeRunLength(zero_cnt);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -945,12 +954,12 @@ AttributeEncoder::encodeColorsTransformRaht(
     if (!values[0] && !values[1] && !values[2])
       ++zero_cnt;
     else {
-      encoder.encodeZeroCnt(zero_cnt, voxelCount);
+      encoder.encodeRunLength(zero_cnt);
       encoder.encode(values[0], values[1], values[2]);
       zero_cnt = 0;
     }
   }
-  encoder.encodeZeroCnt(zero_cnt, voxelCount);
+  encoder.encodeRunLength(zero_cnt);
 
   Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
                     (1 << desc.bitdepthSecondary) - 1,
@@ -1044,12 +1053,12 @@ AttributeEncoder::encodeColorsLift(
     if (!values[0] && !values[1] && !values[2])
       ++zero_cnt;
     else {
-      encoder.encodeZeroCnt(zero_cnt, pointCount);
+      encoder.encodeRunLength(zero_cnt);
       encoder.encode(values[0], values[1], values[2]);
       zero_cnt = 0;
     }
   }
-  encoder.encodeZeroCnt(zero_cnt, pointCount);
+  encoder.encodeRunLength(zero_cnt);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
@@ -1137,12 +1146,12 @@ AttributeEncoder::encodeReflectancesLift(
     if (!detail)
       ++zero_cnt;
     else {
-      encoder.encodeZeroCnt(zero_cnt, pointCount);
+      encoder.encodeRunLength(zero_cnt);
       encoder.encode(detail);
       zero_cnt = 0;
     }
   }
-  encoder.encodeZeroCnt(zero_cnt, pointCount);
+  encoder.encodeRunLength(zero_cnt);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
