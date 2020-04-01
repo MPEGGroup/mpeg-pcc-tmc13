@@ -219,49 +219,21 @@ struct PCCPredictor {
 
 //---------------------------------------------------------------------------
 
-inline void
+template<typename T>
+void
 PCCLiftPredict(
   const std::vector<PCCPredictor>& predictors,
   const size_t startIndex,
   const size_t endIndex,
   const bool direct,
-  std::vector<Vec3<int64_t>>& attributes)
+  std::vector<T>& attributes)
 {
   const size_t predictorCount = endIndex - startIndex;
   for (size_t index = 0; index < predictorCount; ++index) {
     const size_t predictorIndex = predictorCount - index - 1 + startIndex;
     const auto& predictor = predictors[predictorIndex];
     auto& attribute = attributes[predictorIndex];
-    Vec3<int64_t> predicted(int64_t(0));
-    for (size_t i = 0; i < predictor.neighborCount; ++i) {
-      const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
-      const uint32_t weight = predictor.neighbors[i].weight;
-      assert(neighborPredIndex < startIndex);
-      predicted += weight * attributes[neighborPredIndex];
-    }
-    predicted = divExp2RoundHalfInf(predicted, kFixedPointWeightShift);
-    if (direct) {
-      attribute -= predicted;
-    } else {
-      attribute += predicted;
-    }
-  }
-}
-
-inline void
-PCCLiftPredict(
-  const std::vector<PCCPredictor>& predictors,
-  const size_t startIndex,
-  const size_t endIndex,
-  const bool direct,
-  std::vector<int64_t>& attributes)
-{
-  const size_t predictorCount = endIndex - startIndex;
-  for (size_t index = 0; index < predictorCount; ++index) {
-    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
-    const auto& predictor = predictors[predictorIndex];
-    auto& attribute = attributes[predictorIndex];
-    int64_t predicted(int64_t(0));
+    T predicted(T(0));
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
       const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
       const uint32_t weight = predictor.neighbors[i].weight;
@@ -279,18 +251,19 @@ PCCLiftPredict(
 
 //---------------------------------------------------------------------------
 
-inline void
+template<typename T>
+void
 PCCLiftUpdate(
   const std::vector<PCCPredictor>& predictors,
   const std::vector<uint64_t>& quantizationWeights,
   const size_t startIndex,
   const size_t endIndex,
   const bool direct,
-  std::vector<Vec3<int64_t>>& attributes)
+  std::vector<T>& attributes)
 {
   std::vector<uint64_t> updateWeights;
   updateWeights.resize(startIndex, uint64_t(0));
-  std::vector<Vec3<int64_t>> updates;
+  std::vector<T> updates;
   updates.resize(startIndex);
   for (size_t index = 0; index < startIndex; ++index) {
     updates[index] = int64_t(0);
@@ -313,52 +286,6 @@ PCCLiftUpdate(
        ++predictorIndex) {
     const uint32_t sumWeights = updateWeights[predictorIndex];
     if (sumWeights) {
-      auto& update = updates[predictorIndex];
-      update = (update + sumWeights / 2) / sumWeights;
-      auto& attribute = attributes[predictorIndex];
-      if (direct) {
-        attribute += update;
-      } else {
-        attribute -= update;
-      }
-    }
-  }
-}
-
-inline void
-PCCLiftUpdate(
-  const std::vector<PCCPredictor>& predictors,
-  const std::vector<uint64_t>& quantizationWeights,
-  const size_t startIndex,
-  const size_t endIndex,
-  const bool direct,
-  std::vector<int64_t>& attributes)
-{
-  std::vector<uint64_t> updateWeights;
-  updateWeights.resize(startIndex, uint64_t(0));
-  std::vector<int64_t> updates;
-  updates.resize(startIndex);
-  for (size_t index = 0; index < startIndex; ++index) {
-    updates[index] = int64_t(0);
-  }
-  const size_t predictorCount = endIndex - startIndex;
-  for (size_t index = 0; index < predictorCount; ++index) {
-    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
-    const auto& predictor = predictors[predictorIndex];
-    const auto currentQuantWeight = quantizationWeights[predictorIndex];
-    for (size_t i = 0; i < predictor.neighborCount; ++i) {
-      const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
-      const uint64_t weight =
-        predictor.neighbors[i].weight * currentQuantWeight;
-      assert(neighborPredIndex < startIndex);
-      updateWeights[neighborPredIndex] += weight;
-      updates[neighborPredIndex] += weight * attributes[predictorIndex];
-    }
-  }
-  for (size_t predictorIndex = 0; predictorIndex < startIndex;
-       ++predictorIndex) {
-    const uint32_t sumWeights = updateWeights[predictorIndex];
-    if (sumWeights > 0.0) {
       auto& update = updates[predictorIndex];
       update = (update + sumWeights / 2) / sumWeights;
       auto& attribute = attributes[predictorIndex];
