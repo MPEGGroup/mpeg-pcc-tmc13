@@ -71,9 +71,6 @@ private:
 private:
   static const int kChunkSize = 256;
 
-  // a temporary buffer used to write bypass bits prior to chunk assembly
-  uint8_t _bypassBuf[kChunkSize - 1];
-
   // number of bytes remaining in the output buffer
   size_t _outputSizeRemaining;
 
@@ -140,7 +137,7 @@ ChunkStreamBuilder::writeBypassBit(bool bit)
   _bypassByteAllocCounter--;
 
   if (--_bypassBitIdx < 0) {
-    _bypassPtr++;
+    _bypassPtr--;
     _bypassBitIdx = 7;
   }
 
@@ -202,14 +199,15 @@ ChunkStreamBuilder::finaliseChunk()
 
     // there may be an extra byte at the end if last byte occupancy > 5
     if (chunk_bypass_num_flushed_bits < 0) {
-      *++_bypassPtr = 0;
+      *--_bypassPtr = 0;
       chunk_bypass_num_flushed_bits += 8;
     }
 
     *_bypassPtr |= uint8_t(chunk_bypass_num_flushed_bits);
-
-    // move the bypass data to start after the aec data
-    std::copy_n(_bypassBuf, bypassLen, _chunkBase + chunk_num_ae_bytes + 1);
+    if (_chunkBytesRemaining)
+      std::move(
+        _bypassPtr, _chunkBase + kChunkSize,
+        _chunkBase + chunk_num_ae_bytes + 1);
   }
 
   // write out the length of the aec data
@@ -229,7 +227,7 @@ ChunkStreamBuilder::startNextChunk()
   _chunkBytesRemaining = kChunkSize - 1;
   _chunkBase += kChunkSize;
   _aecPtr = _chunkBase + 1;
-  _bypassPtr = _bypassBuf;
+  _bypassPtr = _chunkBase + kChunkSize - 1;
   _bypassBitIdx = 8;
   _bypassByteAllocCounter = -3;
 
@@ -336,7 +334,7 @@ ChunkStreamReader::readBypassBit()
   // try to refil accumulator
   _bypassBitsRemaining -= 8;
   if (_bypassBitsRemaining > 0) {
-    _bypassAccum = *_bypassByte++;
+    _bypassAccum = *_bypassByte--;
     _bypassAccumBitsRemaining = std::min(_bypassBitsRemaining, 8);
     return readBypassBit();
   }
@@ -354,10 +352,10 @@ ChunkStreamReader::readBypassBit()
   if (ptr + chunkSize - 1 >= _end)
     throw std::runtime_error("bypass buffer exceeded");
 
-  int chunk_bypass_num_flushed_bits = ptr[chunkSize - 1] & 0x7;
+  int chunk_bypass_num_flushed_bits = ptr[chunk_num_ae_bytes + 1] & 0x7;
   _bypassNextChunk = ptr + kChunkSize;
-  _bypassByte = ptr + 1 + chunk_num_ae_bytes;
-  _bypassAccum = *_bypassByte++;
+  _bypassByte = ptr + chunkSize - 1;
+  _bypassAccum = *_bypassByte--;
   _bypassBitsRemaining =
     8 * (chunkSize - chunk_num_ae_bytes) - chunk_bypass_num_flushed_bits - 11;
   _bypassAccumBitsRemaining = std::min(_bypassBitsRemaining, 8);
