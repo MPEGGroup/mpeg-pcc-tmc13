@@ -75,12 +75,18 @@ struct PCCOctree3Node {
   //   4 16 (z)
   uint8_t neighPattern = 0;
 
+  uint8_t gnp = 0;
+  uint8_t childIdx;
+
   // The current node's number of siblings plus one.
   // ie, the number of child nodes present in this node's parent.
   uint8_t numSiblingsPlus1;
 
   // The occupancy map used describing the current node and its siblings.
   uint8_t siblingOccupancy;
+
+  // Indicatest hat the current node qualifies for IDCM
+  bool idcmEligible;
 
   // The qp used for geometry quantisation
   int qp;

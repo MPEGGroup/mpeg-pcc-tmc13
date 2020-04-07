@@ -178,6 +178,8 @@ public:
 
   int decodeQpOffset();
 
+  bool decodeIsIdcm();
+
   template<class OutputIt>
   int decodeDirectPosition(
     bool geom_unique_points_flag,
@@ -1051,6 +1053,14 @@ GeometryOctreeDecoder::decodePointPositionAngular(
 }
 
 //-------------------------------------------------------------------------
+
+bool
+GeometryOctreeDecoder::decodeIsIdcm()
+{
+  return _arithmeticDecoder->decode(_ctxBlockSkipTh);
+}
+
+//-------------------------------------------------------------------------
 // Direct coding of position of points in node (early tree termination).
 // Decoded points are written to @outputPoints
 // Returns the number of points emitted.
@@ -1068,11 +1078,6 @@ GeometryOctreeDecoder::decodeDirectPosition(
   const int* thetaLaser,
   int numLasers)
 {
-  bool isDirectMode = _arithmeticDecoder->decode(_ctxBlockSkipTh);
-  if (!isDirectMode) {
-    return 0;
-  }
-
   int numPoints = 1;
   bool numPointsGt1 = _arithmeticDecoder->decode(_ctxNumIdcmPointsGt1);
   numPoints += numPointsGt1;
@@ -1196,6 +1201,7 @@ decodeGeometryOctree(
   node00.siblingOccupancy = 0;
   node00.qp = 0;
   node00.planarMode = 0;
+  node00.idcmEligible = 0;
 
   size_t processedPointCount = 0;
   std::vector<uint32_t> values;
@@ -1264,6 +1270,11 @@ decodeGeometryOctree(
   // the saved state is restored at the start of each parallel octree level
   std::unique_ptr<GeometryOctreeDecoder> savedState;
 
+  // The number of nodes to wait before updating the planar rate.
+  // This is to match the prior behaviour where planar is updated once
+  // per coded occupancy.
+  int nodesBeforePlanarUpdate = 1;
+
   for (int depth = 0; depth < maxDepth; depth++) {
     // setup at the start of each level
     auto fifoCurrLvlEnd = fifo.end();
@@ -1274,14 +1285,11 @@ decodeGeometryOctree(
     auto parentNodeSizeLog2 = nodeSizeLog2;
     nodeSizeLog2 = lvlNodeSizeLog2[depth];
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
-    auto grandchildSizeLog2 = lvlNodeSizeLog2[depth + 2];
     nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
     int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
     int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
-    int childOccupancySkipLevel =
-      nonSplitQtBtAxes(childSizeLog2, grandchildSizeLog2);
 
     // Idcm quantisation applies to child nodes before per node qps
     if (--numLvlsUntilQpOffset > 0) {
@@ -1323,7 +1331,7 @@ decodeGeometryOctree(
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }
 
-    auto planarDepth = lvlNodeSizeLog2[0] - childSizeLog2;
+    auto planarDepth = lvlNodeSizeLog2[0] - nodeSizeLog2;
     decoder.beginOctreeLevel(planarDepth);
 
     // process all nodes within a single level
@@ -1339,13 +1347,88 @@ decodeGeometryOctree(
 
       // make quantisation work with qtbt and planar.
       auto occupancySkip = occupancySkipLevel;
-      auto childOccupancySkip = childOccupancySkipLevel;
       if (shiftBits != 0) {
         for (int k = 0; k < 3; k++) {
           if (effectiveChildSizeLog2[k] < 0)
             occupancySkip |= (4 >> k);
-          if (effectiveChildSizeLog2[k] < 1)
-            childOccupancySkip |= (4 >> k);
+        }
+      }
+
+      int contextAngle = -1;
+      int contextAnglePhiX = -1;
+      int contextAnglePhiY = -1;
+      if (gps.geom_angular_mode_enabled_flag) {
+        contextAngle = determineContextAngleForPlanar(
+          node0, headPos, nodeSizeLog2, zLaser, thetaLaser, numLasers,
+          deltaAngle, decoder._phiZi, decoder._phiBuffer.data(),
+          &contextAnglePhiX, &contextAnglePhiY);
+      }
+
+      if (!isLeafNode(effectiveNodeSizeLog2) || node0.idcmEligible) {
+        // planar eligibility
+        bool planarEligible[3] = {false, false, false};
+        if (gps.geom_planar_mode_enabled_flag) {
+          // update the plane rate depending on the occupancy and local density
+          auto occupancy = node0.siblingOccupancy;
+          auto numOccupied = node0.numSiblingsPlus1;
+          if (!nodesBeforePlanarUpdate--) {
+            decoder._planar.updateRate(occupancy, numOccupied);
+            nodesBeforePlanarUpdate = numOccupied - 1;
+          }
+          decoder._planar.isEligible(planarEligible);
+          if (gps.geom_angular_mode_enabled_flag) {
+            if (contextAngle != -1)
+              planarEligible[2] = true;
+            planarEligible[0] = (contextAnglePhiX != -1);
+            planarEligible[1] = (contextAnglePhiY != -1);
+          }
+
+          for (int k = 0; k < 3; k++)
+            planarEligible[k] &= (~occupancySkip >> (2 - k)) & 1;
+        }
+
+        int planarProb[3] = {127, 127, 127};
+        // determine planarity if eligible
+        int x = !!(node0.childIdx & 4);
+        int y = !!(node0.childIdx & 2);
+        int z = !!(node0.childIdx & 1);
+        if (planarEligible[0] || planarEligible[1] || planarEligible[2])
+          decoder.determinePlanarMode(
+            planarEligible, node0, node0.gnp, x, y, z, planarProb,
+            contextAngle, contextAnglePhiX, contextAnglePhiY);
+
+        node0.idcmEligible &=
+          planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
+      }
+
+      if (node0.idcmEligible) {
+        bool isDirectMode = decoder.decodeIsIdcm();
+        if (isDirectMode) {
+          auto idcmSize = effectiveNodeSizeLog2;
+          if (idcmQp) {
+            node0.qp = idcmQp;
+            int idcmShiftBits = idcmQp >> 2;
+            idcmSize = nodeSizeLog2 - idcmShiftBits;
+          }
+
+          int numPoints = decoder.decodeDirectPosition(
+            gps.geom_unique_points_flag, idcmSize, node0,
+            &pointCloud[processedPointCount],
+            gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
+            numLasers);
+
+          for (int j = 0; j < numPoints; j++) {
+            auto& point = pointCloud[processedPointCount++];
+            for (int k = 0; k < 3; k++) {
+              int shift = std::max(0, idcmSize[k]);
+              point[k] += node0.posQ[k] << shift;
+            }
+
+            point = invQuantPosition(node0.qp, posQuantBitMasks, point);
+          }
+
+          assert(node0.numSiblingsPlus1 == 1);
+          continue;
         }
       }
 
@@ -1407,27 +1490,6 @@ decodeGeometryOctree(
       // population count of occupancy for IDCM
       int numOccupied = popcnt(occupancy);
 
-      // planar eligibility
-      bool planarEligible[3] = {false, false, false};
-      if (gps.geom_planar_mode_enabled_flag) {
-        // update the plane rate depending on the occupancy and local density
-        decoder._planar.updateRate(occupancy, numOccupied);
-        decoder._planar.isEligible(planarEligible);
-        if (childOccupancySkip & 4)
-          planarEligible[0] = false;
-        if (childOccupancySkip & 2)
-          planarEligible[1] = false;
-        if (childOccupancySkip & 1)
-          planarEligible[2] = false;
-
-        // avoid mismatch when the next level will apply quantization
-        if (numLvlsUntilQpOffset == 1) {
-          planarEligible[0] = false;
-          planarEligible[1] = false;
-          planarEligible[2] = false;
-        }
-      }
-
       // nodeSizeLog2 > 1: for each child:
       //  - determine elegibility for IDCM
       //  - directly decode point positions if IDCM allowed and selected
@@ -1481,69 +1543,13 @@ decodeGeometryOctree(
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
+        child.childIdx = i;
+        child.gnp = node0.neighPattern;
 
-        int contextAngle = -1;
-        int contextAnglePhiX = -1;
-        int contextAnglePhiY = -1;
-        if (
-          gps.geom_angular_mode_enabled_flag
-          && gps.geom_planar_mode_enabled_flag) {
-          contextAngle = determineContextAngleForPlanar(
-            child, headPos, childSizeLog2, zLaser, thetaLaser, numLasers,
-            deltaAngle, decoder._phiZi, decoder._phiBuffer.data(),
-            &contextAnglePhiX, &contextAnglePhiY);
-
-          if (contextAngle != -1)
-            planarEligible[2] = true;
-          planarEligible[0] = (contextAnglePhiX != -1);
-          planarEligible[1] = (contextAnglePhiY != -1);
-        }
-
-        // decode planarity if eligible
-        int planarProb[3] = {127, 127, 127};
-        if (planarEligible[0] || planarEligible[1] || planarEligible[2])
-          decoder.determinePlanarMode(
-            planarEligible, child, node0.neighPattern, x, y, z, planarProb,
-            contextAngle, contextAnglePhiX, contextAnglePhiY);
-
-        bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
-          && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
-
-        if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
-          auto idcmSize = effectiveChildSizeLog2;
-          if (idcmQp) {
-            int idcmShiftBits = idcmQp >> 2;
-            idcmSize = childSizeLog2 - idcmShiftBits;
-          }
-
-          int numPoints = decoder.decodeDirectPosition(
-            gps.geom_unique_points_flag, idcmSize, child,
-            &pointCloud[processedPointCount],
-            gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
-            numLasers);
-
-          if (numPoints && idcmQp)
-            child.qp = idcmQp;
-
-          for (int j = 0; j < numPoints; j++) {
-            auto& point = pointCloud[processedPointCount++];
-            for (int k = 0; k < 3; k++) {
-              int shift = std::max(0, idcmSize[k]);
-              point[k] += child.posQ[k] << shift;
-            }
-
-            point = invQuantPosition(child.qp, posQuantBitMasks, point);
-          }
-
-          if (numPoints > 0) {
-            // node fully decoded, do not split: discard child
-            fifo.pop_back();
-
-            // NB: no further siblings to decode by definition of IDCM
-            assert(child.numSiblingsPlus1 == 1);
-            break;
-          }
-        }
+        // IDCM
+        bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
+        child.idcmEligible =
+          isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child);
 
         numNodesNextLvl++;
 
