@@ -103,7 +103,8 @@ updatePatternFromNeighOccupancy(
   int y,
   int z,
   GeometryNeighPattern gnp,
-  int neighIdx)
+  int neighIdx,
+  bool occupancySkip)
 {
   static const uint8_t childMasks[] = {
     0xf0 /* x-1 */, 0xcc /* y-1 */, 0xaa /* z-1 */
@@ -115,6 +116,11 @@ updatePatternFromNeighOccupancy(
   // conversions between neighbour occupancy and adjacency:
   //  x: >> 4, y: >> 2, z: >> 1
   int adjacencyShift = 4 >> neighIdx;
+
+  if (occupancySkip) {
+    childMask ^= 0xff;
+    adjacencyShift = 0;
+  }
 
   if (gnp.neighPattern & patternBit) {
     uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
@@ -217,13 +223,16 @@ makeGeometryNeighPattern(
     return gnp;
 
   if (x > 0)
-    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x - 1, y, z, gnp, 0);
+    gnp = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x - 1, y, z, gnp, 0, !(atlasShift & 4));
 
   if (y > 0)
-    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x, y - 1, z, gnp, 1);
+    gnp = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x, y - 1, z, gnp, 1, !(atlasShift & 2));
 
   if (z > 0)
-    gnp = updatePatternFromNeighOccupancy(occupancyAtlas, x, y, z - 1, gnp, 2);
+    gnp = updatePatternFromNeighOccupancy(
+      occupancyAtlas, x, y, z - 1, gnp, 2, !(atlasShift & 1));
 
   return gnp;
 }
