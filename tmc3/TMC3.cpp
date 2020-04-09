@@ -1030,9 +1030,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (params.encoder.gps.qtbt_enabled_flag) {
       params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =
         std::max<int>(
-          0, 6 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+          0, 8 + log2(params.encoder.sps.seq_source_geom_scale_factor));
       params.encoder.geom.qtbt.angularMaxDiffToSplitZ = std::max<int>(
-        0, 3 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+        0, 1 + log2(params.encoder.sps.seq_source_geom_scale_factor));
     }
   }
 
