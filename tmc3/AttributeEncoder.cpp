@@ -67,8 +67,8 @@ struct PCCResidualsEncoder {
   void encodePredMode(int value, int max);
   void encodeZeroCnt(int value, int max);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
-  void encode(uint32_t value0, uint32_t value1, uint32_t value2);
-  void encode(uint32_t value);
+  void encode(int32_t value0, int32_t value1, int32_t value2);
+  void encode(int32_t value);
 };
 
 //----------------------------------------------------------------------------
@@ -162,29 +162,37 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2, int k3)
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encode(uint32_t value0, uint32_t value1, uint32_t value2)
+PCCResidualsEncoder::encode(int32_t value0, int32_t value1, int32_t value2)
 {
-  if (value0 == value1 && value0 == value2) {
-    value0--;
-    value1--;
-    value2--;
-  }
+  int mag0 = abs(value0);
+  int mag1 = abs(value1);
+  int mag2 = abs(value2);
+  //  NB: not exploiting impossibility of mag0=mag1=mag2=0
 
-  int b0 = (value0 == 0);
-  int b1 = (value0 <= 1);
-  int b2 = (value1 == 0);
-  int b3 = (value1 <= 1);
-  encodeSymbol(value0, 0, 0, 0);
-  encodeSymbol(value1, 1 + b0, 1 + b1, 1);
-  encodeSymbol(value2, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
+  int b0 = (mag0 == 0);
+  int b1 = (mag0 <= 1);
+  int b2 = (mag1 == 0);
+  int b3 = (mag1 <= 1);
+  encodeSymbol(mag0, 0, 0, 0);
+  encodeSymbol(mag1, 1 + b0, 1 + b1, 1);
+  encodeSymbol(mag2, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
+
+  if (mag0)
+    arithmeticEncoder.encode(value0 < 0, binaryModel0);
+  if (mag1)
+    arithmeticEncoder.encode(value1 < 0, binaryModel0);
+  if (mag2)
+    arithmeticEncoder.encode(value2 < 0, binaryModel0);
 }
 
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsEncoder::encode(uint32_t value)
+PCCResidualsEncoder::encode(int32_t value)
 {
-  encodeSymbol(value - 1, 0, 0, 0);
+  int mag = abs(value) - 1;
+  encodeSymbol(mag, 0, 0, 0);
+  arithmeticEncoder.encode(value < 0, binaryModel0);
 }
 
 //============================================================================
@@ -530,7 +538,7 @@ AttributeEncoder::encodeReflectancesPred(
     const int64_t quantPredAttValue = predictedReflectance;
     const int64_t delta = quant[0].quantize(
       (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
-    const uint32_t attValue0 = uint32_t(IntToUInt(long(delta)));
+    const auto attValue0 = delta;
     const int64_t reconstructedDelta =
       divExp2RoundHalfUp(quant[0].scale(delta), kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue =
@@ -684,11 +692,11 @@ AttributeEncoder::encodeColorsPred(
                         (1 << desc.bitdepthSecondary) - 1,
                         (1 << desc.bitdepthSecondary) - 1};
 
-  uint32_t values[3];
+  int32_t values[3];
   PCCResidualsEntropyEstimator context;
   int zero_cnt = 0;
   std::vector<int> zerorun;
-  std::vector<uint32_t> residual[3];
+  std::vector<int32_t> residual[3];
   for (int i = 0; i < 3; i++) {
     residual[i].resize(pointCount);
   }
@@ -729,7 +737,7 @@ AttributeEncoder::encodeColorsPred(
       if (k == 0)
         residual0 = residualR;
 
-      values[k] = uint32_t(IntToUInt(long(residualQ)));
+      values[k] = residualQ;
 
       int64_t recon = predictedColor[k] + residualR;
       reconstructedColor[k] = attr_t(PCCClip(recon, int64_t(0), clipMax[k]));
@@ -817,11 +825,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Entropy encode.
   int zero_cnt = 0;
-  uint32_t value;
   for (int n = 0; n < voxelCount; ++n) {
-    const int64_t detail = IntToUInt(coefficients[n]);
-    assert(detail < std::numeric_limits<uint32_t>::max());
-    value = uint32_t(detail);
+    auto value = coefficients[n];
     if (!value)
       ++zero_cnt;
     else {
@@ -892,13 +897,11 @@ AttributeEncoder::encodeColorsTransformRaht(
     attributes, attribCount, voxelCount, coefficients, regionQPOffset);
 
   // Entropy encode.
-  uint32_t values[attribCount];
+  int values[attribCount];
   int zero_cnt = 0;
   for (int n = 0; n < voxelCount; ++n) {
     for (int d = 0; d < attribCount; ++d) {
-      const int64_t detail = IntToUInt(coefficients[voxelCount * d + n]);
-      assert(detail < std::numeric_limits<uint32_t>::max());
-      values[d] = uint32_t(detail);
+      values[d] = coefficients[voxelCount * d + n];
     }
     if (!values[0] && !values[1] && !values[2])
       ++zero_cnt;
@@ -984,19 +987,17 @@ AttributeEncoder::encodeColorsLift(
     const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
     const int64_t delta = quant[0].quantize(color[0] * quantWeight);
-    const int64_t detail = IntToUInt(delta);
-    assert(detail < std::numeric_limits<uint32_t>::max());
+    auto detail = delta;
     const int64_t reconstructedDelta = quant[0].scale(delta);
     color[0] = reconstructedDelta / quantWeight;
-    uint32_t values[3];
-    values[0] = uint32_t(detail);
+    int values[3];
+    values[0] = detail;
     for (size_t d = 1; d < 3; ++d) {
       const int64_t delta = quant[1].quantize(color[d] * quantWeight);
-      const int64_t detail = IntToUInt(delta);
-      assert(detail < std::numeric_limits<uint32_t>::max());
+      const auto detail = delta;
       const int64_t reconstructedDelta = quant[1].scale(delta);
       color[d] = reconstructedDelta / quantWeight;
-      values[d] = uint32_t(detail);
+      values[d] = detail;
     }
     if (!values[0] && !values[1] && !values[2])
       ++zero_cnt;
@@ -1085,8 +1086,7 @@ AttributeEncoder::encodeReflectancesLift(
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = quant[0].quantize(reflectance * quantWeight);
-    const int64_t detail = IntToUInt(delta);
-    assert(detail < std::numeric_limits<uint32_t>::max());
+    const auto detail = delta;
     const int64_t reconstructedDelta = quant[0].scale(delta);
     reflectance = reconstructedDelta / quantWeight;
     if (!detail)

@@ -62,8 +62,8 @@ struct PCCResidualsDecoder {
   int decodePredMode(int max);
   int decodeZeroCnt(int max);
   uint32_t decodeSymbol(int k1, int k2, int k3);
-  void decode(uint32_t values[3]);
-  uint32_t decode();
+  void decode(int32_t values[3]);
+  int32_t decode();
 };
 
 //----------------------------------------------------------------------------
@@ -149,7 +149,7 @@ PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
 //----------------------------------------------------------------------------
 
 void
-PCCResidualsDecoder::decode(uint32_t value[3])
+PCCResidualsDecoder::decode(int32_t value[3])
 {
   value[0] = decodeSymbol(0, 0, 0);
   int b0 = value[0] == 0;
@@ -159,18 +159,22 @@ PCCResidualsDecoder::decode(uint32_t value[3])
   int b3 = value[1] <= 1;
   value[2] = decodeSymbol(3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
 
-  int d = (value[0] == value[1] && value[0] == value[2]);
-  for (int k = 0; k < 3; k++) {
-    value[k] += d;
-  }
+  if (value[0] && arithmeticDecoder.decode(binaryModel0))
+    value[0] = -value[0];
+  if (value[1] && arithmeticDecoder.decode(binaryModel0))
+    value[1] = -value[1];
+  if (value[2] && arithmeticDecoder.decode(binaryModel0))
+    value[2] = -value[2];
 }
 
 //----------------------------------------------------------------------------
 
-uint32_t
+int32_t
 PCCResidualsDecoder::decode()
 {
-  return decodeSymbol(0, 0, 0) + 1;
+  auto mag = decodeSymbol(0, 0, 0) + 1;
+  bool sign = arithmeticDecoder.decode(binaryModel0);
+  return sign ? -mag : mag;
 }
 
 //============================================================================
@@ -322,7 +326,7 @@ AttributeDecoder::decodeReflectancesPred(
     computeReflectancePredictionWeights(
       aps, pointCloud, _lods.indexes, predictor, decoder);
     attr_t& reflectance = pointCloud.getReflectance(pointIndex);
-    uint32_t attValue0 = 0;
+    int32_t attValue0 = 0;
     if (zero_cnt > 0) {
       zero_cnt--;
     } else {
@@ -331,8 +335,8 @@ AttributeDecoder::decodeReflectancesPred(
     }
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, _lods.indexes);
-    const int64_t delta = divExp2RoundHalfUp(
-      quant[0].scale(UIntToInt(attValue0)), kFixedPointAttributeShift);
+    const int64_t delta =
+      divExp2RoundHalfUp(quant[0].scale(attValue0), kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue = quantPredAttValue + delta;
     reflectance =
       attr_t(PCCClip(reconstructedQuantAttValue, int64_t(0), maxReflectance));
@@ -392,7 +396,7 @@ AttributeDecoder::decodeColorsPred(
                         (1 << desc.bitdepthSecondary) - 1,
                         (1 << desc.bitdepthSecondary) - 1};
 
-  uint32_t values[3];
+  int32_t values[3];
   int zero_cnt = decoder.decodeZeroCnt(pointCount);
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -420,8 +424,8 @@ AttributeDecoder::decodeColorsPred(
     int64_t residual0 = 0;
     for (int k = 0; k < 3; ++k) {
       const auto& q = quant[std::min(k, 1)];
-      const int64_t residual = divExp2RoundHalfUp(
-        q.scale(UIntToInt(values[k])), kFixedPointAttributeShift);
+      const int64_t residual =
+        divExp2RoundHalfUp(q.scale(values[k]), kFixedPointAttributeShift);
       const int64_t recon = predictedColor[k] + residual + residual0;
       color[k] = attr_t(PCCClip(recon, int64_t(0), clipMax[k]));
 
@@ -469,7 +473,7 @@ AttributeDecoder::decodeReflectancesRaht(
       value = decoder.decode();
       zero_cnt = decoder.decodeZeroCnt(voxelCount);
     }
-    coefficients[n] = UIntToInt(value);
+    coefficients[n] = value;
     regionQPOffset[n] = packedVoxel[n].regionQPOffset;
   }
 
@@ -528,7 +532,7 @@ AttributeDecoder::decodeColorsRaht(
   int* regionQPOffset = new int[voxelCount];
 
   for (int n = 0; n < voxelCount; ++n) {
-    uint32_t values[3];
+    int32_t values[3];
     if (zero_cnt > 0) {
       values[0] = values[1] = values[2] = 0;
       zero_cnt--;
@@ -537,7 +541,7 @@ AttributeDecoder::decodeColorsRaht(
       zero_cnt = decoder.decodeZeroCnt(voxelCount);
     }
     for (int d = 0; d < attribCount; ++d) {
-      coefficients[voxelCount * d + n] = UIntToInt(values[d]);
+      coefficients[voxelCount * d + n] = values[d];
     }
     regionQPOffset[n] = packedVoxel[n].regionQPOffset;
   }
@@ -614,7 +618,7 @@ AttributeDecoder::decodeColorsLift(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
-    uint32_t values[3];
+    int32_t values[3];
     if (zero_cnt > 0) {
       values[0] = values[1] = values[2] = 0;
       zero_cnt--;
@@ -625,11 +629,11 @@ AttributeDecoder::decodeColorsLift(
 
     const int64_t quantWeight = weights[predictorIndex];
     auto& color = colors[predictorIndex];
-    const int64_t delta = UIntToInt(values[0]);
+    const int64_t delta = values[0];
     const int64_t reconstructedDelta = quant[0].scale(delta);
     color[0] = reconstructedDelta / quantWeight;
     for (size_t d = 1; d < 3; ++d) {
-      const int64_t delta = UIntToInt(values[d]);
+      const int64_t delta = values[d];
       const int64_t reconstructedDelta = quant[1].scale(delta);
       color[d] = reconstructedDelta / quantWeight;
     }
@@ -711,7 +715,7 @@ AttributeDecoder::decodeReflectancesLift(
     }
     const int64_t quantWeight = weights[predictorIndex];
     auto& reflectance = reflectances[predictorIndex];
-    const int64_t delta = UIntToInt(detail);
+    const int64_t delta = detail;
     const int64_t reconstructedDelta = quant[0].scale(delta);
     reflectance = reconstructedDelta / quantWeight;
   }
