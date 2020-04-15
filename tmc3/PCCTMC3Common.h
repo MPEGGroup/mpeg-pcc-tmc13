@@ -169,7 +169,7 @@ struct PCCPredictor {
     while (neighborCount > 1) {
       if (
         neighbors[neighborCount - 1].weight
-        >= (neighbors[neighborCount - 2].weight << kFixedPointWeightShift)) {
+        >= (neighbors[0].weight << kFixedPointWeightShift)) {
         --neighborCount;
       } else {
         break;
