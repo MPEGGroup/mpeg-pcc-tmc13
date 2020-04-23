@@ -1081,13 +1081,6 @@ decodeGeometryOctree(
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
-  auto arithmeticDecoderIt = arithmeticDecoders.begin();
-  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoderIt->get());
-
-  // saved state for use with parallel bistream coding.
-  // the saved state is restored at the start of each parallel octree level
-  std::unique_ptr<GeometryOctreeDecoder> savedState;
-
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
@@ -1108,14 +1101,6 @@ decodeGeometryOctree(
 
   size_t processedPointCount = 0;
   std::vector<uint32_t> values;
-
-  // represents the largest dimension of the current node
-  // NB: this is equal to the total depth of the tree
-  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-
-  // generate the list of the node size for each level in the tree
-  auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, gbh);
-  auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
   const int idcmThreshold = gps.geom_planar_mode_enabled_flag
     ? gps.geom_planar_idcm_threshold * 127 * 127
@@ -1149,13 +1134,36 @@ decodeGeometryOctree(
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
 
+  // generate the list of the node size for each level in the tree
+  //  - starts with the smallest node and works up
+  std::vector<Vec3<int>> lvlNodeSizeLog2{gps.trisoup_node_size_log2};
+  for (auto split : gbh.tree_lvl_coded_axis_list) {
+    Vec3<int> splitStv = {!!(split & 4), !!(split & 2), !!(split & 1)};
+    lvlNodeSizeLog2.push_back(lvlNodeSizeLog2.back() + splitStv);
+  }
+  std::reverse(lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end());
+  auto nodeSizeLog2 = lvlNodeSizeLog2[0];
+
+  // represents the largest dimension of the current node
+  int nodeMaxDimLog2;
+  gbh.maxRootNodeDimLog2 =
+    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+
   // the termination depth of the octree phase
-  // NB: the tree depth may be greater than the maxNodeSizeLog2 due to
-  //     perverse qtbt splitting.
-  int maxDepth = std::count_if(
-    lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
-    [](const Vec3<int>& nodeSize) { return !isLeafNode(nodeSize); });
-  maxDepth -= std::max(minNodeSizeLog2, gps.trisoup_node_size_log2);
+  // NB: minNodeSizeLog2 is only non-zero for partial decoding (not trisoup)
+  int maxDepth = lvlNodeSizeLog2.size() - minNodeSizeLog2 - 1;
+
+  // append a dummy entry to the list so that depth+2 access is always valid
+  lvlNodeSizeLog2.emplace_back(lvlNodeSizeLog2.back());
+
+  // NB: this needs to be after the root node size is determined to
+  //     allocate the planar buffer
+  auto arithmeticDecoderIt = arithmeticDecoders.begin();
+  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoderIt->get());
+
+  // saved state for use with parallel bistream coding.
+  // the saved state is restored at the start of each parallel octree level
+  std::unique_ptr<GeometryOctreeDecoder> savedState;
 
   for (int depth = 0; depth < maxDepth; depth++) {
     // setup at the start of each level
@@ -1194,7 +1202,7 @@ decodeGeometryOctree(
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }
 
-    int planarDepth = gbh.geomMaxNodeSizeLog2(gps)
+    int planarDepth = gbh.maxRootNodeDimLog2
       - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
 
     decoder.beginOctreeLevel(planarDepth);

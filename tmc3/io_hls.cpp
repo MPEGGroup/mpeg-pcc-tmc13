@@ -251,7 +251,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeUe(gps.gps_geom_box_log2_scale);
   }
   bs.write(gps.geom_unique_points_flag);
-  bs.write(gps.implicit_qtbt_enabled_flag);
+  bs.write(gps.qtbt_enabled_flag);
   bs.write(gps.neighbour_context_restriction_flag);
   bs.write(gps.inferred_direct_coding_mode_enabled_flag);
   bs.write(gps.bitwise_occupancy_coding_flag);
@@ -280,23 +280,12 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.write(gps.planar_buffer_disabled_flag);
   }
 
-  if (gps.geom_angular_mode_enabled_flag && gps.implicit_qtbt_enabled_flag) {
-    bs.writeUe(gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z);
-    bs.writeUe(gps.implicit_qtbt_angular_max_diff_to_split_z);
-  }
-
   bs.writeUe(gps.neighbour_avail_boundary_log2);
   bs.writeUe(gps.intra_pred_max_node_size_log2);
   bs.writeUe(gps.trisoup_node_size_log2);
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
     bs.writeUe(gps.geom_base_qp_minus4);
-
-  if (gps.implicit_qtbt_enabled_flag)
-    if (!gps.trisoup_node_size_log2) {
-      bs.writeUe(gps.max_num_implicit_qtbt_before_ot);
-      bs.writeUe(gps.min_implicit_qtbt_size_log2);
-    }
 
   bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
@@ -323,7 +312,7 @@ parseGps(const PayloadBuffer& buf)
       bs.readUe(&gps.gps_geom_box_log2_scale);
   }
   bs.read(&gps.geom_unique_points_flag);
-  bs.read(&gps.implicit_qtbt_enabled_flag);
+  bs.read(&gps.qtbt_enabled_flag);
   bs.read(&gps.neighbour_context_restriction_flag);
   bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
   bs.read(&gps.bitwise_occupancy_coding_flag);
@@ -362,13 +351,6 @@ parseGps(const PayloadBuffer& buf)
     bs.read(&gps.planar_buffer_disabled_flag);
   }
 
-  gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z = 0;
-  gps.implicit_qtbt_angular_max_diff_to_split_z = 0;
-  if (gps.geom_angular_mode_enabled_flag && gps.implicit_qtbt_enabled_flag) {
-    bs.readUe(&gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z);
-    bs.readUe(&gps.implicit_qtbt_angular_max_diff_to_split_z);
-  }
-
   bs.readUe(&gps.neighbour_avail_boundary_log2);
   bs.readUe(&gps.intra_pred_max_node_size_log2);
   bs.readUe(&gps.trisoup_node_size_log2);
@@ -376,14 +358,6 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag)
     bs.readUe(&gps.geom_base_qp_minus4);
-
-  gps.max_num_implicit_qtbt_before_ot = 0;
-  gps.min_implicit_qtbt_size_log2 = 0;
-  if (gps.implicit_qtbt_enabled_flag)
-    if (gps.trisoup_node_size_log2 == 0) {
-      bs.readUe(&gps.max_num_implicit_qtbt_before_ot);
-      bs.readUe(&gps.min_implicit_qtbt_size_log2);
-    }
 
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
@@ -621,21 +595,11 @@ write(
     bs.writeUe(geom_box_origin.z());
   }
 
-  if (!gps.implicit_qtbt_enabled_flag) {
-    bs.writeUe(gbh.geom_max_node_size_log2);
-  } else {
-    auto& geom_max_node_size_log2_s = gbh.geom_max_node_size_log2_stv[0];
-
-    int geom_max_node_size_log2_delta_t =
-      gbh.geom_max_node_size_log2_stv[1] - gbh.geom_max_node_size_log2_stv[0];
-
-    int geom_max_node_size_log2_delta_v =
-      gbh.geom_max_node_size_log2_stv[2] - gbh.geom_max_node_size_log2_stv[1];
-
-    bs.writeUe(geom_max_node_size_log2_s);
-    bs.writeSe(geom_max_node_size_log2_delta_t);
-    bs.writeSe(geom_max_node_size_log2_delta_v);
-  }
+  int tree_depth_minus1 = gbh.tree_lvl_coded_axis_list.size() - 1;
+  bs.writeUe(tree_depth_minus1);
+  if (gps.qtbt_enabled_flag)
+    for (int i = 0; i <= tree_depth_minus1; i++)
+      bs.writeUn(3, gbh.tree_lvl_coded_axis_list[i]);
 
   if (gbh.geom_octree_parallel_max_node_size_log2 == 0)
     bs.writeUe(0);
@@ -689,25 +653,13 @@ parseGbh(
     gbh.geomBoxOrigin *= 1 << gbh.geomBoxLog2Scale(gps);
   }
 
-  if (!gps.implicit_qtbt_enabled_flag) {
-    bs.readUe(&gbh.geom_max_node_size_log2);
-  } else {
-    int geom_max_node_size_log2_s;
-    int geom_max_node_size_log2_delta_t;
-    int geom_max_node_size_log2_delta_v;
+  int tree_depth_minus1;
+  bs.readUe(&tree_depth_minus1);
 
-    bs.readUe(&geom_max_node_size_log2_s);
-    bs.readSe(&geom_max_node_size_log2_delta_t);
-    bs.readSe(&geom_max_node_size_log2_delta_v);
-
-    gbh.geom_max_node_size_log2_stv[0] = geom_max_node_size_log2_s;
-
-    gbh.geom_max_node_size_log2_stv[1] =
-      geom_max_node_size_log2_delta_t + gbh.geom_max_node_size_log2_stv[0];
-
-    gbh.geom_max_node_size_log2_stv[2] =
-      geom_max_node_size_log2_delta_v + gbh.geom_max_node_size_log2_stv[1];
-  }
+  gbh.tree_lvl_coded_axis_list.resize(tree_depth_minus1 + 1, 7);
+  if (gps.qtbt_enabled_flag)
+    for (int i = 0; i <= tree_depth_minus1; i++)
+      bs.readUn(3, &gbh.tree_lvl_coded_axis_list[i]);
 
   bs.readUe(&gbh.geom_octree_parallel_max_node_size_log2);
   if (gbh.geom_octree_parallel_max_node_size_log2 > 0) {

@@ -313,14 +313,7 @@ struct GeometryParameterSet {
   int geom_base_qp_minus4;
 
   // Enables/disables non-cubic geometry nodes
-  bool implicit_qtbt_enabled_flag;
-
-  // maximum number of implicit qtbt before performing octree partition
-  // for geometry coding.
-  int max_num_implicit_qtbt_before_ot;
-
-  // minimum size in log2 of implicit qtbt for geometry coding.
-  int min_implicit_qtbt_size_log2;
+  bool qtbt_enabled_flag;
 
   // Controls the use of planar mode
   bool geom_planar_mode_enabled_flag;
@@ -346,10 +339,6 @@ struct GeometryParameterSet {
 
   // disable the use of planar buffer when angular mode is enabled
   bool planar_buffer_disabled_flag;
-
-  // implicit qtbt parameters
-  int implicit_qtbt_angular_max_node_min_dim_log2_to_split_z;
-  int implicit_qtbt_angular_max_diff_to_split_z;
 };
 
 //============================================================================
@@ -365,26 +354,17 @@ struct GeometryBrickHeader {
   Vec3<int> geomBoxOrigin;
   int geom_box_log2_scale;
 
-  // todo(df): minus1?
-  int geom_max_node_size_log2;
-  Vec3<int> geom_max_node_size_log2_stv;
   int geom_num_points_minus1;
 
-  int geomMaxNodeSizeLog2(const GeometryParameterSet& gps) const
-  {
-    if (gps.implicit_qtbt_enabled_flag)
-      return std::max({geom_max_node_size_log2_stv[0],
-                       geom_max_node_size_log2_stv[1],
-                       geom_max_node_size_log2_stv[2]});
-    return geom_max_node_size_log2;
-  }
+  // the size of the root geometry node
+  // NB: this is only needed for the initial node size determination at
+  //     the encoder
+  Vec3<int> rootNodeSizeLog2;
 
-  Vec3<int> geomMaxNodeSizeLog2Stv(const GeometryParameterSet& gps) const
-  {
-    if (gps.implicit_qtbt_enabled_flag)
-      return geom_max_node_size_log2_stv;
-    return geom_max_node_size_log2;
-  }
+  // the largest dimension of the root geometry node
+  mutable int maxRootNodeDimLog2;
+
+  std::vector<int8_t> tree_lvl_coded_axis_list;
 
   // qp offset for geometry scaling (if enabled)
   int geom_slice_qp_offset;

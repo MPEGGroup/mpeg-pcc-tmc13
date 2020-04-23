@@ -43,6 +43,7 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "geometry_params.h"
 #include "pointset_processing.h"
 #include "hls.h"
 #include "partitioning.h"
@@ -72,6 +73,9 @@ struct EncoderParams {
 
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
+
+  // Encoder specific parameters for geometry
+  OctreeEncOpts geom;
 
   // Parameters that control partitioning
   PartitionParams partition;

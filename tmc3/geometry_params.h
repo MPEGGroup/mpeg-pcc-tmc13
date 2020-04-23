@@ -3,7 +3,7 @@
  * party and contributor rights, including patent rights, and no such
  * rights are granted under this licence.
  *
- * Copyright (c) 2017-2018, ISO/IEC
+ * Copyright (c) 2017-2020, ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,54 +35,30 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
-
-#include "PCCPointSet.h"
-#include "geometry_params.h"
-#include "entropy.h"
-#include "hls.h"
-#include "partitioning.h"
-
 namespace pcc {
 
-//============================================================================
+//=============================================================================
 
-void encodeGeometryOctree(
-  const OctreeEncOpts& opt,
-  const GeometryParameterSet& gps,
-  GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
+struct QtBtParameters {
+  // maximum number of qtbt partitions before performing octree partitioning.
+  int maxNumQtBtBeforeOt;
 
-void decodeGeometryOctree(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
+  // minimum size of qtbt partitions.
+  int minQtbtSizeLog2;
 
-void decodeGeometryOctreeScalable(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  int minGeomNodeSizeLog2,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
+  int trisoupNodeSizeLog2;
+
+  bool angularTweakEnabled;
+  int angularMaxNodeMinDimLog2ToSplitV;
+  int angularMaxDiffToSplitZ;
+};
 
 //----------------------------------------------------------------------------
 
-void encodeGeometryTrisoup(
-  const OctreeEncOpts& opt,
-  const GeometryParameterSet& gps,
-  GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
+struct OctreeEncOpts {
+  QtBtParameters qtbt;
+};
 
-void decodeGeometryTrisoup(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
-
-//============================================================================
+//=============================================================================
 
 }  // namespace pcc

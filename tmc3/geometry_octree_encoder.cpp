@@ -1139,8 +1139,9 @@ GeometryOctreeEncoder::encodeDirectPosition(
 
 void
 encodeGeometryOctree(
+  const OctreeEncOpts& params,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
@@ -1174,12 +1175,8 @@ encodeGeometryOctree(
   std::vector<int> pointIdxToDmIdx(int(pointCloud.getPointCount()), -1);
   int nextDmIdx = 0;
 
-  // represents the largest dimension of the current node
-  // NB: this is equal to the total depth of the tree
-  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-
   // generate the list of the node size for each level in the tree
-  auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, gbh);
+  auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, params.qtbt, gbh);
   auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
   const int idcmThreshold = gps.geom_planar_mode_enabled_flag
@@ -1214,13 +1211,39 @@ encodeGeometryOctree(
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
 
+  // the minimum node size is ordinarily 2**0, but may be larger due to
+  // early termination for trisoup.
+  int minNodeSizeLog2 = gps.trisoup_node_size_log2;
+
+  // prune anything smaller than the minimum node size (these won't be coded)
+  // NB: this must result in a cubic node at the end of the list
+  lvlNodeSizeLog2.erase(
+    std::remove_if(
+      lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
+      [&](Vec3<int>& size) { return size < minNodeSizeLog2; }),
+    lvlNodeSizeLog2.end());
+  assert(lvlNodeSizeLog2.back() == minNodeSizeLog2);
+
+  // append a dummy entry to the list so that depth+2 access is always valid
+  lvlNodeSizeLog2.emplace_back(lvlNodeSizeLog2.back());
+
   // the termination depth of the octree phase
   // NB: the tree depth may be greater than the maxNodeSizeLog2 due to
   //     perverse qtbt splitting.
   int maxDepth = std::count_if(
     lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
-    [](const Vec3<int>& nodeSize) { return !isLeafNode(nodeSize); });
-  maxDepth -= gps.trisoup_node_size_log2;
+    [&](const Vec3<int>& nodeSize) { return nodeSize > minNodeSizeLog2; });
+
+  // generate the qtbt splitting list
+  //  - start at the leaf, and work up
+  std::vector<int8_t> tree_lvl_partition_list;
+  for (int lvl = maxDepth; lvl > 0; lvl--) {
+    gbh.tree_lvl_coded_axis_list.push_back(
+      ~nonSplitQtBtAxes(lvlNodeSizeLog2[lvl - 1], lvlNodeSizeLog2[lvl]));
+  }
+
+  // represents the largest dimension of the current node
+  int nodeMaxDimLog2;
 
   for (int depth = 0; depth < maxDepth; depth++) {
     // setyo at the start of each level
@@ -1265,7 +1288,7 @@ encodeGeometryOctree(
       encoder._arithmeticEncoder = (++arithmeticEncoderIt)->get();
     }
 
-    int planarDepth = gbh.geomMaxNodeSizeLog2(gps)
+    int planarDepth = gbh.maxRootNodeDimLog2
       - std::min({childSizeLog2[0], childSizeLog2[1], childSizeLog2[2]});
 
     encoder.beginOctreeLevel(planarDepth);
@@ -1572,12 +1595,13 @@ encodeGeometryOctree(
 
 void
 encodeGeometryOctree(
+  const OctreeEncOpts& opt,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders)
 {
-  encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoders, nullptr);
+  encodeGeometryOctree(opt, gps, gbh, pointCloud, arithmeticEncoders, nullptr);
 }
 
 //============================================================================

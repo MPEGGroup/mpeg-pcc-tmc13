@@ -40,6 +40,7 @@
 #include <stdexcept>
 
 #include "Attribute.h"
+#include "geometry_params.h"
 #include "pointset_processing.h"
 #include "geometry.h"
 #include "geometry_octree.h"
@@ -519,24 +520,24 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_log2_scale = 0;
-
-  if (!_gps->implicit_qtbt_enabled_flag) {
-    // NB: A minimum whd of 2 means there is always at least 1 tree level
-    int32_t maxWhd =
-      std::max({2, _sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]});
-    gbh.geom_max_node_size_log2 = ceillog2(maxWhd);
-  } else {
-    // different node dimension for xyz, for the purpose of implicit qtbt
-    for (int k = 0; k < 3; k++)
-      gbh.geom_max_node_size_log2_stv[k] =
-        ceillog2(std::max(2, _sliceBoxWhd[k]));
-  }
-
   gbh.geom_num_points_minus1 = int(pointCloud.getPointCount()) - 1;
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_octree_parallel_max_node_size_log2 =
     params->gbh.geom_octree_parallel_max_node_size_log2;
+
+  // inform the geometry coder what the root node size is
+  gbh.maxRootNodeDimLog2 = 0;
+  for (int k = 0; k < 3; k++) {
+    // NB: A minimum whd of 2 means there is always at least 1 tree level
+    gbh.rootNodeSizeLog2[k] = ceillog2(std::max(2, _sliceBoxWhd[k]));
+    gbh.maxRootNodeDimLog2 =
+      std::max(gbh.maxRootNodeDimLog2, gbh.rootNodeSizeLog2[k]);
+  }
+
+  // use a cubic node if qtbt is disabled
+  if (!_gps->qtbt_enabled_flag)
+    gbh.rootNodeSizeLog2 = gbh.maxRootNodeDimLog2;
 
   // todo(df): remove estimate when arithmetic codec is replaced
   int maxAcBufLen = int(pointCloud.getPointCount()) * 3 * 4 + 1024;
@@ -552,12 +553,14 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   }
 
   if (_gps->trisoup_node_size_log2 == 0) {
-    encodeGeometryOctree(*_gps, gbh, pointCloud, arithmeticEncoders);
+    encodeGeometryOctree(
+      params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
   } else {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
     gbh.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
-    encodeGeometryTrisoup(*_gps, gbh, pointCloud, arithmeticEncoders);
+    encodeGeometryTrisoup(
+      params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
   }
 
   // update the header with the actual number of points coded

@@ -39,51 +39,124 @@
 #include <iterator>
 
 #include "PCCMisc.h"
+#include "geometry_params.h"
 #include "tables.h"
 
 namespace pcc {
 
 //============================================================================
 
+Vec3<int>
+oneQtBtDecision(
+  const QtBtParameters& qtbt,
+  Vec3<int> nodeSizeLog2,
+  int maxNumQtbtBeforeOt,
+  int minDepthQtbt)
+{
+  int maxNodeMinDimLog2ToSplitZ = qtbt.angularMaxNodeMinDimLog2ToSplitV;
+  int maxDiffToSplitZ = qtbt.angularMaxDiffToSplitZ;
+
+  int nodeMinDimLog2 =
+    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+
+  if (maxNumQtbtBeforeOt || nodeMinDimLog2 == minDepthQtbt) {
+    int nodeMaxDimLog2 =
+      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+    for (int k = 0; k < 3; k++) {
+      if (nodeSizeLog2[k] == nodeMaxDimLog2)
+        nodeSizeLog2[k]--;
+    }
+  } else if (
+    qtbt.angularTweakEnabled
+    && (maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ > 0)) {
+    // do not split z
+    int nodeXYMaxDimLog2 = std::max({nodeSizeLog2[0], nodeSizeLog2[1]});
+    for (int k = 0; k < 2; k++) {
+      if (nodeSizeLog2[k] == nodeXYMaxDimLog2)
+        nodeSizeLog2[k]--;
+    }
+    if (
+      (nodeMinDimLog2 <= maxNodeMinDimLog2ToSplitZ
+       && nodeSizeLog2[2] >= nodeXYMaxDimLog2 + maxDiffToSplitZ)
+      || (nodeXYMaxDimLog2 >= maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ
+          && nodeSizeLog2[2] >= nodeXYMaxDimLog2))
+      nodeSizeLog2[2]--;
+  } else  // octree partition
+    nodeSizeLog2 = nodeSizeLog2 - 1;
+
+  return nodeSizeLog2;
+}
+
+//---------------------------------------------------------------------------
+
+void
+updateQtBtParameters(
+  const Vec3<int>& nodeSizeLog2,
+  int trisoup_node_size_log2,
+  int* maxNumQtbtBeforeOt,
+  int* minSizeQtbt)
+{
+  int nodeMinDimLog2 =
+    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int nodeMaxDimLog2 =
+    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+
+  // max number of qtbt partitions before ot is bounded by difference between
+  // max and min node size
+  if (*maxNumQtbtBeforeOt > (nodeMaxDimLog2 - nodeMinDimLog2))
+    *maxNumQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
+  // min depth of qtbt partition is bounded by min node size
+  if (*minSizeQtbt > nodeMinDimLog2)
+    *minSizeQtbt = nodeMinDimLog2;
+  // if all dimensions have same size, min depth of qtbt should be 0
+  if (nodeMaxDimLog2 == nodeMinDimLog2) {
+    *minSizeQtbt = 0;
+  }
+
+  // if trisoup is enabled, perform qtbt first before ot
+  if (trisoup_node_size_log2 != 0) {
+    *maxNumQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
+    *minSizeQtbt = 0;
+  }
+}
+
+//---------------------------------------------------------------------------
+
 std::vector<Vec3<int>>
 mkQtBtNodeSizeList(
-  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
+  const GeometryParameterSet& gps,
+  const QtBtParameters& qtbt,
+  const GeometryBrickHeader& gbh)
 {
   std::vector<Vec3<int>> nodeSizeLog2List;
 
-  // represents the largest dimension of the current node
-  // NB: this is equal to the total depth of the tree
-  int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-
   // size of the current node (each dimension can vary due to qtbt)
-  Vec3<int> nodeSizeLog2 = gbh.geomMaxNodeSizeLog2Stv(gps);
+  Vec3<int> nodeSizeLog2 = gbh.rootNodeSizeLog2;
   nodeSizeLog2List.push_back(nodeSizeLog2);
 
-  // update implicit qtbt parameters
-  int maxNumImplicitQtbtBeforeOt = gps.max_num_implicit_qtbt_before_ot;
-  int minSizeImplicitQtbt = gps.min_implicit_qtbt_size_log2;
-  updateImplicitQtBtParameters(
-    nodeSizeLog2, gps.trisoup_node_size_log2, &maxNumImplicitQtbtBeforeOt,
-    &minSizeImplicitQtbt);
+  // update qtbt parameters
+  int maxNumQtbtBeforeOt = qtbt.maxNumQtBtBeforeOt;
+  int minSizeQtbt = qtbt.minQtbtSizeLog2;
+  updateQtBtParameters(
+    nodeSizeLog2, qtbt.trisoupNodeSizeLog2, &maxNumQtbtBeforeOt, &minSizeQtbt);
 
   while (!isLeafNode(nodeSizeLog2)) {
-    // implicit qtbt for current node
-    nodeSizeLog2 = implicitQtBtDecision(
-      gps, nodeSizeLog2, maxNumImplicitQtbtBeforeOt, minSizeImplicitQtbt);
+    if (!gps.qtbt_enabled_flag)
+      nodeSizeLog2 -= 1;
+    else
+      nodeSizeLog2 =
+        oneQtBtDecision(qtbt, nodeSizeLog2, maxNumQtbtBeforeOt, minSizeQtbt);
+
     nodeSizeLog2List.push_back(nodeSizeLog2);
 
-    if (maxNumImplicitQtbtBeforeOt)
-      maxNumImplicitQtbtBeforeOt--;
+    if (maxNumQtbtBeforeOt)
+      maxNumQtbtBeforeOt--;
 
     // if all dimensions have same size, then use octree for remaining nodes
     if (
       nodeSizeLog2[0] == nodeSizeLog2[1] && nodeSizeLog2[1] == nodeSizeLog2[2])
-      minSizeImplicitQtbt = 0;
+      minSizeQtbt = 0;
   }
-
-  // fake child and grandchild entries for the last tree level
-  nodeSizeLog2List.push_back({0});
-  nodeSizeLog2List.push_back({0});
 
   return nodeSizeLog2List;
 }
@@ -338,8 +411,7 @@ OctreePlanarState::OctreePlanarState(
   const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
 {
   if (!gps.planar_buffer_disabled_flag) {
-    int nodeMaxDimLog2 = gbh.geomMaxNodeSizeLog2(gps);
-    int maxPlaneSize = kNumPlanarPlanes << nodeMaxDimLog2;
+    int maxPlaneSize = kNumPlanarPlanes << gbh.maxRootNodeDimLog2;
     _planes3x3.resize(maxPlaneSize * 9);
   }
 

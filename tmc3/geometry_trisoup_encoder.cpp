@@ -45,14 +45,15 @@ namespace pcc {
 
 void
 encodeGeometryTrisoup(
+  const OctreeEncOpts& opt,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
-  encodeGeometryOctree(gps, gbh, pointCloud, arithmeticEncoders, &nodes);
+  encodeGeometryOctree(opt, gps, gbh, pointCloud, arithmeticEncoders, &nodes);
 
   // resume encoding with the last encoder
   auto arithmeticEncoder = arithmeticEncoders.back().get();
@@ -65,7 +66,7 @@ encodeGeometryTrisoup(
   determineTrisoupVertices(nodes, segind, vertices, pointCloud, blockWidth);
 
   // Decode refinedVertices from segind and vertices.
-  int32_t maxval = (1 << gbh.geomMaxNodeSizeLog2(gps)) - 1;
+  int32_t maxval = (1 << gbh.maxRootNodeDimLog2) - 1;
 
   // Decode vertices with certain sampling value
   int subsample = 1;

@@ -40,6 +40,7 @@
 #include "PCCMath.h"
 #include "PCCPointSet.h"
 #include "entropy.h"
+#include "geometry_params.h"
 #include "hls.h"
 #include "ringbuf.h"
 #include "tables.h"
@@ -110,8 +111,9 @@ void updateGeometryNeighState(
 // :: octree encoder exposing internal ringbuffer
 
 void encodeGeometryOctree(
+  const OctreeEncOpts& opt,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
@@ -229,88 +231,9 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
 // generate an array of node sizes according to subsequent qtbt decisions
 
 std::vector<Vec3<int>> mkQtBtNodeSizeList(
-  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh);
-
-//---------------------------------------------------------------------------
-
-inline Vec3<int>
-implicitQtBtDecision(
   const GeometryParameterSet& gps,
-  Vec3<int> nodeSizeLog2,
-  int maxNumImplicitQtbtBeforeOt,
-  int minDepthImplicitQtbt)
-{
-  if (!gps.implicit_qtbt_enabled_flag)
-    return nodeSizeLog2 - 1;
-
-  int maxNodeMinDimLog2ToSplitZ =
-    gps.implicit_qtbt_angular_max_node_min_dim_log2_to_split_z;
-  int maxDiffToSplitZ = gps.implicit_qtbt_angular_max_diff_to_split_z;
-
-  int nodeMinDimLog2 =
-    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
-
-  if (maxNumImplicitQtbtBeforeOt || nodeMinDimLog2 == minDepthImplicitQtbt) {
-    // implicit qt bt
-    int nodeMaxDimLog2 =
-      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
-    for (int k = 0; k < 3; k++) {
-      if (nodeSizeLog2[k] == nodeMaxDimLog2)
-        nodeSizeLog2[k]--;
-    }
-  } else if (
-    gps.geom_angular_mode_enabled_flag
-    && (maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ > 0)) {
-    // implicit xy qt bt : do not split z
-    int nodeXYMaxDimLog2 = std::max({nodeSizeLog2[0], nodeSizeLog2[1]});
-    for (int k = 0; k < 2; k++) {
-      if (nodeSizeLog2[k] == nodeXYMaxDimLog2)
-        nodeSizeLog2[k]--;
-    }
-    if (
-      (nodeMinDimLog2 <= maxNodeMinDimLog2ToSplitZ
-       && nodeSizeLog2[2] >= nodeXYMaxDimLog2 + maxDiffToSplitZ)
-      || (nodeXYMaxDimLog2 >= maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ
-          && nodeSizeLog2[2] >= nodeXYMaxDimLog2))
-      nodeSizeLog2[2]--;
-  } else  // octree partition
-    nodeSizeLog2 = nodeSizeLog2 - 1;
-
-  return nodeSizeLog2;
-}
-
-//---------------------------------------------------------------------------
-
-inline void
-updateImplicitQtBtParameters(
-  const Vec3<int>& nodeSizeLog2,
-  int trisoup_node_size_log2,
-  int* maxNumImplicitQtbtBeforeOt,
-  int* minSizeImplicitQtbt)
-{
-  int nodeMinDimLog2 =
-    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
-  int nodeMaxDimLog2 =
-    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
-
-  // max number of implicit qtbt before ot is bounded by difference between
-  // max and min node size
-  if (*maxNumImplicitQtbtBeforeOt > (nodeMaxDimLog2 - nodeMinDimLog2))
-    *maxNumImplicitQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
-  // min depth of implicit qtbt is bounded by min node size
-  if (*minSizeImplicitQtbt > nodeMinDimLog2)
-    *minSizeImplicitQtbt = nodeMinDimLog2;
-  // if all dimensions have same size, min depth of implicit qtbt should be 0
-  if (nodeMaxDimLog2 == nodeMinDimLog2) {
-    *minSizeImplicitQtbt = 0;
-  }
-
-  // if trisoup is enabled, perform qtbt first before ot
-  if (trisoup_node_size_log2 != 0) {
-    *maxNumImplicitQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
-    *minSizeImplicitQtbt = 0;
-  }
-}
+  const QtBtParameters& qtbt,
+  const GeometryBrickHeader& gbh);
 
 //---------------------------------------------------------------------------
 

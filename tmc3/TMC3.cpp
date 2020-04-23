@@ -523,17 +523,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   (po::Section("Geometry"))
 
-  ("implicitQtBtEnabled",
-    params.encoder.gps.implicit_qtbt_enabled_flag, true,
+  ("qtbtEnabled",
+    params.encoder.gps.qtbt_enabled_flag, true,
     "Enables non-cubic geometry bounding box")
 
-  ("max_num_implicit_qtbt_before_ot",
-    params.encoder.gps.max_num_implicit_qtbt_before_ot, 4,
-    "Max number of implicit qtbt before ot")
+  ("maxNumQtBtBeforeOt",
+    params.encoder.geom.qtbt.maxNumQtBtBeforeOt, 4,
+    "Max number of qtbt partitions before ot")
 
-  ("min_implicit_qtbt_size_log2",
-    params.encoder.gps.min_implicit_qtbt_size_log2, 0,
-    "Minimum size of implicit qtbt")
+  ("minQtbtSizeLog2",
+    params.encoder.geom.qtbt.minQtbtSizeLog2, 0,
+    "Minimum size of qtbt partitions")
 
   // tools
   ("octreeParallelMaxNodeSizeLog2",
@@ -881,6 +881,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;
   }
 
+  // tweak qtbt generation when trisoup is /isn't enabled
+  params.encoder.geom.qtbt.trisoupNodeSizeLog2 =
+    params.encoder.gps.trisoup_node_size_log2;
+
   // Planar coding mode is not available for bytewise coding
   if (!params.encoder.gps.bitwise_occupancy_coding_flag) {
     if (params.encoder.gps.geom_planar_mode_enabled_flag)
@@ -1018,16 +1022,18 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       != params.encoder.numLasers)
       err.error() << "lasersTheta.size() != numLasers\n";
 
-    if (params.encoder.gps.implicit_qtbt_enabled_flag) {
-      params.encoder.gps
-        .implicit_qtbt_angular_max_node_min_dim_log2_to_split_z =
+    if (params.encoder.gps.qtbt_enabled_flag) {
+      params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =
         std::max<int>(
           0, 6 + log2(params.encoder.sps.seq_source_geom_scale_factor));
-      params.encoder.gps.implicit_qtbt_angular_max_diff_to_split_z =
-        std::max<int>(
-          0, 3 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+      params.encoder.geom.qtbt.angularMaxDiffToSplitZ = std::max<int>(
+        0, 3 + log2(params.encoder.sps.seq_source_geom_scale_factor));
     }
   }
+
+  // tweak qtbt when angular is / isn't enabled
+  params.encoder.geom.qtbt.angularTweakEnabled =
+    params.encoder.gps.geom_angular_mode_enabled_flag;
 
   // sanity checks
 
