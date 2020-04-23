@@ -1722,24 +1722,6 @@ encodeGeometryOctree(
         }
       }
 
-      int occupancyIsPredicted = 0;
-      int occupancyPrediction = 0;
-
-      // generate intra prediction
-      if (
-        nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
-        && gps.neighbour_avail_boundary_log2 > 0) {
-        predictGeometryOccupancyIntra(
-          occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
-          &occupancyPrediction);
-      }
-
-      // update atlas for advanced neighbours
-      if (gps.neighbour_avail_boundary_log2) {
-        updateGeometryOccupancyAtlasOccChild(
-          node0.pos, occupancy, &occupancyAtlas);
-      }
-
       // when all points are quantized to a single point
       if (!isLeafNode(effectiveNodeSizeLog2)) {
         // encode child occupancy map
@@ -1752,12 +1734,30 @@ encodeGeometryOctree(
         int planarMask[3] = {0, 0, 0};
         maskPlanar(planar, planarMask, occupancySkip);
 
+        // generate intra prediction
+        bool intraPredUsed = !(planarMask[0] | planarMask[1] | planarMask[2]);
+        int occupancyIsPredicted = 0;
+        int occupancyPrediction = 0;
+        if (
+          nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
+          && gps.neighbour_avail_boundary_log2 > 0 && intraPredUsed) {
+          predictGeometryOccupancyIntra(
+            occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
+            &occupancyPrediction);
+        }
+
         encoder.encodeOccupancy(
           node0.neighPattern, occupancy, occupancyIsPredicted,
           occupancyPrediction, occupancyAdjacencyGt0, occupancyAdjacencyGt1,
           occupancyAdjacencyUnocc, planarMask[0], planarMask[1], planarMask[2],
           planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4);
+      }
+
+      // update atlas for advanced neighbours
+      if (gps.neighbour_avail_boundary_log2) {
+        updateGeometryOccupancyAtlasOccChild(
+          node0.pos, occupancy, &occupancyAtlas);
       }
 
       // Leaf nodes are immediately coded.  No further splitting occurs.
