@@ -540,7 +540,7 @@ GeometryOctreeEncoder::encodeOccupancyNeighZ(
       idxAdj = kCtxIdxAdjReduc567[idxAdj];
     }
 
-    int ctxIdxMapIdx = idxAdj;
+    int ctxIdxMapIdx = 3 * idxAdj;
     if (!maskedOccupancy) {
       int bitIsPredicted = (mappedOccIsPredicted >> bitIdx) & 1;
       int bitPrediction = (mappedOccPrediction >> bitIdx) & 1;
@@ -667,7 +667,7 @@ GeometryOctreeEncoder::encodeOccupancyNeighNZ(
       idxAdj = kCtxIdxAdjReduc567[idxAdj];
     }
 
-    int ctxIdxMapIdx = bitAdjGt0 + bitAdjGt1;
+    int ctxIdxMapIdx = 3 * idxAdj;
     if (!maskedOccupancy) {  // planar
       int bitIsPredicted = (mappedOccIsPredicted >> bitIdx) & 1;
       int bitPrediction = (mappedOccPrediction >> bitIdx) & 1;
