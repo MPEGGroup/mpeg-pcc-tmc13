@@ -98,6 +98,9 @@ struct Partition {
   // translated+scaled co-ordinate system.
   Vec3<int> origin;
 
+  // Some metadata used by the partitioning process
+  Vec3<int> location;
+
   // Point indexes of the source point cloud that form this partition.
   std::vector<int32_t> pointIndexes;
 };
@@ -142,11 +145,7 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud);
 void refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& inputPointCloud,
-  std::vector<Partition>& slices);
-
-void refineSlices(
-  const PartitionParams& params,
-  const PCCPointSet3& inputPointCloud,
+  Vec3<int> sliceArrNum,
   std::vector<Partition>& slices);
 
 //============================================================================

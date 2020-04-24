@@ -205,6 +205,8 @@ PCCTMC3Encoder3::compress(
   //  - partitioning function produces a list of point indexes, origin and
   //    optional tile metadata for each partition.
   //  - encode any tile metadata
+  //  NB: the partitioning method is required to ensure that the output
+  //      slices conform to any codec limits.
   //  todo(df): consider requiring partitioning function to sort the input
   //            points and provide ranges rather than a set of indicies.
   do {
@@ -257,14 +259,6 @@ PCCTMC3Encoder3::compress(
           curSlices[i].pointIndexes[p] = tile[curSlices[i].pointIndexes[p]];
         }
       }
-      // Adjust the point number of each slice
-      // to the range between sliceMaxPoints and sliceMinPoints
-      // by merge small slices and split large ones.
-      if (partitionMethod == PartitionMethod::kUniformSquare)
-        refineSlicesByAdjacentInfo(
-          params->partition, quantizedInputCloud, curSlices);
-      else
-        refineSlices(params->partition, quantizedInputCloud, curSlices);
 
       partitions.slices.insert(
         partitions.slices.end(), curSlices.begin(), curSlices.end());

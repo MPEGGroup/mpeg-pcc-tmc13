@@ -47,6 +47,9 @@ namespace pcc {
 struct CM_Node {  //node == partition
   int cnt;
   int idx;
+  int xArr;
+  int yArr;
+  int zArr;
   std::vector<int32_t> pointCloudIndex;
 };
 
@@ -54,6 +57,7 @@ struct CM_Nodes {  //nodes == merged partition
   int total;
   double xEvg;
   double yEvg;
+  double zEvg;
   std::vector<CM_Node> nodes;
 };
 
@@ -156,6 +160,7 @@ partitionByUniformGeom(
   int partitionBoundaryLog2)
 {
   std::vector<Partition> slices;
+  Vec3<int> sliceArrNum;
 
   Box3<int32_t> bbox = cloud.computeBoundingBox();
 
@@ -183,6 +188,9 @@ partitionByUniformGeom(
       auto& slice = slices[i];
       slice.sliceId = i;
       slice.tileId = tileID;
+      slice.location[0] = i;
+      slice.location[1] = 0;
+      slice.location[2] = 0;
       slice.origin = Vec3<int>{0};
     }
 
@@ -198,6 +206,10 @@ partitionByUniformGeom(
         }
       }
     }
+
+    sliceArrNum[0] = sliceNum;
+    sliceArrNum[1] = 1;
+    sliceArrNum[2] = 1;
 
     if (halfQualified(slices, params.sliceMaxPoints))
       break;
@@ -216,6 +228,9 @@ partitionByUniformGeom(
       [](const Partition& p) { return p.pointIndexes.empty(); }),
     slices.end());
 
+  // refine slicesto meet max/min point constraints
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+
   return slices;
 }
 
@@ -229,6 +244,7 @@ partitionByUniformSquare(
   int partitionBoundaryLog2)
 {
   std::vector<Partition> slices;
+  Vec3<int> sliceArrNum;
 
   Box3<int32_t> bbox = cloud.computeBoundingBox();
 
@@ -264,6 +280,9 @@ partitionByUniformSquare(
       for (int j = 0; j < secondSliceNum; j++) {
         auto& slice = slices[i * secondSliceNum + j];
         slice.sliceId = count;
+        slice.location[0] = i;
+        slice.location[1] = j;
+        slice.location[2] = 0;
         slice.tileId = tileID;
         slice.origin = Vec3<int>{0};
         count++;
@@ -290,12 +309,20 @@ partitionByUniformSquare(
     break;
   }
 
+  sliceArrNum[0] = firstSliceNum;
+  sliceArrNum[1] = secondSliceNum;
+  sliceArrNum[2] = 1;
+
   int count = 0;
   for (int i = 0; i < slices.size(); i++) {
     auto& slice = slices[i];
     slice.sliceId = count;
     count++;
   }
+
+  // refine slicesto meet max/min point constraints
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+
   return slices;
 }
 
@@ -311,6 +338,7 @@ partitionByOctreeDepth(
   bool splitByDepth)
 {
   std::vector<Partition> slices;
+  Vec3<int> sliceArrNum;
 
   // noting that there is a correspondence between point position
   // and octree node, calculate the position mask and shift required
@@ -353,16 +381,25 @@ partitionByOctreeDepth(
     slices.resize(numSlices);
 
     int sliceId = 0;
+    int count = 0;
     for (auto& part : partMap) {
-      if (!part)
+      if (!part) {
+        count++;
         continue;
-
+      }
       auto& slice = slices[sliceId];
       slice.sliceId = sliceId;
       slice.tileId = tileID;
       slice.origin = Vec3<int>{0};
+      int first = count / (1 << (2 * depOctree));
+      int second = count % (1 << (2 * depOctree)) / (1 << depOctree);
+      int third = count % (1 << (2 * depOctree)) % (1 << depOctree);
+      slice.location[0] = first;
+      slice.location[1] = second;
+      slice.location[2] = third;
       slice.pointIndexes.reserve(part);
       part = sliceId++;
+      count++;
     }
 
     for (int i = 0, last = cloud.getPointCount(); i < last; i++) {
@@ -371,11 +408,17 @@ partitionByOctreeDepth(
       slices[sliceId].pointIndexes.push_back(i);
     }
 
+    sliceArrNum[0] = (1 << depOctree);
+    sliceArrNum[1] = (1 << depOctree);
+    sliceArrNum[2] = (1 << depOctree);
     if (halfQualified(slices, params.sliceMaxPoints))
       break;
 
     depOctree++;
   } while (!splitByDepth);
+
+  // refine slicesto meet max/min point constraints
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
 
   return slices;
 }
@@ -555,55 +598,54 @@ void
 refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& cloud,
+  Vec3<int> sliceArrNum,
   std::vector<Partition>& slices)
 {
   int maxPoints = params.sliceMaxPoints;
   int minPoints = params.sliceMinPoints;
 
   //initialize
-  const auto& bBox = cloud.computeBoundingBox();
-  int minEdgeAxis = shortestAxis(bBox);
-  int minlength = (bBox.max[minEdgeAxis] - bBox.min[minEdgeAxis]);
+  int xNum = sliceArrNum[0];
+  int yNum = sliceArrNum[1];
+  int zNum = sliceArrNum[2];
+  int totalSliceNum = slices.size();
 
-  int maxEdgeAxis = longestAxis(bBox);
-  int maxEdge = bBox.max[maxEdgeAxis] - bBox.min[maxEdgeAxis];
-
-  int midEdgeAxis = 3 - maxEdgeAxis - minEdgeAxis;
-  int midEdge = bBox.max[midEdgeAxis] - bBox.min[midEdgeAxis];
-
-  int xNum = floor(maxEdge / minlength) + 1;
-  int yNum = floor(midEdge / minlength) + 1;
-
-  std::vector<std::vector<Partition>> slicePartition;
-  std::vector<std::vector<int>> listCnt;
+  std::vector<std::vector<std::vector<Partition>>> slicePartition;
+  std::vector<std::vector<std::vector<int>>> listCnt;
   slicePartition.clear();
   slicePartition.resize(xNum);
   listCnt.resize(xNum);
   for (int i = 0; i < xNum; i++) {
     slicePartition[i].resize(yNum);
     listCnt[i].resize(yNum);
-  }
-
-  for (int i = 0; i < xNum; i++) {
     for (int j = 0; j < yNum; j++) {
-      int idx = i * yNum + j;
-      if (idx > (slices.size() - 1))
-        continue;
-      slicePartition[i][j] = slices[i * yNum + j];
+      slicePartition[i][j].resize(zNum);
+      listCnt[i][j].resize(zNum);
     }
   }
 
   std::vector<CM_Nodes> list;
   list.clear();
-  list.resize(xNum * yNum);
-  for (int i = 0; i < xNum * yNum; i++) {
+  list.resize(totalSliceNum);
+  int sliceCount = 0;
+  for (int i = 0; i < totalSliceNum; i++) {
+    int first = slices[sliceCount].location[0];
+    int second = slices[sliceCount].location[1];
+    int third = slices[sliceCount].location[2];
+
+    slicePartition[first][second][third] = slices[sliceCount];
     list[i].nodes.resize(1);
-    list[i].xEvg = i / yNum;
-    list[i].yEvg = i % yNum;
-    list[i].total = slicePartition[i / yNum][i % yNum].pointIndexes.size();
+    list[i].xEvg = first;
+    list[i].yEvg = second;
+    list[i].zEvg = third;
+    list[i].total = slicePartition[first][second][third].pointIndexes.size();
     list[i].nodes[0].cnt =
-      slicePartition[i / yNum][i % yNum].pointIndexes.size();
+      slicePartition[first][second][third].pointIndexes.size();
+    list[i].nodes[0].xArr = list[i].xEvg;
+    list[i].nodes[0].yArr = list[i].yEvg;
+    list[i].nodes[0].zArr = list[i].zEvg;
     list[i].nodes[0].idx = i;
+    sliceCount++;
   }
 
   for (int i = 0; i < list.size(); i++) {
@@ -611,7 +653,8 @@ refineSlicesByAdjacentInfo(
       list[i].nodes[n].pointCloudIndex.resize(list[i].total);
       for (int idx = 0; idx < list[i].total; idx++) {
         list[i].nodes[n].pointCloudIndex[idx] =
-          slicePartition[i / yNum][i % yNum].pointIndexes[idx];
+          slicePartition[list[i].xEvg][list[i].yEvg][list[i].zEvg]
+            .pointIndexes[idx];
       }
     }
   }
@@ -657,11 +700,13 @@ refineSlicesByAdjacentInfo(
 
   list = tmplist;
   tmplist.clear();
+
   for (int i = 0; i < list.size(); i++) {
     for (int n = 0; n < list[i].nodes.size(); n++) {
-      int xIdx = list[i].nodes[n].idx / yNum;  //partition index x
-      int yIdx = list[i].nodes[n].idx % yNum;  //partition index y
-      listCnt[xIdx][yIdx] = i + 1;
+      int xIdx = list[i].nodes[n].xArr;
+      int yIdx = list[i].nodes[n].yArr;
+      int zIdx = list[i].nodes[n].zArr;
+      listCnt[xIdx][yIdx][zIdx] = i + 1;
     }
   }
 
@@ -670,43 +715,61 @@ refineSlicesByAdjacentInfo(
     int minLidx = -1;
     double mindist = maxPoints;
     for (int n = 0; n < list[i].nodes.size(); n++) {
-      int xIdxP = list[i].nodes[n].idx / yNum;
-      int yIdxP = list[i].nodes[n].idx % yNum;
-      for (int f = 0; f < 4; f++) {
+      int xIdxP = list[i].xEvg;
+      int yIdxP = list[i].yEvg;
+      int zIdxP = list[i].zEvg;
+      for (int f = 0; f < 6; f++) {
         int xIdxPTmp = 0;
         int yIdxPTmp = 0;
+        int zIdxPTmp = 0;
         if (f == 0) {
           xIdxPTmp = xIdxP - 1;  //left
           yIdxPTmp = yIdxP;
+          zIdxPTmp = zIdxP;
           if (xIdxPTmp < 0)
             continue;
         } else if (f == 1) {
           xIdxPTmp = xIdxP + 1;  //right
           yIdxPTmp = yIdxP;
+          zIdxPTmp = zIdxP;
           if (xIdxPTmp >= xNum)
             continue;
         } else if (f == 2) {
           xIdxPTmp = xIdxP;
           yIdxPTmp = yIdxP - 1;  //down
+          zIdxPTmp = zIdxP;
           if (yIdxPTmp < 0)
             continue;
         } else if (f == 3) {
           xIdxPTmp = xIdxP;
           yIdxPTmp = yIdxP + 1;  //up
+          zIdxPTmp = zIdxP;
           if (yIdxPTmp >= yNum)
+            continue;
+        } else if (f == 4) {
+          xIdxPTmp = xIdxP;
+          yIdxPTmp = yIdxP;
+          zIdxPTmp = zIdxP - 1;  //front
+          if (zIdxPTmp < 0)
+            continue;
+        } else if (f == 5) {
+          xIdxPTmp = xIdxP;
+          yIdxPTmp = yIdxP;
+          zIdxPTmp = zIdxP + 1;  //back
+          if (zIdxPTmp >= zNum)
             continue;
         }
 
         if (
-          (listCnt[xIdxPTmp][yIdxPTmp] == 0)
-          || (listCnt[xIdxPTmp][yIdxPTmp] == i + 1)) {
+          (listCnt[xIdxPTmp][yIdxPTmp][zIdxPTmp] == 0)
+          || (listCnt[xIdxPTmp][yIdxPTmp][zIdxPTmp] == i + 1)) {
           continue;
         }
 
-        int lIdxTmp = listCnt[xIdxPTmp][yIdxPTmp] - 1;  //list index
+        int lIdxTmp = listCnt[xIdxPTmp][yIdxPTmp][zIdxPTmp] - 1;
         double distTmp = sqrt(
-          pow((list[i].xEvg - xIdxPTmp), 2)
-          + pow((list[i].yEvg - yIdxPTmp), 2));
+          pow((list[i].xEvg - xIdxPTmp), 2) + pow((list[i].yEvg - yIdxPTmp), 2)
+          + pow((list[i].zEvg - zIdxPTmp), 2));
         if (mindist >= distTmp) {
           if ((list[lIdxTmp].total + list[i].total) < maxPoints) {
             mindist = distTmp;
@@ -719,12 +782,15 @@ refineSlicesByAdjacentInfo(
     if (minLidx <= 0) {
       i++;
     } else {
-      int pre_num = list[i].nodes.size();
-      list[i].nodes.resize(pre_num + list[minLidx].nodes.size());
+      int prevEnd = list[i].nodes.size();
+      list[i].nodes.resize(prevEnd + list[minLidx].nodes.size());
 
-      for (int m = pre_num; m < list[i].nodes.size(); m++) {
-        list[i].nodes[m].cnt = list[minLidx].nodes[m - pre_num].cnt;
-        list[i].nodes[m].idx = list[minLidx].nodes[m - pre_num].idx;
+      for (int m = prevEnd; m < list[i].nodes.size(); m++) {
+        list[i].nodes[m].cnt = list[minLidx].nodes[m - prevEnd].cnt;
+        list[i].nodes[m].idx = list[minLidx].nodes[m - prevEnd].idx;
+        list[i].nodes[m].xArr = list[minLidx].nodes[m - prevEnd].xArr;
+        list[i].nodes[m].yArr = list[minLidx].nodes[m - prevEnd].yArr;
+        list[i].nodes[m].zArr = list[minLidx].nodes[m - prevEnd].zArr;
       }
       list[i].total += list[minLidx].total;
       list.erase(list.begin() + minLidx);
@@ -736,15 +802,19 @@ refineSlicesByAdjacentInfo(
       for (int j = i; j < list.size(); j++) {
         double xSum = 0;
         double ySum = 0;
+        double zSum = 0;
         for (int n = 0; n < list[j].nodes.size(); n++) {
-          int xIdx = list[j].nodes[n].idx / yNum;
-          int yIdx = list[j].nodes[n].idx % yNum;
+          int xIdx = list[j].nodes[n].xArr;
+          int yIdx = list[j].nodes[n].yArr;
+          int zIdx = list[j].nodes[n].zArr;
           xSum += xIdx;
           ySum += yIdx;
-          listCnt[xIdx][yIdx] = j + 1;
+          zSum += zIdx;
+          listCnt[xIdx][yIdx][zIdx] = j + 1;
         }
         list[j].xEvg = xSum / list[j].nodes.size();
         list[j].yEvg = ySum / list[j].nodes.size();
+        list[j].zEvg = zSum / list[j].nodes.size();
       }
     }
   }
@@ -755,9 +825,10 @@ refineSlicesByAdjacentInfo(
   refinedSlice.resize(list.size() + newSlice.size());
   for (int i = 0; i < list.size(); i++) {
     for (int n = 0; n < list[i].nodes.size(); n++) {
-      int xIdxP = list[i].nodes[n].idx / yNum;
-      int yIdxP = list[i].nodes[n].idx % yNum;
-      mergePartition(refinedSlice[i], slicePartition[xIdxP][yIdxP]);
+      int xIdxP = list[i].nodes[n].xArr;
+      int yIdxP = list[i].nodes[n].yArr;
+      int zIdxP = list[i].nodes[n].zArr;
+      mergePartition(refinedSlice[i], slicePartition[xIdxP][yIdxP][zIdxP]);
     }
   }
 
@@ -775,159 +846,6 @@ refineSlicesByAdjacentInfo(
     slice.tileId = -1;
   }
 }
-
-//=============================================================================
-
-std::vector<Partition>::iterator
-splitSlice(
-  const PCCPointSet3& cloud,
-  std::vector<Partition>& slices,
-  std::vector<Partition>::iterator toBeSplit,
-  int maxPoints)
-{
-  auto& sliceA = (*toBeSplit);
-  auto& aIndexes = sliceA.pointIndexes;
-
-  // Split along the longest edge at the median point
-  int splitAxis = maxEdgeAxis(cloud, aIndexes);
-  std::stable_sort(
-    aIndexes.begin(), aIndexes.end(), [&](int32_t a, int32_t b) {
-      return cloud[a][splitAxis] < cloud[b][splitAxis];
-    });
-
-  int numSplit = std::ceil((double)aIndexes.size() / (double)maxPoints);
-  int splitsize = aIndexes.size() / numSplit;
-  std::vector<Partition> splitPartitions;
-  splitPartitions.resize(numSplit);
-
-  // The 2nd to the penultimate partitions
-  for (int i = 1; i < numSplit - 1; i++) {
-    splitPartitions[i].sliceId = sliceA.sliceId + i;
-    splitPartitions[i].tileId = sliceA.tileId;
-    splitPartitions[i].origin = Vec3<int>{0};
-
-    auto& Indexes = splitPartitions[i].pointIndexes;
-    Indexes.insert(
-      Indexes.begin(), aIndexes.begin() + i * splitsize,
-      aIndexes.begin() + (i + 1) * splitsize);
-  }
-  // The last split partition
-  auto& Indexes = splitPartitions[numSplit - 1].pointIndexes;
-  Indexes.insert(
-    Indexes.begin(), aIndexes.begin() + (numSplit - 1) * splitsize,
-    aIndexes.end());
-
-  aIndexes.erase(aIndexes.begin() + splitsize, aIndexes.end());
-
-  toBeSplit = slices.insert(
-    toBeSplit + 1, splitPartitions.begin() + 1, splitPartitions.end());
-
-  return toBeSplit + (numSplit - 1);
-}
-
-//----------------------------------------------------------------------------
-// combine the two slices into one
-
-std::vector<Partition>::iterator
-mergeSlice(
-  std::vector<Partition>& slices,
-  std::vector<Partition>::iterator a,
-  std::vector<Partition>::iterator b)
-{
-  auto& aIndexes = (*a).pointIndexes;
-  auto& bIndexes = (*b).pointIndexes;
-
-  aIndexes.insert(aIndexes.end(), bIndexes.begin(), bIndexes.end());
-  (*a).origin = minOrigin((*a).origin, (*b).origin);
-
-  return slices.erase(b);
-}
-
-//=============================================================================
-// first split slices still having too many points(more than maxPoints)
-// then merge slices with too few points(less than minPoints)
-
-void
-refineSlices(
-  const PartitionParams& params,
-  const PCCPointSet3& cloud,
-  std::vector<Partition>& slices)
-{
-  int maxPoints = params.sliceMaxPoints;
-  int minPoints = params.sliceMinPoints;
-
-  std::vector<Partition>::iterator it = slices.begin();
-  while (it != slices.end()) {
-    if ((*it).pointIndexes.size() > maxPoints) {
-      it = splitSlice(cloud, slices, it, maxPoints);
-    } else {
-      it++;
-    }
-  }
-
-  it = slices.begin();
-  while (it != slices.end() && slices.size() > 1) {
-    if ((*it).pointIndexes.size() < minPoints) {
-      std::vector<Partition>::iterator toBeMerge;
-      bool isFront = 0;
-
-      // - a slice could only merge with the one before or after it
-      // - the first/last slice could only merge with the next/front one
-      // - let mergerfront = point number of slice after merging with the front one
-      //   mergenext = point number of slice after merging with the subsquent one
-      // - if both mergefront and mergenext < maxPoints, choose the larger one;
-      // - if one of them < maxPoints and another > maxPoints,
-      //     choose the small one to meet the requirement
-      // - if both mergefront and mergenext > maxPoints, choose the larger one
-      //     and do one more split after merge. We deem the slice after split
-      //     as acceptable whether they are larger than minPoints or not
-      // NB: if the merger slice is still smaller than minPoints,
-      //     go on merging the same slice
-      if (it == slices.begin()) {
-        assert(it + 1 != slices.end());
-        toBeMerge = it + 1;
-        isFront = 0;
-      } else if (it == slices.end() - 1) {
-        assert(it - 1 != slices.end());
-        toBeMerge = it - 1;
-        isFront = 1;
-      } else {
-        int mergefront =
-          (*it).pointIndexes.size() + (*(it - 1)).pointIndexes.size();
-        int mergenext =
-          (*it).pointIndexes.size() + (*(it + 1)).pointIndexes.size();
-
-        if (
-          (mergefront > maxPoints && mergenext > maxPoints)
-          || (mergefront < maxPoints && mergenext < maxPoints)) {
-          toBeMerge = mergefront > mergenext ? (it - 1) : (it + 1);
-          isFront = mergefront > mergenext ? 1 : 0;
-        } else {
-          toBeMerge = mergefront < mergenext ? (it - 1) : (it + 1);
-          isFront = mergefront < mergenext ? 1 : 0;
-        }
-      }
-
-      it = isFront ? mergeSlice(slices, toBeMerge, it)
-                   : mergeSlice(slices, it, toBeMerge);
-
-      if ((*(it - 1)).pointIndexes.size() > maxPoints)
-        it = splitSlice(cloud, slices, it - 1, maxPoints);
-      else if ((*(it - 1)).pointIndexes.size() < minPoints)
-        it--;
-
-    } else {
-      it++;
-    }
-  }
-
-  for (int i = 0; i < slices.size(); i++) {
-    auto& slice = slices[i];
-    slice.sliceId = i;
-    slice.tileId = -1;
-  }
-}
-
 //============================================================================
 
 }  // namespace pcc
