@@ -614,6 +614,7 @@ AttributeEncoder::encodeReflectancesPred(
 
 Vec3<int64_t>
 AttributeEncoder::computeColorResiduals(
+  const AttributeParameterSet& aps,
   const Vec3<attr_t> color,
   const Vec3<attr_t> predictedColor,
   const Quantizers& quant)
@@ -624,12 +625,21 @@ AttributeEncoder::computeColorResiduals(
   const int64_t delta = quant[0].quantize(
     (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
   residuals[0] = IntToUInt(delta);
+  const int64_t residual0 =
+    divExp2RoundHalfUp(quant[0].scale(delta), kFixedPointAttributeShift);
   for (size_t k = 1; k < 3; ++k) {
     const int64_t quantAttValue = color[k];
     const int64_t quantPredAttValue = predictedColor[k];
-    const int64_t delta = quant[1].quantize(
-      (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
-    residuals[k] = IntToUInt(delta);
+    if (aps.inter_component_prediction_enabled_flag) {
+      const int64_t delta = quant[1].quantize(
+        (quantAttValue - quantPredAttValue - residual0)
+        << kFixedPointAttributeShift);
+      residuals[k] = IntToUInt(delta);
+    } else {
+      const int64_t delta = quant[1].quantize(
+        (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
+      residuals[k] = IntToUInt(delta);
+    }
   }
   return residuals;
 }
@@ -675,7 +685,7 @@ AttributeEncoder::computeColorPredictionWeights(
       predictor.predMode = 0;
       Vec3<attr_t> attrPred = predictor.predictColor(pointCloud, indexesLOD);
       Vec3<int64_t> attrResidualQuant =
-        computeColorResiduals(attrValue, attrPred, quant);
+        computeColorResiduals(aps, attrValue, attrPred, quant);
 
       double best_score = attrResidualQuant[0] + attrResidualQuant[1]
         + attrResidualQuant[2]
@@ -688,7 +698,8 @@ AttributeEncoder::computeColorPredictionWeights(
 
         attrPred = pointCloud.getColor(
           indexesLOD[predictor.neighbors[i].predictorIndex]);
-        attrResidualQuant = computeColorResiduals(attrValue, attrPred, quant);
+        attrResidualQuant =
+          computeColorResiduals(aps, attrValue, attrPred, quant);
 
         double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
         double score = attrResidualQuant[0] + attrResidualQuant[1]

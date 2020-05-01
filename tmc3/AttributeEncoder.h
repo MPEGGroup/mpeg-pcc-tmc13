@@ -112,6 +112,7 @@ protected:
     PCCResidualsEncoder& encoder);
 
   static Vec3<int64_t> computeColorResiduals(
+    const AttributeParameterSet& aps,
     const Vec3<attr_t> color,
     const Vec3<attr_t> predictedColor,
     const Quantizers& quant);
