@@ -36,6 +36,7 @@
 
 #include "geometry_predictive.h"
 #include "geometry.h"
+#include "hls.h"
 
 #include <vector>
 
@@ -48,7 +49,7 @@ public:
   PredGeomDecoder(const PredGeomDecoder&) = delete;
   PredGeomDecoder& operator=(const PredGeomDecoder&) = delete;
 
-  PredGeomDecoder(EntropyDecoder* aed) : _aed(aed) { _stack.reserve(1024); };
+  PredGeomDecoder(const GeometryParameterSet&, EntropyDecoder* aed);
 
   /**
    * decodes a sequence of decoded geometry trees.
@@ -72,9 +73,19 @@ private:
   EntropyDecoder* _aed;
   std::vector<int32_t> _stack;
   std::vector<int32_t> _nodeIdxToParentIdx;
+  bool _geom_unique_points_flag;
 };
 
 //============================================================================
+
+PredGeomDecoder::PredGeomDecoder(
+  const GeometryParameterSet& gps, EntropyDecoder* aed)
+  : _aed(aed), _geom_unique_points_flag(gps.geom_unique_points_flag)
+{
+  _stack.reserve(1024);
+}
+
+//----------------------------------------------------------------------------
 
 int
 PredGeomDecoder::decodeNumDuplicatePoints()
@@ -162,7 +173,9 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
     auto curNodeIdx = nodeCount++;
     _nodeIdxToParentIdx[curNodeIdx] = parentNodeIdx;
 
-    int numDuplicatePoints = decodeNumDuplicatePoints();
+    int numDuplicatePoints = 0;
+    if (!_geom_unique_points_flag)
+      numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
     auto residual = decodeResidual(mode);
@@ -209,7 +222,7 @@ decodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   EntropyDecoder* aed)
 {
-  PredGeomDecoder dec(aed);
+  PredGeomDecoder dec(gps, aed);
   dec.decode(gbh.geom_num_points_minus1 + 1, &pointCloud[0]);
 }
 

@@ -80,7 +80,7 @@ public:
   PredGeomEncoder(const PredGeomEncoder&) = delete;
   PredGeomEncoder& operator=(const PredGeomEncoder&) = delete;
 
-  PredGeomEncoder(EntropyEncoder* aec) : _aec(aec) { _stack.reserve(1024); };
+  PredGeomEncoder(const GeometryParameterSet&, EntropyEncoder* aec);
 
   void encode(
     const Vec3<int32_t>* cloud,
@@ -105,9 +105,19 @@ public:
 private:
   EntropyEncoder* _aec;
   std::vector<int32_t> _stack;
+  bool _geom_unique_points_flag;
 };
 
 //============================================================================
+
+PredGeomEncoder::PredGeomEncoder(
+  const GeometryParameterSet& gps, EntropyEncoder* aec)
+  : _aec(aec), _geom_unique_points_flag(gps.geom_unique_points_flag)
+{
+  _stack.reserve(1024);
+}
+
+//----------------------------------------------------------------------------
 
 void
 PredGeomEncoder::encodeNumDuplicatePoints(int numDupPoints)
@@ -261,7 +271,8 @@ PredGeomEncoder::encodeTree(
     }
 
     assert(node.childrenCount <= GNode::MaxChildrenCount);
-    encodeNumDuplicatePoints(node.numDups);
+    if (!_geom_unique_points_flag)
+      encodeNumDuplicatePoints(node.numDups);
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
     encodeResidual(best.residual, best.mode);
@@ -445,7 +456,7 @@ encodePredictiveGeometry(
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
-  PredGeomEncoder enc(arithmeticEncoder);
+  PredGeomEncoder enc(gps, arithmeticEncoder);
   int maxPtsPerTree = std::min(opt.maxPtsPerTree, int(numPoints));
   ;
   for (int i = 0; i < numPoints;) {
