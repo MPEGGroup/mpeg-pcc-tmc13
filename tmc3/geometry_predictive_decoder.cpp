@@ -66,7 +66,7 @@ private:
   int decodeNumDuplicatePoints();
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
-  Vec3<int32_t> decodeResidual();
+  Vec3<int32_t> decodeResidual(GPredicter::Mode mode);
 
 private:
   EntropyDecoder* _aed;
@@ -108,7 +108,7 @@ PredGeomDecoder::decodePredMode()
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual()
+PredGeomDecoder::decodeResidual(GPredicter::Mode mode)
 {
   Vec3<int32_t> residual;
   for (int k = 0, ctxIdx = 0; k < 3; ++k) {
@@ -117,7 +117,7 @@ PredGeomDecoder::decodeResidual()
       continue;
     }
 
-    auto sign = _aed->decode(_ctxSign[k]);
+    auto sign = mode > 0 ? _aed->decode(_ctxSign[k]) : 1;
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k];
     int32_t numBits;
@@ -165,7 +165,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
     int numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
-    auto residual = decodeResidual();
+    auto residual = decodeResidual(mode);
 
     auto predicter = makePredicter(
       curNodeIdx, mode, [&](int idx) { return _nodeIdxToParentIdx[idx]; });
