@@ -221,8 +221,8 @@ public:
   AdaptiveBitModel _ctxPlanarMode[3][2][2];
   AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][2][8][2];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[10];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[10];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
 
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[16];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[16];
@@ -1028,7 +1028,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIndex] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int zShift = (rInv << nodeSizeLog2AfterPlanar[2]) >> 17;
+  int zShift = (rInv << nodeSizeLog2AfterPlanar[2]) >> 18;
   for (int bitIdxZ = nodeSizeLog2AfterPlanar[2]; bitIdxZ > 0;
        bitIdxZ--, maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
@@ -1037,22 +1037,12 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
     int thetaLaserDelta = fixedThetaLaser - theta32;
 
-    // determine correction of angles low and high for bottom and top planes
-    int angleBot = std::abs(thetaLaserDelta - zShift);
-    int angleTop = std::abs(thetaLaserDelta + zShift);
-
-    // determine context
-    int contextAngle = angleBot > angleTop ? 1 : 0;
-    int diff = std::abs(angleBot - angleTop);
-
-    // difference of precision between diff and rinv is 32-18 = 14
-    if (diff >= rInv >> 15)
+    int thetaLaserDeltaBot = thetaLaserDelta + zShift;
+    int thetaLaserDeltaTop = thetaLaserDelta - zShift;
+    int contextAngle = thetaLaserDelta >= 0 ? 0 : 1;
+    if (thetaLaserDeltaTop >= 0)
       contextAngle += 2;
-    if (diff >= rInv >> 14)
-      contextAngle += 2;
-    if (diff >= rInv >> 13)
-      contextAngle += 2;
-    if (diff >= rInv >> 12)
+    else if (thetaLaserDeltaBot < 0)
       contextAngle += 2;
 
     delta[2] <<= 1;

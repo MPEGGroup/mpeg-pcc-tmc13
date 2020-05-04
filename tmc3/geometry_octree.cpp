@@ -770,23 +770,13 @@ determineContextAngleForPlanar(
   int64_t hr = zLaser[laserIndex] * rInv;
   thetaLaserDelta += hr >= 0 ? -(hr >> 17) : ((-hr) >> 17);
 
-  // determine correction of angles low and high for bottom and top planes
-  int64_t zShift = (rInv << (childSizeLog2[2] + 1)) >> 17;
-  int angleBot = std::abs(thetaLaserDelta - zShift);
-  int angleTop = std::abs(thetaLaserDelta + zShift);
-
-  // determine context
-  int contextAngle = angleBot > angleTop ? 1 : 0;
-  int diff = std::abs(angleBot - angleTop);
-
-  // difference of precision between diff and rinv is 32-18 = 14
-  if (diff >= rInv >> 15)
+  int64_t zShift = (rInv << childSizeLog2[2]) >> 20;
+  int thetaLaserDeltaBot = thetaLaserDelta + zShift;
+  int thetaLaserDeltaTop = thetaLaserDelta - zShift;
+  int contextAngle = thetaLaserDelta >= 0 ? 0 : 1;
+  if (thetaLaserDeltaTop >= 0)
     contextAngle += 2;
-  if (diff >= rInv >> 14)
-    contextAngle += 2;
-  if (diff >= rInv >> 13)
-    contextAngle += 2;
-  if (diff >= rInv >> 12)
+  else if (thetaLaserDeltaBot < 0)
     contextAngle += 2;
 
   return contextAngle;
