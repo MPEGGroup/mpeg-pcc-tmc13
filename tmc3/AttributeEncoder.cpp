@@ -60,16 +60,47 @@ struct PCCResidualsEncoder {
   AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxZeroCnt[3];
   AdaptiveBitModel binaryModelIsOne[7];
-  DualLutCoder<false> symbolCoder[2];
+  AdaptiveBitModel ctxSymbolBit[2];
+  AdaptiveBitModel ctxSetIdx[2][16];
 
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
   void encodePredMode(int value, int max);
   void encodeZeroCnt(int value, int max);
+  void encodeInterval(int value, int k3);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
   void encode(int32_t value0, int32_t value1, int32_t value2);
   void encode(int32_t value);
 };
+
+//----------------------------------------------------------------------------
+
+void
+PCCResidualsEncoder::encodeInterval(int value, int k3)
+{
+  // Decompose value into position within an interval
+  int setidx = kCoeffToIntervalIdx[value];
+
+  int intervalStart = kCoeffIntervalStart[setidx];
+  int intervalEnd = kCoeffIntervalStart[setidx + 1];
+
+  int symbolidx = value - intervalStart;
+
+  // Code the interval index
+  auto& aec = arithmeticEncoder;
+  aec.encode((setidx >> 3) & 1, ctxSetIdx[k3][0]);
+  aec.encode((setidx >> 2) & 1, ctxSetIdx[k3][1 + (setidx >> 3)]);
+  aec.encode((setidx >> 1) & 1, ctxSetIdx[k3][3 + (setidx >> 2)]);
+  aec.encode((setidx >> 0) & 1, ctxSetIdx[k3][7 + (setidx >> 1)]);
+
+  // Code the position within the interval
+  // Number of bits to code is log2(intervalEnd - intervalStart)
+  // The following assumes that the range is a power of two
+  for (int mask = intervalEnd - intervalStart - 1; mask; mask >>= 1) {
+    aec.encode(symbolidx & 1, ctxSymbolBit[k3]);
+    symbolidx >>= 1;
+  }
+}
 
 //----------------------------------------------------------------------------
 
@@ -150,10 +181,10 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2, int k3)
   value -= 2;
 
   if (value < kAttributeResidualAlphabetSize) {
-    symbolCoder[k3].encode(value, &arithmeticEncoder);
+    encodeInterval(value, k3);
   } else {
     int alphabetSize = kAttributeResidualAlphabetSize;
-    symbolCoder[k3].encode(alphabetSize, &arithmeticEncoder);
+    encodeInterval(alphabetSize, k3);
     arithmeticEncoder.encodeExpGolomb(
       value - alphabetSize, 0, binaryModel0, binaryModelDiff[k1]);
   }

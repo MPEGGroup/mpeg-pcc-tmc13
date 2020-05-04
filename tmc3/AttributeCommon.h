@@ -44,6 +44,18 @@
 namespace pcc {
 
 //============================================================================
+// Constants for coefficient coding
+
+constexpr int kCoeffIntervals = 16;
+constexpr int kCoeffIntervalMax = 255;
+
+// The starting coefficient value for each interval
+extern const uint16_t kCoeffIntervalStart[kCoeffIntervals + 1];
+
+// Map of coefficient values to intervals
+extern const uint8_t kCoeffToIntervalIdx[kCoeffIntervalMax + 1];
+
+//============================================================================
 
 struct AttributeLods {
   // Indicates if the generated LoDs are compatible with the provided aps

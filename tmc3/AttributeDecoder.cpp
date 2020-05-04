@@ -55,13 +55,15 @@ struct PCCResidualsDecoder {
   AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxZeroCnt[3];
   AdaptiveBitModel binaryModelIsOne[7];
-  DualLutCoder<false> symbolCoder[2];
+  AdaptiveBitModel ctxSymbolBit[2];
+  AdaptiveBitModel ctxSetIdx[2][16];
 
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
   int decodePredMode(int max);
   int decodeZeroCnt(int max);
   uint32_t decodeSymbol(int k1, int k2, int k3);
+  int decodeInterval(int k3);
   void decode(int32_t values[3]);
   int32_t decode();
 };
@@ -137,13 +139,41 @@ PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
   if (arithmeticDecoder.decode(binaryModelIsOne[k2]))
     return 1u;
 
-  uint32_t value = symbolCoder[k3].decode(&arithmeticDecoder);
+  uint32_t value = decodeInterval(k3);
   if (value == kAttributeResidualAlphabetSize) {
     value +=
       arithmeticDecoder.decodeExpGolomb(0, binaryModel0, binaryModelDiff[k1]);
   }
 
   return value + 2;
+}
+
+//----------------------------------------------------------------------------
+
+int
+PCCResidualsDecoder::decodeInterval(int k3)
+{
+  // Decoding of interval index
+  auto& aed = arithmeticDecoder;
+  int setIdx = 0;
+  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][0]);
+  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][1 + setIdx]);
+  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][3 + setIdx]);
+  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][7 + setIdx]);
+
+  // Decode position within interval
+  int intervalStart = kCoeffIntervalStart[setIdx];
+  int intervalEnd = kCoeffIntervalStart[setIdx + 1];
+  int intervalRange = intervalEnd - intervalStart;
+
+  // Number of bits to code is log2(intervalEnd - intervalStart)
+  // The following assumes that the range is a power of two
+  int symbolIdx = 0;
+  for (int mask = intervalRange - 1, i = 0; mask; mask >>= 1, ++i)
+    symbolIdx |= aed.decode(ctxSymbolBit[k3]) << i;
+
+  // Reconstruct
+  return intervalStart + symbolIdx;
 }
 
 //----------------------------------------------------------------------------
