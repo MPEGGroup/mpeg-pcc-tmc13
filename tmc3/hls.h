@@ -493,12 +493,19 @@ struct AttributeBrickHeader {
 
 struct TileInventory {
   struct Entry {
+    // The tile id (either manually specified, or the implicit value).
+    int tile_id;
+
     // NB: in stv order
     Vec3<int> tileOrigin;
 
     // NB: in stv order
     Vec3<int> tileSize;
   };
+
+  // Indicates if tile_id is signalled
+  bool tile_id_present_flag;
+
   std::vector<Entry> tiles;
 };
 

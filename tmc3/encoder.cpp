@@ -171,6 +171,9 @@ PCCTMC3Encoder3::compress(
   if (params->partition.tileSize) {
     tileMaps = tilePartition(params->partition, quantizedInputCloud);
 
+    // Default is to use implicit tile ids (ie list index)
+    partitions.tileInventory.tile_id_present_flag = false;
+
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
     for (int t = 0; t < tileMaps.size(); t++) {
@@ -178,6 +181,7 @@ PCCTMC3Encoder3::compress(
         tileMaps[t].begin(), tileMaps[t].end());
 
       auto& tileIvt = partitions.tileInventory.tiles[t];
+      tileIvt.tile_id = t;
       for (int k = 0; k < 3; k++) {
         tileIvt.tileSize[k] = bbox.max[k] - bbox.min[k] + 1;
         tileIvt.tileOrigin[k] = bbox.min[k] - _sps->seqBoundingBoxOrigin[k];
@@ -218,6 +222,9 @@ PCCTMC3Encoder3::compress(
 
     for (int t = 0; t < tileMaps.size(); t++) {
       const auto& tile = tileMaps[t];
+      auto tile_id = partitions.tileInventory.tiles.empty()
+        ? 0
+        : partitions.tileInventory.tiles[t].tile_id;
 
       // Get the point cloud of current tile and compute their bounding boxes
       PCCPointSet3 tileCloud;
@@ -241,16 +248,17 @@ PCCTMC3Encoder3::compress(
 
       case PartitionMethod::kUniformGeom:
         curSlices = partitionByUniformGeom(
-          params->partition, tileCloud, t, _gps->trisoup_node_size_log2);
+          params->partition, tileCloud, tile_id, _gps->trisoup_node_size_log2);
         break;
 
       case PartitionMethod::kUniformSquare:
         curSlices = partitionByUniformSquare(
-          params->partition, tileCloud, t, _gps->trisoup_node_size_log2);
+          params->partition, tileCloud, tile_id, _gps->trisoup_node_size_log2);
         break;
 
       case PartitionMethod::kOctreeUniform:
-        curSlices = partitionByOctreeDepth(params->partition, tileCloud, t);
+        curSlices =
+          partitionByOctreeDepth(params->partition, tileCloud, tile_id);
         break;
 
       case PartitionMethod::kNpoints:

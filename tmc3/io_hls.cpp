@@ -910,6 +910,7 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   auto bs = makeBitWriter(std::back_inserter(buf));
 
   int num_tiles = inventory.tiles.size();
+  bs.write(inventory.tile_id_present_flag);
   bs.writeUn(16, num_tiles);
 
   // calculate the maximum size of any values
@@ -925,6 +926,9 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   bs.writeUn(8, tile_bounding_box_bits);
 
   for (const auto& entry : inventory.tiles) {
+    if (inventory.tile_id_present_flag)
+      bs.writeUe(entry.tile_id);
+
     auto tile_origin = toXyz(sps.geometry_axis_order, entry.tileOrigin);
     bs.writeSn(tile_bounding_box_bits, tile_origin.x());
     bs.writeSn(tile_bounding_box_bits, tile_origin.y());
@@ -951,12 +955,17 @@ parseTileInventory(const PayloadBuffer& buf)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   int num_tiles;
+  bs.read(&inventory.tile_id_present_flag);
   bs.readUn(16, &num_tiles);
 
   int tile_bounding_box_bits;
   bs.readUn(8, &tile_bounding_box_bits);
 
   for (int i = 0; i < num_tiles; i++) {
+    int tile_id = i;
+    if (inventory.tile_id_present_flag)
+      bs.readUe(&tile_id);
+
     Vec3<int> tile_origin;
     bs.readSn(tile_bounding_box_bits, &tile_origin.x());
     bs.readSn(tile_bounding_box_bits, &tile_origin.y());
@@ -968,6 +977,7 @@ parseTileInventory(const PayloadBuffer& buf)
 
     // NB: this is in XYZ axis order until the inventory is converted to STV
     TileInventory::Entry entry;
+    entry.tile_id = tile_id;
     entry.tileOrigin = tile_origin;
     entry.tileSize = tile_size;
     inventory.tiles.push_back(entry);
