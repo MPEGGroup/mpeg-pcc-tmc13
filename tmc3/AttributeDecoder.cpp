@@ -480,7 +480,6 @@ AttributeDecoder::decodeReflectancesRaht(
   for (int n = 0; n < voxelCount; n++) {
     packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
-    packedVoxel[n].regionQPOffset = qpSet.regionQpOffset(pointCloud[n]);
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
@@ -493,7 +492,7 @@ AttributeDecoder::decodeReflectancesRaht(
   // Entropy decode
   const int attribCount = 1;
   int* coefficients = new int[attribCount * voxelCount];
-  int* regionQPOffset = new int[voxelCount];
+  Qps* pointQpOffsets = new Qps[voxelCount];
   int zero_cnt = decoder.decodeZeroCnt(voxelCount);
   for (int n = 0; n < voxelCount; ++n) {
     uint32_t value = 0;
@@ -504,7 +503,7 @@ AttributeDecoder::decodeReflectancesRaht(
       zero_cnt = decoder.decodeZeroCnt(voxelCount);
     }
     coefficients[n] = value;
-    regionQPOffset[n] = packedVoxel[n].regionQPOffset;
+    pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
   int* attributes = new int[attribCount * voxelCount];
@@ -512,8 +511,8 @@ AttributeDecoder::decodeReflectancesRaht(
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
-    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -545,7 +544,6 @@ AttributeDecoder::decodeColorsRaht(
   for (int n = 0; n < voxelCount; n++) {
     packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
-    packedVoxel[n].regionQPOffset = qpSet.regionQpOffset(pointCloud[n]);
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
@@ -559,7 +557,7 @@ AttributeDecoder::decodeColorsRaht(
   const int attribCount = 3;
   int zero_cnt = decoder.decodeZeroCnt(voxelCount);
   int* coefficients = new int[attribCount * voxelCount];
-  int* regionQPOffset = new int[voxelCount];
+  Qps* pointQpOffsets = new Qps[voxelCount];
 
   for (int n = 0; n < voxelCount; ++n) {
     int32_t values[3];
@@ -573,7 +571,7 @@ AttributeDecoder::decodeColorsRaht(
     for (int d = 0; d < attribCount; ++d) {
       coefficients[voxelCount * d + n] = values[d];
     }
-    regionQPOffset[n] = packedVoxel[n].regionQPOffset;
+    pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
   int* attributes = new int[attribCount * voxelCount];
@@ -581,8 +579,8 @@ AttributeDecoder::decodeColorsRaht(
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
-    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
                     (1 << desc.bitdepthSecondary) - 1,

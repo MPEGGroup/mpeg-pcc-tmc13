@@ -541,7 +541,7 @@ struct AttributeBrickHeader {
   // NB: in stv order
   Vec3<int> regionQpOrigin;
   Vec3<int> regionQpSize;
-  int attr_region_qp_delta;
+  std::array<int, 2> attr_region_qp_offset;
   bool attr_region_qp_present_flag;
 };
 

@@ -48,22 +48,22 @@ void regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
   const QpSet& qpset,
+  const Qps* pointQPOffset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients,
-  int* regionQPOffset);
+  int* coefficients);
 
 void regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
   const QpSet& qpset,
+  const Qps* pointQpOffset,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients,
-  int* regionQPOffset);
+  int* coefficients);
 
 } /* namespace pcc */

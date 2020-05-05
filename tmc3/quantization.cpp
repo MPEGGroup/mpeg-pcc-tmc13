@@ -104,7 +104,7 @@ deriveQpRegions(
   QpRegionOffset qpRegionOffset;
   qpRegionOffset.valid = abh.attr_region_qp_present_flag;
   if (qpRegionOffset.valid) {
-    qpRegionOffset.qpOffset = abh.attr_region_qp_delta;
+    qpRegionOffset.qpOffset = abh.attr_region_qp_offset;
     qpRegionOffset.region.min = abh.regionQpOrigin;
     qpRegionOffset.region.max = abh.regionQpOrigin + abh.regionQpSize;
   }
@@ -156,10 +156,10 @@ QpSet::clipQpS(int qp) const
 //============================================================================
 // Determines the quantizers at a given layer
 Quantizers
-QpSet::quantizers(int qpLayer, int qpOffset) const
+QpSet::quantizers(int qpLayer, Qps qpOffset) const
 {
-  auto qp0 = clipQpP(layers[qpLayer][0] + qpOffset) + fixedPointQpOffset;
-  auto qp1 = clipQpS(layers[qpLayer][1] + qpOffset) + fixedPointQpOffset;
+  auto qp0 = clipQpP(layers[qpLayer][0] + qpOffset[0]) + fixedPointQpOffset;
+  auto qp1 = clipQpS(layers[qpLayer][1] + qpOffset[1]) + fixedPointQpOffset;
 
   return {Quantizer(qp0), Quantizer(qp1)};
 }
@@ -169,24 +169,21 @@ QpSet::quantizers(int qpLayer, int qpOffset) const
 Quantizers
 QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 {
-  int qpRegionOffset = 0;
-  if (regionOffset.valid && regionOffset.region.contains(point)) {
-    qpRegionOffset = regionOffset.qpOffset;
-  }
+  if (regionOffset.valid && regionOffset.region.contains(point))
+    return quantizers(qpLayer, regionOffset.qpOffset);
 
-  return quantizers(qpLayer, qpRegionOffset);
+  return quantizers(qpLayer, {0, 0});
 }
 
 //============================================================================
 //for RAHT region QP Offset
-int
+Qps
 QpSet::regionQpOffset(const Vec3<int32_t>& point) const
 {
-  int qpRegionOffset = 0;
-  if (regionOffset.valid && regionOffset.region.contains(point)) {
-    qpRegionOffset = regionOffset.qpOffset;
-  }
-  return qpRegionOffset;
+  if (regionOffset.valid && regionOffset.region.contains(point))
+    return regionOffset.qpOffset;
+
+  return {0, 0};
 }
 
 //============================================================================

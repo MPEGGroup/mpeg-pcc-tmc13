@@ -53,7 +53,7 @@ namespace pcc {
 struct UrahtNode {
   int64_t pos;
   int weight;
-  int qp;
+  Qps qp;
 };
 
 //============================================================================
@@ -127,8 +127,10 @@ reduceLevel(
       for (int k = 0; k < numAttrs; k++)
         *attrsInWrIt++ = *attrsInRdIt++;
     } else {
-      (weightsInWrIt - 1)->weight += node.weight;
-      (weightsInWrIt - 1)->qp = ((weightsInWrIt - 1)->qp + node.qp) >> 1;
+      auto& left = *(weightsInWrIt - 1);
+      left.weight += node.weight;
+      left.qp[0] = (left.qp[0] + node.qp[0]) >> 1;
+      left.qp[1] = (left.qp[1] + node.qp[1]) >> 1;
       weightsOut->push_back(node);
 
       for (int k = 0; k < numAttrs; k++) {
@@ -527,12 +529,12 @@ uraht_process(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
   const QpSet& qpset,
+  const Qps* pointQpOffsets,
   int numPoints,
   int numAttrs,
   int64_t* positions,
   int* attributes,
-  int32_t* coeffBufIt,
-  int* regionQpOffset)
+  int32_t* coeffBufIt)
 {
   // coefficients are stored in three planar arrays.  coeffBufItK is a set
   // of iterators to each array.
@@ -543,7 +545,7 @@ uraht_process(
   };
 
   if (numPoints == 1) {
-    auto quantizers = qpset.quantizers(0, regionQpOffset[0]);
+    auto quantizers = qpset.quantizers(0, pointQpOffsets[0]);
     for (int k = 0; k < numAttrs; k++) {
       auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
@@ -574,8 +576,10 @@ uraht_process(
   // copy positions into internal form
   // todo(df): lift to api
   for (int i = 0; i < numPoints; i++) {
-    weightsLf.emplace_back(
-      UrahtNode{positions[i], 1, regionQpOffset[i] << regionQpShift});
+    weightsLf.emplace_back(UrahtNode{positions[i],
+                                     1,
+                                     {pointQpOffsets[i][0] << regionQpShift,
+                                      pointQpOffsets[i][1] << regionQpShift}});
     for (int k = 0; k < numAttrs; k++) {
       attrsLf.push_back(attributes[i * numAttrs + k]);
     }
@@ -665,7 +669,7 @@ uraht_process(
       FixedPoint transformBuf[6][8] = {};
       FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
       int weights[8 + 4 + 2] = {};
-      int nodeQp[8 + 4 + 2] = {};
+      Qps nodeQp[8 + 4 + 2] = {};
       uint8_t occupancy = 0;
 
       // generate weights, occupancy mask, and fwd transform buffers
@@ -678,7 +682,8 @@ uraht_process(
 
         int nodeIdx = (weightsLf[iLast].pos >> level) & 0x7;
         weights[nodeIdx] = weightsLf[iLast].weight;
-        nodeQp[nodeIdx] = weightsLf[iLast].qp >> regionQpShift;
+        nodeQp[nodeIdx][0] = weightsLf[iLast].qp[0] >> regionQpShift;
+        nodeQp[nodeIdx][1] = weightsLf[iLast].qp[1] >> regionQpShift;
 
         occupancy |= 1 << nodeIdx;
 
@@ -869,7 +874,8 @@ uraht_process(
 
   for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
     int weight = weightsLf[i].weight;
-    int nodeQp = weightsLf[i].qp >> regionQpShift;
+    Qps nodeQp = {weightsLf[i].qp[0] >> regionQpShift,
+                  weightsLf[i].qp[1] >> regionQpShift};
 
     // unique points have weight = 1
     if (weight == 1) {
@@ -977,16 +983,16 @@ regionAdaptiveHierarchicalTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
   const QpSet& qpset,
+  const Qps* pointQpOffsets,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients,
-  int* regionQPOffset)
+  int* coefficients)
 {
   uraht_process<true>(
-    raht_prediction_enabled_flag, predictionThreshold, qpset, voxelCount,
-    attribCount, mortonCode, attributes, coefficients, regionQPOffset);
+    raht_prediction_enabled_flag, predictionThreshold, qpset, pointQpOffsets,
+    voxelCount, attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================
@@ -1011,16 +1017,16 @@ regionAdaptiveHierarchicalInverseTransform(
   bool raht_prediction_enabled_flag,
   const int predictionThreshold[2],
   const QpSet& qpset,
+  const Qps* pointQpOffsets,
   int64_t* mortonCode,
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients,
-  int* regionQPOffset)
+  int* coefficients)
 {
   uraht_process<false>(
-    raht_prediction_enabled_flag, predictionThreshold, qpset, voxelCount,
-    attribCount, mortonCode, attributes, coefficients, regionQPOffset);
+    raht_prediction_enabled_flag, predictionThreshold, qpset, pointQpOffsets,
+    voxelCount, attribCount, mortonCode, attributes, coefficients);
 }
 
 //============================================================================

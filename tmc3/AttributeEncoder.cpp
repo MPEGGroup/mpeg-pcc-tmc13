@@ -838,7 +838,6 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   for (int n = 0; n < voxelCount; n++) {
     packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
-    packedVoxel[n].regionQPOffset = qpSet.regionQpOffset(pointCloud[n]);
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
@@ -847,14 +846,14 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   const int attribCount = 1;
   int* attributes = new int[attribCount * voxelCount];
   int* coefficients = new int[attribCount * voxelCount];
-  int* regionQPOffset = new int[voxelCount];
+  Qps* pointQpOffsets = new Qps[voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
     const auto reflectance = pointCloud.getReflectance(packedVoxel[n].index);
     attributes[attribCount * n] = reflectance;
-    regionQPOffset[n] = packedVoxel[n].regionQPOffset;
+    pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
   const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
@@ -862,8 +861,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
-    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   int zero_cnt = 0;
@@ -909,7 +908,6 @@ AttributeEncoder::encodeColorsTransformRaht(
   for (int n = 0; n < voxelCount; n++) {
     packedVoxel[n].mortonCode = mortonAddr(pointCloud[n]);
     packedVoxel[n].index = n;
-    packedVoxel[n].regionQPOffset = qpSet.regionQpOffset(pointCloud[n]);
   }
   sort(packedVoxel.begin(), packedVoxel.end());
 
@@ -918,7 +916,7 @@ AttributeEncoder::encodeColorsTransformRaht(
   const int attribCount = 3;
   int* attributes = new int[attribCount * voxelCount];
   int* coefficients = new int[attribCount * voxelCount];
-  int* regionQPOffset = new int[voxelCount];
+  Qps* pointQpOffsets = new Qps[voxelCount];
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
@@ -927,7 +925,7 @@ AttributeEncoder::encodeColorsTransformRaht(
     attributes[attribCount * n] = color[0];
     attributes[attribCount * n + 1] = color[1];
     attributes[attribCount * n + 2] = color[2];
-    regionQPOffset[n] = packedVoxel[n].regionQPOffset;
+    pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
   const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
@@ -935,8 +933,8 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, mortonCode,
-    attributes, attribCount, voxelCount, coefficients, regionQPOffset);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
+    mortonCode, attributes, attribCount, voxelCount, coefficients);
 
   // Entropy encode.
   int values[attribCount];

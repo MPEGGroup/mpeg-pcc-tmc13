@@ -1108,7 +1108,9 @@ write(
     bs.writeUe(attr_region_qp_whd.x());
     bs.writeUe(attr_region_qp_whd.y());
     bs.writeUe(attr_region_qp_whd.z());
-    bs.writeSe(abh.attr_region_qp_delta);
+    bs.writeSe(abh.attr_region_qp_offset[0]);
+    if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
+      bs.writeSe(abh.attr_region_qp_offset[1]);
   }
   bs.byteAlign();
 }
@@ -1182,7 +1184,9 @@ parseAbh(
     bs.readUe(&attr_region_qp_whd.z());
     abh.regionQpSize = fromXyz(sps.geometry_axis_order, attr_region_qp_whd);
 
-    bs.readSe(&abh.attr_region_qp_delta);
+    bs.readSe(&abh.attr_region_qp_offset[0]);
+    if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
+      bs.readSe(&abh.attr_region_qp_offset[1]);
   }
 
   bs.byteAlign();

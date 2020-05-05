@@ -78,7 +78,7 @@ struct WeightWithIndex {
 struct MortonCodeWithIndex {
   int64_t mortonCode;
   int32_t index;
-  int regionQPOffset;
+
   bool operator<(const MortonCodeWithIndex& rhs) const
   {
     // NB: index used to maintain stable sort

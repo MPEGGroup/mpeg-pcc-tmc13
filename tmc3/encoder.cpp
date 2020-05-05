@@ -508,7 +508,7 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_region_qp_present_flag = false;
     abh.regionQpOrigin = 0;
     abh.regionQpSize = 0;
-    abh.attr_region_qp_delta = 0;
+    abh.attr_region_qp_offset = {0, 0};
 
     write(*_sps, attr_aps, abh, &payload);
 

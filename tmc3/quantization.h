@@ -112,7 +112,7 @@ typedef std::vector<Qps> QpLayers;
 
 struct QpRegionOffset {
   bool valid;
-  int qpOffset;
+  Qps qpOffset;
   Box3<int32_t> region;
 };
 
@@ -126,12 +126,12 @@ struct QpSet {
   int fixedPointQpOffset;
 
   // Derive the quantizers at a given layer after applying qpOffset
-  Quantizers quantizers(int qpLayer, int qpOffset) const;
+  Quantizers quantizers(int qpLayer, Qps qpOffset) const;
 
   // Derive the quantizer for a point at a particular layer
   Quantizers quantizers(const Vec3<int32_t>& point, int qpLayer) const;
 
-  int regionQpOffset(const Vec3<int32_t>& point) const;
+  Qps regionQpOffset(const Vec3<int32_t>& point) const;
 
   int clipQpP(int qp) const;
   int clipQpS(int qp) const;
