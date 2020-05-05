@@ -60,7 +60,7 @@ deriveQps(
   int qpLayer)
 {
   int sliceQpLuma = attr_aps.init_qp_minus4 + 4;
-  int sliceQpChroma = sliceQpLuma + attr_aps.aps_chroma_qp_offset;
+  int sliceQpChroma = attr_aps.aps_chroma_qp_offset;
 
   if (attr_aps.aps_slice_qp_deltas_present_flag) {
     sliceQpLuma += abh.attr_qp_delta_luma;
@@ -158,8 +158,10 @@ QpSet::clipQpS(int qp) const
 Quantizers
 QpSet::quantizers(int qpLayer, Qps qpOffset) const
 {
-  auto qp0 = clipQpP(layers[qpLayer][0] + qpOffset[0]) + fixedPointQpOffset;
-  auto qp1 = clipQpS(layers[qpLayer][1] + qpOffset[1]) + fixedPointQpOffset;
+  int qp0 = layers[qpLayer][0] + qpOffset[0];
+  int qp1 = layers[qpLayer][1] + qpOffset[1] + qp0;
+  qp0 = clipQpP(qp0) + fixedPointQpOffset;
+  qp1 = clipQpS(qp1) + fixedPointQpOffset;
 
   return {Quantizer(qp0), Quantizer(qp1)};
 }
