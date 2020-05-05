@@ -309,7 +309,7 @@ AttributeDecoder::computeReflectancePredictionWeights(
   predictor.predMode = 0;
   int64_t maxDiff = 0;
 
-  if (predictor.neighborCount > 1) {
+  if (predictor.neighborCount > 1 && aps.max_num_direct_predictors) {
     int64_t minValue = 0;
     int64_t maxValue = 0;
     for (int i = 0; i < predictor.neighborCount; ++i) {
@@ -385,7 +385,7 @@ AttributeDecoder::computeColorPredictionWeights(
 {
   int64_t maxDiff = 0;
 
-  if (predictor.neighborCount > 1) {
+  if (predictor.neighborCount > 1 && aps.max_num_direct_predictors) {
     int64_t minValue[3] = {0, 0, 0};
     int64_t maxValue[3] = {0, 0, 0};
     for (int i = 0; i < predictor.neighborCount; ++i) {
