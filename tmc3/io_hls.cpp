@@ -186,6 +186,29 @@ parseAttrParamCicp(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
+writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
+{
+  bs.writeUe(param.source_attr_offset_log2);
+  bs.writeUe(param.source_attr_scale_log2);
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+template<typename Bs>
+void
+parseAttrParamScaling(Bs& bs, AttributeDescription* param)
+{
+  bs.readUe(&param->source_attr_offset_log2);
+  bs.readUe(&param->source_attr_scale_log2);
+  param->scalingParametersPresent = 1;
+  bs.byteAlign();
+}
+
+//============================================================================
+
+template<typename Bs>
+void
 writeAttrParamOpaque(Bs& bs, const OpaqueAttributeParameter& param)
 {
   if (param.attr_param_type == AttributeParameterType::kItuT35) {
@@ -295,6 +318,7 @@ write(const SequenceParameterSet& sps)
     // in the fixed order descrbed here.  However this is non-normative.
     int num_attribute_parameters = attr.opaqueParameters.size();
     num_attribute_parameters += attr.cicpParametersPresent;
+    num_attribute_parameters += attr.scalingParametersPresent;
     bs.writeUn(5, num_attribute_parameters);
     bs.byteAlign();
 
@@ -307,6 +331,17 @@ write(const SequenceParameterSet& sps)
       bs.writeUn(8, attr_param_type);
       bs.writeUn(8, attr_param_len);
       writeAttrParamCicp(bs, attr);
+    }
+
+    if (attr.scalingParametersPresent) {
+      int attr_param_len = 0;
+      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+      writeAttrParamScaling(bsCounter, attr);
+
+      auto attr_param_type = AttributeParameterType::kScaling;
+      bs.writeUn(8, attr_param_type);
+      bs.writeUn(8, attr_param_len);
+      writeAttrParamScaling(bs, attr);
     }
 
     for (const auto& param : attr.opaqueParameters) {
@@ -406,6 +441,7 @@ parseSps(const PayloadBuffer& buf)
       switch (attr_param_type) {
         using Type = AttributeParameterType;
       case Type::kCicp: parseAttrParamCicp(bs, &attr); break;
+      case Type::kScaling: parseAttrParamScaling(bs, &attr); break;
 
       case Type::kItuT35:
       case Type::kOid:
