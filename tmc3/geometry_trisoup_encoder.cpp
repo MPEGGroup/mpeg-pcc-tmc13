@@ -94,21 +94,17 @@ encodeGeometryTrisoup(
   arithmeticEncoder->encodeExpGolomb(
     num_unique_segments_minus1, 0, ctxBypass, ctxTemp);
 
+  int numVertices = 0;
   AdaptiveBitModel ctxTempSeg;
   for (int i = 0; i <= num_unique_segments_minus1; i++) {
     arithmeticEncoder->encode((int)segind[i], ctxTempSeg);
+    numVertices += segind[i];
   }
 
   // Encode vertices to bitstream.
   AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
-  int num_vertices_minus1 = vertices.size() - 1;
-  assert(num_vertices_minus1 >= 0);
-
-  // todo(df): consider a more appropriate signalling method
-  arithmeticEncoder->encodeExpGolomb(
-    num_vertices_minus1, 0, ctxBypass, ctxTemp);
-
-  for (int i = 0; i <= num_vertices_minus1; i++) {
+  assert(numVertices == vertices.size());
+  for (int i = 0; i < numVertices; i++) {
     uint8_t c = vertices[i];
     arithmeticEncoder->encode(uint32_t(c), multiSymbolVerticesModel0);
   }
