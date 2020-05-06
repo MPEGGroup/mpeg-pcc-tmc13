@@ -111,16 +111,17 @@ typedef std::vector<Qps> QpLayers;
 //============================================================================
 
 struct QpRegionOffset {
-  bool valid;
   Qps qpOffset;
   Box3<int32_t> region;
 };
+
+typedef std::vector<QpRegionOffset> QpRegionList;
 
 //============================================================================
 
 struct QpSet {
   QpLayers layers;
-  QpRegionOffset regionOffset;
+  QpRegionList regions;
   int maxQpPrimary;
   int maxQpSecondary;
   int fixedPointQpOffset;
@@ -149,7 +150,7 @@ QpLayers deriveLayerQps(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 // Determine a list of Qp offsets per region
-QpRegionOffset deriveQpRegions(
+QpRegionList deriveQpRegions(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 // Determine the Qp configuration for an attribute slice

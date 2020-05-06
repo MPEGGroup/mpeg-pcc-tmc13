@@ -538,11 +538,17 @@ struct AttributeBrickHeader {
     return attr_layer_qp_delta_luma.size() - 1;
   }
 
-  // NB: in stv order
-  Vec3<int> regionQpOrigin;
-  Vec3<int> regionQpSize;
-  std::array<int, 2> attr_region_qp_offset;
-  bool attr_region_qp_present_flag;
+  struct QpRegion {
+    // NB: in stv order
+    Vec3<int> regionOrigin;
+
+    // NB: in stv order
+    Vec3<int> regionSize;
+
+    std::array<int, 2> attr_region_qp_offset;
+  };
+
+  std::vector<QpRegion> qpRegions;
 };
 
 //============================================================================

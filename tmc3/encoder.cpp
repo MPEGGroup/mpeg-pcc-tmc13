@@ -505,10 +505,15 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_layer_qp_delta_chroma = attr_enc.abh.attr_layer_qp_delta_chroma;
 
     // NB: regionQpOrigin/regionQpSize use the STV axes, not XYZ.
-    abh.attr_region_qp_present_flag = false;
-    abh.regionQpOrigin = 0;
-    abh.regionQpSize = 0;
-    abh.attr_region_qp_offset = {0, 0};
+    if (false) {
+      abh.qpRegions.emplace_back();
+      auto& region = abh.qpRegions.back();
+      region.regionOrigin = 0;
+      region.regionSize = 0;
+      region.attr_region_qp_offset = {0, 0};
+    }
+    // Number of regions is constrained to at most 1.
+    assert(abh.qpRegions.size() <= 1);
 
     write(*_sps, attr_aps, abh, &payload);
 

@@ -97,18 +97,24 @@ deriveLayerQps(
 
 //============================================================================
 
-QpRegionOffset
+QpRegionList
 deriveQpRegions(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
 {
-  QpRegionOffset qpRegionOffset;
-  qpRegionOffset.valid = abh.attr_region_qp_present_flag;
-  if (qpRegionOffset.valid) {
-    qpRegionOffset.qpOffset = abh.attr_region_qp_offset;
-    qpRegionOffset.region.min = abh.regionQpOrigin;
-    qpRegionOffset.region.max = abh.regionQpOrigin + abh.regionQpSize;
+  QpRegionList regions;
+  regions.reserve(abh.qpRegions.size());
+
+  for (int i = 0; i < abh.qpRegions.size(); i++) {
+    regions.emplace_back();
+    auto& region = regions.back();
+    const auto& src = abh.qpRegions[i];
+
+    region.qpOffset = src.attr_region_qp_offset;
+    region.region.min = src.regionOrigin;
+    region.region.max = src.regionOrigin + src.regionSize;
   }
-  return qpRegionOffset;
+
+  return regions;
 }
 
 //============================================================================
@@ -121,7 +127,7 @@ deriveQpSet(
 {
   QpSet qpset;
   qpset.layers = deriveLayerQps(attr_aps, abh);
-  qpset.regionOffset = deriveQpRegions(attr_aps, abh);
+  qpset.regions = deriveQpRegions(attr_aps, abh);
 
   // The mimimum Qp = 4 is always lossless; the maximum varies according to
   // bitdepth.
@@ -171,8 +177,10 @@ QpSet::quantizers(int qpLayer, Qps qpOffset) const
 Quantizers
 QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 {
-  if (regionOffset.valid && regionOffset.region.contains(point))
-    return quantizers(qpLayer, regionOffset.qpOffset);
+  for (const auto& region : regions) {
+    if (region.region.contains(point))
+      return quantizers(qpLayer, region.qpOffset);
+  }
 
   return quantizers(qpLayer, {0, 0});
 }
@@ -182,8 +190,10 @@ QpSet::quantizers(const Vec3<int32_t>& point, int qpLayer) const
 Qps
 QpSet::regionQpOffset(const Vec3<int32_t>& point) const
 {
-  if (regionOffset.valid && regionOffset.region.contains(point))
-    return regionOffset.qpOffset;
+  for (const auto& region : regions) {
+    if (region.region.contains(point))
+      return region.qpOffset;
+  }
 
   return {0, 0};
 }

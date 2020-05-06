@@ -1095,23 +1095,27 @@ write(
     }
   }
 
-  bs.write(abh.attr_region_qp_present_flag);
-  if (abh.attr_region_qp_present_flag) {
-    auto attr_region_qp_origin =
-      toXyz(sps.geometry_axis_order, abh.regionQpOrigin);
+  int attr_num_regions = abh.qpRegions.size();
+  bs.writeUe(attr_num_regions);
+  for (int i = 0; i < attr_num_regions; i++) {
+    // NB: only one region is currently permitted.
+    auto& region = abh.qpRegions[i];
 
-    auto attr_region_qp_whd_minus1 =
-      toXyz(sps.geometry_axis_order, abh.regionQpSize - 1);
+    auto attr_region_origin =
+      toXyz(sps.geometry_axis_order, region.regionOrigin);
 
-    bs.writeUe(attr_region_qp_origin.x());
-    bs.writeUe(attr_region_qp_origin.y());
-    bs.writeUe(attr_region_qp_origin.z());
-    bs.writeUe(attr_region_qp_whd_minus1.x());
-    bs.writeUe(attr_region_qp_whd_minus1.y());
-    bs.writeUe(attr_region_qp_whd_minus1.z());
-    bs.writeSe(abh.attr_region_qp_offset[0]);
+    auto attr_region_whd_minus1 =
+      toXyz(sps.geometry_axis_order, region.regionSize - 1);
+
+    bs.writeUe(attr_region_origin.x());
+    bs.writeUe(attr_region_origin.y());
+    bs.writeUe(attr_region_origin.z());
+    bs.writeUe(attr_region_whd_minus1.x());
+    bs.writeUe(attr_region_whd_minus1.y());
+    bs.writeUe(attr_region_whd_minus1.z());
+    bs.writeSe(region.attr_region_qp_offset[0]);
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
-      bs.writeSe(abh.attr_region_qp_offset[1]);
+      bs.writeSe(region.attr_region_qp_offset[1]);
   }
   bs.byteAlign();
 }
@@ -1170,25 +1174,29 @@ parseAbh(
     }
   }
 
-  bs.read(&abh.attr_region_qp_present_flag);
-  if (abh.attr_region_qp_present_flag) {
-    Vec3<int> attr_region_qp_origin;
-    bs.readUe(&attr_region_qp_origin.x());
-    bs.readUe(&attr_region_qp_origin.y());
-    bs.readUe(&attr_region_qp_origin.z());
-    abh.regionQpOrigin =
-      fromXyz(sps.geometry_axis_order, attr_region_qp_origin);
+  // NB: Number of regions is restricted in this version of specification.
+  int attr_num_regions;
+  bs.readUe(&attr_num_regions);
+  assert(attr_num_regions <= 1);
+  abh.qpRegions.resize(attr_num_regions);
+  for (int i = 0; i < attr_num_regions; i++) {
+    auto& region = abh.qpRegions[i];
+    Vec3<int> attr_region_origin;
+    bs.readUe(&attr_region_origin.x());
+    bs.readUe(&attr_region_origin.y());
+    bs.readUe(&attr_region_origin.z());
+    region.regionOrigin = fromXyz(sps.geometry_axis_order, attr_region_origin);
 
-    Vec3<int> attr_region_qp_whd_minus1;
-    bs.readUe(&attr_region_qp_whd_minus1.x());
-    bs.readUe(&attr_region_qp_whd_minus1.y());
-    bs.readUe(&attr_region_qp_whd_minus1.z());
-    abh.regionQpSize =
-      fromXyz(sps.geometry_axis_order, attr_region_qp_whd_minus1 + 1);
+    Vec3<int> attr_region_whd_minus1;
+    bs.readUe(&attr_region_whd_minus1.x());
+    bs.readUe(&attr_region_whd_minus1.y());
+    bs.readUe(&attr_region_whd_minus1.z());
+    region.regionSize =
+      fromXyz(sps.geometry_axis_order, attr_region_whd_minus1 + 1);
 
-    bs.readSe(&abh.attr_region_qp_offset[0]);
+    bs.readSe(&region.attr_region_qp_offset[0]);
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
-      bs.readSe(&abh.attr_region_qp_offset[1]);
+      bs.readSe(&region.attr_region_qp_offset[1]);
   }
 
   bs.byteAlign();
