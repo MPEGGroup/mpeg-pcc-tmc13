@@ -855,7 +855,8 @@ parseAbh(
     bs.readUe(&attr_region_qp_origin.x());
     bs.readUe(&attr_region_qp_origin.y());
     bs.readUe(&attr_region_qp_origin.z());
-    abh.regionQpOrigin = fromXyz(sps.geometry_axis_order, attr_region_qp_origin);
+    abh.regionQpOrigin =
+      fromXyz(sps.geometry_axis_order, attr_region_qp_origin);
 
     Vec3<int> attr_region_qp_whd;
     bs.readUe(&attr_region_qp_whd.x());
