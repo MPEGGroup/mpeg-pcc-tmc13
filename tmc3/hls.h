@@ -458,6 +458,11 @@ struct GeometryBrickHeader {
     return geom_box_log2_scale;
   }
 
+  // downsampling rate used in tringle voxelisation
+  int trisoup_sampling_value_minus1;
+
+  int num_unique_segments_minus1;
+
   // 'Header' information that appears at the end of the data unit
   GeometryBrickFooter footer;
 };

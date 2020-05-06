@@ -104,23 +104,10 @@ decodeGeometryTrisoup(
 
   int blockWidth = 1 << gps.trisoup_node_size_log2;
 
-  AdaptiveBitModel ctxTemp;
-  StaticBitModel ctxBypass;
-
-  uint32_t samplingValue;
-
-  // Decode segind from bitstream.
-  samplingValue =
-    1 + arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
-  int num_unique_segments_minus1 =
-    arithmeticDecoder->decodeExpGolomb(0, ctxBypass, ctxTemp);
-
-  //AdaptiveMAryModel multiSymbolSegindModel0(256);
   int numVertices = 0;
   AdaptiveBitModel ctxTempSeg;
-
   std::vector<bool> segind;
-  for (int i = 0; i <= num_unique_segments_minus1; i++) {
+  for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
     bool c = !!(arithmeticDecoder->decode(ctxTempSeg));
     segind.push_back(c);
     numVertices += c;
@@ -137,7 +124,8 @@ decodeGeometryTrisoup(
   // Compute refinedVertices.
   int32_t maxval = (1 << gbh.maxRootNodeDimLog2) - 1;
   decodeTrisoupCommon(
-    nodes, segind, vertices, pointCloud, blockWidth, maxval, samplingValue);
+    nodes, segind, vertices, pointCloud, blockWidth, maxval,
+    gbh.trisoup_sampling_value_minus1 + 1);
 }
 
 //============================================================================

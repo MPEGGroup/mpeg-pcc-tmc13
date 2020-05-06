@@ -84,19 +84,14 @@ encodeGeometryTrisoup(
     }
   }
 
+  gbh.trisoup_sampling_value_minus1 = subsample - 1;
+  gbh.num_unique_segments_minus1 = segind.size() - 1;
+  assert(segind.size() > 0);
+
   // Encode segind to bitstream.
-  AdaptiveBitModel ctxTemp;
-  StaticBitModel ctxBypass;
-  arithmeticEncoder->encodeExpGolomb(subsample - 1, 0, ctxBypass, ctxTemp);
-
-  int num_unique_segments_minus1 = segind.size() - 1;
-  assert(num_unique_segments_minus1 >= 0);
-  arithmeticEncoder->encodeExpGolomb(
-    num_unique_segments_minus1, 0, ctxBypass, ctxTemp);
-
   int numVertices = 0;
   AdaptiveBitModel ctxTempSeg;
-  for (int i = 0; i <= num_unique_segments_minus1; i++) {
+  for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
     arithmeticEncoder->encode((int)segind[i], ctxTempSeg);
     numVertices += segind[i];
   }

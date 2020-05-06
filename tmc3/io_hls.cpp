@@ -937,6 +937,11 @@ write(
       bs.writeSe(gbh.geom_slice_qp_offset);
       bs.writeUe(gbh.geom_octree_qp_offset_depth);
     }
+
+    if (gps.trisoup_node_size_log2) {
+      bs.writeUe(gbh.trisoup_sampling_value_minus1);
+      bs.writeUe(gbh.num_unique_segments_minus1);
+    }
   }
 
   bs.byteAlign();
@@ -991,6 +996,11 @@ parseGbh(
     if (gps.geom_scaling_enabled_flag) {
       bs.readSe(&gbh.geom_slice_qp_offset);
       bs.readUe(&gbh.geom_octree_qp_offset_depth);
+    }
+
+    if (gps.trisoup_node_size_log2) {
+      bs.readUe(&gbh.trisoup_sampling_value_minus1);
+      bs.readUe(&gbh.num_unique_segments_minus1);
     }
   }
 
