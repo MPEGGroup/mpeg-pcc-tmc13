@@ -441,24 +441,6 @@ OctreePlanarBuffer::operator=(const OctreePlanarBuffer& rhs)
 // :: Planar buffer management
 
 void
-OctreePlanarBuffer::reserve(Vec3<int> maxNumBufferRows)
-{
-  // compared like this to not overflow (maskC + 1) in case it is equal
-  // to max possible value
-  if (maskC < maxNumBufferRows[0])
-    maxNumBufferRows[0] = maskC + 1;
-  if (maskC < maxNumBufferRows[1])
-    maxNumBufferRows[1] = maskC + 1;
-  if (maskC < maxNumBufferRows[2])
-    maxNumBufferRows[2] = maskC + 1;
-
-  int size = maxNumBufferRows[0] + maxNumBufferRows[1] + maxNumBufferRows[2];
-  _buf.reserve(rowSize * size);
-}
-
-//----------------------------------------------------------------------------
-
-void
 OctreePlanarBuffer::resize(Vec3<int> numBufferRows)
 {
   if (maskC < numBufferRows[0])
@@ -468,8 +450,11 @@ OctreePlanarBuffer::resize(Vec3<int> numBufferRows)
   if (maskC < numBufferRows[2])
     numBufferRows[2] = maskC + 1;
 
+  // NB: based upon the expected max buffer size of 32k, just allocate the
+  //     maximum buffer size.
   int size = numBufferRows[0] + numBufferRows[1] + numBufferRows[2];
   _buf.clear();
+  _buf.reserve(rowSize * 3 * (maskC + 1));
   _buf.resize(rowSize * size, Elmt{0, -2, 0});
 
   // NB: the flat backing buffer is cast with a row stride for access
@@ -490,15 +475,10 @@ OctreePlanarBuffer::clear()
 //============================================================================
 // intitialize planes for planar pred
 
-OctreePlanarState::OctreePlanarState(
-  const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
+OctreePlanarState::OctreePlanarState(const GeometryParameterSet& gps)
 {
-  if (gps.geom_planar_mode_enabled_flag && !gps.planar_buffer_disabled_flag) {
-    Vec3<int> maxNumBufferRows = {1 << gbh.rootNodeSizeLog2[0],
-                                  1 << gbh.rootNodeSizeLog2[1],
-                                  1 << gbh.rootNodeSizeLog2[2]};
-    _planarBuffer.reserve(maxNumBufferRows);
-  }
+  _planarBufferEnabled =
+    gps.geom_planar_mode_enabled_flag && !gps.planar_buffer_disabled_flag;
 
   _rateThreshold[0] = gps.geom_planar_threshold0 << 4;
   _rateThreshold[1] = gps.geom_planar_threshold1 << 4;
@@ -508,7 +488,7 @@ OctreePlanarState::OctreePlanarState(
 void
 OctreePlanarState::initPlanes(const Vec3<int>& depthXyz)
 {
-  if (!_planarBuffer)
+  if (!_planarBufferEnabled)
     return;
 
   Vec3<int> numBufferRows = {1 << depthXyz[0], 1 << depthXyz[1],

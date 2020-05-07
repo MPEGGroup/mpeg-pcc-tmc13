@@ -298,14 +298,11 @@ struct OctreePlanarBuffer {
   OctreePlanarBuffer& operator=(const OctreePlanarBuffer& rhs);
   OctreePlanarBuffer& operator=(OctreePlanarBuffer&& rhs);
 
-  void reserve(Vec3<int> maxNumBufferRows);
   void resize(Vec3<int> numBufferRows);
   void clear();
 
   // Access to a particular buffer column (dimension)
   Row* getBuffer(int dim) { return _col[dim]; }
-
-  bool operator!() const { return _buf.empty(); }
 
 private:
   // Backing storage for the underlying buffer
@@ -318,13 +315,14 @@ private:
 //============================================================================
 
 struct OctreePlanarState {
-  OctreePlanarState(const GeometryParameterSet&, const GeometryBrickHeader&);
+  OctreePlanarState(const GeometryParameterSet&);
 
   OctreePlanarState(const OctreePlanarState&);
   OctreePlanarState(OctreePlanarState&&);
   OctreePlanarState& operator=(const OctreePlanarState&);
   OctreePlanarState& operator=(OctreePlanarState&&);
 
+  bool _planarBufferEnabled;
   OctreePlanarBuffer _planarBuffer;
 
   std::array<int, 3> _rate{{128 * 8, 128 * 8, 128 * 8}};

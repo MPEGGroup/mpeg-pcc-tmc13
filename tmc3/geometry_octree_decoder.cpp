@@ -50,9 +50,7 @@ namespace pcc {
 class GeometryOctreeDecoder {
 public:
   GeometryOctreeDecoder(
-    const GeometryParameterSet& gps,
-    const GeometryBrickHeader& gbh,
-    EntropyDecoder* arithmeticDecoder);
+    const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder);
 
   GeometryOctreeDecoder(const GeometryOctreeDecoder&) = default;
   GeometryOctreeDecoder(GeometryOctreeDecoder&&) = default;
@@ -227,13 +225,11 @@ public:
 //============================================================================
 
 GeometryOctreeDecoder::GeometryOctreeDecoder(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  EntropyDecoder* arithmeticDecoder)
+  const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder)
   : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
-  , _planar(gps, gbh)
+  , _planar(gps)
 {
   if (!_useBitwiseOccupancyCoder) {
     for (int i = 0; i < 10; i++)
@@ -1147,7 +1143,7 @@ decodeGeometryOctree(
   // NB: this needs to be after the root node size is determined to
   //     allocate the planar buffer
   auto arithmeticDecoderIt = arithmeticDecoders.begin();
-  GeometryOctreeDecoder decoder(gps, gbh, arithmeticDecoderIt->get());
+  GeometryOctreeDecoder decoder(gps, arithmeticDecoderIt->get());
 
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
