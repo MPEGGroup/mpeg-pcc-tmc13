@@ -410,7 +410,7 @@ isPlanarNode(
 OctreePlanarState::OctreePlanarState(
   const GeometryParameterSet& gps, const GeometryBrickHeader& gbh)
 {
-  if (!gps.planar_buffer_disabled_flag) {
+  if (gps.geom_planar_mode_enabled_flag && !gps.planar_buffer_disabled_flag) {
     int maxPlaneSize = kNumPlanarPlanes << gbh.maxRootNodeDimLog2;
     _planes3x3.resize(maxPlaneSize * 9);
   }
