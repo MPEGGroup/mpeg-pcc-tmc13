@@ -674,7 +674,6 @@ determineContextAngleForPlanar(
   const int numLasers,
   int deltaAngle,
   const AzimuthalPhiZi& phiZi,
-  bool* angularIdcm,
   int* phiBuffer,
   int* contextAnglePhiX,
   int* contextAnglePhiY)
@@ -720,9 +719,6 @@ determineContextAngleForPlanar(
     }
     child.laserIndex = uint8_t(laserIndex);
   }
-
-  if (deltaAngleR > (midNode[2] << (26 + 1)))
-    *angularIdcm = true;
 
   // -- PHI  --
   //angles
@@ -794,6 +790,40 @@ determineContextAngleForPlanar(
     contextAngle += 2;
 
   return contextAngle;
+}
+
+//============================================================================
+
+int
+findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
+{
+  int64_t xLidar = int64_t(point[0]) << 8;
+  int64_t yLidar = int64_t(point[1]) << 8;
+  int64_t rInv = irsqrt(xLidar * xLidar + yLidar * yLidar);
+  int theta32 = (point[2] * rInv) >> 14;
+
+  // determine theta
+  int start = 0;
+  int end = numTheta - 1;
+  for (int t = 0; t <= 4; t++) {
+    int mid = (start + end) >> 1;
+    if (thetaList[mid] > theta32)
+      end = mid;
+    else
+      start = mid;
+  }
+
+  int delta = std::abs(thetaList[start] - theta32);
+  int laser = start;
+  for (int j = start + 1; j <= end; j++) {
+    int temp = std::abs(thetaList[j] - theta32);
+    if (temp < delta) {
+      delta = temp;
+      laser = j;
+    }
+  }
+
+  return laser;
 }
 
 //============================================================================

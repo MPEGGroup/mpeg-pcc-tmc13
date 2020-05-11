@@ -1001,10 +1001,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   // convert floating point values of Lasers' Theta and H to fixed point
   if (params.encoder.gps.geom_angular_mode_enabled_flag) {
-    if (!params.encoder.gps.geom_planar_mode_enabled_flag) {
-      err.error() << "planar mode must be enabled with angular mode\n";
-    }
-
     for (auto val : params.encoder.lasersTheta) {
       int one = 1 << 18;
       params.encoder.gps.geom_angular_theta_laser.push_back(round(val * one));

@@ -173,18 +173,18 @@ public:
     bool planarPossibleZ);
 
   void encodePointPosition(
-    const Vec3<int>& nodeSizeLog2,
-    const Vec3<int32_t>& pos,
-    uint8_t planarMode);
+    const Vec3<int>& nodeSizeLog2AfterPlanar, const Vec3<int32_t>& pos);
 
   void encodePointPositionAngular(
     const Vec3<int>& nodeSizeLog2,
+    const Vec3<int>& nodeSizeLog2AfterPlanar,
     const Vec3<int32_t>& pos,
     uint8_t planarMode,
     const PCCOctree3Node& node,
     const Vec3<int>& headPos,
     const int* zLaser,
-    const int* thetaLaser);
+    const int* thetaLaser,
+    int numLasers);
 
   void encodeQpOffset(int dqp);
 
@@ -192,12 +192,15 @@ public:
     bool geom_unique_points_flag,
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
-    const PCCOctree3Node& node,
-    const PCCPointSet3& pointCloud,
+    PCCOctree3Node& node,
+    PCCPointSet3& pointCloud,
     bool angularIdcm,
     const Vec3<int>& headPos,
     const int* zLaser,
-    const int* thetaLaser);
+    const int* thetaLaser,
+    int numLasers);
+
+  void encodeThetaRes(int ThetaRes);
 
 public:
   // selects between the bitwise and bytewise occupancy coders
@@ -213,7 +216,13 @@ public:
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsGt1;
-  AdaptiveBitModel _ctxSameZ;
+
+  // residual laser index
+  AdaptiveBitModel _ctxThetaResIsZero;
+  AdaptiveBitModel _ctxThetaSign;
+  AdaptiveBitModel _ctxThetaResIsOne;
+  AdaptiveBitModel _ctxThetaResIsTwo;
+  AdaptiveBitModel _ctxThetaResExp;
 
   AdaptiveBitModel _ctxQpOffsetIsZero;
   AdaptiveBitModel _ctxQpOffsetSign;
@@ -848,18 +857,13 @@ GeometryOctreeEncoder::encodeOccupancy(
 // Encode a position of a point in a given volume.
 void
 GeometryOctreeEncoder::encodePointPosition(
-  const Vec3<int>& nodeSizeLog2, const Vec3<int32_t>& pos, uint8_t planarMode)
+  const Vec3<int>& nodeSizeLog2AfterPlanar, const Vec3<int32_t>& pos)
 {
   for (int k = 0; k < 3; k++) {
-    if (nodeSizeLog2[k] <= 0)
+    if (nodeSizeLog2AfterPlanar[k] <= 0)
       continue;
-    int mask = 1 << (nodeSizeLog2[k] - 1);
 
-    if (!(planarMode & (1 << k)))
-      _arithmeticEncoder->encode(!!(pos[k] & mask), _ctxEquiProb);
-    mask >>= 1;
-
-    for (; mask; mask >>= 1) {
+    for (int mask = 1 << (nodeSizeLog2AfterPlanar[k] - 1); mask; mask >>= 1) {
       _arithmeticEncoder->encode(!!(pos[k] & mask), _ctxEquiProb);
     }
   }
@@ -871,53 +875,55 @@ GeometryOctreeEncoder::encodePointPosition(
 void
 GeometryOctreeEncoder::encodePointPositionAngular(
   const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& nodeSizeLog2AfterPlanar,
   const Vec3<int32_t>& pos,
   uint8_t planarMode,
   const PCCOctree3Node& child,
   const Vec3<int>& headPos,
   const int* zLaser,
-  const int* thetaLaser)
+  const int* thetaLaser,
+  int numLasers)
 {
-  Vec3<int> mask = {0, 0, 0};
   Vec3<int> posXyz = {(child.pos[0] << nodeSizeLog2[0]) - headPos[0],
                       (child.pos[1] << nodeSizeLog2[1]) - headPos[1],
                       (child.pos[2] << nodeSizeLog2[2]) - headPos[2]};
 
-  for (int k = 0; k < 3; k++) {
-    if (nodeSizeLog2[k] <= 0)
-      continue;
-
-    mask[k] = 1 << (nodeSizeLog2[k] - 1);
-    int bit = !!(pos[k] & mask[k]);
-    if (!(planarMode & (1 << k)))
-      _arithmeticEncoder->encode(bit, _ctxEquiProb);
-    if (bit)
-      posXyz[k] += mask[k];
-
-    mask[k] >>= 1;
-  }
-
   // -- PHI --
   // code x or y directly and compute phi of node
-  bool codeXorY =
-    std::abs(posXyz[0] + mask[0]) <= std::abs(posXyz[1] + mask[1]);
+  bool codeXorY = std::abs(posXyz[0]) <= std::abs(posXyz[1]);
   if (codeXorY) {  // direct code y
-    for (int mask2 = mask[1]; mask2; mask2 >>= 1) {
-      int bit = !!(pos[1] & mask2);
-      _arithmeticEncoder->encode(bit, _ctxEquiProb);
-      posXyz[1] += bit ? mask2 : 0;
+    if (nodeSizeLog2AfterPlanar[1])
+      for (int mask = 1 << (nodeSizeLog2AfterPlanar[1] - 1); mask; mask >>= 1)
+        _arithmeticEncoder->encode(!!(pos[1] & mask), _ctxEquiProb);
+
+    posXyz[1] = pos[1] - headPos[1];
+    if (child.planarMode & 1) {
+      int mask = 1 << (nodeSizeLog2[0] - 1);
+      if (pos[0] & mask)
+        posXyz[0] += mask;
     }
   } else {  //direct code x
-    for (int mask2 = mask[0]; mask2; mask2 >>= 1) {
-      int bit = !!(pos[0] & mask2);
-      _arithmeticEncoder->encode(bit, _ctxEquiProb);
-      posXyz[0] += bit ? mask2 : 0;
+    if (nodeSizeLog2AfterPlanar[0])
+      for (int mask = 1 << (nodeSizeLog2AfterPlanar[0] - 1); mask; mask >>= 1)
+        _arithmeticEncoder->encode(!!(pos[0] & mask), _ctxEquiProb);
+
+    posXyz[0] = pos[0] - headPos[0];
+    if (child.planarMode & 2) {
+      int mask = 1 << (nodeSizeLog2[1] - 1);
+      if (pos[1] & mask)
+        posXyz[1] += mask;
     }
   }
+
+  // Laser
+  int laserNode = int(child.laserIndex);
+  point_t posPointLidar =
+    point_t(pos[0] - headPos[0], pos[1] - headPos[1], pos[2] - headPos[2]);
+  int laserIndex = findLaser(posPointLidar, thetaLaser, numLasers);
+  encodeThetaRes(laserIndex - laserNode);
 
   // find predictor
   int phiNode = iatan2(posXyz[1], posXyz[0]);
-  int laserIndex = int(child.laserIndex);
   int predPhi = _phiBuffer[laserIndex];
   if (predPhi == 0x80000000)
     predPhi = phiNode;
@@ -932,7 +938,12 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   int idx = codeXorY ? 0 : 1;
 
   // azimuthal code x or y
-  for (int mask2 = mask[idx]; mask2; mask2 >>= 1) {
+  int mask2 = codeXorY
+    ? (nodeSizeLog2AfterPlanar[0] > 0 ? 1 << (nodeSizeLog2AfterPlanar[0] - 1)
+                                      : 0)
+    : (nodeSizeLog2AfterPlanar[1] > 0 ? 1 << (nodeSizeLog2AfterPlanar[1] - 1)
+                                      : 0);
+  for (; mask2; mask2 >>= 1) {
     // angles left and right
     int phiR = codeXorY ? iatan2(posXyz[1], posXyz[0] + mask2)
                         : iatan2(posXyz[1] + mask2, posXyz[0]);
@@ -971,8 +982,16 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   _phiBuffer[laserIndex] = phiNode;
 
   // -- THETA --
-  if (mask[2] == 0)
+  int maskz =
+    nodeSizeLog2AfterPlanar[2] > 0 ? 1 << (nodeSizeLog2AfterPlanar[2] - 1) : 0;
+  if (!maskz)
     return;
+
+  if (child.planarMode & 4) {
+    int mask = 1 << (nodeSizeLog2[2] - 1);
+    if (pos[2] & mask)
+      posXyz[2] += mask;
+  }
 
   // Since x and y are known,
   // r is known too and does not depend on the bit for z
@@ -981,15 +1000,15 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
   int64_t rInv = irsqrt(r2);
 
-  // code bits for z using angular. Eligibility is implicit. Laser is known.
+  // code z
   int64_t hr = zLaser[laserIndex] * rInv;
   int fixedThetaLaser =
     thetaLaser[laserIndex] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int zShift = (rInv << nodeSizeLog2[2]) >> 17;
-  for (; mask[2]; mask[2] >>= 1, zShift >>= 1) {
+  int zShift = (rInv << nodeSizeLog2AfterPlanar[2]) >> 17;
+  for (; maskz; maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
-    int64_t zLidar = ((posXyz[2] + mask[2]) << 1) - 1;
+    int64_t zLidar = ((posXyz[2] + maskz) << 1) - 1;
     int64_t theta = zLidar * rInv;
     int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
     int thetaLaserDelta = fixedThetaLaser - theta32;
@@ -1012,11 +1031,11 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     if (diff >= rInv >> 12)
       contextAngle += 2;
 
-    int bit = !!(pos[2] & mask[2]);
+    int bit = !!(pos[2] & maskz);
     _arithmeticEncoder->encode(
       bit, _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle]);
     if (bit)
-      posXyz[2] += mask[2];
+      posXyz[2] += maskz;
   }
 }
 
@@ -1151,12 +1170,13 @@ GeometryOctreeEncoder::encodeDirectPosition(
   bool geom_unique_points_flag,
   const Vec3<int>& nodeSizeLog2,
   int shiftBits,
-  const PCCOctree3Node& node,
-  const PCCPointSet3& pointCloud,
+  PCCOctree3Node& node,
+  PCCPointSet3& pointCloud,
   bool angularIdcm,
   const Vec3<int>& headPos,
   const int* zLaser,
-  const int* thetaLaser)
+  const int* thetaLaser,
+  int numLasers)
 {
   int numPoints = node.end - node.start;
   // Check for duplicated points only if there are less than 10.
@@ -1193,17 +1213,53 @@ GeometryOctreeEncoder::encodeDirectPosition(
     numPoints = 1;
   }
 
+  // update node size after planar
+  Vec3<int> nodeSizeLog2AfterPlanar = nodeSizeLog2;
+  for (int k = 0; k < 3; k++)
+    if (nodeSizeLog2AfterPlanar[k] > 0 && (node.planarMode & (1 << k)))
+      nodeSizeLog2AfterPlanar[k]--;
+
+  // code points after planar
   for (auto idx = node.start; idx < node.start + numPoints; idx++) {
-    if (angularIdcm)
+    if (angularIdcm) {
+      point_t posNodeLidar =
+        point_t(
+          node.pos[0] << nodeSizeLog2[0], node.pos[1] << nodeSizeLog2[1],
+          node.pos[2] << nodeSizeLog2[2])
+        - headPos;
+      posNodeLidar += point_t(
+        (1 << nodeSizeLog2[0]) >> 1, (1 << nodeSizeLog2[1]) >> 1,
+        (1 << nodeSizeLog2[2]) >> 1);
+      node.laserIndex = findLaser(posNodeLidar, thetaLaser, numLasers);
+
       encodePointPositionAngular(
-        nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode, node,
-        headPos, zLaser, thetaLaser);
-    else
+        nodeSizeLog2, nodeSizeLog2AfterPlanar, pointCloud[idx] >> shiftBits,
+        node.planarMode, node, headPos, zLaser, thetaLaser, numLasers);
+    } else
       encodePointPosition(
-        nodeSizeLog2, pointCloud[idx] >> shiftBits, node.planarMode);
+        nodeSizeLog2AfterPlanar, pointCloud[idx] >> shiftBits);
   }
 
   return true;
+}
+
+//-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodeThetaRes(int thetaRes)
+{
+  _arithmeticEncoder->encode(thetaRes == 0 ? 1 : 0, _ctxThetaResIsZero);
+
+  if (thetaRes) {
+    _arithmeticEncoder->encode(thetaRes > 0 ? 1 : 0, _ctxThetaSign);
+    int absThetaRes = std::abs(thetaRes);
+    _arithmeticEncoder->encode(absThetaRes == 1 ? 1 : 0, _ctxThetaResIsOne);
+    if (absThetaRes >= 2)
+      _arithmeticEncoder->encode(absThetaRes == 2 ? 1 : 0, _ctxThetaResIsTwo);
+    if (absThetaRes >= 3)
+      _arithmeticEncoder->encodeExpGolomb(
+        absThetaRes - 3, 1, _ctxEquiProb, _ctxThetaResExp);
+  }
 }
 
 //-------------------------------------------------------------------------
@@ -1563,12 +1619,13 @@ encodeGeometryOctree(
         int contextAngle = -1;
         int contextAnglePhiX = -1;
         int contextAnglePhiY = -1;
-        bool angularIdcm = false;
-        if (gps.geom_angular_mode_enabled_flag) {
+        if (
+          gps.geom_angular_mode_enabled_flag
+          && gps.geom_planar_mode_enabled_flag) {
           contextAngle = determineContextAngleForPlanar(
             child, headPos, childSizeLog2, zLaser, thetaLaser, numLasers,
-            deltaAngle, encoder._phiZi, &angularIdcm,
-            encoder._phiBuffer.data(), &contextAnglePhiX, &contextAnglePhiY);
+            deltaAngle, encoder._phiZi, encoder._phiBuffer.data(),
+            &contextAnglePhiX, &contextAnglePhiY);
 
           if (contextAngle != -1)
             planarEligible[2] = true;
@@ -1587,13 +1644,12 @@ encodeGeometryOctree(
         // IDCM
         bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag
           && planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
-        if (gps.geom_angular_mode_enabled_flag)
-          idcmEnabled = idcmEnabled && angularIdcm;
 
         if (isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child)) {
           bool directModeUsed = encoder.encodeDirectPosition(
             gps.geom_unique_points_flag, effectiveChildSizeLog2, shiftBits,
-            child, pointCloud, angularIdcm, headPos, zLaser, thetaLaser);
+            child, pointCloud, gps.geom_angular_mode_enabled_flag, headPos,
+            zLaser, thetaLaser, numLasers);
 
           if (directModeUsed) {
             // inverse quantise any quantised positions

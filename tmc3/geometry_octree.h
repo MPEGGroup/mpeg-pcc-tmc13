@@ -382,12 +382,15 @@ int determineContextAngleForPlanar(
   const int numLasers,
   int deltaAngle,
   const AzimuthalPhiZi& phiZi,
-  bool* angularIdcm,
   int* phiBuffer,
   int* contextAnglePhiX,
   int* contextAnglePhiY);
 ;
 
-//---------------------------------------------------------------------------
+//----------------------------------------------------------------------------
+
+int findLaser(point_t point, const int* thetaList, const int numTheta);
+
+//============================================================================
 
 }  // namespace pcc

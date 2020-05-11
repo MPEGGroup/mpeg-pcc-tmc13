@@ -263,9 +263,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.writeUe(gps.geom_planar_threshold1);
     bs.writeUe(gps.geom_planar_threshold2);
     bs.writeUe(gps.geom_planar_idcm_threshold);
-    bs.write(gps.geom_angular_mode_enabled_flag);
   }
 
+  bs.write(gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
     auto geom_angular_origin =
       toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
@@ -319,17 +319,16 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.bitwise_occupancy_coding_flag);
   bs.read(&gps.adjacent_child_contextualization_enabled_flag);
 
-  gps.geom_angular_mode_enabled_flag = false;
   bs.read(&gps.geom_planar_mode_enabled_flag);
   if (gps.geom_planar_mode_enabled_flag) {
     bs.readUe(&gps.geom_planar_threshold0);
     bs.readUe(&gps.geom_planar_threshold1);
     bs.readUe(&gps.geom_planar_threshold2);
     bs.readUe(&gps.geom_planar_idcm_threshold);
-    bs.read(&gps.geom_angular_mode_enabled_flag);
   }
 
   gps.planar_buffer_disabled_flag = false;
+  bs.read(&gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
     Vec3<int> geom_angular_origin;
     bs.readUe(&geom_angular_origin.x());
