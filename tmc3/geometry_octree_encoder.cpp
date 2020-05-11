@@ -1322,13 +1322,6 @@ encodeGeometryOctree(
     occupancyAtlas.clear();
   }
 
-  // the node size where quantisation is performed
-  Vec3<int> quantNodeSizeLog2 = 0;
-  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
-  int numLvlsUntilQuantization = 0;
-  if (gps.geom_scaling_enabled_flag)
-    numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
-
   // the minimum node size is ordinarily 2**0, but may be larger due to
   // early termination for trisoup.
   int minNodeSizeLog2 = gps.trisoup_node_size_log2;
@@ -1358,6 +1351,17 @@ encodeGeometryOctree(
   for (int lvl = maxDepth; lvl > 0; lvl--) {
     gbh.tree_lvl_coded_axis_list.push_back(
       ~nonSplitQtBtAxes(lvlNodeSizeLog2[lvl - 1], lvlNodeSizeLog2[lvl]));
+  }
+
+  // the node size where quantisation is performed
+  Vec3<int> quantNodeSizeLog2 = 0;
+  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
+  int numLvlsUntilQuantization = 0;
+  if (gps.geom_scaling_enabled_flag) {
+    // if an invalid depth is set, use tree height instead
+    if (gbh.geom_octree_qp_offset_depth < 0)
+      gbh.geom_octree_qp_offset_depth = maxDepth;
+    numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
   }
 
   // represents the largest dimension of the current node
