@@ -223,7 +223,7 @@ decodePredictiveGeometry(
   EntropyDecoder* aed)
 {
   PredGeomDecoder dec(gps, aed);
-  dec.decode(gbh.geom_num_points_minus1 + 1, &pointCloud[0]);
+  dec.decode(gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0]);
 }
 
 //============================================================================

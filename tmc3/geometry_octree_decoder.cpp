@@ -1188,7 +1188,7 @@ decodeGeometryOctree(
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
-  pcc::ringbuf<PCCOctree3Node> fifo(gbh.geom_num_points_minus1 + 2);
+  pcc::ringbuf<PCCOctree3Node> fifo(gbh.footer.geom_num_points_minus1 + 2);
 
   // push the first node
   fifo.emplace_back();

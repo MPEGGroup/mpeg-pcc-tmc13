@@ -346,6 +346,13 @@ struct GeometryParameterSet {
 
 //============================================================================
 
+struct GeometryBrickFooter {
+  // The actual number of points present in the slice
+  int geom_num_points_minus1;
+};
+
+//============================================================================
+
 struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
   int geom_tile_id;
@@ -356,8 +363,6 @@ struct GeometryBrickHeader {
   // (in stv axis order).
   Vec3<int> geomBoxOrigin;
   int geom_box_log2_scale;
-
-  int geom_num_points_minus1;
 
   // the size of the root geometry node
   // NB: this is only needed for the initial node size determination at
@@ -390,6 +395,9 @@ struct GeometryBrickHeader {
       return gps.gps_geom_box_log2_scale;
     return geom_box_log2_scale;
   }
+
+  // 'Header' information that appears at the end of the data unit
+  GeometryBrickFooter footer;
 };
 
 //============================================================================

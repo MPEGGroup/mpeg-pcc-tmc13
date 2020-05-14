@@ -275,7 +275,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     bufRemaining -= bufLen;
   }
 
-  _currentPointCloud.resize(_gbh.geom_num_points_minus1 + 1);
+  // NB: it is a requirement that geom_num_points_minus1 is correct
+  _currentPointCloud.resize(_gbh.footer.geom_num_points_minus1 + 1);
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
       *_gps, _gbh, _currentPointCloud, arithmeticDecoders[0].get());
@@ -336,7 +337,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   clock_user.start();
   _attrDecoder->decode(
-    *_sps, attr_sps, attr_aps, _gbh.geom_num_points_minus1,
+    *_sps, attr_sps, attr_aps, _gbh.footer.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
   clock_user.stop();
 

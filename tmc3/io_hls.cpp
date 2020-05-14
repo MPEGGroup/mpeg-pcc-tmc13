@@ -616,7 +616,6 @@ write(
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
-  bs.writeUn(24, gbh.geom_num_points_minus1);
   bs.writeUe(gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
@@ -672,7 +671,6 @@ parseGbh(
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(24, &gbh.geom_num_points_minus1);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
@@ -717,6 +715,9 @@ parseGbh(
   if (bytesRead)
     *bytesRead = int(std::distance(buf.begin(), bs.pos()));
 
+  // To avoid having to make separate calls, the footer is parsed here
+  gbh.footer = parseGbf(buf);
+
   return gbh;
 }
 
@@ -729,7 +730,6 @@ parseGbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(24, &gbh.geom_num_points_minus1);
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
@@ -738,6 +738,35 @@ parseGbhIds(const PayloadBuffer& buf)
   /* NB: do not attempt to parse any further */
 
   return gbh;
+}
+
+//============================================================================
+
+void
+write(const GeometryBrickFooter& gbf, PayloadBuffer* buf)
+{
+  assert(buf->type == PayloadType::kGeometryBrick);
+  auto bs = makeBitWriter(std::back_inserter(*buf));
+
+  // NB: if modifying this footer, it is essential that the decoder can
+  // either decode backwards, or seek to the start.
+  bs.writeUn(24, gbf.geom_num_points_minus1);
+}
+
+//----------------------------------------------------------------------------
+
+GeometryBrickFooter
+parseGbf(const PayloadBuffer& buf)
+{
+  GeometryBrickFooter gbf;
+  assert(buf.type == PayloadType::kGeometryBrick);
+
+  constexpr size_t kFooterLen = 3;
+  auto bs = makeBitReader(std::prev(buf.end(), kFooterLen), buf.end());
+
+  bs.readUn(24, &gbf.geom_num_points_minus1);
+
+  return gbf;
 }
 
 //============================================================================

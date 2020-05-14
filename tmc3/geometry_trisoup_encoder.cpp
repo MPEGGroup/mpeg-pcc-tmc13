@@ -79,7 +79,7 @@ encodeGeometryTrisoup(
     for (subsample = 1; subsample <= maxSubsample; subsample++) {
       decodeTrisoupCommon(
         nodes, segind, vertices, pointCloud, blockWidth, maxval, subsample);
-      if (pointCloud.getPointCount() <= gbh.geom_num_points_minus1 + 1)
+      if (pointCloud.getPointCount() <= gbh.footer.geom_num_points_minus1 + 1)
         break;
     }
   }
