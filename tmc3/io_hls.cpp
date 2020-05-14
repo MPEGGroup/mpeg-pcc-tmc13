@@ -943,6 +943,15 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
     bs.writeUn(tile_bounding_box_bits, tile_size.z());
   }
 
+  // NB: this is at the end of the inventory to aid fixed-width parsing
+  auto ti_origin_xyz = toXyz(sps.geometry_axis_order, inventory.origin);
+  bs.writeSe(ti_origin_xyz.x());
+  bs.writeSe(ti_origin_xyz.y());
+  bs.writeSe(ti_origin_xyz.z());
+
+  int ti_origin_log2_scale = 0;
+  bs.writeUe(ti_origin_log2_scale);
+
   bs.byteAlign();
 
   return buf;
@@ -987,6 +996,18 @@ parseTileInventory(const PayloadBuffer& buf)
     entry.tileSize = tile_size;
     inventory.tiles.push_back(entry);
   }
+
+  Vec3<int> ti_origin_xyz;
+  bs.readSe(&ti_origin_xyz.x());
+  bs.readSe(&ti_origin_xyz.y());
+  bs.readSe(&ti_origin_xyz.z());
+
+  int ti_origin_log2_scale;
+  bs.readUe(&ti_origin_log2_scale);
+  ti_origin_xyz *= 1 << ti_origin_log2_scale;
+
+  // NB: this is in XYZ axis order until converted to STV
+  inventory.origin = ti_origin_xyz;
 
   bs.byteAlign();
 

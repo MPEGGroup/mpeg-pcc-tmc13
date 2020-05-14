@@ -509,6 +509,9 @@ struct TileInventory {
   // Indicates if tile_id is signalled
   bool tile_id_present_flag;
 
+  // the origin of the tiles (in stv axis order).  Likely the sps origin
+  Vec3<int> origin;
+
   std::vector<Entry> tiles;
 };
 
