@@ -1055,12 +1055,17 @@ GeometryOctreeEncoder::encodeQpOffset(int dqp)
 
 template<typename It>
 void
-calculateNodeQps(int baseQp, It nodesBegin, It nodesEnd)
+calculateNodeQps(
+  Vec3<int> nodeSizeLog2, int baseQp, It nodesBegin, It nodesEnd)
 {
   // determine delta qp for each node based on the point density
-  int lowQp = std::max(0, baseQp - 4);
-  int mediumQp = baseQp;
-  int highQp = baseQp + 4;
+  // Conformance: limit the qp such that it cannot overquantize the node
+  int minNs = std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int maxQp = minNs * 4 - 1;
+  int lowQp = PCCClip(baseQp - 4, 0, maxQp);
+  int mediumQp = std::min(baseQp, maxQp);
+  int highQp = std::min(baseQp + 4, maxQp);
+
   std::vector<int> numPointsInNode;
   std::vector<double> cum_prob;
   int32_t numPointsInLvl = 0;
@@ -1443,7 +1448,8 @@ encodeGeometryOctree(
       if (!depth)
         fifo.front().qp = sliceQp;
       else
-        calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
+        calculateNodeQps(
+          nodeSizeLog2, gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
     }
 
     // save context state for parallel coding
