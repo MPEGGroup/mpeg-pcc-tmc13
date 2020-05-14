@@ -1323,11 +1323,12 @@ decodeGeometryOctree(
     }
 
     // save context state for parallel coding
-    if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
-      savedState.reset(new GeometryOctreeDecoder(decoder));
-    }
+    if (depth == maxDepth - 1 - gbh.geom_stream_cnt_minus1)
+      if (gbh.geom_stream_cnt_minus1)
+        savedState.reset(new GeometryOctreeDecoder(decoder));
+
     // load context state for parallel coding starting one level later
-    if (gbh.geom_octree_parallel_max_node_size_log2 > nodeMaxDimLog2) {
+    if (depth > maxDepth - 1 - gbh.geom_stream_cnt_minus1) {
       decoder = *savedState;
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }

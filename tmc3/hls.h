@@ -375,10 +375,14 @@ struct GeometryBrickHeader {
   // octree depth at which qp offsets whould be signalled
   int geom_octree_qp_offset_depth;
 
-  // Geometry octree parallel processing is enabled for last N octree depths
-  int geom_octree_parallel_max_node_size_log2;
-  std::vector<size_t> geom_octree_parallel_bitstream_offsets;
-  int geom_octree_parallel_max_offset_log2;
+  // number of entropy streams used to encode the octree
+  int geom_stream_cnt_minus1;
+
+  // length of each entropy stream
+  std::vector<size_t> geom_stream_len;
+
+  // number of bits to signal entropy stream lengths
+  int geom_stream_len_bits;
 
   int geomBoxLog2Scale(const GeometryParameterSet& gps) const
   {

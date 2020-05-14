@@ -575,11 +575,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.geom.qtbt.minQtbtSizeLog2, 0,
     "Minimum size of qtbt partitions")
 
-  // tools
-  ("octreeParallelMaxNodeSizeLog2",
-    params.encoder.gbh.geom_octree_parallel_max_node_size_log2, 0,
-    "Geometry octree parallel processing is enabled at last N octree depths."
-    " 0: disabled")
+  ("numOctreeEntropyStreams",
+    // NB: this is adjusted by minus 1 after the arguments are parsed
+    params.encoder.gbh.geom_stream_cnt_minus1, 1,
+    "Number of entropy streams for octree coding")
 
   ("bitwiseOccupancyCoding",
     params.encoder.gps.bitwise_occupancy_coding_flag, true,
@@ -902,6 +901,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   }
 
   // fix the representation of various options
+  params.encoder.gbh.geom_stream_cnt_minus1--;
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
@@ -913,10 +913,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   for (auto& aps : params.encoder.aps)
     convertXyzToStv(params.encoder.sps, &aps);
 
-  // geom_octree_parallel_max_node_size_log2 == 1 is equivalent to disable it
-  if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 == 1)
-    params.encoder.gbh.geom_octree_parallel_max_node_size_log2 = 0;
-
   // Certain coding modes are not available when trisoup is enabled.
   // Disable them, and warn if set (they may be set as defaults).
   if (params.encoder.gps.trisoup_node_size_log2 > 0) {
@@ -925,11 +921,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     if (params.encoder.gps.inferred_direct_coding_mode_enabled_flag)
       err.warn() << "TriSoup geometry is incompatable with IDCM\n";
-
-    if (params.encoder.gbh.geom_octree_parallel_max_node_size_log2 > 0)
-      err.warn()
-        << "TriSoup geometry is incompatable with parallel octree coding\n";
-    params.encoder.gbh.geom_octree_parallel_max_node_size_log2 = 0;
 
     params.encoder.gps.geom_unique_points_flag = true;
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;

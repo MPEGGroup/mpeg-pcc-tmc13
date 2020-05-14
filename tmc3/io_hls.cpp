@@ -641,18 +641,13 @@ write(
       for (int i = 0; i <= tree_depth_minus1; i++)
         bs.writeUn(3, gbh.tree_lvl_coded_axis_list[i]);
 
-    if (gbh.geom_octree_parallel_max_node_size_log2 == 0)
-      bs.writeUe(0);
-    else {
-      bs.writeUe(gbh.geom_octree_parallel_max_node_size_log2 - 1);
-      bs.writeUn(6, gbh.geom_octree_parallel_max_offset_log2);
+    bs.writeUe(gbh.geom_stream_cnt_minus1);
+    if (gbh.geom_stream_cnt_minus1) {
+      bs.writeUn(6, gbh.geom_stream_len_bits);
 
       // NB: the length of the last substream is not signalled
-      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2 - 1;
-           i++) {
-        int width = gbh.geom_octree_parallel_max_offset_log2;
-        bs.writeUn(width, gbh.geom_octree_parallel_bitstream_offsets[i]);
-      }
+      for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
+        bs.writeUn(gbh.geom_stream_len_bits, gbh.geom_stream_len[i]);
     }
 
     if (gps.geom_scaling_enabled_flag) {
@@ -702,19 +697,13 @@ parseGbh(
       for (int i = 0; i <= tree_depth_minus1; i++)
         bs.readUn(3, &gbh.tree_lvl_coded_axis_list[i]);
 
-    bs.readUe(&gbh.geom_octree_parallel_max_node_size_log2);
-    if (gbh.geom_octree_parallel_max_node_size_log2 > 0) {
-      gbh.geom_octree_parallel_max_node_size_log2++;
+    bs.readUe(&gbh.geom_stream_cnt_minus1);
+    if (gbh.geom_stream_cnt_minus1) {
+      gbh.geom_stream_len.resize(gbh.geom_stream_cnt_minus1);
 
-      gbh.geom_octree_parallel_bitstream_offsets.resize(
-        gbh.geom_octree_parallel_max_node_size_log2 - 1);
-
-      bs.readUn(6, &gbh.geom_octree_parallel_max_offset_log2);
-      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2 - 1;
-           i++) {
-        int width = gbh.geom_octree_parallel_max_offset_log2;
-        bs.readUn(width, &gbh.geom_octree_parallel_bitstream_offsets[i]);
-      }
+      bs.readUn(6, &gbh.geom_stream_len_bits);
+      for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
+        bs.readUn(gbh.geom_stream_len_bits, &gbh.geom_stream_len[i]);
     }
 
     if (gps.geom_scaling_enabled_flag) {

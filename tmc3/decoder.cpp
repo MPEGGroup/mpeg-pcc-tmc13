@@ -254,26 +254,19 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceOrigin = _gbh.geomBoxOrigin;
   _currentFrameIdx = _gbh.frame_idx;
 
-  // The number of entropy substreams is 1 + parallel_max_node_size_log2
-  // NB: the two substream case is syntactically prohibited
-  // add a dummy length value to handle the last buffer
-  _gbh.geom_octree_parallel_bitstream_offsets.push_back(buf.size());
+  // add a dummy length value to simplify handling the last buffer
+  _gbh.geom_stream_len.push_back(buf.size());
 
   std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
   size_t bufRemaining = buf.size() - gbhSize;
   const char* bufPtr = buf.data() + gbhSize;
 
-  int numGeomStreams = 1 + _gbh.geom_octree_parallel_max_node_size_log2;
-  if (_gps->predgeom_enabled_flag)
-    numGeomStreams = 1;
-
-  for (int i = 0; i < numGeomStreams; i++) {
+  for (int i = 0; i <= _gbh.geom_stream_cnt_minus1; i++) {
     arithmeticDecoders.emplace_back(new EntropyDecoder);
     auto& aec = arithmeticDecoders.back();
 
     // NB: avoid reading beyond the end of the data unit
-    int bufLen =
-      std::min(bufRemaining, _gbh.geom_octree_parallel_bitstream_offsets[i]);
+    int bufLen = std::min(bufRemaining, _gbh.geom_stream_len[i]);
 
     aec->setBuffer(bufLen, bufPtr);
     aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);

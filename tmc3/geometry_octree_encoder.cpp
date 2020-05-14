@@ -1447,11 +1447,12 @@ encodeGeometryOctree(
     }
 
     // save context state for parallel coding
-    if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
-      savedState.reset(new GeometryOctreeEncoder(encoder));
-    }
+    if (depth == maxDepth - 1 - gbh.geom_stream_cnt_minus1)
+      if (gbh.geom_stream_cnt_minus1)
+        savedState.reset(new GeometryOctreeEncoder(encoder));
+
     // load context state for parallel coding starting one level later
-    if (gbh.geom_octree_parallel_max_node_size_log2 > nodeMaxDimLog2) {
+    if (depth > maxDepth - 1 - gbh.geom_stream_cnt_minus1) {
       encoder = *savedState;
       encoder._arithmeticEncoder = (++arithmeticEncoderIt)->get();
     }
