@@ -1446,12 +1446,12 @@ encodeGeometryOctree(
         calculateNodeQps(gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
     }
 
-    // save context infor. for parallel coding
+    // save context state for parallel coding
     if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
       savedState.reset(new GeometryOctreeEncoder(encoder));
     }
-    // load context infor. for parallel coding
-    if (gbh.geom_octree_parallel_max_node_size_log2 >= nodeMaxDimLog2) {
+    // load context state for parallel coding starting one level later
+    if (gbh.geom_octree_parallel_max_node_size_log2 > nodeMaxDimLog2) {
       encoder = *savedState;
       encoder._arithmeticEncoder = (++arithmeticEncoderIt)->get();
     }

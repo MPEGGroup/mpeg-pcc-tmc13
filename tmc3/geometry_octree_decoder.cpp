@@ -1322,12 +1322,12 @@ decodeGeometryOctree(
         posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
     }
 
-    // save context infor. for parallel coding
+    // save context state for parallel coding
     if (gbh.geom_octree_parallel_max_node_size_log2 == nodeMaxDimLog2) {
       savedState.reset(new GeometryOctreeDecoder(decoder));
     }
-    // load context infor. for parallel coding
-    if (gbh.geom_octree_parallel_max_node_size_log2 >= nodeMaxDimLog2) {
+    // load context state for parallel coding starting one level later
+    if (gbh.geom_octree_parallel_max_node_size_log2 > nodeMaxDimLog2) {
       decoder = *savedState;
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }

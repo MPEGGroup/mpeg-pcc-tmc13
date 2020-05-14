@@ -648,7 +648,8 @@ write(
       bs.writeUn(6, gbh.geom_octree_parallel_max_offset_log2);
 
       // NB: the length of the last substream is not signalled
-      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2; i++) {
+      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2 - 1;
+           i++) {
         int width = gbh.geom_octree_parallel_max_offset_log2;
         bs.writeUn(width, gbh.geom_octree_parallel_bitstream_offsets[i]);
       }
@@ -706,10 +707,11 @@ parseGbh(
       gbh.geom_octree_parallel_max_node_size_log2++;
 
       gbh.geom_octree_parallel_bitstream_offsets.resize(
-        gbh.geom_octree_parallel_max_node_size_log2);
+        gbh.geom_octree_parallel_max_node_size_log2 - 1);
 
       bs.readUn(6, &gbh.geom_octree_parallel_max_offset_log2);
-      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2; i++) {
+      for (int i = 0; i < gbh.geom_octree_parallel_max_node_size_log2 - 1;
+           i++) {
         int width = gbh.geom_octree_parallel_max_offset_log2;
         bs.readUn(width, &gbh.geom_octree_parallel_bitstream_offsets[i]);
       }
