@@ -503,6 +503,9 @@ struct TileInventory {
     Vec3<int> tileSize;
   };
 
+  // id of an applicable sequence parameter set
+  int ti_seq_parameter_set_id;
+
   // Indicates if tile_id is signalled
   bool tile_id_present_flag;
 

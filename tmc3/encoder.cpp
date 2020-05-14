@@ -279,8 +279,10 @@ PCCTMC3Encoder3::compress(
   } while (0);
 
   if (partitions.tileInventory.tiles.size() > 1) {
-    assert(partitions.tileInventory.tiles.size() == tileMaps.size());
+    auto& inventory = partitions.tileInventory;
+    assert(inventory.tiles.size() == tileMaps.size());
     std::cout << "Tile number: " << tileMaps.size() << std::endl;
+    inventory.ti_seq_parameter_set_id = _sps->sps_seq_parameter_set_id;
     callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
   }
 

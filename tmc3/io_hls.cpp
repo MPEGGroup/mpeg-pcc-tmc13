@@ -909,8 +909,11 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   PayloadBuffer buf(PayloadType::kTileInventory);
   auto bs = makeBitWriter(std::back_inserter(buf));
 
-  int num_tiles = inventory.tiles.size();
+  // todo(df): 7 is possible excessive, but is to maintain byte alignment
+  bs.writeUn(7, inventory.ti_seq_parameter_set_id);
   bs.write(inventory.tile_id_present_flag);
+
+  int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
 
   // calculate the maximum size of any values
@@ -954,8 +957,10 @@ parseTileInventory(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kTileInventory);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  int num_tiles;
+  bs.readUn(7, &inventory.ti_seq_parameter_set_id);
   bs.read(&inventory.tile_id_present_flag);
+
+  int num_tiles;
   bs.readUn(16, &num_tiles);
 
   int tile_bounding_box_bits;
