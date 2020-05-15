@@ -62,6 +62,10 @@ enum class KnownAttributeLabel : uint32_t
 {
   kColour = 0,
   kReflectance = 1,
+  kFrameIndex = 2,
+  kMaterialId = 3,
+  kTransparency = 4,
+  kNormal = 5,
 };
 
 //============================================================================
@@ -100,7 +104,11 @@ struct AttributeLabel {
   {
     switch (KnownAttributeLabel(attribute_label_four_bytes)) {
     case KnownAttributeLabel::kColour:
-    case KnownAttributeLabel::kReflectance: return true;
+    case KnownAttributeLabel::kReflectance:
+    case KnownAttributeLabel::kFrameIndex:
+    case KnownAttributeLabel::kMaterialId:
+    case KnownAttributeLabel::kTransparency:
+    case KnownAttributeLabel::kNormal: return true;
     }
 
     return false;
