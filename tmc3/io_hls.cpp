@@ -42,20 +42,105 @@
 #include <iomanip>
 #include <iterator>
 #include <algorithm>
+#include <sstream>
 
 namespace pcc {
+
+//============================================================================
+
+Oid::operator std::string() const
+{
+  std::stringstream ss;
+  int subidentifier = 0;
+  int firstSubidentifier = 1;
+  for (auto byte : this->contents) {
+    if (byte & 0x80) {
+      subidentifier = (subidentifier << 7) | (byte & 0x7f);
+      continue;
+    }
+
+    // end of subidentifer.
+    // NB: the first subidentifier encodes two oid components
+    if (firstSubidentifier) {
+      firstSubidentifier = 0;
+      if (subidentifier < 40)
+        ss << '0';
+      else if (subidentifier < 80) {
+        ss << '1';
+        subidentifier -= 40;
+      } else {
+        ss << '2';
+        subidentifier -= 80;
+      }
+    }
+
+    ss << '.' << std::to_string(subidentifier);
+    subidentifier = 0;
+  }
+
+  return ss.str();
+}
+
+//----------------------------------------------------------------------------
+
+bool
+operator==(const Oid& lhs, const Oid& rhs)
+{
+  // NB: there is a unique encoding for each OID.  Equality may be determined
+  // comparing just the content octets
+  return lhs.contents == rhs.contents;
+}
+
+//----------------------------------------------------------------------------
+
+template<typename T>
+void
+writeOid(T& bs, const Oid& oid)
+{
+  // write out the length according to the BER definite shoft form.
+  // NB: G-PCC limits the length to 127 octets.
+  constexpr int oid_reserved_zero_bit = 0;
+  int oid_len = oid.contents.size();
+  bs.writeUn(1, oid_reserved_zero_bit);
+  bs.writeUn(7, oid_len);
+
+  const auto& oid_contents = oid.contents;
+  for (int i = 0; i < oid_len; i++)
+    bs.writeUn(8, oid_contents[i]);
+}
+
+//----------------------------------------------------------------------------
+
+template<typename T>
+void
+readOid(T& bs, Oid* oid)
+{
+  int oid_reserved_zero_bit;
+  int oid_len;
+  bs.readUn(1, &oid_reserved_zero_bit);
+  bs.readUn(7, &oid_len);
+  oid->contents.resize(oid_len);
+  for (int i = 0; i < oid_len; i++)
+    bs.readUn(8, &oid->contents[i]);
+}
 
 //============================================================================
 
 std::ostream&
 operator<<(std::ostream& os, const AttributeLabel& label)
 {
-  switch (KnownAttributeLabel(label.attribute_label_four_bytes)) {
+  switch (label.known_attribute_label) {
   case KnownAttributeLabel::kColour: os << "color"; break;
   case KnownAttributeLabel::kReflectance: os << "reflectance"; break;
+  case KnownAttributeLabel::kFrameIndex: os << "frame index"; break;
+  case KnownAttributeLabel::kMaterialId: os << "material id"; break;
+  case KnownAttributeLabel::kTransparency: os << "transparency"; break;
+  case KnownAttributeLabel::kNormal: os << "normal"; break;
+  case KnownAttributeLabel::kOid: os << std::string(label.oid);
   default:
+    // An unknown known attribute
     auto iosFlags = os.flags(std::ios::hex);
-    os << std::setw(8) << label.attribute_label_four_bytes;
+    os << std::setw(8) << label.known_attribute_label;
     os.flags(iosFlags);
   }
 
@@ -119,13 +204,11 @@ write(const SequenceParameterSet& sps)
 
     const auto& label = attr.attributeLabel;
 
-    bool known_attribute_label_flag = label.known_attribute_label_flag();
-    bs.write(known_attribute_label_flag);
-    if (known_attribute_label_flag) {
-      bs.writeUe(int(label.known_attribute_label()));
-    } else {
-      bs.writeUn(32, label.attribute_label_four_bytes);
-    }
+    bs.write(label.known_attribute_label_flag());
+    if (label.known_attribute_label_flag())
+      bs.writeUe(label.known_attribute_label);
+    else
+      writeOid(bs, label.oid);
   }
 
   bs.writeUn(5, sps.log2_max_frame_idx);
@@ -200,12 +283,11 @@ parseSps(const PayloadBuffer& buf)
     auto& label = attr.attributeLabel;
 
     bool known_attribute_label_flag = bs.read();
-    if (known_attribute_label_flag) {
-      KnownAttributeLabel known_attribute_label;
-      bs.readUe(&known_attribute_label);
-      label = known_attribute_label;
-    } else {
-      bs.readUn(32, &label.attribute_label_four_bytes);
+    if (known_attribute_label_flag)
+      bs.readUe(&label.known_attribute_label);
+    else {
+      label.known_attribute_label = KnownAttributeLabel::kOid;
+      readOid(bs, &label.oid);
     }
   }
 

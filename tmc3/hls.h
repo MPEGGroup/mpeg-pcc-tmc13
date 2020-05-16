@@ -66,59 +66,55 @@ enum class KnownAttributeLabel : uint32_t
   kMaterialId = 3,
   kTransparency = 4,
   kNormal = 5,
+
+  // Indicates that the attrabute label is described by an Oid
+  kOid = 0xffffffff,
+};
+
+//============================================================================
+
+struct Oid {
+  // A sequence of encoded subidentifiers according to Rec. ITU-T X.690 |
+  // ISO/IEC 8825-1.  NB: this does not include any identifier octets, length
+  // octets or end-of-content octets of the basic encoding rules.
+  std::vector<uint8_t> contents;
+
+  Oid() = default;
+  Oid(const std::string& str);
+
+  // Convert the oid to a string representation
+  operator std::string() const;
+
+  friend bool operator==(const Oid& lhs, const Oid& rhs);
 };
 
 //============================================================================
 
 struct AttributeLabel {
-  uint32_t attribute_label_four_bytes = 0xffffffffu;
+  KnownAttributeLabel known_attribute_label;
+  Oid oid;
 
   //--------------------------------------------------------------------------
 
   AttributeLabel() = default;
 
   AttributeLabel(KnownAttributeLabel known_attribute_label)
-  {
-    attribute_label_four_bytes = int(known_attribute_label);
-  }
+    : known_attribute_label(known_attribute_label)
+  {}
 
   //--------------------------------------------------------------------------
 
   friend bool
   operator==(const AttributeLabel& lhs, const KnownAttributeLabel& rhs)
   {
-    return uint32_t(rhs) == lhs.attribute_label_four_bytes;
-  }
-
-  //--------------------------------------------------------------------------
-
-  friend bool
-  operator!=(const AttributeLabel& lhs, const KnownAttributeLabel& rhs)
-  {
-    return !(lhs == rhs);
+    return lhs.known_attribute_label == rhs;
   }
 
   //--------------------------------------------------------------------------
 
   bool known_attribute_label_flag() const
   {
-    switch (KnownAttributeLabel(attribute_label_four_bytes)) {
-    case KnownAttributeLabel::kColour:
-    case KnownAttributeLabel::kReflectance:
-    case KnownAttributeLabel::kFrameIndex:
-    case KnownAttributeLabel::kMaterialId:
-    case KnownAttributeLabel::kTransparency:
-    case KnownAttributeLabel::kNormal: return true;
-    }
-
-    return false;
-  }
-
-  //--------------------------------------------------------------------------
-
-  KnownAttributeLabel known_attribute_label() const
-  {
-    return KnownAttributeLabel(attribute_label_four_bytes);
+    return known_attribute_label != KnownAttributeLabel::kOid;
   }
 };
 
