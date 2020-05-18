@@ -92,6 +92,9 @@ AttributeBrickHeader parseAbh(
   const PayloadBuffer& buf,
   int* bytesRead);
 
+ConstantAttributeDataUnit parseConstantAttribute(
+  const SequenceParameterSet& sps, const PayloadBuffer& buf);
+
 void write(const GeometryBrickFooter& gbf, PayloadBuffer* buf);
 GeometryBrickFooter parseGbf(const PayloadBuffer& buf);
 

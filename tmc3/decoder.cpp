@@ -42,6 +42,7 @@
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
 #include "geometry.h"
+#include "hls.h"
 #include "io_hls.h"
 #include "io_tlv.h"
 #include "pcc_chrono.h"
@@ -148,6 +149,10 @@ PCCTMC3Decoder3::decompress(
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
+
+  case PayloadType::kConstantAttribute:
+    decodeConstantAttribute(*buf);
+    return 0;
 
   case PayloadType::kTileInventory:
     // NB: the tile inventory is decoded in xyz order.  It may need
@@ -336,7 +341,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 }
 
 //--------------------------------------------------------------------------
-// Initialise the point cloud storage and decode a single geometry brick.
 
 void
 PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
@@ -380,6 +384,41 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
             << "s processing time (user): " << total_user.count() / 1000.0
             << " s\n";
   std::cout << std::endl;
+}
+
+//--------------------------------------------------------------------------
+
+void
+PCCTMC3Decoder3::decodeConstantAttribute(const PayloadBuffer& buf)
+{
+  assert(buf.type == PayloadType::kConstantAttribute);
+  // todo(df): replace assertions with error handling
+  assert(_sps);
+  assert(_gps);
+
+  ConstantAttributeDataUnit cadu = parseConstantAttribute(*_sps, buf);
+
+  // verify that this corresponds to the correct geometry slice
+  assert(cadu.constattr_geom_slice_id == _sliceId);
+
+  assert(cadu.constattr_sps_attr_idx < _sps->attributeSets.size());
+  const auto& attrDesc = _sps->attributeSets[cadu.constattr_sps_attr_idx];
+  const auto& label = attrDesc.attributeLabel;
+
+  // todo(df): replace with proper attribute mapping
+  if (label == KnownAttributeLabel::kColour) {
+    Vec3<attr_t> defAttrVal;
+    for (int k = 0; k < 3; k++)
+      defAttrVal[k] = attrDesc.attr_default_value[k];
+    for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud.setColor(i, defAttrVal);
+  }
+
+  if (label == KnownAttributeLabel::kReflectance) {
+    attr_t defAttrVal = attrDesc.attr_default_value[0];
+    for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud.setReflectance(i, defAttrVal);
+  }
 }
 
 //============================================================================

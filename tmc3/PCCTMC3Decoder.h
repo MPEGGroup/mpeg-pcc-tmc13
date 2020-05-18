@@ -86,6 +86,7 @@ private:
   void activateParameterSets(const GeometryBrickHeader& gbh);
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
+  void decodeConstantAttribute(const PayloadBuffer& buf);
   bool frameIdxChanged(const GeometryBrickHeader& gbh) const;
 
   //==========================================================================

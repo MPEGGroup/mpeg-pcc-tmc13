@@ -54,6 +54,7 @@ enum class PayloadType
   kAttributeBrick = 4,
   kTileInventory = 5,
   kFrameBoundaryMarker = 6,
+  kConstantAttribute = 7,
 };
 
 //============================================================================
@@ -537,6 +538,16 @@ struct AttributeBrickHeader {
   Vec3<int> regionQpSize;
   int attr_region_qp_delta;
   bool attr_region_qp_present_flag;
+};
+
+//============================================================================
+
+struct ConstantAttributeDataUnit {
+  int constattr_sps_attr_idx;
+  int constattr_attr_parameter_set_id;
+  int constattr_geom_slice_id;
+
+  std::vector<int> constattr_default_value;
 };
 
 //============================================================================

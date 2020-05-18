@@ -1185,6 +1185,31 @@ parseAbh(
 
 //============================================================================
 
+ConstantAttributeDataUnit
+parseConstantAttribute(
+  const SequenceParameterSet& sps, const PayloadBuffer& buf)
+{
+  ConstantAttributeDataUnit cadu;
+  assert(buf.type == PayloadType::kConstantAttribute);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUe(&cadu.constattr_attr_parameter_set_id);
+  bs.readUe(&cadu.constattr_sps_attr_idx);
+  bs.readUe(&cadu.constattr_geom_slice_id);
+
+  // todo(df): check bounds
+  const auto& attrDesc = sps.attributeSets[cadu.constattr_sps_attr_idx];
+
+  cadu.constattr_default_value.resize(attrDesc.attr_num_dimensions_minus1 + 1);
+  bs.readUn(attrDesc.bitdepth, &cadu.constattr_default_value[0]);
+  for (int k = 1; k <= attrDesc.attr_num_dimensions_minus1; k++)
+    bs.readUn(attrDesc.bitdepthSecondary, &cadu.constattr_default_value[k]);
+
+  return cadu;
+}
+
+//============================================================================
+
 PayloadBuffer
 write(const SequenceParameterSet& sps, const TileInventory& inventory)
 {
