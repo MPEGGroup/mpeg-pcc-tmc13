@@ -124,6 +124,14 @@ readOid(T& bs, Oid* oid)
     bs.readUn(8, &oid->contents[i]);
 }
 
+//----------------------------------------------------------------------------
+
+int
+lengthOid(const Oid& oid)
+{
+  return 1 + oid.contents.size();
+}
+
 //============================================================================
 
 std::ostream&
@@ -145,6 +153,85 @@ operator<<(std::ostream& os, const AttributeLabel& label)
   }
 
   return os;
+}
+
+//============================================================================
+
+template<typename Bs>
+void
+writeAttrParamCicp(Bs& bs, const AttributeDescription& param)
+{
+  bs.writeUe(param.cicp_colour_primaries_idx);
+  bs.writeUe(param.cicp_transfer_characteristics_idx);
+  bs.writeUe(param.cicp_matrix_coefficients_idx);
+  bs.write(param.cicp_video_full_range_flag);
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+template<typename Bs>
+void
+parseAttrParamCicp(Bs& bs, AttributeDescription* param)
+{
+  bs.readUe(&param->cicp_colour_primaries_idx);
+  bs.readUe(&param->cicp_transfer_characteristics_idx);
+  bs.readUe(&param->cicp_matrix_coefficients_idx);
+  bs.read(&param->cicp_video_full_range_flag);
+  param->cicpParametersPresent = 1;
+  bs.byteAlign();
+}
+
+//============================================================================
+
+template<typename Bs>
+void
+writeAttrParamOpaque(Bs& bs, const OpaqueAttributeParameter& param)
+{
+  if (param.attr_param_type == AttributeParameterType::kItuT35) {
+    bs.writeUn(8, param.attr_param_itu_t_t35_country_code);
+    if (param.attr_param_itu_t_t35_country_code == 0xff)
+      bs.writeUn(8, param.attr_param_itu_t_t35_country_code_extension);
+  } else if (param.attr_param_type == AttributeParameterType::kOid)
+    writeOid(bs, param.attr_param_oid);
+
+  for (auto attr_param_byte : param.attr_param_byte)
+    bs.writeUn(8, attr_param_byte);
+
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+template<typename Bs>
+OpaqueAttributeParameter
+parseAttrParamOpaque(
+  Bs& bs, AttributeParameterType attr_param_type, int attrParamLen)
+{
+  bs.byteAlign();
+
+  OpaqueAttributeParameter param;
+  param.attr_param_type = attr_param_type;
+
+  if (param.attr_param_type == AttributeParameterType::kItuT35) {
+    bs.readUn(8, &param.attr_param_itu_t_t35_country_code);
+    attrParamLen--;
+    if (param.attr_param_itu_t_t35_country_code == 0xff) {
+      bs.readUn(8, &param.attr_param_itu_t_t35_country_code_extension);
+      attrParamLen--;
+    }
+  } else if (param.attr_param_type == AttributeParameterType::kOid) {
+    readOid(bs, &param.attr_param_oid);
+    attrParamLen -= lengthOid(param.attr_param_oid);
+  }
+
+  if (attrParamLen > 0) {
+    param.attr_param_byte.resize(attrParamLen);
+    for (int i = 0; i < attrParamLen; i++)
+      bs.readUn(8, &param.attr_param_byte[i]);
+  }
+
+  return param;
 }
 
 //============================================================================
@@ -197,18 +284,40 @@ write(const SequenceParameterSet& sps)
       bs.writeUe(attr_bitdepth_secondary_minus1);
     }
 
-    bs.writeUe(attr.cicp_colour_primaries_idx);
-    bs.writeUe(attr.cicp_transfer_characteristics_idx);
-    bs.writeUe(attr.cicp_matrix_coefficients_idx);
-    bs.write(attr.cicp_video_full_range_flag);
-
     const auto& label = attr.attributeLabel;
-
     bs.write(label.known_attribute_label_flag());
     if (label.known_attribute_label_flag())
       bs.writeUe(label.known_attribute_label);
     else
       writeOid(bs, label.oid);
+
+    // Encode all of the attribute parameters.  The encoder works
+    // in the fixed order descrbed here.  However this is non-normative.
+    int num_attribute_parameters = attr.opaqueParameters.size();
+    num_attribute_parameters += attr.cicpParametersPresent;
+    bs.writeUn(5, num_attribute_parameters);
+    bs.byteAlign();
+
+    if (attr.cicpParametersPresent) {
+      int attr_param_len = 0;
+      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+      writeAttrParamCicp(bsCounter, attr);
+
+      auto attr_param_type = AttributeParameterType::kCicp;
+      bs.writeUn(8, attr_param_type);
+      bs.writeUn(8, attr_param_len);
+      writeAttrParamCicp(bs, attr);
+    }
+
+    for (const auto& param : attr.opaqueParameters) {
+      int attr_param_len = 0;
+      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+      writeAttrParamOpaque(bsCounter, param);
+
+      bs.writeUn(8, param.attr_param_type);
+      bs.writeUn(8, attr_param_len);
+      writeAttrParamOpaque(bs, param);
+    }
   }
 
   bs.writeUn(5, sps.log2_max_frame_idx);
@@ -275,11 +384,6 @@ parseSps(const PayloadBuffer& buf)
       attr.bitdepthSecondary = attr_bitdepth_secondary_minus1 + 1;
     }
 
-    bs.readUe(&attr.cicp_colour_primaries_idx);
-    bs.readUe(&attr.cicp_transfer_characteristics_idx);
-    bs.readUe(&attr.cicp_matrix_coefficients_idx);
-    bs.read(&attr.cicp_video_full_range_flag);
-
     auto& label = attr.attributeLabel;
 
     bool known_attribute_label_flag = bs.read();
@@ -288,6 +392,27 @@ parseSps(const PayloadBuffer& buf)
     else {
       label.known_attribute_label = KnownAttributeLabel::kOid;
       readOid(bs, &label.oid);
+    }
+
+    int num_attribute_parameters;
+    bs.readUn(5, &num_attribute_parameters);
+    bs.byteAlign();
+    for (int i = 0; i < num_attribute_parameters; i++) {
+      AttributeParameterType attr_param_type;
+      int attr_param_len;
+      bs.readUn(8, &attr_param_type);
+      bs.readUn(8, &attr_param_len);
+      // todo(df): check that all attr_param_len bytes are consumed
+      switch (attr_param_type) {
+        using Type = AttributeParameterType;
+      case Type::kCicp: parseAttrParamCicp(bs, &attr); break;
+
+      case Type::kItuT35:
+      case Type::kOid:
+      default:
+        attr.opaqueParameters.emplace_back(
+          parseAttrParamOpaque(bs, attr_param_type, attr_param_len));
+      }
     }
   }
 

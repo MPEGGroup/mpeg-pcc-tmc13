@@ -199,6 +199,34 @@ enum class ColourMatrix : uint8_t
 
 //============================================================================
 
+enum class AttributeParameterType : uint8_t
+{
+  kItuT35 = 0,
+  kOid = 1,
+  kCicp = 2,
+  /* [3, 127] are reserved for future use */
+  /* [128, 255] are specified according to the attribute label */
+};
+
+//============================================================================
+
+struct OpaqueAttributeParameter {
+  // the type of the data
+  AttributeParameterType attr_param_type;
+
+  // identifies the type of attr_param_byte data when attr_param_type = 0.
+  int attr_param_itu_t_t35_country_code;
+  int attr_param_itu_t_t35_country_code_extension;
+
+  // identifies the type of attr_param_byte data when attr_param_type = 1.
+  Oid attr_param_oid;
+
+  // the attribute data excluding type0/type1 identification bytes */
+  std::vector<uint8_t> attr_param_byte;
+};
+
+//============================================================================
+
 // invariant properties
 struct AttributeDescription {
   int attr_num_dimensions_minus1;
@@ -211,12 +239,19 @@ struct AttributeDescription {
   int bitdepth;
   int bitdepthSecondary;
 
+  AttributeLabel attributeLabel;
+
+  // Known attribute parameters
+
+  // indicates if the cicp attribute parameter is valid
+  bool cicpParametersPresent;
   int cicp_colour_primaries_idx;
   int cicp_transfer_characteristics_idx;
   ColourMatrix cicp_matrix_coefficients_idx;
   bool cicp_video_full_range_flag;
 
-  AttributeLabel attributeLabel;
+  // Unknown attribute parameters
+  std::vector<OpaqueAttributeParameter> opaqueParameters;
 };
 
 //============================================================================

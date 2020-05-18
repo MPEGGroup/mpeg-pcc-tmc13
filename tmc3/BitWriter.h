@@ -94,6 +94,26 @@ private:
 
 //============================================================================
 
+class InsertionCounter {
+public:
+  InsertionCounter(int* counter) : _counter(counter) {}
+  InsertionCounter& operator++(int) { return *this; }
+  InsertionCounter& operator++() { return *this; }
+  InsertionCounter& operator*() { return *this; }
+
+  template<typename T>
+  InsertionCounter& operator=(const T&)
+  {
+    (*_counter)++;
+    return *this;
+  }
+
+private:
+  int* _counter;
+};
+
+//============================================================================
+
 template<typename T>
 BitWriter<T>
 makeBitWriter(T t)

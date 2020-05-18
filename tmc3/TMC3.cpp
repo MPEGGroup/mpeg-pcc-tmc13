@@ -976,6 +976,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     attr_sps.cicp_colour_primaries_idx = 2;
     attr_sps.cicp_transfer_characteristics_idx = 2;
     attr_sps.cicp_video_full_range_flag = true;
+    attr_sps.cicpParametersPresent = false;
 
     if (it.first == "reflectance") {
       // Avoid wasting bits signalling chroma quant step size for reflectance
@@ -991,6 +992,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (it.first == "color") {
       attr_sps.attr_num_dimensions_minus1 = 2;
       attr_sps.attributeLabel = KnownAttributeLabel::kColour;
+      attr_sps.cicpParametersPresent = true;
     }
 
     // Derive the secondary bitdepth
