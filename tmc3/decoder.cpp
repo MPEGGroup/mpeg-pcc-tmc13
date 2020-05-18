@@ -35,6 +35,7 @@
 
 #include "PCCTMC3Decoder.h"
 
+#include <algorithm>
 #include <cassert>
 #include <string>
 
@@ -254,6 +255,38 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceOrigin = _gbh.geomBoxOrigin;
   _currentFrameIdx = _gbh.frame_idx;
 
+  // set default attribute values (in case an attribute data unit is lost)
+  // NB: it is a requirement that geom_num_points_minus1 is correct
+  _currentPointCloud.resize(_gbh.footer.geom_num_points_minus1 + 1);
+  if (hasColour) {
+    auto it = std::find_if(
+      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      [](const AttributeDescription& desc) {
+        return desc.attributeLabel == KnownAttributeLabel::kColour;
+      });
+    Vec3<attr_t> defAttrVal =
+      Vec3<int>{1 << (it->bitdepth - 1), 1 << (it->bitdepthSecondary - 1),
+                1 << (it->bitdepthSecondary - 1)};
+    if (!it->attr_default_value.empty())
+      for (int k = 0; k < 3; k++)
+        defAttrVal[k] = it->attr_default_value[k];
+    for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud.setColor(i, defAttrVal);
+  }
+
+  if (hasReflectance) {
+    auto it = std::find_if(
+      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      [](const AttributeDescription& desc) {
+        return desc.attributeLabel == KnownAttributeLabel::kReflectance;
+      });
+    attr_t defAttrVal = 1 << (it->bitdepth - 1);
+    if (!it->attr_default_value.empty())
+      defAttrVal = it->attr_default_value[0];
+    for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud.setReflectance(i, defAttrVal);
+  }
+
   // add a dummy length value to simplify handling the last buffer
   _gbh.geom_stream_len.push_back(buf.size());
 
@@ -275,8 +308,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     bufRemaining -= bufLen;
   }
 
-  // NB: it is a requirement that geom_num_points_minus1 is correct
-  _currentPointCloud.resize(_gbh.footer.geom_num_points_minus1 + 1);
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
       *_gps, _gbh, _currentPointCloud, arithmeticDecoders[0].get());

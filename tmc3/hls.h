@@ -205,6 +205,7 @@ enum class AttributeParameterType : uint8_t
   kOid = 1,
   kCicp = 2,
   kScaling = 3,
+  kDefaultValue = 4,
   /* [3, 127] are reserved for future use */
   /* [128, 255] are specified according to the attribute label */
 };
@@ -255,6 +256,10 @@ struct AttributeDescription {
   bool scalingParametersPresent;
   int source_attr_scale_log2;
   int source_attr_offset_log2;
+
+  // soft default attribute values.
+  // If empty, use hard default values.
+  std::vector<int> attr_default_value;
 
   // Unknown attribute parameters
   std::vector<OpaqueAttributeParameter> opaqueParameters;

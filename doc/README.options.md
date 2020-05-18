@@ -464,6 +464,10 @@ Saves the current attribute configuration for coding the named attribute.
 This option must be specified after the options corresponding to
 the attribute.
 
+### `--defaultValue=INT-VALUE-LIST`
+The default value to use for attribute data in case of data loss.  If
+unset, the implicit default attribute value is 2**(bitdepth-1).
+
 ### `--colourMatrix=INT-VALUE`
 Indicates the colourspace of the coded attribute values according to
 the ISO/IEC 23001-8 Codec Independent Code Points for ColourMatrix.

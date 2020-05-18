@@ -729,6 +729,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.desc.bitdepth, 8,
     "Attribute bitdepth")
 
+  ("defaultValue",
+    params_attr.desc.attr_default_value, {},
+    "Default attribute component value(s) in case of data omission")
+
   // todo(df): this should be per-attribute
   ("colourMatrix",
     params_attr.desc.cicp_matrix_coefficients_idx, ColourMatrix::kBt709,
@@ -1006,6 +1010,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     // Assume that YCgCo is actually YCgCoR for now
     if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
       attr_sps.bitdepthSecondary++;
+
+    // Extend the default attribute value to the correct width if present
+    if (!attr_sps.attr_default_value.empty())
+      attr_sps.attr_default_value.resize(
+        attr_sps.attr_num_dimensions_minus1 + 1,
+        attr_sps.attr_default_value.back());
 
     // derive the dist2 values based on an initial value
     if (attr_aps.lodParametersPresent()) {

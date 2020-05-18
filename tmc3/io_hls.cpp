@@ -209,6 +209,32 @@ parseAttrParamScaling(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
+writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
+{
+  bs.writeUn(param.bitdepth, param.attr_default_value[0]);
+  for (int k = 1; k <= param.attr_num_dimensions_minus1; k++)
+    bs.writeUn(param.bitdepthSecondary, param.attr_default_value[k]);
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+template<typename Bs>
+void
+parseAttrParamDefaultValue(Bs& bs, AttributeDescription* param)
+{
+  param->attr_default_value.resize(param->attr_num_dimensions_minus1 + 1);
+
+  bs.readUn(param->bitdepth, &param->attr_default_value[0]);
+  for (int k = 1; k <= param->attr_num_dimensions_minus1; k++)
+    bs.readUn(param->bitdepthSecondary, &param->attr_default_value[k]);
+  bs.byteAlign();
+}
+
+//============================================================================
+
+template<typename Bs>
+void
 writeAttrParamOpaque(Bs& bs, const OpaqueAttributeParameter& param)
 {
   if (param.attr_param_type == AttributeParameterType::kItuT35) {
@@ -319,8 +345,20 @@ write(const SequenceParameterSet& sps)
     int num_attribute_parameters = attr.opaqueParameters.size();
     num_attribute_parameters += attr.cicpParametersPresent;
     num_attribute_parameters += attr.scalingParametersPresent;
+    num_attribute_parameters += !attr.attr_default_value.empty();
     bs.writeUn(5, num_attribute_parameters);
     bs.byteAlign();
+
+    if (!attr.attr_default_value.empty()) {
+      int attr_param_len = 0;
+      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+      writeAttrParamDefaultValue(bsCounter, attr);
+
+      auto attr_param_type = AttributeParameterType::kDefaultValue;
+      bs.writeUn(8, attr_param_type);
+      bs.writeUn(8, attr_param_len);
+      writeAttrParamDefaultValue(bs, attr);
+    }
 
     if (attr.cicpParametersPresent) {
       int attr_param_len = 0;
@@ -442,6 +480,7 @@ parseSps(const PayloadBuffer& buf)
         using Type = AttributeParameterType;
       case Type::kCicp: parseAttrParamCicp(bs, &attr); break;
       case Type::kScaling: parseAttrParamScaling(bs, &attr); break;
+      case Type::kDefaultValue: parseAttrParamDefaultValue(bs, &attr); break;
 
       case Type::kItuT35:
       case Type::kOid:
