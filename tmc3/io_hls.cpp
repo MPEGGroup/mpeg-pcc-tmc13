@@ -1100,14 +1100,15 @@ write(
     auto attr_region_qp_origin =
       toXyz(sps.geometry_axis_order, abh.regionQpOrigin);
 
-    auto attr_region_qp_whd = toXyz(sps.geometry_axis_order, abh.regionQpSize);
+    auto attr_region_qp_whd_minus1 =
+      toXyz(sps.geometry_axis_order, abh.regionQpSize - 1);
 
     bs.writeUe(attr_region_qp_origin.x());
     bs.writeUe(attr_region_qp_origin.y());
     bs.writeUe(attr_region_qp_origin.z());
-    bs.writeUe(attr_region_qp_whd.x());
-    bs.writeUe(attr_region_qp_whd.y());
-    bs.writeUe(attr_region_qp_whd.z());
+    bs.writeUe(attr_region_qp_whd_minus1.x());
+    bs.writeUe(attr_region_qp_whd_minus1.y());
+    bs.writeUe(attr_region_qp_whd_minus1.z());
     bs.writeSe(abh.attr_region_qp_offset[0]);
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
       bs.writeSe(abh.attr_region_qp_offset[1]);
@@ -1178,11 +1179,12 @@ parseAbh(
     abh.regionQpOrigin =
       fromXyz(sps.geometry_axis_order, attr_region_qp_origin);
 
-    Vec3<int> attr_region_qp_whd;
-    bs.readUe(&attr_region_qp_whd.x());
-    bs.readUe(&attr_region_qp_whd.y());
-    bs.readUe(&attr_region_qp_whd.z());
-    abh.regionQpSize = fromXyz(sps.geometry_axis_order, attr_region_qp_whd);
+    Vec3<int> attr_region_qp_whd_minus1;
+    bs.readUe(&attr_region_qp_whd_minus1.x());
+    bs.readUe(&attr_region_qp_whd_minus1.y());
+    bs.readUe(&attr_region_qp_whd_minus1.z());
+    abh.regionQpSize =
+      fromXyz(sps.geometry_axis_order, attr_region_qp_whd_minus1 + 1);
 
     bs.readSe(&abh.attr_region_qp_offset[0]);
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
