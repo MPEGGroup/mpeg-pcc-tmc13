@@ -119,7 +119,7 @@ void clampVolume(Box3<int32_t> bbox, PCCPointSet3* cloud);
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+//    posInTgt = posInSrc * sourceToTargetScaleFactor - targetToSourceOffset
 
 bool recolourColour(
   const AttributeDescription& desc,
@@ -148,7 +148,7 @@ bool recolourColour(
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+//    posInTgt = posInSrc * sourceToTargetScaleFactor - targetToSourceOffset
 
 bool recolourReflectance(
   const AttributeDescription& desc,
@@ -163,16 +163,14 @@ bool recolourReflectance(
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//   posInTgt =
-//     (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor - offset
+//   posInTgt = posInSrc * sourceToTargetScaleFactor - tgtToSrcOffset
 
 int recolour(
   const AttributeDescription& desc,
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
-  Vec3<int> targetToSourceOffset,
-  Vec3<int> offset,
+  point_t tgtToSrcOffset,
   PCCPointSet3* target);
 
 //============================================================================

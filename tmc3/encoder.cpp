@@ -73,28 +73,32 @@ PCCTMC3Encoder3::compress(
     fixupParameterSets(params);
 
     // Determine input bounding box (for SPS metadata) if not manually set
-    if (params->sps.seqBoundingBoxSize == Vec3<int>{0}) {
-      const auto& bbox = inputPointCloud.computeBoundingBox();
-      for (int k = 0; k < 3; k++) {
-        params->sps.seqBoundingBoxOrigin[k] = int(bbox.min[k]);
-
-        // somehow determine the decoder's reconstructed points bounding box
-        // and update sps accordingly.
-        auto max_k = bbox.max[k] - bbox.min[k];
-        max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
-        max_k = std::round(max_k / params->sps.seq_source_geom_scale_factor);
-
-        // NB: plus one to convert to range
-        params->sps.seqBoundingBoxSize[k] = int(max_k) + 1;
-      }
+    Box3<int> bbox;
+    if (params->sps.seqBoundingBoxSize == Vec3<int>{0})
+      bbox = inputPointCloud.computeBoundingBox();
+    else {
+      bbox.min = params->sps.seqBoundingBoxOrigin;
+      bbox.max = bbox.min + params->sps.seqBoundingBoxSize - 1;
     }
 
-    // Determine the ladar head position relative to the sequence bounding box
-    // NB: currently the sps box offset is unscaled
-    auto origin = params->sps.seqBoundingBoxOrigin;
+    // Then scale the bounding box to match the reconstructed output
+    for (int k = 0; k < 3; k++) {
+      auto min_k = bbox.min[k];
+      auto max_k = bbox.max[k];
+
+      // the sps bounding box is in terms of the conformance scale
+      // not the source scale.
+      // NB: plus one to convert to range
+      min_k = std::round(min_k * params->sps.seq_source_geom_scale_factor);
+      max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
+      params->sps.seqBoundingBoxOrigin[k] = min_k;
+      params->sps.seqBoundingBoxSize[k] = max_k - min_k + 1;
+    }
+
+    // Determine the lidar head position relative to the sequence bounding box
     auto scale = params->sps.seq_source_geom_scale_factor;
-    params->gps.geomAngularOrigin -= origin;
     params->gps.geomAngularOrigin *= scale;
+    params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
   }
 
   // placeholder to "activate" the parameter sets
@@ -130,8 +134,9 @@ PCCTMC3Encoder3::compress(
     calcDist2 |= aps.num_detail_levels > 0;
 
   if (calcDist2) {
-    int maxNodeSizeLog2 =
-      ceillog2(std::max({_sliceBoxWhd[0], _sliceBoxWhd[1], _sliceBoxWhd[2]}));
+    int maxNodeSizeLog2 = ceillog2(std::max(
+      {params->sps.seqBoundingBoxSize[0], params->sps.seqBoundingBoxSize[1],
+       params->sps.seqBoundingBoxSize[1]}));
 
     // workout an intrinsic dist2
     int baseDist2 = estimateDist2(quantizedInputCloud, maxNodeSizeLog2);
@@ -160,17 +165,12 @@ PCCTMC3Encoder3::compress(
 
   std::vector<std::vector<int32_t>> tileMaps;
   if (params->partition.tileSize) {
-    PCCPointSet3 inverseQuantizedCloud;
-    Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-    quantizePositions(
-      1.0 / _sps->seq_source_geom_scale_factor, 0, clampBox,
-      quantizedInputCloud, &inverseQuantizedCloud);
-    tileMaps = tilePartition(params->partition, inverseQuantizedCloud);
+    tileMaps = tilePartition(params->partition, quantizedInputCloud);
 
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
     for (int t = 0; t < tileMaps.size(); t++) {
-      Box3<int32_t> bbox = inverseQuantizedCloud.computeBoundingBox(
+      Box3<int32_t> bbox = quantizedInputCloud.computeBoundingBox(
         tileMaps[t].begin(), tileMaps[t].end());
 
       auto& tileIvt = partitions.tileInventory.tiles[t];
@@ -427,14 +427,13 @@ PCCTMC3Encoder3::compressPartition(
         + std::to_string(pointCloud.getPointCount()));
 
   // recolouring
-
   // NB: recolouring is required if points are added / removed
   if (_gps->geom_unique_points_flag || _gps->trisoup_node_size_log2 > 0) {
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
         attr_sps, params->recolour, originPartCloud,
-        _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin,
-        _sliceOrigin, &pointCloud);
+        _sps->seq_source_geom_scale_factor,
+        _sps->seqBoundingBoxOrigin + _sliceOrigin, &pointCloud);
     }
   }
 
@@ -623,55 +622,28 @@ PCCTMC3Encoder3::appendReconstructedPoints(PCCPointSet3* reconstructedCloud)
 PCCPointSet3
 PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 {
-  PCCPointSet3 pointCloud0;
-  pointCloud0.clear();
+  PCCPointSet3 pointCloud;
+  // todo(df): remove side-effect
   quantizedToOrigin.clear();
 
   // Currently the sequence bounding box size must be set
   assert(_sps->seqBoundingBoxSize != Vec3<int>{0});
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
-  // and quantisation.
-  Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
-  if (_sps->seqBoundingBoxSize != Vec3<int>{0}) {
-    // todo(df): this is icky (not to mention rounding issues)
-    // NB: the sps seq_bounding_box_* uses unscaled co-ordinates => convert
-    // NB: minus 1 to convert to max s/t/v position
-    clampBox = Box3<int32_t>{{0, 0, 0}, _sps->seqBoundingBoxSize};
-    for (int k = 0; k < 3; k++)
-      clampBox.max[k] =
-        int(ceil(clampBox.max[k] * _sps->seq_source_geom_scale_factor)) - 1;
-  }
+  // and quantisation.   NB: minus 1 to convert to max s/t/v position
+  Box3<int32_t> clampBox{{0, 0, 0}, _sps->seqBoundingBoxSize - 1};
 
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
       _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
-      inputPointCloud, &pointCloud0, quantizedToOrigin);
+      inputPointCloud, &pointCloud, quantizedToOrigin);
   } else {
     quantizePositions(
       _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
-      inputPointCloud, &pointCloud0);
+      inputPointCloud, &pointCloud);
   }
 
-  // Offset the point cloud to account for (preset) _sliceOrigin.
-  // The new maximum bounds of the offset cloud
-  Vec3<int> maxBound{0};
-
-  const size_t pointCount = pointCloud0.getPointCount();
-  for (size_t i = 0; i < pointCount; ++i) {
-    const point_t point = (pointCloud0[i] -= _sliceOrigin);
-    for (int k = 0; k < 3; ++k) {
-      const int k_coord = int(point[k]);
-      assert(k_coord >= 0);
-      if (maxBound[k] < k_coord)
-        maxBound[k] = k_coord;
-    }
-  }
-
-  // todo(df): don't update maxBound if something is forcing the value?
-  // NB: size is max - min + 1
-  _sliceBoxWhd = maxBound + 1;
-  return pointCloud0;
+  return pointCloud;
 }
 
 //----------------------------------------------------------------------------

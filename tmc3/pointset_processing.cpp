@@ -81,7 +81,7 @@ quantizePositionsUniq(
 
     Vec3<int32_t> quantizedPoint;
     for (int k = 0; k < 3; k++) {
-      double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
+      double k_pos = std::round(point[k] * scaleFactor) - offset[k];
       quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
     }
 
@@ -130,7 +130,7 @@ quantizePositions(
     const auto point = src[i];
     auto& dstPoint = (*dst)[i];
     for (int k = 0; k < 3; ++k) {
-      double k_pos = std::round((point[k] - offset[k]) * scaleFactor);
+      double k_pos = std::round(point[k] * scaleFactor) - offset[k];
       dstPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
     }
   }
@@ -184,7 +184,7 @@ clampVolume(Box3<double> bbox, PCCPointSet3* cloud)
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+//    posInTgt = posInSrc * sourceToTargetScaleFactor - targetToSourceOffset
 
 bool
 recolourColour(
@@ -192,7 +192,7 @@ recolourColour(
   const RecolourParams& params,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  Vec3<double> targetToSourceOffset,
+  point_t targetToSourceOffset,
   PCCPointSet3& target)
 {
   double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
@@ -238,7 +238,7 @@ recolourColour(
     resultSetFwd.init(&indicesFwd[0], &sqrDistFwd[0]);
 
     Vec3<double> posInSrc =
-      target[index] * targetToSourceScaleFactor + targetToSourceOffset;
+      (target[index] + targetToSourceOffset) * targetToSourceScaleFactor;
 
     kdtreeSource.index->findNeighbors(
       resultSetFwd, &posInSrc[0], nanoflann::SearchParams(10));
@@ -339,7 +339,7 @@ recolourColour(
     resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
-      (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
+      source[index] * sourceToTargetScaleFactor - targetToSourceOffset;
 
     kdtreeTarget.index->findNeighbors(
       resultSetBwd, &posInTgt[0], nanoflann::SearchParams(10));
@@ -549,7 +549,7 @@ recolourColour(
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//    posInTgt = (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor
+//    posInTgt = posInSrc * sourceToTargetScaleFactor - targetToSourceOffset
 
 bool
 recolourReflectance(
@@ -557,7 +557,7 @@ recolourReflectance(
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   double sourceToTargetScaleFactor,
-  Vec3<double> targetToSourceOffset,
+  point_t targetToSourceOffset,
   PCCPointSet3& target)
 {
   double targetToSourceScaleFactor = 1.0 / sourceToTargetScaleFactor;
@@ -599,7 +599,7 @@ recolourReflectance(
     resultSetFwd.init(&indicesFwd[0], &sqrDistFwd[0]);
 
     Vec3<double> posInSrc =
-      target[index] * targetToSourceScaleFactor + targetToSourceOffset;
+      (target[index] + targetToSourceOffset) * targetToSourceScaleFactor;
 
     kdtreeSource.index->findNeighbors(
       resultSetFwd, &posInSrc[0], nanoflann::SearchParams(10));
@@ -691,7 +691,7 @@ recolourReflectance(
     resultSetBwd.init(&indicesBwd[0], &sqrDistBwd[0]);
 
     Vec3<double> posInTgt =
-      (source[index] - targetToSourceOffset) * sourceToTargetScaleFactor;
+      source[index] * sourceToTargetScaleFactor - targetToSourceOffset;
 
     kdtreeTarget.index->findNeighbors(
       resultSetBwd, &posInTgt[0], nanoflann::SearchParams(10));
@@ -853,12 +853,11 @@ recolourReflectance(
 }
 
 //============================================================================
-// Recolour an attribute based on a source/reference point cloud.
+// Colour attributes of a target point cloud given a source.
 //
 // Differences in the scale and translation of the target and source point
 // clouds, is handled according to:
-//   posInTgt =
-//     (posInSrc - targetToSourceOffset) * sourceToTargetScaleFactor - offset
+//   posInTgt = posInSrc * sourceToTargetScaleFactor - tgtToSrcOffset
 
 int
 recolour(
@@ -866,20 +865,14 @@ recolour(
   const RecolourParams& cfg,
   const PCCPointSet3& source,
   float sourceToTargetScaleFactor,
-  Vec3<int> targetToSourceOffset,
-  Vec3<int> offset,
+  point_t tgtToSrcOffset,
   PCCPointSet3* target)
 {
-  Vec3<double> combinedOffset;
-  for (int k = 0; k < 3; k++)
-    combinedOffset[k] =
-      targetToSourceOffset[k] + double(offset[k]) / sourceToTargetScaleFactor;
-
   // todo(df): fix the incorrect assumption here that 3-component
   // attributes are colour (and that single components are reflectance)
   if (desc.attributeLabel == KnownAttributeLabel::kColour) {
     bool ok = recolourColour(
-      desc, cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
+      desc, cfg, source, sourceToTargetScaleFactor, tgtToSrcOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer colors!" << std::endl;
@@ -889,7 +882,7 @@ recolour(
 
   if (desc.attributeLabel == KnownAttributeLabel::kReflectance) {
     bool ok = recolourReflectance(
-      desc, cfg, source, sourceToTargetScaleFactor, combinedOffset, *target);
+      desc, cfg, source, sourceToTargetScaleFactor, tgtToSrcOffset, *target);
 
     if (!ok) {
       std::cout << "Error: can't transfer reflectance!" << std::endl;

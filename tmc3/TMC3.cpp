@@ -1345,10 +1345,10 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     }
 
     std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
+    auto plyScale = 1.0 / params->encoder.sps.seq_source_geom_scale_factor;
+    auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
     ply::write(
-      *reconPointCloud, _plyAttrNames,
-      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seqBoundingBoxOrigin, recName,
+      *reconPointCloud, _plyAttrNames, plyScale, plyOrigin, recName,
       !params->outputBinaryPly);
   }
 
@@ -1373,13 +1373,13 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   }
 
   std::string plyName{expandNum(params->postRecolorPath, frameNum)};
+  auto plyScale = 1.0 / params->encoder.sps.seq_source_geom_scale_factor;
+  auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
 
   // todo(df): stop the clock
   if (!params->convertColourspace) {
     ply::write(
-      cloud, _plyAttrNames,
-      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seqBoundingBoxOrigin, plyName,
+      cloud, _plyAttrNames, plyScale, plyOrigin, plyName,
       !params->outputBinaryPly);
     return;
   }
@@ -1387,9 +1387,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   PCCPointSet3 tmpCloud(cloud);
   convertToGbr(params->encoder.sps, tmpCloud);
   ply::write(
-    tmpCloud, _plyAttrNames,
-    1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-    params->encoder.sps.seqBoundingBoxOrigin, plyName,
+    tmpCloud, _plyAttrNames, plyScale, plyOrigin, plyName,
     !params->outputBinaryPly);
 }
 
@@ -1470,18 +1468,18 @@ SequenceDecoder::onOutputCloud(
   if (!params->preInvScalePath.empty()) {
     std::string filename{expandNum(params->preInvScalePath, frameNum)};
     ply::write(
-      pointCloud, attrNames,
-      1.0 / params->encoder.sps.seq_source_geom_scale_factor,
-      params->encoder.sps.seqBoundingBoxOrigin, params->preInvScalePath,
+      pointCloud, attrNames, 1.0, 0.0, params->preInvScalePath,
       !params->outputBinaryPly);
   }
 
   clock->stop();
 
+  auto plyScale = 1.0 / sps.seq_source_geom_scale_factor;
+  auto plyOrigin = sps.seqBoundingBoxOrigin * plyScale;
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
   if (!ply::write(
-        pointCloud, attrNames, 1.0 / sps.seq_source_geom_scale_factor,
-        sps.seqBoundingBoxOrigin, decName, !params->outputBinaryPly)) {
+        pointCloud, attrNames, plyScale, plyOrigin, decName,
+        !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
 

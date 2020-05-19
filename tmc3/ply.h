@@ -70,7 +70,7 @@ namespace ply {
     const PCCPointSet3& pointCloud,
     const PropertyNameMap& propertyNames,
     double positionScale,
-    Vec3<int32_t> positionOffset,
+    Vec3<double> positionOffset,
     const std::string& fileName,
     bool asAscii);
 

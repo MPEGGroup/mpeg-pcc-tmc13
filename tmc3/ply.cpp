@@ -90,7 +90,7 @@ ply::write(
   const PCCPointSet3& cloud,
   const PropertyNameMap& attributeNames,
   double positionScale,
-  Vec3<int32_t> positionOffset,
+  Vec3<double> positionOffset,
   const std::string& fileName,
   bool asAscii)
 {
