@@ -8,6 +8,8 @@ categories:
 
      # preserve lossless geometry property
      - mergeDuplicatedPoints: 0
+     - srcResolution: '$eval{ ${src-resolution} || 0 }'
+     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - positionQuantizationScale: 1
 
      ##
@@ -86,6 +88,7 @@ categories:
 
     decflags:
      - mode: 1
+     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - convertPlyColourspace: 0
      -
        - !conditional '${reflectance8b16b_scale_factor}'

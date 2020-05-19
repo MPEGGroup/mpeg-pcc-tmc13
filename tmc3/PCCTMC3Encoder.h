@@ -75,6 +75,13 @@ struct EncoderParams {
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
 
+  // Resolution of the source point cloud points per metres.
+  // The value 0 indicates undefined.
+  float srcResolution;
+
+  // Quantisation scale factor for geometry pre-processing
+  float geomPreScale;
+
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
 
@@ -132,6 +139,7 @@ public:
     Callbacks*,
     PCCPointSet3* reconstructedCloud = nullptr);
 
+  static void deriveParameterSets(EncoderParams* params);
   static void fixupParameterSets(EncoderParams* params);
 
 private:
@@ -148,6 +156,9 @@ private:
 
 private:
   PCCPointSet3 pointCloud;
+
+  // Scale factor used to quantise geometry during pre-processing
+  float _geomPreScale;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;

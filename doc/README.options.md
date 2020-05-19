@@ -83,6 +83,11 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
+### `---outputResolution=REAL-VALUE`
+The output point clouds resolution in points per metre.  Decoded point
+clouds that indicate a coded resolution are rescaled to this output
+resolution.
+
 ### `--convertPlyColourspace=0|1`
 Controls the conversion of ply RGB colour attributes to/from the
 colourspace set by an attribute's `colourMatrix` before attribute
@@ -109,6 +114,14 @@ Otherwise, the option is ignored.
 
 Encoder-specific options
 ========================
+
+### `--srcResolution=REAL-VALUE`
+Resolution of the input point cloud in points per metre.  This value is
+used to derive the resolution of the coded point cloud.
+
+If equal to zero, the input point cloud size is considered to be
+dimensionless.  In this case, the coded point cloud will indicate the
+dimensionless scale factor of the coded size to the input size.
 
 ### `--positionQuantizationScale=REAL-FACTOR`
 Prior to encoding, scale the point cloud geometry by multiplying each

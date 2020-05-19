@@ -7,6 +7,7 @@ sequences:
     group: cat3-fused
     # precision is actually (21, 20, 16)
     src-geometry-precision: 21
+    src-resolution: 1000
     seq_lod: 10
     seq_lod_bias: '1,1,2'
     has_refl: 1
@@ -22,6 +23,7 @@ sequences:
     group: cat3-fused
     # precision is actually (20, 20, 16)
     src-geometry-precision: 20
+    src-resolution: 1000
     seq_lod: 10
     seq_lod_bias: '1,1,2'
     has_refl: 1
@@ -37,6 +39,7 @@ sequences:
     group: cat3-fused
     # precision is actually (21, 20, 17)
     src-geometry-precision: 21
+    src-resolution: 1000
     seq_lod: 10
     seq_lod_bias: '1,1,2'
     has_refl: 1
@@ -56,6 +59,7 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -107,6 +111,7 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -158,6 +163,7 @@ sequences:
     num-frames: 1500
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -211,6 +217,7 @@ sequences:
     num-frames: 74
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -244,6 +251,7 @@ sequences:
     num-frames: 74
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -277,6 +285,7 @@ sequences:
     num-frames: 500
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -310,6 +319,7 @@ sequences:
     num-frames: 300
     group: cat3-frame
     src-geometry-precision: 18
+    src-resolution: 1000
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,

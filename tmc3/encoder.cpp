@@ -41,6 +41,7 @@
 
 #include "Attribute.h"
 #include "geometry_params.h"
+#include "hls.h"
 #include "pointset_processing.h"
 #include "geometry.h"
 #include "geometry_octree.h"
@@ -70,7 +71,11 @@ PCCTMC3Encoder3::compress(
   _frameCounter++;
 
   if (_frameCounter == 0) {
+    deriveParameterSets(params);
     fixupParameterSets(params);
+
+    // Save encoder parameters
+    _geomPreScale = params->geomPreScale;
 
     // Determine input bounding box (for SPS metadata) if not manually set
     Box3<int> bbox;
@@ -89,15 +94,14 @@ PCCTMC3Encoder3::compress(
       // the sps bounding box is in terms of the conformance scale
       // not the source scale.
       // NB: plus one to convert to range
-      min_k = std::round(min_k * params->sps.seq_source_geom_scale_factor);
-      max_k = std::round(max_k * params->sps.seq_source_geom_scale_factor);
+      min_k = std::round(min_k * params->geomPreScale);
+      max_k = std::round(max_k * params->geomPreScale);
       params->sps.seqBoundingBoxOrigin[k] = min_k;
       params->sps.seqBoundingBoxSize[k] = max_k - min_k + 1;
     }
 
     // Determine the lidar head position relative to the sequence bounding box
-    auto scale = params->sps.seq_source_geom_scale_factor;
-    params->gps.geomAngularOrigin *= scale;
+    params->gps.geomAngularOrigin *= params->geomPreScale;
     params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
   }
 
@@ -308,6 +312,29 @@ PCCTMC3Encoder3::compress(
 //----------------------------------------------------------------------------
 
 void
+PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
+{
+  // NB: Desrive the units based on srcResolution
+  if (params->srcResolution == 0.)
+    params->sps.seq_geom_scale_unit_flag = ScaleUnit::kDimensionless;
+  else
+    params->sps.seq_geom_scale_unit_flag = ScaleUnit::kPointsPerMetre;
+
+  // Derive the sps scale factor
+  switch (params->sps.seq_geom_scale_unit_flag) {
+  case ScaleUnit::kPointsPerMetre:
+    params->sps.seq_geom_scale = params->srcResolution * params->geomPreScale;
+    break;
+
+  case ScaleUnit::kDimensionless:
+    params->sps.seq_geom_scale = params->geomPreScale;
+    break;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
 PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
 {
   // fixup parameter set IDs
@@ -431,8 +458,7 @@ PCCTMC3Encoder3::compressPartition(
   if (_gps->geom_unique_points_flag || _gps->trisoup_node_size_log2 > 0) {
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
-        attr_sps, params->recolour, originPartCloud,
-        _sps->seq_source_geom_scale_factor,
+        attr_sps, params->recolour, originPartCloud, params->geomPreScale,
         _sps->seqBoundingBoxOrigin + _sliceOrigin, &pointCloud);
     }
   }
@@ -635,12 +661,12 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
-      _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
-      inputPointCloud, &pointCloud, quantizedToOrigin);
+      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
+      &pointCloud, quantizedToOrigin);
   } else {
     quantizePositions(
-      _sps->seq_source_geom_scale_factor, _sps->seqBoundingBoxOrigin, clampBox,
-      inputPointCloud, &pointCloud);
+      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
+      &pointCloud);
   }
 
   return pointCloud;

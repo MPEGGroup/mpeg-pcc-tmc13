@@ -223,6 +223,14 @@ struct ProfileCompatibility {
 
 //============================================================================
 
+enum class ScaleUnit : bool
+{
+  kDimensionless = 0,
+  kPointsPerMetre = 1,
+};
+
+//============================================================================
+
 struct SequenceParameterSet {
   int sps_seq_parameter_set_id;
 
@@ -236,7 +244,10 @@ struct SequenceParameterSet {
   Vec3<int> seqBoundingBoxSize;
 
   // A value describing the scaling of the source positions prior to encoding.
-  float seq_source_geom_scale_factor;
+  float seq_geom_scale;
+
+  // Indicates that units used to interpret seq_geom_scale.
+  ScaleUnit seq_geom_scale_unit_flag;
 
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;

@@ -60,6 +60,9 @@ struct Parameters {
   // output mode for ply writing (binary or ascii)
   bool outputBinaryPly;
 
+  // output ply resolution in points per metre (or 0 for undefined)
+  float outputResolution;
+
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
 
@@ -101,6 +104,9 @@ public:
 
   int compress(Stopwatch* clock);
 
+  // determine the output ply scale factor
+  double outputScale(const SequenceParameterSet& sps);
+
 protected:
   int compressOneFrame(Stopwatch* clock);
 
@@ -129,6 +135,9 @@ public:
   SequenceDecoder(const Parameters* params);
 
   int decompress(Stopwatch* clock);
+
+  // determine the output ply scale factor
+  double outputScale(const SequenceParameterSet& sps);
 
 protected:
   void onOutputCloud(
@@ -461,6 +470,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.outputBinaryPly, false,
     "Output ply files using binary (or otherwise ascii) format")
 
+  ("outputResolution",
+    params.outputResolution, -1.f,
+    "Resolution of output point cloud in points per metre")
+
   ("convertPlyColourspace",
     params.convertColourspace, true,
     "Convert ply colourspace according to attribute colourMatrix")
@@ -506,9 +519,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.sps.seqBoundingBoxSize, {0},
     "seq_bounding_box_whd")
 
+  ("srcResolution",
+    params.encoder.srcResolution, 0.f,
+    "Resolution of source point cloud in points per metre")
+
   ("positionQuantizationScale",
-    params.encoder.sps.seq_source_geom_scale_factor, 1.f,
-    "Scale factor to be applied to point positions during quantization process")
+    params.encoder.geomPreScale, 1.f,
+    "Scale factor to be applied to point positions during pre-processing")
 
   ("positionQuantizationScaleAdjustsDist2",
     params.positionQuantizationScaleAdjustsDist2, false,
@@ -907,6 +924,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     attr_aps.num_pred_nearest_neighbours_minus1--;
   }
 
+  // set default output resolution (this works for the decoder too)
+  if (params.outputResolution < 0)
+    params.outputResolution = params.encoder.srcResolution;
+
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);
   convertXyzToStv(params.encoder.sps, &params.encoder.gps);
@@ -1004,7 +1025,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     // adjust the dist2 values according to PQS.  The user need only
     // specify the unquantised PQS value.
     if (params.positionQuantizationScaleAdjustsDist2) {
-      double pqs = params.encoder.sps.seq_source_geom_scale_factor;
+      double pqs = params.encoder.geomPreScale;
       double pqs2 = pqs * pqs;
       for (auto& dist2 : attr_aps.dist2)
         dist2 = int64_t(std::round(pqs2 * dist2));
@@ -1050,7 +1071,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     for (auto val : params.encoder.lasersZ) {
       int one = 1 << 3;
       params.encoder.gps.geom_angular_z_laser.push_back(
-        round(val * params.encoder.sps.seq_source_geom_scale_factor * one));
+        round(val * params.encoder.geomPreScale * one));
     }
 
     if (
@@ -1070,10 +1091,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     if (params.encoder.gps.qtbt_enabled_flag) {
       params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =
-        std::max<int>(
-          0, 8 + log2(params.encoder.sps.seq_source_geom_scale_factor));
-      params.encoder.geom.qtbt.angularMaxDiffToSplitZ = std::max<int>(
-        0, 1 + log2(params.encoder.sps.seq_source_geom_scale_factor));
+        std::max<int>(0, 8 + log2(params.encoder.geomPreScale));
+      params.encoder.geom.qtbt.angularMaxDiffToSplitZ =
+        std::max<int>(0, 1 + log2(params.encoder.geomPreScale));
     }
   }
 
@@ -1245,6 +1265,22 @@ SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
 
 //----------------------------------------------------------------------------
 
+double
+SequenceEncoder::outputScale(const SequenceParameterSet& sps)
+{
+  switch (sps.seq_geom_scale_unit_flag) {
+  case ScaleUnit::kPointsPerMetre:
+    // todo(df): warn if output resolution not specified?
+    return params->outputResolution > 0
+      ? params->outputResolution / sps.seq_geom_scale
+      : 1.;
+
+  case ScaleUnit::kDimensionless: return 1. / sps.seq_geom_scale;
+  }
+}
+
+//----------------------------------------------------------------------------
+
 int
 SequenceEncoder::compress(Stopwatch* clock)
 {
@@ -1345,7 +1381,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     }
 
     std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
-    auto plyScale = 1.0 / params->encoder.sps.seq_source_geom_scale_factor;
+    auto plyScale = outputScale(params->encoder.sps);
     auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
     ply::write(
       *reconPointCloud, _plyAttrNames, plyScale, plyOrigin, recName,
@@ -1373,7 +1409,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   }
 
   std::string plyName{expandNum(params->postRecolorPath, frameNum)};
-  auto plyScale = 1.0 / params->encoder.sps.seq_source_geom_scale_factor;
+  auto plyScale = outputScale(params->encoder.sps);
   auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
 
   // todo(df): stop the clock
@@ -1396,6 +1432,22 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
 SequenceDecoder::SequenceDecoder(const Parameters* params)
   : params(params), decoder(params->decoder)
 {}
+
+//----------------------------------------------------------------------------
+
+double
+SequenceDecoder::outputScale(const SequenceParameterSet& sps)
+{
+  switch (sps.seq_geom_scale_unit_flag) {
+  case ScaleUnit::kPointsPerMetre:
+    // todo(df): warn if output resolution not specified?
+    return params->outputResolution > 0
+      ? params->outputResolution / sps.seq_geom_scale
+      : 1.;
+
+  case ScaleUnit::kDimensionless: return 1. / sps.seq_geom_scale;
+  }
+}
 
 //----------------------------------------------------------------------------
 
@@ -1474,7 +1526,7 @@ SequenceDecoder::onOutputCloud(
 
   clock->stop();
 
-  auto plyScale = 1.0 / sps.seq_source_geom_scale_factor;
+  auto plyScale = outputScale(sps);
   auto plyOrigin = sps.seqBoundingBoxOrigin * plyScale;
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
   if (!ply::write(
