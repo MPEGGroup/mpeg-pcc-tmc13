@@ -103,6 +103,7 @@ my @exclude_seqs = split /:/, $exclude_seqs;
 ##
 # load all yaml snippets and merge into a single description
 #
+$YAML::LoadBlessed = 0;
 $YAML::TagClass->{conditional} = 'conditional';
 my @origins = @ARGV;
 my %cfg;
@@ -533,4 +534,12 @@ sub write_cfg {
 		print $fd $new_cfg;
 		close $fd;
 	}
+}
+
+##
+# a helper class to permit secure loading of untrusted yaml documents
+package conditional;
+sub yaml_load {
+	my ($class, $node) = @_;
+	bless \YAML::Node::ynode($node), $class;
 }
