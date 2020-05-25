@@ -589,7 +589,7 @@ divInvDivisorApprox(const uint64_t b, int32_t& log2InvScale)
 inline int64_t
 divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
 {
-  assert(abs(a) < (1UL << 46));
+  assert(abs(a) < (1ull << 46));
   int32_t log2InvScale;
   const int64_t invB = divInvDivisorApprox(b, log2InvScale);
   return (invB * a) >> (log2InvScale - log2Scale);
@@ -600,9 +600,9 @@ divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
 inline Vec3<int64_t>
 divApprox(const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
 {
-  assert(abs(a[0]) < (1UL << 46));
-  assert(abs(a[1]) < (1UL << 46));
-  assert(abs(a[2]) < (1UL << 46));
+  assert(abs(a[0]) < (1ull << 46));
+  assert(abs(a[1]) < (1ull << 46));
+  assert(abs(a[2]) < (1ull << 46));
   int32_t log2InvScale;
   const int64_t invB = divInvDivisorApprox(b, log2InvScale);
   const int32_t n = log2InvScale - log2Scale;
@@ -619,9 +619,9 @@ inline Vec3<int64_t>
 divApproxRoundHalfInf(
   const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
 {
-  assert(abs(a[0]) < (1UL << 46));
-  assert(abs(a[1]) < (1UL << 46));
-  assert(abs(a[2]) < (1UL << 46));
+  assert(abs(a[0]) < (1ull << 46));
+  assert(abs(a[1]) < (1ull << 46));
+  assert(abs(a[2]) < (1ull << 46));
   int32_t log2InvScale;
   const int64_t invB = divInvDivisorApprox(b, log2InvScale);
   const int32_t n = log2InvScale - log2Scale;

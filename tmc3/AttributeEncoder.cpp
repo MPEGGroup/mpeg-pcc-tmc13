@@ -1026,7 +1026,7 @@ AttributeEncoder::encodeColorsLift(
 
     const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     const int64_t quantWeight =
-      (weights[predictorIndex] * iQuantWeight + (1UL << 39)) >> 40;
+      (weights[predictorIndex] * iQuantWeight + (1ull << 39)) >> 40;
 
     auto& color = colors[predictorIndex];
     const int64_t delta = quant[0].quantize(color[0] * quantWeight);
@@ -1128,7 +1128,7 @@ AttributeEncoder::encodeReflectancesLift(
 
     const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     const int64_t quantWeight =
-      (weights[predictorIndex] * iQuantWeight + (1UL << 39)) >> 40;
+      (weights[predictorIndex] * iQuantWeight + (1ull << 39)) >> 40;
 
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = quant[0].quantize(reflectance * quantWeight);
