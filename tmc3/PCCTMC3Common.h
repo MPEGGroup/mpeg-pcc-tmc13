@@ -166,7 +166,7 @@ struct PCCPredictor {
     }
     if (n > 0) {
       for (size_t i = 0; i < neighborCount; ++i) {
-        neighbors[i].weight = (neighbors[i].weight + (1 << (n - 1))) >> n;
+        neighbors[i].weight = (neighbors[i].weight + (1ull << (n - 1))) >> n;
       }
     }
     while (neighborCount > 1) {
@@ -227,7 +227,7 @@ struct PCCPredictor {
         true, nodeSizeLog2, pointCloud[neighbors[i].predictorIndex]);
       double norm2 = (point - point1).getNorm2<double>();
       if (nodeSizeLog2 > 0 && point == point1) {
-        norm2 = 1 << 2 * (nodeSizeLog2 - 1);
+        norm2 = 1ull << 2 * (nodeSizeLog2 - 1);
       }
 
       if (norm2 > maxDistance) {

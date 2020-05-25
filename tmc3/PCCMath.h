@@ -520,7 +520,7 @@ divExp2RoundHalfUp(int64_t x, int shift)
   if (!shift)
     return x;
 
-  int64_t half = 1 << (shift - 1);
+  int64_t half = 1ll << (shift - 1);
   return (x + half) >> shift;
 }
 
@@ -534,7 +534,7 @@ divExp2RoundHalfInf(int64_t scalar, int shift)
   if (!shift)
     return scalar;
 
-  int64_t s0 = 1 << (shift - 1);
+  int64_t s0 = 1ll << (shift - 1);
   return scalar >= 0 ? (s0 + scalar) >> shift : -((s0 - scalar) >> shift);
 }
 
@@ -548,7 +548,7 @@ divExp2RoundHalfInf(uint64_t scalar, int shift)
   if (!shift)
     return scalar;
 
-  return ((1 << (shift - 1)) + scalar) >> shift;
+  return ((1ull << (shift - 1)) + scalar) >> shift;
 }
 
 //---------------------------------------------------------------------------
@@ -578,7 +578,7 @@ divInvDivisorApprox(const uint64_t b, int32_t& log2InvScale)
   const int32_t lutSizeLog2 = 8;
 
   const auto n = std::max(0, ilog2(b) + 1 - lutSizeLog2);
-  const auto index = (b + ((1 << n) >> 1)) >> n;
+  const auto index = (b + ((1ull << n) >> 1)) >> n;
   assert(unsigned(index) <= (1 << lutSizeLog2));
   log2InvScale = n + (lutSizeLog2 << 1);
   return kDivApproxDivisor[index - 1] + 1;
