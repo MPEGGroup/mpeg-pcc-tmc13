@@ -8,7 +8,7 @@ use List::Util qw{pairmap};
 use List::MoreUtils qw{firstres};
 use Module::Load::Conditional qw(can_load);
 use Pod::Usage;
-use YAML;
+use YAML '0.50';
 use strict;
 
 =head1 NAME
@@ -102,9 +102,13 @@ my @exclude_seqs = split /:/, $exclude_seqs;
 
 ##
 # load all yaml snippets and merge into a single description
+#  - disable automatic blessing in YAML >= 1.25
+#  - fallback to automatic blessing in YAML <= 1.24
+#    NB: yaml < 1.24 cannot use yaml_load with inline scalars
 #
 $YAML::LoadBlessed = 0;
 $YAML::TagClass->{conditional} = 'conditional';
+delete $conditional::{yaml_load} unless eval { YAML->VERSION(1.24) } ;
 my @origins = @ARGV;
 my %cfg;
 while (@ARGV) {
@@ -541,5 +545,8 @@ sub write_cfg {
 package conditional;
 sub yaml_load {
 	my ($class, $node) = @_;
-	bless \YAML::Node::ynode($node), $class;
+	unless (ref($node) eq 'SCALAR') {
+		die '!conditional tag must be used with a scalar';
+	}
+	return bless $node if ref($node) eq 'SCALAR';
 }
