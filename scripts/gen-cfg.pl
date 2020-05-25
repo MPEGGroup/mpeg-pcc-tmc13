@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
 
+use 5.022;
 use Digest::MD5;
 use File::Path qw(make_path);
 use File::Basename qw(basename);
