@@ -131,35 +131,6 @@ PCCTMC3Encoder3::compress(
   PCCPointSet3 quantizedInputCloud;
   quantizedInputCloud = quantization(inputPointCloud);
 
-  // determine the dist2 parameters based upon the quantized point cloud
-  // todo(df): do this only if no dist2 value is set but should be
-  bool calcDist2 = false;
-  for (auto& aps : params->aps)
-    calcDist2 |= aps.num_detail_levels > 0;
-
-  if (calcDist2) {
-    int maxNodeSizeLog2 = ceillog2(std::max(
-      {params->sps.seqBoundingBoxSize[0], params->sps.seqBoundingBoxSize[1],
-       params->sps.seqBoundingBoxSize[1]}));
-
-    // workout an intrinsic dist2
-    int baseDist2 = estimateDist2(quantizedInputCloud, maxNodeSizeLog2);
-
-    // generate dist2 series for each aps
-    for (auto& aps : params->aps) {
-      if (aps.num_detail_levels == 0)
-        continue;
-
-      aps.dist2.resize(aps.num_detail_levels);
-
-      int64_t d2 = baseDist2;
-      for (int i = 0; i < aps.num_detail_levels; ++i) {
-        aps.dist2[i] = d2;
-        d2 = 4 * d2;
-      }
-    }
-  }
-
   // write out all parameter sets prior to encoding
   callback->onOutputBuffer(write(*_sps));
   callback->onOutputBuffer(write(*_sps, *_gps));
@@ -377,6 +348,10 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_aps = params->aps[it.second];
     auto& attr_enc = params->attr[it.second];
 
+    // dist2 is refined in the slice header
+    attr_aps.aps_slice_dist2_deltas_present_flag =
+      attr_aps.lodParametersPresent();
+
     // the encoder options may not specify sufficient offsets for the number
     // of layers used by the sytax: extend with last value as appropriate
     int numLayers = std::max(
@@ -515,8 +490,17 @@ PCCTMC3Encoder3::compressPartition(
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
 
+    // calculate dist2 for this slice
+    abh.attr_dist2_delta = 0;
+    if (attr_aps.aps_slice_dist2_deltas_present_flag) {
+      // todo(df): this could be set in the sps and refined only if necessary
+      auto dist2 =
+        estimateDist2(pointCloud, 100, 128, attr_enc.dist2PercentileEstimate);
+      abh.attr_dist2_delta = dist2 - attr_aps.dist2;
+    }
+
     // replace the attribute encoder if not compatible
-    if (!attrEncoder->isReusable(attr_aps))
+    if (!attrEncoder->isReusable(attr_aps, abh))
       attrEncoder = makeAttributeEncoder();
 
     attrEncoder->encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);

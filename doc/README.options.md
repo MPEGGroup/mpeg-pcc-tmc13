@@ -577,10 +577,12 @@ and is scaled according to the current level of detail.
 ### `--levelOfDetailCount=INT-VALUE`
 Attribute's number of levels of detail.
 
-### `--dist2=INT-VALUE|INT-VALUE-LIST`
-A list of squared distances used to generate successive levels of detail.
-If an empty-list is used, an initial value is automatically determined.
-If a single value is provided, subsequent values are derived automatically.
+### `--dist2=INT-VALUE`
+An initial squared distances used to generate successive levels of detail.
+When equal to zero, an initial value is automatically determined.
+
+### `--dist2PercentileEstimate=FLOAT-VALUE`
+Percentile of per-point nearest neighbour distances used to estimate `dist2`.
 
 ### `--lodSubsamplingPeriod=INT-VALUE|INT-VALUE-LIST`
 A list of sampling periods used to generate successive levels of detail.

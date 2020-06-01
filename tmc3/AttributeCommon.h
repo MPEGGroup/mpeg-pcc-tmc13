@@ -47,12 +47,14 @@ namespace pcc {
 
 struct AttributeLods {
   // Indicates if the generated LoDs are compatible with the provided aps
-  bool isReusable(const AttributeParameterSet& aps) const;
+  bool isReusable(
+    const AttributeParameterSet& aps, const AttributeBrickHeader& abh) const;
 
   bool empty() const { return numPointsInLod.empty(); };
 
   void generate(
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
     const PCCPointSet3& cloud);
@@ -65,6 +67,10 @@ private:
   // This is the aps that was used to generate the LoDs.  It is used to check
   // if the generated LoDs are reusable.
   AttributeParameterSet _aps;
+
+  // This is the abh that was used to generate the LoDs.  It is used to check
+  // if the generated LoDs are reusable.
+  AttributeBrickHeader _abh;
 };
 
 //============================================================================

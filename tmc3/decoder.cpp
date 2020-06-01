@@ -364,10 +364,15 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   const auto& attr_sps = _sps->attributeSets[abh.attr_sps_attr_idx];
   const auto& label = attr_sps.attributeLabel;
 
+  // In order to determinet hat the attribute decoder is reusable, the abh
+  // must be inspected.
+  // todo(df): remove duplicate parsing from attribute decoder
+  abh = parseAbh(*_sps, attr_aps, buf, nullptr);
+
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   // replace the attribute decoder if not compatible
-  if (!_attrDecoder || !_attrDecoder->isReusable(attr_aps))
+  if (!_attrDecoder || !_attrDecoder->isReusable(attr_aps, abh))
     _attrDecoder = makeAttributeDecoder();
 
   clock_user.start();

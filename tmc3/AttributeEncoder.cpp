@@ -386,7 +386,8 @@ AttributeEncoder::encode(
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
-    _lods.generate(attr_aps, pointCloud.getPointCount() - 1, 0, pointCloud);
+    _lods.generate(
+      attr_aps, abh, pointCloud.getPointCount() - 1, 0, pointCloud);
 
   // write abh
   write(sps, attr_aps, abh, payload);
@@ -438,9 +439,10 @@ AttributeEncoder::encode(
 //----------------------------------------------------------------------------
 
 bool
-AttributeEncoder::isReusable(const AttributeParameterSet& aps) const
+AttributeEncoder::isReusable(
+  const AttributeParameterSet& aps, const AttributeBrickHeader& abh) const
 {
-  return _lods.isReusable(aps);
+  return _lods.isReusable(aps, abh);
 }
 
 //----------------------------------------------------------------------------
@@ -1246,92 +1248,41 @@ AttributeEncoder::encodeReflectancesLift(
 // estimation of dist2
 
 int
-estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2)
+estimateDist2(
+  const PCCPointSet3& cloud,
+  int32_t samplingPeriod,
+  int32_t searchRange,
+  float percentileEstimate)
 {
-  constexpr auto kIdealRatio = 0.25;
+  int32_t pointCount = cloud.getPointCount();
+  if (pointCount < 2)
+    return 0;
 
-  // Protect against the node size being too small
-  if (maxNodeSizeLog2 <= 0)
-    return 1;
+  std::vector<int64_t> dists;
+  dists.reserve(pointCount / samplingPeriod + 1);
 
-  // simulate the full octree process to generate per-level node counts.
-  // an indirect set of point indexes are used, which also serve as the
-  // input to the lod subsampler.
-  std::vector<MortonCodeWithIndex> mortonOrder(cloud.getPointCount());
-  for (int i = 0; i < mortonOrder.size(); i++) {
-    mortonOrder[i].mortonCode = mortonAddr(cloud[i]);
-    mortonOrder[i].index = i;
-  }
+  for (int32_t index = 0; index < pointCount; index += samplingPeriod) {
+    auto k0 = std::max(0, index - searchRange);
+    auto k1 = std::min(pointCount - 1, index + searchRange);
+    auto d2 = std::numeric_limits<int64_t>::max();
+    for (auto k = k0; k <= k1; ++k) {
+      if (k == index)
+        continue;
 
-  std::vector<int> numNodesWithSize(maxNodeSizeLog2);
-  using IndexesItT = decltype(mortonOrder.begin());
-  radixSort8WithAccum(
-    maxNodeSizeLog2 - 1, mortonOrder.begin(), mortonOrder.end(),
-    [](int nodeSizeLog2, const MortonCodeWithIndex& index) {
-      return (index.mortonCode >> 3 * nodeSizeLog2) & 7;
-    },
-    [&numNodesWithSize](int nodeSizeLog2, const std::array<int, 8>& counts) {
-      for (auto count : counts)
-        if (count)
-          numNodesWithSize[nodeSizeLog2]++;
-    });
-
-  // find the node size that causees the ratio to drop below the ideal
-  int initDist;
-  for (initDist = 1; initDist < numNodesWithSize.size(); ++initDist) {
-    if (float(numNodesWithSize[initDist]) / numNodesWithSize[0] < kIdealRatio)
-      break;
-  }
-
-  // Too few points to have any meaning, set dist2 to a large value
-  if (initDist == numNodesWithSize.size())
-    return 1 << (2 * maxNodeSizeLog2);
-
-  // two points on a line
-  float x0 = initDist - 1;
-  float x1 = initDist;
-  float y0 = float(numNodesWithSize[x0]) / numNodesWithSize[0];
-  float y1 = float(numNodesWithSize[x1]) / numNodesWithSize[0];
-
-  // refine the estimate using the lod generator
-  // lod generation storage
-  std::vector<uint32_t> retained, input, indexesLod;
-  int baseDist2 = 0;
-  for (float lodPointRatio = 0.; fabs(lodPointRatio - kIdealRatio) > 0.01;) {
-    // solve line equation for y = kLevelRatio
-    float x = x0 + (kIdealRatio - y0) * (x1 - x0) / (y1 - y0);
-
-    // estimated dist2 value
-    int nextBaseDist2 = std::max(2, int(ceil(pow(4, (x - 1)))));
-
-    // stop if converged
-    if (nextBaseDist2 == baseDist2)
-      break;
-    baseDist2 = nextBaseDist2;
-
-    // setup lod generator
-    indexesLod.reserve(cloud.getPointCount());
-    retained.reserve(cloud.getPointCount());
-    input.resize(cloud.getPointCount());
-    for (int i = 0; i < input.size(); i++)
-      input[i] = i;
-
-    subsampleByDistance(
-      cloud, mortonOrder, input, baseDist2, 128, retained, indexesLod);
-
-    // update line based upon lod generation result
-    lodPointRatio = float(retained.size()) / numNodesWithSize[0];
-
-    if (lodPointRatio < kIdealRatio) {
-      x1 = x;
-      y1 = lodPointRatio;
-    } else {
-      x0 = x;
-      y0 = lodPointRatio;
+      d2 = std::min(d2, (cloud[index] - cloud[k]).getNorm2<int64_t>());
     }
+    dists.push_back(d2);
   }
 
-  return baseDist2;
+  int p = int(std::floor(dists.size() * percentileEstimate));
+
+  std::nth_element(dists.begin(), dists.begin() + p, dists.end());
+  int64_t dist2 = dists[p];
+  int shiftBits = 0;
+  while ((int64_t(3) << (shiftBits << 1)) < dist2 && shiftBits < 20)
+    ++shiftBits;
+
+  return shiftBits;
 }
 
 //============================================================================

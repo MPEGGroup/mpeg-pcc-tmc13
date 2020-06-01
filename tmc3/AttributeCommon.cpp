@@ -45,17 +45,19 @@ namespace pcc {
 void
 AttributeLods::generate(
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   const PCCPointSet3& cloud)
 {
   _aps = aps;
+  _abh = abh;
 
   if (minGeomNodeSizeLog2 > 0)
     assert(aps.scalable_lifting_enabled_flag);
 
   buildPredictorsFast(
-    aps, cloud, minGeomNodeSizeLog2, geom_num_points_minus1, predictors,
+    aps, abh, cloud, minGeomNodeSizeLog2, geom_num_points_minus1, predictors,
     numPointsInLod, indexes);
 
   assert(predictors.size() == cloud.getPointCount());
@@ -66,7 +68,8 @@ AttributeLods::generate(
 //----------------------------------------------------------------------------
 
 bool
-AttributeLods::isReusable(const AttributeParameterSet& aps) const
+AttributeLods::isReusable(
+  const AttributeParameterSet& aps, const AttributeBrickHeader& abh) const
 {
   // No LoDs cached => can be reused by anything
   if (numPointsInLod.empty())
@@ -101,7 +104,7 @@ AttributeLods::isReusable(const AttributeParameterSet& aps) const
   if (_aps.lod_decimation_enabled_flag != aps.lod_decimation_enabled_flag)
     return false;
 
-  if (_aps.dist2 != aps.dist2)
+  if (_aps.dist2 + _abh.attr_dist2_delta != aps.dist2 + abh.attr_dist2_delta)
     return false;
 
   if (_aps.lodSamplingPeriod != aps.lodSamplingPeriod)

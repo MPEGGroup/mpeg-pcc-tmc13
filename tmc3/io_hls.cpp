@@ -720,6 +720,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
     bs.writeUe(aps.search_range);
 
+    bs.writeUe(aps.dist2);
+    bs.write(aps.aps_slice_dist2_deltas_present_flag);
+
     auto lod_neigh_bias = toXyz(sps.geometry_axis_order, aps.lodNeighBias);
     bs.writeUe(lod_neigh_bias.x());
     bs.writeUe(lod_neigh_bias.y());
@@ -744,16 +747,6 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
           for (int idx = 0; idx < aps.num_detail_levels; idx++) {
             auto lod_sampling_period_minus2 = aps.lodSamplingPeriod[idx] - 2;
             bs.writeUe(lod_sampling_period_minus2);
-          }
-        } else {
-          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-            auto numerator = aps.dist2[idx];
-            auto denominator = idx > 0 ? aps.dist2[idx - 1] : 1;
-            int lod_sampling_scale_minus1 = (numerator / denominator) - 1;
-            int lod_sampling_offset = numerator % denominator;
-            bs.writeUe(lod_sampling_scale_minus1);
-            if (idx > 0)
-              bs.writeUe(lod_sampling_offset);
           }
         }
       }
@@ -800,9 +793,13 @@ parseAps(const PayloadBuffer& buf)
   bs.readSe(&aps.aps_chroma_qp_offset);
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
+  aps.aps_slice_dist2_deltas_present_flag = false;
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.search_range);
+
+    bs.readUe(&aps.dist2);
+    bs.read(&aps.aps_slice_dist2_deltas_present_flag);
 
     Vec3<int> lod_neigh_bias;
     bs.readUe(&lod_neigh_bias.x());
@@ -834,22 +831,6 @@ parseAps(const PayloadBuffer& buf)
             int lod_sampling_period_minus2;
             bs.readUe(&lod_sampling_period_minus2);
             aps.lodSamplingPeriod[idx] = lod_sampling_period_minus2 + 2;
-          }
-        } else {
-          aps.dist2.resize(aps.num_detail_levels);
-          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
-            int lod_sampling_scale_minus1;
-            int lod_sampling_offset = 0;
-            bs.readUe(&lod_sampling_scale_minus1);
-            if (idx == 0)
-              aps.dist2[idx] = lod_sampling_scale_minus1 + 1;
-            else {
-              int lod_sampling_offset;
-              bs.readUe(&lod_sampling_offset);
-              aps.dist2[idx] =
-                aps.dist2[idx - 1] * (lod_sampling_scale_minus1 + 1)
-                + lod_sampling_offset;
-            }
           }
         }
       }
@@ -1084,6 +1065,9 @@ write(
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
+  if (aps.aps_slice_dist2_deltas_present_flag)
+    bs.writeSe(abh.attr_dist2_delta);
+
   if (aps.aps_slice_qp_deltas_present_flag) {
     bs.writeSe(abh.attr_qp_delta_luma);
     bs.writeSe(abh.attr_qp_delta_chroma);
@@ -1160,6 +1144,9 @@ parseAbh(
   bs.readUe(&abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
+
+  if (aps.aps_slice_dist2_deltas_present_flag)
+    bs.readSe(&abh.attr_dist2_delta);
 
   if (aps.aps_slice_qp_deltas_present_flag) {
     bs.readSe(&abh.attr_qp_delta_luma);

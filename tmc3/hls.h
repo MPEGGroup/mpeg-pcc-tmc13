@@ -500,7 +500,9 @@ struct AttributeParameterSet {
   // NB: derived from num_detail_levels_minus1
   int num_detail_levels;
   std::vector<int> lodSamplingPeriod;
-  std::vector<int64_t> dist2;
+
+  int dist2;
+  bool aps_slice_dist2_deltas_present_flag;
 
   // NB: these parameters are shared by all transform implementations
   int init_qp_minus4;
@@ -550,6 +552,8 @@ struct AttributeBrickHeader {
   };
 
   std::vector<QpRegion> qpRegions;
+
+  int32_t attr_dist2_delta;
 };
 
 //============================================================================

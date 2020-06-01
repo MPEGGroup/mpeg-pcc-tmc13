@@ -241,7 +241,7 @@ AttributeDecoder::decode(
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(
-      attr_aps, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud);
+      attr_aps, abh, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud);
 
   if (attr_desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
@@ -287,9 +287,10 @@ AttributeDecoder::decode(
 //----------------------------------------------------------------------------
 
 bool
-AttributeDecoder::isReusable(const AttributeParameterSet& aps) const
+AttributeDecoder::isReusable(
+  const AttributeParameterSet& aps, const AttributeBrickHeader& abh) const
 {
-  return _lods.isReusable(aps);
+  return _lods.isReusable(aps, abh);
 }
 
 //----------------------------------------------------------------------------

@@ -49,8 +49,77 @@
 
 namespace pcc {
 
+//============================================================================
+
 point_t clacIntermediatePosition(
   bool enabled, int32_t nodeSizeLog2, const point_t& point);
+
+//============================================================================
+
+class MortonIndexMap3d {
+public:
+  struct Range {
+    int32_t start;
+    int32_t end;
+  };
+
+  void resize(const int32_t cubeSizeLog2)
+  {
+    _cubeSizeLog2 = cubeSizeLog2;
+    _cubeSize = 1 << cubeSizeLog2;
+    _bufferSize = 1 << (3 * cubeSizeLog2);
+    _mask = _bufferSize - 1;
+    _buffer.reset(new Range[_bufferSize]);
+  }
+
+  void reserve(const uint32_t sz) { _updates.reserve(sz); }
+  int cubeSize() const { return _cubeSize; }
+  int cubeSizeLog2() const { return _cubeSizeLog2; }
+
+  void init()
+  {
+    for (int32_t i = 0; i < _bufferSize; ++i) {
+      _buffer[i] = {-1, -1};
+    }
+    _updates.resize(0);
+  }
+
+  void clearUpdates()
+  {
+    for (const auto index : _updates) {
+      _buffer[index] = {-1, -1};
+    }
+    _updates.resize(0);
+  }
+
+  void set(const int64_t mortonCode, const int32_t index)
+  {
+    const int64_t mortonAddr = mortonCode & _mask;
+    auto& unit = _buffer[mortonAddr];
+    if (unit.start == -1) {
+      unit.start = index;
+    }
+    unit.end = index + 1;
+    _updates.push_back(mortonAddr);
+  }
+
+  Range get(const int64_t mortonCode) const
+  {
+    return _buffer[mortonCode & _mask];
+  }
+
+private:
+  int32_t _cubeSize = 0;
+  int32_t _cubeSizeLog2 = 0;
+  int32_t _bufferSize = 0;
+  int64_t _mask = 0;
+  std::unique_ptr<Range[]> _buffer;
+
+  // A list of indexes in _buffer that are dirty
+  std::vector<int32_t> _updates;
+};
+
+//============================================================================
 
 // Structure for sorting weights.
 struct WeightWithIndex {
@@ -77,6 +146,10 @@ struct WeightWithIndex {
 
 struct MortonCodeWithIndex {
   int64_t mortonCode;
+
+  // The position used to generate the mortonCode
+  Vec3<int32_t> position;
+
   int32_t index;
 
   bool operator<(const MortonCodeWithIndex& rhs) const
@@ -734,35 +807,100 @@ computeNearestNeighbors(
 
 inline void
 subsampleByDistance(
-  const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& input,
-  const double radius2,
-  const int32_t searchRange,
+  const int32_t shiftBits0,
   std::vector<uint32_t>& retained,
-  std::vector<uint32_t>& indexes)
+  std::vector<uint32_t>& indexes,
+  MortonIndexMap3d& atlas)
 {
+  assert(retained.empty());
   if (input.size() == 1) {
     indexes.push_back(input[0]);
-  } else {
-    for (const auto index : input) {
-      if (retained.empty()) {
-        retained.push_back(index);
+    return;
+  }
+
+  const int64_t radius2 = 3 * (1 << (shiftBits0 << 1));
+  const int32_t shiftBits = shiftBits0 + 1;
+  const int32_t shiftBits3 = 3 * shiftBits;
+  const int32_t log2CubeSize3 = 3 * atlas.cubeSizeLog2();
+  const int32_t shift3 = shiftBits3 + log2CubeSize3;
+
+  // these neighbour offsets are relative to basePosition
+  static const uint8_t kNeighOffset[20] = {
+    7,   // { 0,  0,  0}
+    3,   // {-1,  0,  0}
+    5,   // { 0, -1,  0}
+    6,   // { 0,  0, -1}
+    12,  // { 0, -1,  1}
+    10,  // {-1,  0,  1}
+    17,  // {-1,  1,  0}
+    20,  // { 0,  1, -1}
+    34,  // { 1,  0, -1}
+    33,  // { 1, -1,  0}
+    4,   // { 0, -1, -1}
+    2,   // {-1,  0, -1}
+    1,   // {-1, -1,  0}
+    24,  // {-1,  1,  1}
+    40,  // { 1, -1,  1}
+    48,  // { 1,  1, -1}
+    32,  // { 1, -1, -1}
+    16,  // {-1,  1, -1}
+    8,   // {-1, -1,  1}
+    0,   // {-1, -1, -1}
+  };
+
+  atlas.reserve(indexes.size() >> 1);
+  int64_t atlasMortonCode = -1;
+  int64_t lastRetainedMortonCode = -1;
+
+  for (const auto index : input) {
+    const auto& point = packedVoxel[index].position;
+    const int64_t mortonCode = packedVoxel[index].mortonCode;
+    const int64_t mortonCodeShift3 = mortonCode >> shift3;
+    const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
+
+    if (atlasMortonCode != mortonCodeShift3) {
+      atlas.clearUpdates();
+      atlasMortonCode = mortonCodeShift3;
+    }
+
+    if (retained.empty()) {
+      retained.push_back(index);
+      lastRetainedMortonCode = mortonCodeShiftBits3;
+      atlas.set(lastRetainedMortonCode, int32_t(retained.size()) - 1);
+      continue;
+    }
+
+    if (lastRetainedMortonCode == mortonCodeShiftBits3) {
+      indexes.push_back(index);
+      continue;
+    }
+
+    // the position of the parent, offset by (-1,-1,-1)
+    const auto basePosition = morton3dAdd(mortonCodeShiftBits3, -1ll);
+    bool found = false;
+    for (int32_t n = 0; n < 20 && !found; ++n) {
+      const auto neighbMortonCode = morton3dAdd(basePosition, kNeighOffset[n]);
+      if ((neighbMortonCode >> log2CubeSize3) != atlasMortonCode)
         continue;
+
+      const auto unit = atlas.get(neighbMortonCode);
+      for (int32_t k = unit.start; k < unit.end; ++k) {
+        const auto delta = (packedVoxel[retained[k]].position - point);
+        if (delta.getNorm2<int64_t>() <= radius2) {
+          found = true;
+          break;
+        }
       }
-      const auto& point = pointCloud[packedVoxel[index].index];
-      const auto& lastRetained =
-        pointCloud[packedVoxel[retained.back()].index];
-      auto distanceToLastRetained = (lastRetained - point).getNorm2<double>();
-      if (
-        distanceToLastRetained <= radius2
-        || FindNeighborWithinDistance(
-             pointCloud, packedVoxel, index, radius2, searchRange, retained)
-          != PCC_UNDEFINED_INDEX) {
-        indexes.push_back(index);
-      } else {
-        retained.push_back(index);
-      }
+    }
+
+    if (found) {
+      indexes.push_back(index);
+    } else {
+      retained.push_back(index);
+      lastRetainedMortonCode = mortonCodeShiftBits3;
+      atlas.set(lastRetainedMortonCode, int32_t(retained.size()) - 1);
     }
   }
 }
@@ -901,12 +1039,14 @@ subsampleByDecimation(
 inline void
 subsample(
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const PCCPointSet3& pointCloud,
   const std::vector<MortonCodeWithIndex>& packedVoxel,
   const std::vector<uint32_t>& input,
   const int32_t lodIndex,
   std::vector<uint32_t>& retained,
-  std::vector<uint32_t>& indexes)
+  std::vector<uint32_t>& indexes,
+  MortonIndexMap3d& atlas)
 {
   if (aps.scalable_lifting_enabled_flag) {
     int32_t octreeNodeSizeLog2 = lodIndex;
@@ -916,10 +1056,9 @@ subsample(
     auto samplingPeriod = aps.lodSamplingPeriod[lodIndex];
     subsampleByDecimation(input, samplingPeriod, retained, indexes);
   } else {
-    double radius2 = aps.dist2[lodIndex];
+    const auto shiftBits = aps.dist2 + abh.attr_dist2_delta + lodIndex;
     subsampleByDistance(
-      pointCloud, packedVoxel, input, radius2, aps.search_range, retained,
-      indexes);
+      packedVoxel, input, shiftBits, retained, indexes, atlas);
   }
 }
 
@@ -932,11 +1071,12 @@ computeMortonCodesUnsorted(
 {
   const int32_t pointCount = int32_t(pointCloud.getPointCount());
   packedVoxel.resize(pointCount);
+
   for (int n = 0; n < pointCount; n++) {
-    const auto& position = pointCloud[n];
-    packedVoxel[n].mortonCode = mortonAddr(
-      int32_t(position[0]), int32_t(position[1]), int32_t(position[2]));
-    packedVoxel[n].index = n;
+    auto& pv = packedVoxel[n];
+    pv.position = pointCloud[n];
+    pv.mortonCode = mortonAddr(pv.position);
+    pv.index = n;
   }
 }
 
@@ -967,6 +1107,7 @@ updatePredictors(
 inline void
 buildPredictorsFast(
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const PCCPointSet3& pointCloud,
   int32_t minGeomNodeSizeLog2,
   int geom_num_points_minus1,
@@ -1010,6 +1151,12 @@ buildPredictorsFast(
     indexesOfSubsample.reserve(pointCount);
 
   std::vector<Box3<int32_t>> bBoxes;
+
+  const int32_t log2CubeSize = 7;
+  MortonIndexMap3d atlas;
+  atlas.resize(log2CubeSize);
+  atlas.init();
+
   int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
        !input.empty() && lodIndex <= num_detail_levels; ++lodIndex) {
@@ -1020,7 +1167,8 @@ buildPredictorsFast(
       }
     } else {
       subsample(
-        aps, pointCloud, packedVoxel, input, lodIndex, retained, indexes);
+        aps, abh, pointCloud, packedVoxel, input, lodIndex, retained, indexes,
+        atlas);
     }
     const int32_t endIndex = indexes.size();
 

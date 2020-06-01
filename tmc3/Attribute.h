@@ -59,7 +59,9 @@ public:
     PCCPointSet3& pointCloud) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
-  virtual bool isReusable(const AttributeParameterSet& aps) const = 0;
+  virtual bool isReusable(
+    const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -81,7 +83,9 @@ public:
     PayloadBuffer* payload) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
-  virtual bool isReusable(const AttributeParameterSet& aps) const = 0;
+  virtual bool isReusable(
+    const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh) const = 0;
 };
 
 //----------------------------------------------------------------------------
@@ -90,7 +94,11 @@ std::unique_ptr<AttributeEncoderIntf> makeAttributeEncoder();
 
 //============================================================================
 
-int estimateDist2(const PCCPointSet3& cloud, int maxNodeSizeLog2);
+int estimateDist2(
+  const PCCPointSet3& cloud,
+  int samplingPeriod,
+  int searchRange,
+  float percentileEstimate);
 
 //============================================================================
 

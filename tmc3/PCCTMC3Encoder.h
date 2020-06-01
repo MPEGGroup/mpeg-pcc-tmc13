@@ -56,6 +56,10 @@ namespace pcc {
 struct EncoderAttributeParams {
   // NB: this only makes sense for setting configurable parameters
   AttributeBrickHeader abh;
+
+  // Threshold for choosing dist2 out of the population of nearest neighbour
+  // distances.
+  float dist2PercentileEstimate;
 };
 
 //----------------------------------------------------------------------------

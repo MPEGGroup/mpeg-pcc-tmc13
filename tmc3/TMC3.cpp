@@ -797,10 +797,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Attribute's number of levels of detail")
 
   ("dist2",
-    params_attr.aps.dist2, {},
-    "List of per LoD squared distances used in LoD generation.\n"
-    " 0 entries: derive base value automatically\n"
-    ">0 entries: derive subsequent values automatically")
+    params_attr.aps.dist2, 0,
+    "Initial squared distance used in LoD generation.\n")
+
+  ("dist2PercentileEstimate",
+    params_attr.encoder.dist2PercentileEstimate, 0.85f,
+    "Percentile for dist2 estimation during nearest neighbour search")
 
   ("lodSamplingPeriod",
     params_attr.aps.lodSamplingPeriod, {4},
@@ -1021,33 +1023,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
         attr_sps.attr_num_dimensions_minus1 + 1,
         attr_sps.attr_default_value.back());
 
-    // derive the dist2 values based on an initial value
-    if (attr_aps.lodParametersPresent()) {
-      if (attr_aps.dist2.size() > attr_aps.num_detail_levels) {
-        attr_aps.dist2.resize(attr_aps.num_detail_levels);
-      } else if (
-        attr_aps.dist2.size() < attr_aps.num_detail_levels
-        && !attr_aps.dist2.empty()) {
-        if (attr_aps.dist2.size() < attr_aps.num_detail_levels) {
-          attr_aps.dist2.resize(attr_aps.num_detail_levels);
-          const double distRatio = 4.0;
-          uint64_t d2 = attr_aps.dist2[0];
-          for (int i = 0; i < attr_aps.num_detail_levels; ++i) {
-            attr_aps.dist2[i] = d2;
-            d2 = uint64_t(std::round(distRatio * d2));
-          }
-        }
-      }
-    }
     // In order to simplify specification of dist2 values, which are
     // depending on the scale of the coded point cloud, the following
     // adjust the dist2 values according to PQS.  The user need only
     // specify the unquantised PQS value.
     if (params.positionQuantizationScaleAdjustsDist2) {
-      double pqs = params.encoder.geomPreScale;
-      double pqs2 = pqs * pqs;
-      for (auto& dist2 : attr_aps.dist2)
-        dist2 = int64_t(std::round(pqs2 * dist2));
+      auto delta = log2(params.encoder.geomPreScale);
+      attr_aps.dist2 =
+        std::max(0, int32_t(std::round(attr_aps.dist2 + delta)));
     }
 
     // derive samplingPeriod values based on initial value
@@ -1165,10 +1148,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                     << ".levelOfDetailCount must be in the range [0,255]\n";
       }
 
-      // if empty, values are derived automatically
-      if (!attr_aps.dist2.empty() && attr_aps.dist2.size() != lod) {
-        err.error() << it.first << ".dist2 does not have " << lod
-                    << " entries\n";
+      // if zero, values are derived automatically
+      if (attr_aps.dist2 < 0 || attr_aps.dist2 > 20) {
+        err.error() << it.first << ".dist2 must be in the range [0,20]\n";
       }
 
       if (lod > 0 && attr_aps.canonical_point_order_flag) {
