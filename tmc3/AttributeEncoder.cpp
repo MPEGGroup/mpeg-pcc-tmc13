@@ -39,9 +39,11 @@
 #include "DualLutCoder.h"
 #include "constants.h"
 #include "entropy.h"
+#include "io_hls.h"
 #include "quantization.h"
 #include "RAHT.h"
 #include "FixedPoint.h"
+
 #include <algorithm>
 
 // todo(df): promote to per-attribute encoder parameter
@@ -376,18 +378,21 @@ AttributeEncoder::encode(
   const SequenceParameterSet& sps,
   const AttributeDescription& desc,
   const AttributeParameterSet& attr_aps,
-  const AttributeBrickHeader& abh,
+  AttributeBrickHeader& abh,
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
   QpSet qpSet = deriveQpSet(desc, attr_aps, abh);
 
-  PCCResidualsEncoder encoder;
-  encoder.start(sps, int(pointCloud.getPointCount()));
-
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(attr_aps, pointCloud.getPointCount() - 1, 0, pointCloud);
+
+  // write abh
+  write(sps, attr_aps, abh, payload);
+
+  PCCResidualsEncoder encoder;
+  encoder.start(sps, int(pointCloud.getPointCount()));
 
   if (desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {

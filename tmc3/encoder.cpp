@@ -515,8 +515,6 @@ PCCTMC3Encoder3::compressPartition(
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
 
-    write(*_sps, attr_aps, abh, &payload);
-
     // replace the attribute encoder if not compatible
     if (!attrEncoder->isReusable(attr_aps))
       attrEncoder = makeAttributeEncoder();

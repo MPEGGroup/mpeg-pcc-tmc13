@@ -76,7 +76,7 @@ public:
     const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
-    const AttributeBrickHeader& abh,
+    AttributeBrickHeader& abh,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload) = 0;
 
