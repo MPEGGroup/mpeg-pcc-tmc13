@@ -439,6 +439,16 @@ struct Box3 {
     return dx + dy + dz;
   }
 
+  void insert(const Vec3<T>& point)
+  {
+    min.x() = std::min(min.x(), point.x());
+    min.y() = std::min(min.y(), point.y());
+    min.z() = std::min(min.z(), point.z());
+    max.x() = std::max(max.x(), point.x());
+    max.y() = std::max(max.y(), point.y());
+    max.z() = std::max(max.z(), point.z());
+  }
+
   friend std::ostream& operator<<(std::ostream& os, const Box3& box)
   {
     os << box.min[0] << " " << box.min[1] << " " << box.min[2] << " "
