@@ -389,6 +389,13 @@ template<typename T>
 struct Box3 {
   Vec3<T> min;
   Vec3<T> max;
+
+  Box3() = default;
+
+  Box3(T min, T max) : min(min), max(max) {}
+
+  Box3(const Vec3<T>& min, const Vec3<T>& max) : min(min), max(max) {}
+
   bool contains(const Vec3<T> point) const
   {
     return !(

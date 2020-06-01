@@ -459,8 +459,9 @@ public:
 
   Box3<int32_t> computeBoundingBox() const
   {
-    Box3<int32_t> bbox = {std::numeric_limits<int32_t>::max(),
-                          std::numeric_limits<int32_t>::lowest()};
+    Box3<int32_t> bbox(
+      std::numeric_limits<int32_t>::max(),
+      std::numeric_limits<int32_t>::lowest());
     const size_t pointCount = getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
       const auto& pt = (*this)[i];
@@ -483,8 +484,9 @@ public:
   template<typename ForwardIt>
   Box3<int32_t> computeBoundingBox(ForwardIt begin, ForwardIt end) const
   {
-    Box3<int32_t> bbox = {std::numeric_limits<int32_t>::max(),
-                          std::numeric_limits<int32_t>::lowest()};
+    Box3<int32_t> bbox(
+      std::numeric_limits<int32_t>::max(),
+      std::numeric_limits<int32_t>::lowest());
 
     for (auto it = begin; it != end; ++it) {
       int i = *it;

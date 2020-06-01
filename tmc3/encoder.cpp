@@ -218,7 +218,7 @@ PCCTMC3Encoder3::compress(
   //  todo(df): consider requiring partitioning function to sort the input
   //            points and provide ranges rather than a set of indicies.
   do {
-    Box3<int32_t> clampBox{{0, 0, 0}, {INT32_MAX, INT32_MAX, INT32_MAX}};
+    Box3<int32_t> clampBox(0, INT32_MAX);
 
     for (int t = 0; t < tileMaps.size(); t++) {
       const auto& tile = tileMaps[t];
@@ -671,7 +671,7 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
   // and quantisation.   NB: minus 1 to convert to max s/t/v position
-  Box3<int32_t> clampBox{{0, 0, 0}, _sps->seqBoundingBoxSize - 1};
+  Box3<int32_t> clampBox(0, _sps->seqBoundingBoxSize - 1);
 
   if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
