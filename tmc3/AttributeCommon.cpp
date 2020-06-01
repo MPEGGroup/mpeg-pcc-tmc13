@@ -88,7 +88,10 @@ AttributeLods::isReusable(
     != aps.num_pred_nearest_neighbours_minus1)
     return false;
 
-  if (_aps.search_range != aps.search_range)
+  if (_aps.inter_lod_search_range != aps.inter_lod_search_range)
+    return false;
+
+  if (_aps.intra_lod_search_range != aps.intra_lod_search_range)
     return false;
 
   if (_aps.num_detail_levels != aps.num_detail_levels)

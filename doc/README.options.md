@@ -545,8 +545,12 @@ component (e.g. Cb) according to a simple model.
 
 Applies to `transformType=2` and `attribute=color` only.
 
-### `--attributeSearchRange=INT-VALUE`
-Range for nearest neighbour search.
+### `--intraLoDSearchRange=INT-VALUE`
+Buffer range searched for nearest neighbours within the same level of detail.
+
+### `--interLoDSearchRange=INT-VALUE`
+Buffer range searched for nearest neighbours between different levels of
+detail.
 
 ### `--max_num_direct_predictors=INT-VALUE`
 Maximum number of nearest neighbour candidates used in direct

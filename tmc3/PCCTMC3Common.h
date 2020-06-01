@@ -666,8 +666,9 @@ computeNearestNeighbors(
     PCCNeighborInfo localNeighbors[kAttributePredictionMaxNeighbourCount];
     uint32_t localNeighborCount = 0;
 
-    const int32_t k0 = std::max(0, j - aps.search_range);
-    const int32_t k1 = std::min(retainedSize - 1, j + aps.search_range);
+    const int32_t k0 = std::max(0, j - aps.inter_lod_search_range);
+    const int32_t k1 =
+      std::min(retainedSize - 1, j + aps.inter_lod_search_range);
 
     if (retainedSize)
       updateNearestNeighbor(
@@ -740,7 +741,7 @@ computeNearestNeighbors(
 
       const int32_t k0 = k01 + 1 - startIndex;
       const int32_t k1 =
-        std::min(endIndex - 1, k00 + aps.search_range) - startIndex;
+        std::min(endIndex - 1, k00 + aps.intra_lod_search_range) - startIndex;
       const int32_t bucketIndex0 = k0 / bucketSize;
       const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
       for (int32_t bucketIndex = bucketIndex0; bucketIndex < bucketIndex1;

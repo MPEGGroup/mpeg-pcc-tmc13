@@ -488,7 +488,8 @@ struct AttributeParameterSet {
   int num_pred_nearest_neighbours_minus1;
   int max_num_direct_predictors;
   int adaptive_prediction_threshold;
-  int search_range;
+  int intra_lod_search_range;
+  int inter_lod_search_range;
 
   // NB: in stv order
   Vec3<int32_t> lodNeighBias;

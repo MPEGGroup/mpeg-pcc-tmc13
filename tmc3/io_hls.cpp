@@ -718,7 +718,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
 
   if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
-    bs.writeUe(aps.search_range);
+    bs.writeUe(aps.inter_lod_search_range);
+    bs.writeUe(aps.intra_lod_search_range);
 
     bs.writeUe(aps.dist2);
     bs.write(aps.aps_slice_dist2_deltas_present_flag);
@@ -796,7 +797,8 @@ parseAps(const PayloadBuffer& buf)
   aps.aps_slice_dist2_deltas_present_flag = false;
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
-    bs.readUe(&aps.search_range);
+    bs.readUe(&aps.inter_lod_search_range);
+    bs.readUe(&aps.intra_lod_search_range);
 
     bs.readUe(&aps.dist2);
     bs.read(&aps.aps_slice_dist2_deltas_present_flag);

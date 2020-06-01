@@ -771,9 +771,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "single|multi predictors. Applies to transformType=2 only.\n"
     "  -1: auto = 2**(bitdepth-2)")
 
-  ("attributeSearchRange",
-    params_attr.aps.search_range, 128,
-    "Range for nearest neighbor search")
+  ("intraLodSearchRange",
+    params_attr.aps.intra_lod_search_range, 0,
+    "Intra LoD nearest neighbor search range")
+
+  ("interLodSearchRange",
+    params_attr.aps.inter_lod_search_range, 0,
+    "Inter LoD nearest neighbor search range")
 
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
