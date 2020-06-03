@@ -413,31 +413,32 @@ private:
 
 template<class Kernel>
 void
-fwdTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
+fwdTransformBlock222(
+  int numBufs, FixedPoint buf[][8], int weights[8 + 8 + 8 + 8])
 {
-  for (int iw = 0, stride = 1; stride < 8; stride <<= 1) {
-    for (int i0 = 0; i0 < 8; i0 += 2 * stride, iw += 2) {
-      int i1 = i0 + stride;
+  static const int a[4 + 4 + 4] = {0, 2, 4, 6, 0, 4, 1, 5, 0, 1, 2, 3};
+  static const int b[4 + 4 + 4] = {1, 3, 5, 7, 2, 6, 3, 7, 4, 5, 6, 7};
+  for (int i = 0, iw = 0; i < 12; i++, iw += 2) {
+    int i0 = a[i];
+    int i1 = b[i];
 
-      // the following tests can be simplified using an occupancy mask
-      if (weights[iw] + weights[iw + 1] == 0)
-        continue;
+    if (weights[iw] + weights[iw + 1] == 0)
+      continue;
 
-      // only one occupied, propagate to next level
-      if (!weights[iw] || !weights[iw + 1]) {
-        if (!weights[iw]) {
-          for (int k = 0; k < numBufs; k++)
-            std::swap(buf[k][i0], buf[k][i1]);
-        }
-        continue;
+    // only one occupied, propagate to next level
+    if (!weights[iw] || !weights[iw + 1]) {
+      if (!weights[iw]) {
+        for (int k = 0; k < numBufs; k++)
+          std::swap(buf[k][i0], buf[k][i1]);
       }
+      continue;
+    }
 
-      // actual transform
-      Kernel kernel(weights[iw], weights[iw + 1]);
-      for (int k = 0; k < numBufs; k++) {
-        auto& bufk = buf[k];
-        kernel.fwdTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
-      }
+    // actual transform
+    Kernel kernel(weights[iw], weights[iw + 1]);
+    for (int k = 0; k < numBufs; k++) {
+      auto& bufk = buf[k];
+      kernel.fwdTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
     }
   }
 }
@@ -448,31 +449,32 @@ fwdTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
 
 template<class Kernel>
 void
-invTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
+invTransformBlock222(
+  int numBufs, FixedPoint buf[][8], int weights[8 + 8 + 8 + 8])
 {
-  for (int iw = 12, stride = 4; stride > 0; stride >>= 1) {
-    for (int i1 = 8 - stride; i1 > 0; i1 -= 2 * stride, iw -= 2) {
-      int i0 = i1 - stride;
+  static const int a[4 + 4 + 4] = {0, 2, 4, 6, 0, 4, 1, 5, 0, 1, 2, 3};
+  static const int b[4 + 4 + 4] = {1, 3, 5, 7, 2, 6, 3, 7, 4, 5, 6, 7};
+  for (int i = 11, iw = 22; i >= 0; i--, iw -= 2) {
+    int i0 = a[i];
+    int i1 = b[i];
 
-      // the following tests can be simplified using an occupancy mask
-      if (weights[iw] + weights[iw + 1] == 0)
-        continue;
+    if (weights[iw] + weights[iw + 1] == 0)
+      continue;
 
-      // only one occupied, propagate to next level
-      if (!weights[iw] || !weights[iw + 1]) {
-        if (!weights[iw]) {
-          for (int k = 0; k < numBufs; k++)
-            std::swap(buf[k][i0], buf[k][i1]);
-        }
-        continue;
+    // only one occupied, propagate to next level
+    if (!weights[iw] || !weights[iw + 1]) {
+      if (!weights[iw]) {
+        for (int k = 0; k < numBufs; k++)
+          std::swap(buf[k][i0], buf[k][i1]);
       }
+      continue;
+    }
 
-      // actual transform
-      Kernel kernel(weights[iw], weights[iw + 1]);
-      for (int k = 0; k < numBufs; k++) {
-        auto& bufk = buf[k];
-        kernel.invTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
-      }
+    // actual transform
+    Kernel kernel(weights[iw], weights[iw + 1]);
+    for (int k = 0; k < numBufs; k++) {
+      auto& bufk = buf[k];
+      kernel.invTransform(bufk[i0], bufk[i1], &bufk[i0], &bufk[i1]);
     }
   }
 }
@@ -481,13 +483,33 @@ invTransformBlock222(int numBufs, FixedPoint buf[][8], int weights[8 + 4 + 2])
 // expand a set of eight weights into three levels
 
 void
-mkWeightTree(int weights[8 + 4 + 2])
+mkWeightTree(int weights[8 + 8 + 8 + 8])
 {
   int* in = &weights[0];
   int* out = &weights[8];
-  for (int i = 0; i < 6; i++) {
-    *out++ = in[0] + in[1];
+
+  for (int i = 0; i < 4; i++) {
+    out[0] = out[4] = in[0] + in[1];
+    if (!in[0] || !in[1])
+      out[4] = 0;  // single node, no high frequencies
     in += 2;
+    out++;
+  }
+  out += 4;
+  for (int i = 0; i < 4; i++) {
+    out[0] = out[4] = in[0] + in[1];
+    if (!in[0] || !in[1])
+      out[4] = 0;  // single node, no high frequencies
+    in += 2;
+    out++;
+  }
+  out += 4;
+  for (int i = 0; i < 4; i++) {
+    out[0] = out[4] = in[0] + in[1];
+    if (!in[0] || !in[1])
+      out[4] = 0;  // single node, no high frequencies
+    in += 2;
+    out++;
   }
 }
 
@@ -496,15 +518,15 @@ mkWeightTree(int weights[8 + 4 + 2])
 
 template<class T>
 void
-scanBlock(int weights[8 + 4 + 2], T mapFn)
+scanBlock(int weights[8 + 8 + 8 + 8], T mapFn)
 {
-  static const int8_t kRahtScanOrder[] = {0, 4, 6, 2, 7, 5, 3, 1};
+  static const int8_t kRahtScanOrder[] = {0, 4, 2, 1, 6, 5, 3, 7};
 
   // there is always the DC coefficient (empty blocks are not transformed)
   mapFn(0);
 
-  for (int i = 1, iw = 12; iw >= 0; i++, iw -= 2) {
-    if (!weights[iw] || !weights[iw + 1])
+  for (int i = 1; i < 8; i++) {
+    if (!weights[24 + kRahtScanOrder[i]])
       continue;
 
     mapFn(kRahtScanOrder[i]);
@@ -668,8 +690,8 @@ uraht_process(
       // todo(df): hoist and dynamically allocate
       FixedPoint transformBuf[6][8] = {};
       FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
-      int weights[8 + 4 + 2] = {};
-      Qps nodeQp[8 + 4 + 2] = {};
+      int weights[8 + 8 + 8 + 8] = {};
+      Qps nodeQp[8] = {};
       uint8_t occupancy = 0;
 
       // generate weights, occupancy mask, and fwd transform buffers
