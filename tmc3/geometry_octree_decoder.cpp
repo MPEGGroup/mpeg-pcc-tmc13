@@ -221,7 +221,7 @@ public:
 
   // for planar mode xyz
   AdaptiveBitModel _ctxPlanarMode[3][2][2];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][2][8][2];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6][2];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
@@ -312,7 +312,7 @@ GeometryOctreeDecoder::decodePlanarMode(
   // decode planar mode
   int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
   bool isPlanar =
-    _arithmeticDecoder->decode(_ctxPlanarMode[planeId][neighb][discreteDist]);
+    _arithmeticDecoder->decode(_ctxPlanarMode[planeId][!neighb][discreteDist]);
   planar.planarMode |= isPlanar ? mask0 : 0;
 
   if (!isPlanar) {
@@ -416,7 +416,8 @@ GeometryOctreeDecoder::determinePlanarMode(
       row[idxP] = row[idxP + 1];
     }
   }
-  int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+  const int kAdjNeighIdxFromPlaneMask[3] = {0, 2, 4};
+  int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlaneMask[planeId]) & 3;
   int planeBit = decodePlanarMode(
     planar, closestPlanarFlag, pos, closestDist, adjNeigh, planarProb[planeId],
     planeId, contextAngle);
@@ -1355,6 +1356,25 @@ decodeGeometryOctree(
         }
       }
 
+      int occupancyAdjacencyGt0 = 0;
+      int occupancyAdjacencyGt1 = 0;
+      int occupancyAdjacencyUnocc = 0;
+
+      if (gps.neighbour_avail_boundary_log2) {
+        updateGeometryOccupancyAtlas(
+          node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          &occupancyAtlasOrigin);
+
+        GeometryNeighPattern gnp = makeGeometryNeighPattern(
+          gps.adjacent_child_contextualization_enabled_flag, node0.pos,
+          atlasShift, occupancyAtlas);
+
+        node0.neighPattern = gnp.neighPattern;
+        occupancyAdjacencyGt0 = gnp.adjacencyGt0;
+        occupancyAdjacencyGt1 = gnp.adjacencyGt1;
+        occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
+      }
+
       int contextAngle = -1;
       int contextAnglePhiX = -1;
       int contextAnglePhiY = -1;
@@ -1396,8 +1416,8 @@ decodeGeometryOctree(
         int z = !!(node0.childIdx & 1);
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           decoder.determinePlanarMode(
-            planarEligible, node0, planar, node0.gnp, x, y, z, planarProb,
-            contextAngle, contextAnglePhiX, contextAnglePhiY);
+            planarEligible, node0, planar, node0.neighPattern, x, y, z,
+            planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
           planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
@@ -1432,25 +1452,6 @@ decodeGeometryOctree(
           assert(node0.numSiblingsPlus1 == 1);
           continue;
         }
-      }
-
-      int occupancyAdjacencyGt0 = 0;
-      int occupancyAdjacencyGt1 = 0;
-      int occupancyAdjacencyUnocc = 0;
-
-      if (gps.neighbour_avail_boundary_log2) {
-        updateGeometryOccupancyAtlas(
-          node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
-          &occupancyAtlasOrigin);
-
-        GeometryNeighPattern gnp = makeGeometryNeighPattern(
-          gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-          atlasShift, occupancyAtlas);
-
-        node0.neighPattern = gnp.neighPattern;
-        occupancyAdjacencyGt0 = gnp.adjacencyGt0;
-        occupancyAdjacencyGt1 = gnp.adjacencyGt1;
-        occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
       }
 
       int occupancyIsPredicted = 0;
@@ -1546,7 +1547,6 @@ decodeGeometryOctree(
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
         child.childIdx = i;
-        child.gnp = node0.neighPattern;
 
         // IDCM
         bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
