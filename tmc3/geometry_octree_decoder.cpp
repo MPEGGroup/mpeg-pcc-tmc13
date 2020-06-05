@@ -1332,7 +1332,9 @@ decodeGeometryOctree(
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
-    occupancyAtlas.clear();
+    occupancyAtlas.clear(
+      gps.adjacent_child_contextualization_enabled_flag
+      && gps.inferred_direct_coding_mode > 1);
   }
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
@@ -1546,7 +1548,10 @@ decodeGeometryOctree(
             point = invQuantPosition(node0.qp, posQuantBitMasks, point);
           }
 
-          assert(node0.numSiblingsPlus1 == 1);
+          // NB: no further siblings to decode by definition of IDCM
+          if (gps.inferred_direct_coding_mode <= 1)
+            assert(node0.numSiblingsPlus1 == 1);
+
           continue;
         }
       }
@@ -1644,10 +1649,8 @@ decodeGeometryOctree(
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
 
-        // IDCM
-        bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
-        child.idcmEligible =
-          isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child);
+        child.idcmEligible = isDirectModeEligible(
+          gps.inferred_direct_coding_mode, nodeMaxDimLog2, node0, child);
 
         numNodesNextLvl++;
 

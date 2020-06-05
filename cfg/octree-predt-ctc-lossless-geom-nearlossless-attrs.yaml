@@ -26,6 +26,15 @@ categories:
        - lasersNumPhiPerTurn:  '${lasersNumPhiPerTurn}'
        - planarBufferDisabled: 1
 
+     # idcm intensity depends upon the content type
+     - inferredDirectCodingMode: 1
+     -
+       - !conditional '"${group}" eq "cat3-fused"'
+       - inferredDirectCodingMode: 2
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - inferredDirectCodingMode: 3
+
      # default qtbt and planar with cat3-frame exception
      - maxNumQtBtBeforeOt: 4
      - minQtbtSizeLog2: 0

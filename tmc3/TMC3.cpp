@@ -613,8 +613,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     " 0: unconstrained")
 
   ("inferredDirectCodingMode",
-    params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
-    "Permits early termination of the geometry octree for isolated points")
+    params.encoder.gps.inferred_direct_coding_mode, 1,
+    "Early termination of the geometry octree for isolated points:"
+    " 0: disabled\n"
+    " 1: fully constrained\n"
+    " 2: partially constrained\n"
+    " 3: unconstrained (fastest)")
 
   ("jointTwoPointIdcm",
     params.encoder.gps.joint_2pt_idcm_enabled_flag, true,
@@ -962,11 +966,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (!params.encoder.gps.geom_unique_points_flag)
       err.warn() << "TriSoup geometry does not preserve duplicated points\n";
 
-    if (params.encoder.gps.inferred_direct_coding_mode_enabled_flag)
+    if (params.encoder.gps.inferred_direct_coding_mode)
       err.warn() << "TriSoup geometry is incompatable with IDCM\n";
 
     params.encoder.gps.geom_unique_points_flag = true;
-    params.encoder.gps.inferred_direct_coding_mode_enabled_flag = false;
+    params.encoder.gps.inferred_direct_coding_mode = 0;
   }
 
   // tweak qtbt generation when trisoup is /isn't enabled

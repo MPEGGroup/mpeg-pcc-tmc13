@@ -346,7 +346,7 @@ struct GeometryParameterSet {
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.
-  bool inferred_direct_coding_mode_enabled_flag;
+  int inferred_direct_coding_mode;
 
   // Permits coding the common prefix of two idcm points
   bool joint_2pt_idcm_enabled_flag;

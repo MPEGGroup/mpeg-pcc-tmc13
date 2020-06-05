@@ -71,9 +71,11 @@ public:
   int cubeSize() const { return _cubeSize; }
   int cubeSizeLog2() const { return _cubeSizeLog2; }
 
-  void clear()
+  void clear(bool clearOccupancy)
   {
     memset(_buffer.get(), 0, _bufferSizeInBytes);
+    if (clearOccupancy)
+      memset(_childOccupancy.get(), 0, _bufferSizeInBytes << 3);
     _updates.resize(0);
   }
 

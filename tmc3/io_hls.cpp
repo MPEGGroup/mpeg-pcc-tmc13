@@ -537,8 +537,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.qtbt_enabled_flag);
     bs.write(gps.neighbour_context_restriction_flag);
-    bs.write(gps.inferred_direct_coding_mode_enabled_flag);
-    if (gps.inferred_direct_coding_mode_enabled_flag)
+    bs.writeUe(gps.inferred_direct_coding_mode);
+    if (gps.inferred_direct_coding_mode)
       bs.write(gps.joint_2pt_idcm_enabled_flag);
     bs.write(gps.bitwise_occupancy_coding_flag);
     bs.write(gps.adjacent_child_contextualization_enabled_flag);
@@ -619,8 +619,8 @@ parseGps(const PayloadBuffer& buf)
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.qtbt_enabled_flag);
     bs.read(&gps.neighbour_context_restriction_flag);
-    bs.read(&gps.inferred_direct_coding_mode_enabled_flag);
-    if (gps.inferred_direct_coding_mode_enabled_flag)
+    bs.readUe(&gps.inferred_direct_coding_mode);
+    if (gps.inferred_direct_coding_mode)
       bs.read(&gps.joint_2pt_idcm_enabled_flag);
     bs.read(&gps.bitwise_occupancy_coding_flag);
     bs.read(&gps.adjacent_child_contextualization_enabled_flag);
@@ -632,6 +632,8 @@ parseGps(const PayloadBuffer& buf)
       bs.readUe(&gps.geom_planar_threshold2);
       bs.readUe(&gps.geom_planar_idcm_threshold);
     }
+    if (gps.inferred_direct_coding_mode > 1)
+      gps.geom_planar_idcm_threshold = 127;
 
     gps.planar_buffer_disabled_flag = false;
     bs.read(&gps.geom_angular_mode_enabled_flag);

@@ -1470,7 +1470,9 @@ encodeGeometryOctree(
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
-    occupancyAtlas.clear();
+    occupancyAtlas.clear(
+      gps.adjacent_child_contextualization_enabled_flag
+      && gps.inferred_direct_coding_mode > 1);
   }
 
   // the minimum node size is ordinarily 2**0, but may be larger due to
@@ -1709,7 +1711,8 @@ encodeGeometryOctree(
             pointIdxToDmIdx[idx] = nextDmIdx++;
 
           // NB: by definition, this is the only child node present
-          assert(node0.numSiblingsPlus1 == 1);
+          if (gps.inferred_direct_coding_mode <= 1)
+            assert(node0.numSiblingsPlus1 == 1);
 
           continue;
         }
@@ -1842,10 +1845,8 @@ encodeGeometryOctree(
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
 
-        // IDCM
-        bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;
-        child.idcmEligible =
-          isDirectModeEligible(idcmEnabled, nodeMaxDimLog2, node0, child);
+        child.idcmEligible = isDirectModeEligible(
+          gps.inferred_direct_coding_mode, nodeMaxDimLog2, node0, child);
 
         numNodesNextLvl++;
 

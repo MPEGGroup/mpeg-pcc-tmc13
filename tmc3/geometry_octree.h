@@ -153,13 +153,29 @@ isLeafNode(const Vec3<int>& sizeLog2)
 
 inline bool
 isDirectModeEligible(
-  bool featureEnabled,
+  int intensity,
   int nodeSizeLog2,
   const PCCOctree3Node& node,
   const PCCOctree3Node& child)
 {
-  return featureEnabled && (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
-    && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
+  if (!intensity)
+    return false;
+
+  if (intensity == 1)
+    return (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
+      && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
+
+  if (intensity == 2)
+    return (nodeSizeLog2 >= 2) && (node.neighPattern == 0);
+
+  // This is basically unconditionally enabled.
+  // If a node is that is IDCM-eligible is not coded with IDCM and has only
+  // one child, then it is likely that the child would also not be able to
+  // be coded with IDCM (eg, it still contains > 2 unique points).
+  if (intensity == 3)
+    return (nodeSizeLog2 >= 2) && (child.numSiblingsPlus1 > 1);
+
+  return false;
 }
 
 //---------------------------------------------------------------------------

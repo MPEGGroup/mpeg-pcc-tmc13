@@ -319,9 +319,16 @@ The software currently supports a maximum value of 8 or 9 when
 intra occupancy prediction prediction is enabled or disabled
 respectively.
 
-### `--inferredDirectCodingMode=0|1`
-Controls the use of early termination of the geometry octree for
-isolated points.
+### `--inferredDirectCodingMode=0|1|2|3`
+Controls the degree to which early termination of the geometry octree is
+used to code isolated points.
+
+ | Value | Extent of qualifying node criteria   |
+ |:-----:| -------------------------------------|
+ | 0     | Disabled                             |
+ | 1     | Fully isolated parent and child      |
+ | 2     | Partially isolated parent            |
+ | 3     | Unconstrained                        |
 
 ### `--jointTwoPointIdcm=0|1`
 Controls the method used to code the point positions of directly coded
