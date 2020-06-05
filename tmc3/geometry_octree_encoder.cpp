@@ -175,6 +175,12 @@ public:
     bool planarPossibleY,
     bool planarPossibleZ);
 
+  void encodeOrdered2ptPrefix(
+    const PCCPointSet3& cloud,
+    int ptIdx,
+    Vec3<bool> directIdcm,
+    Vec3<int>& nodeSizeLog2);
+
   void encodePointPosition(
     const Vec3<int>& nodeSizeLog2AfterPlanar, const Vec3<int32_t>& pos);
 
@@ -196,6 +202,7 @@ public:
   void encodeDirectPosition(
     DirectMode mode,
     bool geom_unique_points_flag,
+    bool joint_2pt_idcm_enabled_flag,
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
     PCCOctree3Node& node,
@@ -222,6 +229,12 @@ public:
   AdaptiveBitModel _ctxPointCountPerBlock;
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsGt1;
+  AdaptiveBitModel _ctxSameZ;
+
+  // IDCM unordered
+  AdaptiveBitModel _ctxSameBitHighx[5];
+  AdaptiveBitModel _ctxSameBitHighy[5];
+  AdaptiveBitModel _ctxSameBitHighz[5];
 
   // residual laser index
   AdaptiveBitModel _ctxThetaResIsZero;
@@ -229,6 +242,12 @@ public:
   AdaptiveBitModel _ctxThetaResIsOne;
   AdaptiveBitModel _ctxThetaResIsTwo;
   AdaptiveBitModel _ctxThetaResExp;
+
+  AdaptiveBitModel _ctxPhiResIsZero;
+  AdaptiveBitModel _ctxPhiSign;
+  AdaptiveBitModel _ctxPhiResIsOne;
+  AdaptiveBitModel _ctxPhiResIsTwo;
+  AdaptiveBitModel _ctxPhiResExp;
 
   AdaptiveBitModel _ctxQpOffsetIsZero;
   AdaptiveBitModel _ctxQpOffsetSign;
@@ -854,6 +873,70 @@ GeometryOctreeEncoder::encodeOccupancy(
 }
 
 //-------------------------------------------------------------------------
+// Encode part of the position of two unordred points  point in a given volume.
+void
+GeometryOctreeEncoder::encodeOrdered2ptPrefix(
+  const PCCPointSet3& cloud,
+  int ptIdx,
+  Vec3<bool> directIdcm,
+  Vec3<int>& nodeSizeLog2)
+{
+  if (nodeSizeLog2[0] >= 1 && directIdcm[0]) {
+    bool sameBit = true;
+    int ctxIdx = 0;
+    while (nodeSizeLog2[0] && sameBit) {
+      nodeSizeLog2[0]--;
+      int mask = 1 << nodeSizeLog2[0];
+      auto bit0 = !!(cloud[ptIdx][0] & mask);
+      auto bit1 = !!(cloud[ptIdx + 1][0] & mask);
+      sameBit = bit0 == bit1;
+
+      _arithmeticEncoder->encode(sameBit, _ctxSameBitHighx[ctxIdx]);
+      ctxIdx = std::min(4, ctxIdx + 1);
+      if (sameBit)
+        _arithmeticEncoder->encode(bit0);
+    }
+  }
+
+  if (nodeSizeLog2[1] >= 1 && directIdcm[1]) {
+    bool sameX = !directIdcm[0] || cloud[ptIdx][0] == cloud[ptIdx + 1][0];
+    bool sameBit = true;
+    int ctxIdx = 0;
+    while (nodeSizeLog2[1] && sameBit) {
+      nodeSizeLog2[1]--;
+      int mask = 1 << nodeSizeLog2[1];
+      auto bit0 = !!(cloud[ptIdx][1] & mask);
+      auto bit1 = !!(cloud[ptIdx + 1][1] & mask);
+      sameBit = bit0 == bit1;
+
+      _arithmeticEncoder->encode(sameBit, _ctxSameBitHighy[ctxIdx]);
+      ctxIdx = std::min(4, ctxIdx + 1);
+      if (!(sameX && !sameBit))
+        _arithmeticEncoder->encode(bit0);
+    }
+  }
+
+  if (nodeSizeLog2[2] >= 1 && directIdcm[2]) {
+    bool sameBit = true;
+    bool sameXy = (!directIdcm[0] || cloud[ptIdx][0] == cloud[ptIdx + 1][0])
+      && (!directIdcm[1] || cloud[ptIdx][1] == cloud[ptIdx + 1][1]);
+    int ctxIdx = 0;
+    while (nodeSizeLog2[2] && sameBit) {
+      nodeSizeLog2[2]--;
+      int mask = 1 << nodeSizeLog2[2];
+      auto bit0 = !!(cloud[ptIdx][2] & mask);
+      auto bit1 = !!(cloud[ptIdx + 1][2] & mask);
+      sameBit = bit0 == bit1;
+
+      _arithmeticEncoder->encode(sameBit, _ctxSameBitHighz[ctxIdx]);
+      ctxIdx = std::min(4, ctxIdx + 1);
+      if (!(sameXy && !sameBit))
+        _arithmeticEncoder->encode(bit0);
+    }
+  }
+}
+
+//-------------------------------------------------------------------------
 // Encode a position of a point in a given volume.
 void
 GeometryOctreeEncoder::encodePointPosition(
@@ -875,7 +958,7 @@ GeometryOctreeEncoder::encodePointPosition(
 void
 GeometryOctreeEncoder::encodePointPositionAngular(
   const Vec3<int>& nodeSizeLog2,
-  const Vec3<int>& nodeSizeLog2AfterPlanar,
+  const Vec3<int>& nodeSizeLog2AfterUnordered,
   const Vec3<int32_t>& pos,
   const PCCOctree3Node& child,
   const OctreeNodePlanar& planar,
@@ -892,8 +975,9 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   // code x or y directly and compute phi of node
   bool codeXorY = std::abs(posXyz[0]) <= std::abs(posXyz[1]);
   if (codeXorY) {  // direct code y
-    if (nodeSizeLog2AfterPlanar[1])
-      for (int mask = 1 << (nodeSizeLog2AfterPlanar[1] - 1); mask; mask >>= 1)
+    if (nodeSizeLog2AfterUnordered[1])
+      for (int mask = 1 << (nodeSizeLog2AfterUnordered[1] - 1); mask;
+           mask >>= 1)
         _arithmeticEncoder->encode(!!(pos[1] & mask));
 
     posXyz[1] = pos[1] - headPos[1];
@@ -903,8 +987,9 @@ GeometryOctreeEncoder::encodePointPositionAngular(
         posXyz[0] += mask;
     }
   } else {  //direct code x
-    if (nodeSizeLog2AfterPlanar[0])
-      for (int mask = 1 << (nodeSizeLog2AfterPlanar[0] - 1); mask; mask >>= 1)
+    if (nodeSizeLog2AfterUnordered[0])
+      for (int mask = 1 << (nodeSizeLog2AfterUnordered[0] - 1); mask;
+           mask >>= 1)
         _arithmeticEncoder->encode(!!(pos[0] & mask));
 
     posXyz[0] = pos[0] - headPos[0];
@@ -917,6 +1002,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 
   // Laser
   int laserNode = int(child.laserIndex);
+
   point_t posPointLidar =
     point_t(pos[0] - headPos[0], pos[1] - headPos[1], pos[2] - headPos[2]);
   int laserIndex = findLaser(posPointLidar, thetaLaser, numLasers);
@@ -938,11 +1024,12 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   int idx = codeXorY ? 0 : 1;
 
   // azimuthal code x or y
-  int mask2 = codeXorY
-    ? (nodeSizeLog2AfterPlanar[0] > 0 ? 1 << (nodeSizeLog2AfterPlanar[0] - 1)
-                                      : 0)
-    : (nodeSizeLog2AfterPlanar[1] > 0 ? 1 << (nodeSizeLog2AfterPlanar[1] - 1)
-                                      : 0);
+  int mask2 = codeXorY ? (nodeSizeLog2AfterUnordered[0] > 0
+                            ? 1 << (nodeSizeLog2AfterUnordered[0] - 1)
+                            : 0)
+                       : (nodeSizeLog2AfterUnordered[1] > 0
+                            ? 1 << (nodeSizeLog2AfterUnordered[1] - 1)
+                            : 0);
   for (; mask2; mask2 >>= 1) {
     // angles left and right
     int phiR = codeXorY ? iatan2(posXyz[1], posXyz[0] + mask2)
@@ -972,14 +1059,23 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     if (bit) {
       *posXY += mask2;
       phiNode = phiR;
+      predPhi = _phiBuffer[laserIndex];
+      if (predPhi == 0x80000000)
+        predPhi = phiNode;
+
+      // elementary shift predictor
+      int nShift =
+        ((predPhi - phiNode) * _phiZi.invDelta(laserIndex) + 536870912) >> 30;
+      predPhi -= _phiZi.delta(laserIndex) * nShift;
     }
   }
 
   _phiBuffer[laserIndex] = phiNode;
 
   // -- THETA --
-  int maskz =
-    nodeSizeLog2AfterPlanar[2] > 0 ? 1 << (nodeSizeLog2AfterPlanar[2] - 1) : 0;
+  int maskz = nodeSizeLog2AfterUnordered[2] > 0
+    ? 1 << (nodeSizeLog2AfterUnordered[2] - 1)
+    : 0;
   if (!maskz)
     return;
 
@@ -1001,7 +1097,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIndex] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int zShift = (rInv << nodeSizeLog2AfterPlanar[2]) >> 18;
+  int zShift = (rInv << nodeSizeLog2AfterUnordered[2]) >> 18;
   for (; maskz; maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
     int64_t zLidar = ((posXyz[2] + maskz) << 1) - 1;
@@ -1195,6 +1291,7 @@ void
 GeometryOctreeEncoder::encodeDirectPosition(
   DirectMode mode,
   bool geom_unique_points_flag,
+  bool joint_2pt_idcm_enabled_flag,
   const Vec3<int>& nodeSizeLog2,
   int shiftBits,
   PCCOctree3Node& node,
@@ -1230,30 +1327,61 @@ GeometryOctreeEncoder::encodeDirectPosition(
   }
 
   // update node size after planar
-  Vec3<int> nodeSizeLog2AfterPlanar = nodeSizeLog2;
+  Vec3<int> nodeSizeLog2Rem = nodeSizeLog2;
   for (int k = 0; k < 3; k++)
-    if (nodeSizeLog2AfterPlanar[k] > 0 && (planar.planarMode & (1 << k)))
-      nodeSizeLog2AfterPlanar[k]--;
+    if (nodeSizeLog2Rem[k] > 0 && (planar.planarMode & (1 << k)))
+      nodeSizeLog2Rem[k]--;
+
+  // Indicates which components are directly coded, or coded using angular
+  // contextualisation.
+  Vec3<bool> directIdcm = !angularIdcm;
+  point_t posNodeLidar;
+
+  if (angularIdcm) {
+    posNodeLidar =
+      point_t(
+        node.pos[0] << nodeSizeLog2[0], node.pos[1] << nodeSizeLog2[1],
+        node.pos[2] << nodeSizeLog2[2])
+      - headPos;
+    bool codeXorY = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
+    directIdcm.x() = !codeXorY;
+    directIdcm.y() = codeXorY;
+  }
+
+  // Jointly code two points
+  if (numPoints == 2 && joint_2pt_idcm_enabled_flag) {
+    auto& cloud = pointCloud;
+    auto ptIdx = node.start;
+    // Apply an implicit ordering to the two points, considering only the
+    // directly coded axes
+    if (times(cloud[ptIdx + 1], directIdcm) < times(cloud[ptIdx], directIdcm))
+      cloud.swapPoints(ptIdx, ptIdx + 1);
+
+    encodeOrdered2ptPrefix(pointCloud, ptIdx, directIdcm, nodeSizeLog2Rem);
+  }
+
+  if (angularIdcm) {
+    for (int idx = 0; idx < 3; ++idx) {
+      int mask = (1 << nodeSizeLog2[idx]);
+      for (int i = 0; i < nodeSizeLog2[idx] - nodeSizeLog2Rem[idx]; ++i) {
+        mask >>= 1;
+        if (pointCloud[node.start][idx] & mask)
+          posNodeLidar[idx] += mask;
+      }
+      mask >>= 1;
+      posNodeLidar[idx] += mask;
+    }
+    node.laserIndex = findLaser(posNodeLidar, thetaLaser, numLasers);
+  }
 
   // code points after planar
   for (auto idx = node.start; idx < node.start + numPoints; idx++) {
     if (angularIdcm) {
-      point_t posNodeLidar =
-        point_t(
-          node.pos[0] << nodeSizeLog2[0], node.pos[1] << nodeSizeLog2[1],
-          node.pos[2] << nodeSizeLog2[2])
-        - headPos;
-      posNodeLidar += point_t(
-        (1 << nodeSizeLog2[0]) >> 1, (1 << nodeSizeLog2[1]) >> 1,
-        (1 << nodeSizeLog2[2]) >> 1);
-      node.laserIndex = findLaser(posNodeLidar, thetaLaser, numLasers);
-
       encodePointPositionAngular(
-        nodeSizeLog2, nodeSizeLog2AfterPlanar, pointCloud[idx] >> shiftBits,
-        node, planar, headPos, zLaser, thetaLaser, numLasers);
+        nodeSizeLog2, nodeSizeLog2Rem, pointCloud[idx] >> shiftBits, node,
+        planar, headPos, zLaser, thetaLaser, numLasers);
     } else
-      encodePointPosition(
-        nodeSizeLog2AfterPlanar, pointCloud[idx] >> shiftBits);
+      encodePointPosition(nodeSizeLog2Rem, pointCloud[idx] >> shiftBits);
   }
 }
 
@@ -1568,9 +1696,10 @@ encodeGeometryOctree(
           }
 
           encoder.encodeDirectPosition(
-            mode, gps.geom_unique_points_flag, idcmSize, idcmShiftBits, node0,
-            planar, pointCloud, gps.geom_angular_mode_enabled_flag, headPos,
-            zLaser, thetaLaser, numLasers);
+            mode, gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
+            idcmSize, idcmShiftBits, node0, planar, pointCloud,
+            gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
+            numLasers);
 
           // inverse quantise any quantised positions
           geometryScale(pointCloud, node0, quantNodeSizeLog2);

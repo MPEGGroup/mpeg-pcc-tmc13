@@ -348,6 +348,9 @@ struct GeometryParameterSet {
   // by directly coding the position of isolated points.
   bool inferred_direct_coding_mode_enabled_flag;
 
+  // Permits coding the common prefix of two idcm points
+  bool joint_2pt_idcm_enabled_flag;
+
   // Selects between bitwise and bytewise occupancy coding
   bool bitwise_occupancy_coding_flag;
 

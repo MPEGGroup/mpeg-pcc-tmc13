@@ -616,6 +616,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.inferred_direct_coding_mode_enabled_flag, true,
     "Permits early termination of the geometry octree for isolated points")
 
+  ("jointTwoPointIdcm",
+    params.encoder.gps.joint_2pt_idcm_enabled_flag, true,
+    "Jointly code common prefix of two IDCM points")
+
   ("adjacentChildContextualization",
     params.encoder.gps.adjacent_child_contextualization_enabled_flag, true,
     "Occupancy contextualization using neighbouring adjacent children")

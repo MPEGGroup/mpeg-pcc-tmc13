@@ -323,6 +323,11 @@ respectively.
 Controls the use of early termination of the geometry octree for
 isolated points.
 
+### `--jointTwoPointIdcm=0|1`
+Controls the method used to code the point positions of directly coded
+nodes containing two distinct points.  When enabled, an implicit point order
+is used to improve coding efficiency.
+
 ### `--adjacentChildContextualization=0|1`
 Controls the contextualization of occupancy bits according to the
 state of adjacent children of neighbouring nodes.
