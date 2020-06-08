@@ -975,6 +975,7 @@ parseGbh(
   gbh.geomBoxOrigin = fromXyz(sps.geometry_axis_order, geom_box_origin);
   gbh.geomBoxOrigin *= 1 << gbh.geomBoxLog2Scale(gps);
 
+  gbh.geom_stream_cnt_minus1 = 0;
   if (!gps.predgeom_enabled_flag) {
     int tree_depth_minus1;
     bs.readUe(&tree_depth_minus1);
