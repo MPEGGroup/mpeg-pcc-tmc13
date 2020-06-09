@@ -72,11 +72,13 @@ PCCTMC3Encoder3::compress(
   _frameCounter++;
 
   if (_frameCounter == 0) {
-    deriveParameterSets(params);
-    fixupParameterSets(params);
-
     // Save encoder parameters
     _geomPreScale = params->geomPreScale;
+    if (params->gps.predgeom_enabled_flag)
+      params->geomPreScale = 1.;
+
+    deriveParameterSets(params);
+    fixupParameterSets(params);
 
     // Determine input bounding box (for SPS metadata) if not manually set
     Box3<int> bbox;
@@ -687,7 +689,13 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
   // and quantisation.   NB: minus 1 to convert to max s/t/v position
   Box3<int32_t> clampBox(0, _sps->seqBoundingBoxSize - 1);
 
-  if (_gps->geom_unique_points_flag) {
+  // When using predictive geometry, sub-sample the point cloud and let
+  // the predictive geometry coder quantise internally.
+  if (_gps->predgeom_enabled_flag && _gps->geom_unique_points_flag) {
+    samplePositionsUniq(
+      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
+      &pointCloud, quantizedToOrigin);
+  } else if (_gps->geom_unique_points_flag) {
     quantizePositionsUniq(
       _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
       &pointCloud, quantizedToOrigin);

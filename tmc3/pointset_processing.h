@@ -63,6 +63,23 @@ struct RecolourParams {
 };
 
 //============================================================================
+// Subsample a point cloud, retaining unique points only.
+// Points in the @src point cloud are translated by -@offset, quantised by a
+// multiplicitive @scaleFactor with rounding, then clamped to @clamp.
+//
+// The destination and source point clouds may be the same object.
+//
+// NB: attributes are not processed.
+
+void samplePositionsUniq(
+  const float scaleFactor,
+  const Vec3<int> offset,
+  const Box3<int> clamp,
+  const PCCPointSet3& src,
+  PCCPointSet3* dst,
+  std::multimap<point_t, int32_t>& doubleQuantizedToOrigin);
+
+//============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
 // Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.

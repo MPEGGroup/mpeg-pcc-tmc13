@@ -1118,8 +1118,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
     for (auto val : params.encoder.lasersZ) {
       int one = 1 << 3;
+      auto scale = params.encoder.geomPreScale;
+      if (params.encoder.gps.predgeom_enabled_flag)
+        scale = 1.;
+
       params.encoder.gps.geom_angular_z_laser.push_back(
-        round(val * params.encoder.geomPreScale * one));
+        round(val * scale * one));
     }
 
     if (

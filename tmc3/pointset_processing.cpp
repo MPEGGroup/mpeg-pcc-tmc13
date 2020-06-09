@@ -48,6 +48,59 @@
 namespace pcc {
 
 //============================================================================
+// Subsample a point cloud, retaining unique points only.
+// Points in the @src point cloud are translated by -@offset, subsampled by a
+// multiplicitive @scaleFactor with rounding, andclamped to @clamp.
+//
+// The destination and source point clouds may be the same object.
+//
+// NB: attributes are not processed.
+
+void
+samplePositionsUniq(
+  const float scaleFactor,
+  const Vec3<int> offset,
+  const Box3<int> clamp,
+  const PCCPointSet3& src,
+  PCCPointSet3* dst,
+  std::multimap<Vec3<int32_t>, int32_t>& mapQuantisedPosToIndexes)
+{
+  int numSrcPoints = src.getPointCount();
+
+  // prepare output storage: this will be overallocated and resized afterwards.
+  if (&src != dst) {
+    dst->clear();
+  }
+  dst->resize(numSrcPoints);
+
+  // Determine the set of unique quantised points
+  std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
+  int dstIdx = 0;
+  for (int i = 0; i < numSrcPoints; ++i) {
+    const auto& point = src[i];
+
+    Vec3<int32_t> quantizedPoint;
+    for (int k = 0; k < 3; k++) {
+      quantizedPoint[k] = std::round(point[k] * scaleFactor);
+      //quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
+    }
+
+    // NB: only add point to output if it is the first unique point
+    auto it = intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
+    if (it == intQuantizedToOrigin.begin() || (--it)->first != quantizedPoint)
+      (*dst)[dstIdx++] = point - offset;
+  }
+
+  // Trim output and add attribute storage to match src
+  dst->resize(dstIdx);
+  if (&src != dst) {
+    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
+  }
+
+  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
+}
+
+//============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
 // Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.
