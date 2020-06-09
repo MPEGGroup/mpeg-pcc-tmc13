@@ -71,7 +71,7 @@ private:
   int decodeNumDuplicatePoints();
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
-  Vec3<int32_t> decodeResidual(GPredicter::Mode mode);
+  Vec3<int32_t> decodeResidual();
   int32_t decodeQpOffset();
 
 private:
@@ -154,7 +154,7 @@ PredGeomDecoder::decodeQpOffset()
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual(GPredicter::Mode mode)
+PredGeomDecoder::decodeResidual()
 {
   Vec3<int32_t> residual;
   for (int k = 0, ctxIdx = 0; k < 3; ++k) {
@@ -163,7 +163,7 @@ PredGeomDecoder::decodeResidual(GPredicter::Mode mode)
       continue;
     }
 
-    auto sign = mode > 0 ? _aed->decode(_ctxSign[k]) : 1;
+    auto sign = _aed->decode(_ctxSign[k]);
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k];
     int32_t numBits;
@@ -222,7 +222,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outputPoints)
       numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
     auto mode = decodePredMode();
-    auto residual = decodeResidual(mode);
+    auto residual = decodeResidual();
     for (int k = 0; k < 3; k++)
       residual[k] = int32_t(quantizer.scale(residual[k]));
 

@@ -101,7 +101,7 @@ public:
   void encodeNumDuplicatePoints(int numDupPoints);
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
-  void encodeResidual(const Vec3<int32_t>& residual, GPredicter::Mode mode);
+  void encodeResidual(const Vec3<int32_t>& residual);
   void encodeQpOffset(int dqp);
 
   float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
@@ -169,10 +169,8 @@ PredGeomEncoder::encodePredMode(GPredicter::Mode mode)
 //----------------------------------------------------------------------------
 
 void
-PredGeomEncoder::encodeResidual(
-  const Vec3<int32_t>& residual, GPredicter::Mode mode)
+PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
 {
-  int iMode = int(mode);
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
     const auto res = residual[k];
     const bool isZero = res == 0;
@@ -180,9 +178,7 @@ PredGeomEncoder::encodeResidual(
     if (isZero)
       continue;
 
-    if (iMode > 0) {
-      _aec->encode(res > 0, _ctxSign[k]);
-    }
+    _aec->encode(res > 0, _ctxSign[k]);
 
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
@@ -322,7 +318,7 @@ PredGeomEncoder::encodeTree(
       encodeNumDuplicatePoints(node.numDups);
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
-    encodeResidual(best.residual, best.mode);
+    encodeResidual(best.residual);
 
     // write the reconstructed position back to the point cloud
     for (int k = 0; k < 3; k++)
