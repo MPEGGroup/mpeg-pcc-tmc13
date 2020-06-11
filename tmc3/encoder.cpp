@@ -40,6 +40,7 @@
 #include <stdexcept>
 
 #include "Attribute.h"
+#include "coordinate_conversion.h"
 #include "geometry_params.h"
 #include "hls.h"
 #include "pointset_processing.h"
@@ -490,6 +491,26 @@ PCCTMC3Encoder3::compressPartition(
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
 
+    // Convert cartesian positions to spherical for use in attribute coding.
+    // NB: this retains the original cartesian positions to restore afterwards
+    std::vector<pcc::point_t> altPositions;
+    if (attr_aps.spherical_coord_flag) {
+      altPositions.resize(pointCloud.getPointCount());
+
+      auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
+      auto bboxRpl = convertXyzToRpl(
+        laserOrigin, _gps->geom_angular_theta_laser.data(),
+        _gps->geom_angular_theta_laser.size(), &pointCloud[0],
+        &pointCloud[0] + pointCloud.getPointCount(), altPositions.data());
+
+      abh.attr_coord_conv_scale = normalisedAxesWeights(bboxRpl);
+      offsetAndScale(
+        bboxRpl.min, abh.attr_coord_conv_scale, altPositions.data(),
+        altPositions.data() + altPositions.size());
+
+      pointCloud.swapPoints(altPositions);
+    }
+
     // calculate dist2 for this slice
     abh.attr_dist2_delta = 0;
     if (attr_aps.aps_slice_dist2_deltas_present_flag) {
@@ -504,6 +525,10 @@ PCCTMC3Encoder3::compressPartition(
       attrEncoder = makeAttributeEncoder();
 
     attrEncoder->encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
+
+    if (attr_aps.spherical_coord_flag)
+      pointCloud.swapPoints(altPositions);
+
     clock_user.stop();
 
     int coded_size = int(payload.size());

@@ -52,6 +52,10 @@ categories:
        - !conditional '"${group}" =~ m{^cat3}'
        - lodDecimation: 1
        - lod_neigh_bias: ${seq_lod_bias}
+     -
+       - !conditional '${numLasers}'
+       - lod_neigh_bias: '1,1,1'
+       - spherical_coord_flag: 1
 
      ##
      # attribute coding -- reflectance

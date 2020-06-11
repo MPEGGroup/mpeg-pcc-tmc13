@@ -41,6 +41,7 @@
 
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
+#include "coordinate_conversion.h"
 #include "geometry.h"
 #include "hls.h"
 #include "io_hls.h"
@@ -376,9 +377,36 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     _attrDecoder = makeAttributeDecoder();
 
   clock_user.start();
+
+  // Convert cartesian positions to spherical for use in attribute coding.
+  // NB: this retains the original cartesian positions to restore afterwards
+  std::vector<pcc::point_t> altPositions;
+  if (attr_aps.spherical_coord_flag) {
+    altPositions.resize(_currentPointCloud.getPointCount());
+
+    auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
+    auto bboxRpl = convertXyzToRpl(
+      laserOrigin, _gps->geom_angular_theta_laser.data(),
+      _gps->geom_angular_theta_laser.size(), &_currentPointCloud[0],
+      &_currentPointCloud[0] + _currentPointCloud.getPointCount(),
+      altPositions.data());
+
+    // todo(df): this needs to be moved to a pre-processing step so that
+    // the scale factor can be sent in the APS.
+    offsetAndScale(
+      bboxRpl.min, abh.attr_coord_conv_scale, altPositions.data(),
+      altPositions.data() + altPositions.size());
+
+    _currentPointCloud.swapPoints(altPositions);
+  }
+
   _attrDecoder->decode(
     *_sps, attr_sps, attr_aps, _gbh.footer.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
+
+  if (attr_aps.spherical_coord_flag)
+    _currentPointCloud.swapPoints(altPositions);
+
   clock_user.stop();
 
   std::cout << label << "s bitstream size " << buf.size() << " B\n";

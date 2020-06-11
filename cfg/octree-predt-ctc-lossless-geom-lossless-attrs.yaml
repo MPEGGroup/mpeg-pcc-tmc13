@@ -55,6 +55,10 @@ categories:
          - !conditional '"${group}" =~ m{^cat3}'
          - levelOfDetailCount: 0
          - lod_neigh_bias: ${seq_lod_bias}
+       -
+         - !conditional '${numLasers}'
+         - lod_neigh_bias: '1,1,1'
+         - spherical_coord_flag: 1
        - intraLodPredictionEnabled: 1
        - interComponentPredictionEnabled: 0
 

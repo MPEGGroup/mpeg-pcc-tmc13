@@ -601,6 +601,10 @@ decoding order) is usable only with LoD attribute coding and
   | 0     | Morton order                       |
   | 1     | Decoded geometry (canonical) order |
 
+### `--spherical_coord_flag=0|1`
+Controls the conversion of point co-ordinates used in attribute coding from
+the Cartesian domain to a scaled spherical domain.
+
 ### `--lod_neigh_bias=INT-VALUE-LIST`
 A set of three bias factors corresponding to the first, second and third
 geometry axes used to weight nearest neighbours during the LoD generation

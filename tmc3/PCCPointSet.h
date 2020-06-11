@@ -269,6 +269,9 @@ public:
     assert(index < positions.size());
     return positions[index];
   }
+
+  void swapPoints(std::vector<PointType>& other) { positions.swap(other); }
+
   Vec3<attr_t> getColor(const size_t index) const
   {
     assert(index < colors.size() && withColors);

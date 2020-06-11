@@ -770,6 +770,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
+  bs.write(aps.spherical_coord_flag);
+
   bool aps_extension_flag = false;
   bs.write(aps_extension_flag);
   bs.byteAlign();
@@ -856,6 +858,8 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.raht_prediction_threshold1);
     }
   }
+
+  bs.read(&aps.spherical_coord_flag);
 
   bool aps_extension_flag = bs.read();
   if (aps_extension_flag) {
@@ -1067,6 +1071,11 @@ write(
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
+  if (aps.spherical_coord_flag) {
+    for (int k = 0; k < 3; k++)
+      bs.writeUe(abh.attr_coord_conv_scale[k]);
+  }
+
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.writeSe(abh.attr_dist2_delta);
 
@@ -1146,6 +1155,11 @@ parseAbh(
   bs.readUe(&abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
+
+  if (aps.spherical_coord_flag) {
+    for (int k = 0; k < 3; k++)
+      bs.readUe(&abh.attr_coord_conv_scale[k]);
+  }
 
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.readSe(&abh.attr_dist2_delta);

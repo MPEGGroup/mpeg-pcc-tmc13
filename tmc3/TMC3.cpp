@@ -829,6 +829,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.canonical_point_order_flag, false,
     "Enable skipping morton sort in case of number of LoD equal to 1")
 
+  ("spherical_coord_flag",
+     params_attr.aps.spherical_coord_flag, false,
+     "Code attributes in spherical domain")
+
   ("aps_scalable_enable_flag",
     params_attr.aps.scalable_lifting_enabled_flag, false,
     "Enable scalable attritube coding")
@@ -1064,6 +1068,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
       attr_aps.num_detail_levels = 0;
       attr_aps.adaptive_prediction_threshold = 0;
+    }
+
+    if (!params.encoder.gps.geom_angular_mode_enabled_flag) {
+      if (attr_aps.spherical_coord_flag)
+        err.warn() << it.first
+                   << ".spherical_coord_flag=1 requires angularEnabled=1, "
+                      "disabling\n";
+      attr_aps.spherical_coord_flag = false;
     }
   }
 
