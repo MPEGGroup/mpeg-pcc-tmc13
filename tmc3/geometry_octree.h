@@ -91,13 +91,17 @@ struct PCCOctree3Node {
   // The qp used for geometry quantisation
   int qp;
 
+  // angular
+  uint8_t laserIndex = 255;
+};
+
+//============================================================================
+
+struct OctreeNodePlanar {
   // planar; first bit for x, second bit for y, third bit for z
   uint8_t planarPossible = 7;
   uint8_t planePosBits = 0;
   uint8_t planarMode = 0;
-
-  // angular
-  uint8_t laserIndex = 255;
 };
 
 //---------------------------------------------------------------------------
@@ -373,11 +377,12 @@ void isPlanarNode(
   uint8_t& planePosBits,
   const bool planarEligible[3]);
 
-int maskPlanarX(const PCCOctree3Node& node0, bool activatable);
-int maskPlanarY(const PCCOctree3Node& node0, bool activatable);
-int maskPlanarZ(const PCCOctree3Node& node0, bool activatable);
+int maskPlanarX(const OctreeNodePlanar& planar, bool activatable);
+int maskPlanarY(const OctreeNodePlanar& planar, bool activatable);
+int maskPlanarZ(const OctreeNodePlanar& planar, bool activatable);
 
-void maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip);
+void
+maskPlanar(OctreeNodePlanar& planar, int mask[3], const int occupancySkip);
 
 int determineContextAngleForPlanar(
   PCCOctree3Node& child,

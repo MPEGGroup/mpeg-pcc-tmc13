@@ -596,64 +596,64 @@ OctreePlanarState::operator=(OctreePlanarState&& rhs)
 // directional mask depending on the planarity
 
 int
-maskPlanarX(const PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarX(const OctreeNodePlanar& planar, bool implicitSkip)
 {
   if (implicitSkip)
     return 0xf0;
 
-  if ((node0.planarMode & 1) == 0)
+  if ((planar.planarMode & 1) == 0)
     return 0;
 
-  return (node0.planePosBits & 1) ? 0x0f : 0xf0;
+  return (planar.planePosBits & 1) ? 0x0f : 0xf0;
 }
 
 //----------------------------------------------------------------------------
 
 int
-maskPlanarY(const PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarY(const OctreeNodePlanar& planar, bool implicitSkip)
 {
   if (implicitSkip)
     return 0xcc;
 
-  if ((node0.planarMode & 2) == 0)
+  if ((planar.planarMode & 2) == 0)
     return 0;
 
-  return (node0.planePosBits & 2) ? 0x33 : 0xcc;
+  return (planar.planePosBits & 2) ? 0x33 : 0xcc;
 }
 
 //----------------------------------------------------------------------------
 
 int
-maskPlanarZ(const PCCOctree3Node& node0, bool implicitSkip)
+maskPlanarZ(const OctreeNodePlanar& planar, bool implicitSkip)
 {
   // QTBT does not split in this direction
   //   => infer the mask low for occupancy bit coding
   if (implicitSkip)
     return 0xaa;
 
-  if ((node0.planarMode & 4) == 0)
+  if ((planar.planarMode & 4) == 0)
     return 0;
 
-  return (node0.planePosBits & 4) ? 0x55 : 0xaa;
+  return (planar.planePosBits & 4) ? 0x55 : 0xaa;
 }
 
 //----------------------------------------------------------------------------
 
 // three direction mask
 void
-maskPlanar(PCCOctree3Node& node0, int mask[3], const int occupancySkip)
+maskPlanar(OctreeNodePlanar& planar, int mask[3], const int occupancySkip)
 {
   static const uint8_t kPossibleMask[3] = {6, 5, 3};
   for (int k = 0; k <= 2; k++)
     if (occupancySkip & (4 >> k)) {
-      node0.planarPossible = node0.planarPossible | (1 << k);
-      node0.planePosBits = node0.planePosBits & kPossibleMask[k];
-      node0.planarMode = node0.planarMode | (1 << k);
+      planar.planarPossible = planar.planarPossible | (1 << k);
+      planar.planePosBits = planar.planePosBits & kPossibleMask[k];
+      planar.planarMode = planar.planarMode | (1 << k);
     }
 
-  mask[0] = maskPlanarX(node0, occupancySkip & 4);
-  mask[1] = maskPlanarY(node0, occupancySkip & 2);
-  mask[2] = maskPlanarZ(node0, occupancySkip & 1);
+  mask[0] = maskPlanarX(planar, occupancySkip & 4);
+  mask[1] = maskPlanarY(planar, occupancySkip & 2);
+  mask[2] = maskPlanarZ(planar, occupancySkip & 1);
 }
 
 //----------------------------------------------------------------------------

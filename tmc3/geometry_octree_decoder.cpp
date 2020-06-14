@@ -114,7 +114,7 @@ public:
   int decodeOccupancyBytewise(int neighPattern);
 
   int decodePlanarMode(
-    PCCOctree3Node& node0,
+    OctreeNodePlanar& planar,
     int planeZ,
     int posz,
     int dist,
@@ -125,7 +125,7 @@ public:
 
   void determinePlanarMode(
     int planeId,
-    PCCOctree3Node& child,
+    OctreeNodePlanar& child,
     OctreePlanarBuffer::Row* planeBuffer,
     int coord1,
     int coord2,
@@ -139,6 +139,7 @@ public:
   void determinePlanarMode(
     const bool planarEligible[3],
     PCCOctree3Node& child,
+    OctreeNodePlanar& planar,
     uint8_t neighPattern,
     int x,
     int y,
@@ -168,9 +169,8 @@ public:
   Vec3<int32_t> decodePointPositionAngular(
     const Vec3<int>& nodeSizeLog2,
     const Vec3<int>& nodeSizeLog2AfterPlanar,
-    uint8_t planarMode,
-    uint8_t planePosBits,
     const PCCOctree3Node& node,
+    const OctreeNodePlanar& planar,
     const Vec3<int>& headPos,
     const int* zLaser,
     const int* thetaLaser,
@@ -185,6 +185,7 @@ public:
     bool geom_unique_points_flag,
     const Vec3<int>& nodeSizeLog2,
     PCCOctree3Node& node,
+    OctreeNodePlanar& planar,
     OutputIt outputPoints,
     bool angularIdcm,
     const Vec3<int>& headPos,
@@ -296,7 +297,7 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 
 int
 GeometryOctreeDecoder::decodePlanarMode(
-  PCCOctree3Node& node0,
+  OctreeNodePlanar& planar,
   int planeZ,
   int posz,
   int dist,
@@ -312,10 +313,10 @@ GeometryOctreeDecoder::decodePlanarMode(
   int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
   bool isPlanar =
     _arithmeticDecoder->decode(_ctxPlanarMode[planeId][neighb][discreteDist]);
-  node0.planarMode |= isPlanar ? mask0 : 0;
+  planar.planarMode |= isPlanar ? mask0 : 0;
 
   if (!isPlanar) {
-    node0.planarPossible &= mask1[planeId];
+    planar.planarPossible &= mask1[planeId];
     return -1;
   }
 
@@ -350,7 +351,7 @@ GeometryOctreeDecoder::decodePlanarMode(
     }
   }
 
-  node0.planePosBits |= (planeBit << planeId);
+  planar.planePosBits |= (planeBit << planeId);
   return planeBit;
 }
 
@@ -359,7 +360,7 @@ GeometryOctreeDecoder::decodePlanarMode(
 void
 GeometryOctreeDecoder::determinePlanarMode(
   int planeId,
-  PCCOctree3Node& child,
+  OctreeNodePlanar& planar,
   OctreePlanarBuffer::Row* planeBuffer,
   int coord1,
   int coord2,
@@ -417,10 +418,10 @@ GeometryOctreeDecoder::determinePlanarMode(
   }
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
   int planeBit = decodePlanarMode(
-    child, closestPlanarFlag, pos, closestDist, adjNeigh, planarProb[planeId],
+    planar, closestPlanarFlag, pos, closestDist, adjNeigh, planarProb[planeId],
     planeId, contextAngle);
 
-  bool isPlanar = (child.planarMode & planeSelector)
+  bool isPlanar = (planar.planarMode & planeSelector)
     && planarProb[planeId] > kPlanarChildThreshold;
 
   planarRate[planeId] =
@@ -437,6 +438,7 @@ void
 GeometryOctreeDecoder::determinePlanarMode(
   const bool planarEligible[3],
   PCCOctree3Node& child,
+  OctreeNodePlanar& planar,
   uint8_t neighPattern,
   int x,
   int y,
@@ -455,19 +457,19 @@ GeometryOctreeDecoder::determinePlanarMode(
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, child, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern, x,
+      0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern, x,
       planarProb, _planar._rate.data(), contextAnglePhiX);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, child, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern, y,
+      1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern, y,
       planarProb, _planar._rate.data(), contextAnglePhiY);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, child, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern, z,
+      2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern, z,
       planarProb, _planar._rate.data(), contextAngle);
   }
 }
@@ -905,9 +907,8 @@ Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPositionAngular(
   const Vec3<int>& nodeSizeLog2,
   const Vec3<int>& nodeSizeLog2AfterPlanar,
-  uint8_t planarMode,
-  uint8_t planePosBits,
   const PCCOctree3Node& child,
+  const OctreeNodePlanar& planar,
   const Vec3<int>& headPos,
   const int* zLaser,
   const int* thetaLaser,
@@ -1071,6 +1072,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
   bool geom_unique_points_flag,
   const Vec3<int>& nodeSizeLog2,
   PCCOctree3Node& node,
+  OctreeNodePlanar& planar,
   OutputIt outputPoints,
   bool angularIdcm,
   const Vec3<int>& headPos,
@@ -1097,8 +1099,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
   Vec3<int32_t> deltaPlanar{0, 0, 0};
   Vec3<int> nodeSizeLog2AfterPlanar = nodeSizeLog2;
   for (int k = 0; k < 3; k++)
-    if (nodeSizeLog2AfterPlanar[k] > 0 && (node.planarMode & (1 << k))) {
-      deltaPlanar[k] |= (node.planePosBits & (1 << k) ? 1 : 0);
+    if (nodeSizeLog2AfterPlanar[k] > 0 && (planar.planarMode & (1 << k))) {
+      deltaPlanar[k] |= (planar.planePosBits & (1 << k) ? 1 : 0);
       nodeSizeLog2AfterPlanar[k]--;
     }
 
@@ -1115,8 +1117,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
         (1 << nodeSizeLog2[2]) >> 1);
       node.laserIndex = findLaser(posNodeLidar, thetaLaser, numLasers);
       *(outputPoints++) = pos = decodePointPositionAngular(
-        nodeSizeLog2, nodeSizeLog2AfterPlanar, node.planarMode,
-        node.planePosBits, node, headPos, zLaser, thetaLaser, deltaPlanar);
+        nodeSizeLog2, nodeSizeLog2AfterPlanar, node, planar, headPos, zLaser,
+        thetaLaser, deltaPlanar);
     } else
       *(outputPoints++) = pos =
         decodePointPosition(nodeSizeLog2AfterPlanar, deltaPlanar);
@@ -1200,7 +1202,6 @@ decodeGeometryOctree(
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
   node00.qp = 0;
-  node00.planarMode = 0;
   node00.idcmEligible = 0;
 
   size_t processedPointCount = 0;
@@ -1364,6 +1365,7 @@ decodeGeometryOctree(
           &contextAnglePhiX, &contextAnglePhiY);
       }
 
+      OctreeNodePlanar planar;
       if (!isLeafNode(effectiveNodeSizeLog2) || node0.idcmEligible) {
         // planar eligibility
         bool planarEligible[3] = {false, false, false};
@@ -1394,7 +1396,7 @@ decodeGeometryOctree(
         int z = !!(node0.childIdx & 1);
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           decoder.determinePlanarMode(
-            planarEligible, node0, node0.gnp, x, y, z, planarProb,
+            planarEligible, node0, planar, node0.gnp, x, y, z, planarProb,
             contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
@@ -1412,7 +1414,7 @@ decodeGeometryOctree(
           }
 
           int numPoints = decoder.decodeDirectPosition(
-            gps.geom_unique_points_flag, idcmSize, node0,
+            gps.geom_unique_points_flag, idcmSize, node0, planar,
             &pointCloud[processedPointCount],
             gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
             numLasers);
@@ -1469,14 +1471,14 @@ decodeGeometryOctree(
         // mask to be used for the occupancy coding
         // (bit =1 => occupancy bit not coded due to not belonging to the plane)
         int mask_planar[3] = {0, 0, 0};
-        maskPlanar(node0, mask_planar, occupancySkip);
+        maskPlanar(planar, mask_planar, occupancySkip);
 
         occupancy = decoder.decodeOccupancy(
           node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
           occupancyAdjacencyGt0, occupancyAdjacencyGt1,
           occupancyAdjacencyUnocc, mask_planar[0], mask_planar[1],
-          mask_planar[2], node0.planarPossible & 1, node0.planarPossible & 2,
-          node0.planarPossible & 4);
+          mask_planar[2], planar.planarPossible & 1, planar.planarPossible & 2,
+          planar.planarPossible & 4);
       }
 
       assert(occupancy > 0);
