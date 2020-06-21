@@ -202,12 +202,12 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k];
-    _aec->encode(numBits & 1, ctxs[0]);
-    _aec->encode((numBits >> 1) & 1, ctxs[1 + (numBits & 1)]);
-    _aec->encode((numBits >> 2) & 1, ctxs[3 + (numBits & 3)]);
-    _aec->encode((numBits >> 3) & 1, ctxs[7 + (numBits & 7)]);
-    _aec->encode((numBits >> 4) & 1, ctxs[15 + (numBits & 15)]);
+    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    for (int ctxIdx = 1, n = 4; n >= 0; n--) {
+      auto bin = (numBits >> n) & 1;
+      _aec->encode(bin, ctxs[ctxIdx]);
+      ctxIdx = (ctxIdx << 1) | bin;
+    }
 
     if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
@@ -326,12 +326,12 @@ PredGeomEncoder::estimateBits(
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k];
-    bits += estimate(numBits & 1, ctxs[0]);
-    bits += estimate((numBits >> 1) & 1, ctxs[1 + (numBits & 1)]);
-    bits += estimate((numBits >> 2) & 1, ctxs[3 + (numBits & 3)]);
-    bits += estimate((numBits >> 3) & 1, ctxs[7 + (numBits & 7)]);
-    bits += estimate((numBits >> 4) & 1, ctxs[15 + (numBits & 15)]);
+    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    for (int ctxIdx = 1, n = 4; n >= 0; n--) {
+      auto bin = (numBits >> n) & 1;
+      bits += estimate(bin, ctxs[ctxIdx]);
+      ctxIdx = (ctxIdx << 1) | bin;
+    }
 
     if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;

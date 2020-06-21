@@ -239,13 +239,11 @@ PredGeomDecoder::decodeResidual()
 
     auto sign = _aed->decode(_ctxSign[k]);
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k];
-    int32_t numBits;
-    numBits = _aed->decode(ctxs[0]);
-    numBits += _aed->decode(ctxs[1 + numBits]) << 1;
-    numBits += _aed->decode(ctxs[3 + numBits]) << 2;
-    numBits += _aed->decode(ctxs[7 + numBits]) << 3;
-    numBits += _aed->decode(ctxs[15 + numBits]) << 4;
+    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    int32_t numBits = 1;
+    for (int n = 0; n < 5; n++)
+      numBits = (numBits << 1) | _aed->decode(ctxs[numBits]);
+    numBits ^= 1 << 5;
 
     if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
