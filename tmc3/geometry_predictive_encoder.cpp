@@ -336,7 +336,7 @@ PredGeomEncoder::estimateBits(
     if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;
 
-    bits += numBits - 1;
+    bits += std::max(0, numBits - 1);
   }
 
   return bits;
