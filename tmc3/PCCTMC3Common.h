@@ -1055,6 +1055,12 @@ updateNearestNeighbor(
   PCCNeighborInfo* neighbors)
 {
   const int32_t pointIndex1 = packedVoxel[predictorIndex].index;
+  if (
+    pointIndex1 == neighbors[0].predictorIndex
+    || pointIndex1 == neighbors[1].predictorIndex
+    || pointIndex1 == neighbors[2].predictorIndex)
+    return;
+
   const auto point1 = clacIntermediatePosition(
     aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex1]);
 
@@ -1084,10 +1090,52 @@ computeNearestNeighborsScalable(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  std::vector<Box3<int32_t>>& bBoxes)
+  std::vector<Box3<int32_t>>& bBoxes,
+  MortonIndexMap3d& atlas)
 {
-  constexpr auto searchRangeNear = 2;
+  const int32_t shiftBits = nodeSizeLog2;
+  const int32_t shiftBits3 = 3 * shiftBits;
+  const int32_t log2CubeSize = atlas.cubeSizeLog2();
+  const int32_t log2CubeSize3 = 3 * log2CubeSize;
+  const int32_t shift3 = shiftBits3 + log2CubeSize3;
   const int32_t retainedSize = retained.size();
+
+  // these neighbour offsets are relative to basePosition
+  static const uint8_t kNeighOffset[27] = {
+    7,   // { 0,  0,  0} 0
+    3,   // {-1,  0,  0} 1
+    5,   // { 0, -1,  0} 2
+    6,   // { 0,  0, -1} 3
+    35,  // { 1,  0,  0} 4
+    21,  // { 0,  1,  0} 5
+    14,  // { 0,  0,  1} 6
+    28,  // { 0,  1,  1} 7
+    42,  // { 1,  0,  1} 8
+    49,  // { 1,  1,  0} 9
+    12,  // { 0, -1,  1} 10
+    10,  // {-1,  0,  1} 11
+    17,  // {-1,  1,  0} 12
+    20,  // { 0,  1, -1} 13
+    34,  // { 1,  0, -1} 14
+    33,  // { 1, -1,  0} 15
+    4,   // { 0, -1, -1} 16
+    2,   // {-1,  0, -1} 17
+    1,   // {-1, -1,  0} 18
+    56,  // { 1,  1,  1} 19
+    24,  // {-1,  1,  1} 20
+    40,  // { 1, -1,  1} 21
+    48,  // { 1,  1, -1} 22
+    32,  // { 1, -1, -1} 23
+    16,  // {-1,  1, -1} 24
+    8,   // {-1, -1,  1} 25
+    0    // {-1, -1, -1} 26
+  };
+
+  atlas.reserve(retainedSize);
+  std::vector<int32_t> neighborIndexes;
+  neighborIndexes.reserve(64);
+
+  constexpr auto searchRangeNear = 2;
   const int32_t bucketSize = 8;
   bBoxes.resize((retainedSize + bucketSize - 1) / bucketSize);
   for (int32_t i = 0, b = 0; i < retainedSize; ++b) {
@@ -1127,10 +1175,15 @@ computeNearestNeighborsScalable(
 
   const int32_t index0 = aps.num_pred_nearest_neighbours_minus1;
 
+  int64_t atlasMortonCode = -1;
+  int64_t lastMortonCodeShift3 = -1;
+  int64_t cubeIndex = 0;
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     const int32_t index = indexes[i];
     const int64_t mortonCode = packedVoxel[index].mortonCode;
     const int32_t pointIndex = packedVoxel[index].index;
+    const int64_t mortonCodeShift3 = mortonCode >> shift3;
+    const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const auto point = clacIntermediatePosition(
       aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex]);
     indexes[i] = pointIndex;
@@ -1143,72 +1196,114 @@ computeNearestNeighborsScalable(
     predictor.init();
 
     PCCNeighborInfo localNeighbors[kAttributePredictionMaxNeighbourCount];
+    localNeighbors[0].predictorIndex = -1;
+    localNeighbors[1].predictorIndex = -1;
+    localNeighbors[2].predictorIndex = -1;
     uint32_t localNeighborCount = 0;
+
+    if (atlasMortonCode != mortonCodeShift3) {
+      atlas.clearUpdates();
+      atlasMortonCode = mortonCodeShift3;
+      while (cubeIndex < retainedSize
+             && (packedVoxel[retained[cubeIndex]].mortonCode >> shift3)
+               == atlasMortonCode) {
+        atlas.set(
+          packedVoxel[retained[cubeIndex]].mortonCode >> shiftBits3,
+          cubeIndex);
+        ++cubeIndex;
+      }
+    }
+
+    if (lastMortonCodeShift3 != mortonCodeShiftBits3) {
+      lastMortonCodeShift3 = mortonCodeShiftBits3;
+      const auto basePosition = morton3dAdd(mortonCodeShiftBits3, -1ll);
+      neighborIndexes.resize(0);
+      for (int32_t n = 0; n < 27; ++n) {
+        const auto neighbMortonCode =
+          morton3dAdd(basePosition, kNeighOffset[n]);
+        if ((neighbMortonCode >> log2CubeSize3) != atlasMortonCode) {
+          continue;
+        }
+        const auto range = atlas.get(neighbMortonCode);
+        for (int32_t k = range.start; k < range.end; ++k) {
+          neighborIndexes.push_back(k);
+        }
+      }
+    }
+
+    for (const auto k : neighborIndexes) {
+      updateNearestNeighbor(
+        aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+        localNeighborCount, localNeighbors);
+    }
 
     const int32_t k0 = std::max(0, j - aps.inter_lod_search_range);
     const int32_t k1 =
       std::min(retainedSize - 1, j + aps.inter_lod_search_range);
 
-    if (retainedSize)
-      updateNearestNeighbor(
-        aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
-        localNeighborCount, localNeighbors);
-
-    for (int32_t n = 1; n <= searchRangeNear; ++n) {
-      const int32_t kp = j + n;
-      if (kp <= k1) {
+    if (localNeighborCount < 3) {
+      if (retainedSize) {
         updateNearestNeighbor(
-          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kp], point,
+          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
           localNeighborCount, localNeighbors);
       }
-      const int32_t kn = j - n;
-      if (kn >= k0) {
-        updateNearestNeighbor(
-          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kn], point,
-          localNeighborCount, localNeighbors);
-      }
-    }
 
-    const int32_t p0 = j - searchRangeNear - 1;
-    const int32_t p1 = j + searchRangeNear + 1;
-    // process p1..k1
-    const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
-    for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
-         ++bucketIndex) {
-      if (
-        localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
-        || bBoxes[bucketIndex].getDist1(point)
-          <= localNeighbors[index0].weight) {
-        const int32_t indexBucketAligned = bucketIndex * bucketSize;
-        const int32_t h0 = std::max(p1, indexBucketAligned);
-        const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize - 1);
-        for (int32_t k = h0; k <= h1; ++k) {
+      for (int32_t n = 1; n <= searchRangeNear; ++n) {
+        const int32_t kp = j + n;
+        if (kp <= k1) {
           updateNearestNeighbor(
-            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kp], point,
+            localNeighborCount, localNeighbors);
+        }
+        const int32_t kn = j - n;
+        if (kn >= k0) {
+          updateNearestNeighbor(
+            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kn], point,
             localNeighborCount, localNeighbors);
         }
       }
-    }
 
-    // process k0..p0
-    const int32_t bucketIndex0 = k0 / bucketSize;
-    for (int32_t bucketIndex = p0 / bucketSize; bucketIndex >= bucketIndex0;
-         --bucketIndex) {
-      if (
-        localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
-        || bBoxes[bucketIndex].getDist1(point)
-          <= localNeighbors[index0].weight) {
-        const int32_t indexBucketAligned = bucketIndex * bucketSize;
-        const int32_t h0 = std::max(k0, indexBucketAligned);
-        const int32_t h1 = std::min(p0, indexBucketAligned + bucketSize - 1);
-        for (int32_t k = h1; k >= h0; --k) {
-          updateNearestNeighbor(
-            aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
-            localNeighborCount, localNeighbors);
+      const int32_t p0 = j - searchRangeNear - 1;
+      const int32_t p1 = j + searchRangeNear + 1;
+
+      // process p1..k1
+      const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
+      for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
+           ++bucketIndex) {
+        if (
+          localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
+          || bBoxes[bucketIndex].getDist1(point)
+            < localNeighbors[index0].weight) {
+          const int32_t indexBucketAligned = bucketIndex * bucketSize;
+          const int32_t h0 = std::max(p1, indexBucketAligned);
+          const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize - 1);
+          for (int32_t k = h0; k <= h1; ++k) {
+            updateNearestNeighbor(
+              aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+              localNeighborCount, localNeighbors);
+          }
+        }
+      }
+
+      // process k0..p0
+      const int32_t bucketIndex0 = k0 / bucketSize;
+      for (int32_t bucketIndex = p0 / bucketSize; bucketIndex >= bucketIndex0;
+           --bucketIndex) {
+        if (
+          localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
+          || bBoxes[bucketIndex].getDist1(point)
+            < localNeighbors[index0].weight) {
+          const int32_t indexBucketAligned = bucketIndex * bucketSize;
+          const int32_t h0 = std::max(k0, indexBucketAligned);
+          const int32_t h1 = std::min(p0, indexBucketAligned + bucketSize - 1);
+          for (int32_t k = h1; k >= h0; --k) {
+            updateNearestNeighbor(
+              aps, pointCloud, packedVoxel, nodeSizeLog2, retained[k], point,
+              localNeighborCount, localNeighbors);
+          }
         }
       }
     }
-
     if (aps.intra_lod_prediction_enabled_flag) {
       const int32_t k00 = i + 1;
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
@@ -1228,7 +1323,7 @@ computeNearestNeighborsScalable(
         if (
           localNeighborCount < aps.num_pred_nearest_neighbours_minus1
           || bBoxesI[bucketIndex].getDist1(point)
-            <= localNeighbors[index0].weight) {
+            < localNeighbors[index0].weight) {
           const int32_t indexBucketAligned = bucketIndex * bucketSize;
           const int32_t h0 = std::max(k0, indexBucketAligned);
           const int32_t h1 = std::min(k1, indexBucketAligned + bucketSize);
@@ -1679,7 +1774,7 @@ buildPredictorsFast(
             computeNearestNeighborsScalable(
               aps, pointCloud, packedVoxel, retained, divided_startIndex,
               divided_endIndex, lod + minGeomNodeSizeLog2, indexes, predictors,
-              pointIndexToPredictorIndex, predIndex, bBoxes);
+              pointIndexToPredictorIndex, predIndex, bBoxes, atlas);
           }
         }
       }
@@ -1688,7 +1783,8 @@ buildPredictorsFast(
     if (aps.scalable_lifting_enabled_flag)
       computeNearestNeighborsScalable(
         aps, pointCloud, packedVoxel, retained, startIndex, endIndex, lodIndex,
-        indexes, predictors, pointIndexToPredictorIndex, predIndex, bBoxes);
+        indexes, predictors, pointIndexToPredictorIndex, predIndex, bBoxes,
+        atlas);
     else
       computeNearestNeighbors(
         aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex,
