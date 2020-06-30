@@ -703,15 +703,12 @@ determineContextAngleForPlanar(
   // determine laser
   int laserIndex = int(child.laserIndex);
   if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
-    int delta = std::abs(thetaLaser[0] - theta32);
-    laserIndex = 0;
-    for (int j = 1; j < numLasers; j++) {
-      int temp = std::abs(thetaLaser[j] - theta32);
-      if (temp < delta) {
-        delta = temp;
-        laserIndex = j;
-      }
-    }
+    auto end = thetaLaser + numLasers - 1;
+    auto it = std::upper_bound(thetaLaser + 1, end, theta32);
+    if (theta32 - *std::prev(it) <= *it - theta32)
+      --it;
+
+    laserIndex = std::distance(thetaLaser, it);
     child.laserIndex = uint8_t(laserIndex);
   }
 
@@ -787,28 +784,12 @@ findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
   int64_t rInv = irsqrt(xLidar * xLidar + yLidar * yLidar);
   int theta32 = (point[2] * rInv) >> 14;
 
-  // determine theta
-  int start = 0;
-  int end = numTheta - 1;
-  for (int t = 0; t <= 4; t++) {
-    int mid = (start + end) >> 1;
-    if (thetaList[mid] > theta32)
-      end = mid;
-    else
-      start = mid;
-  }
+  auto end = thetaList + numTheta - 1;
+  auto it = std::upper_bound(thetaList + 1, end, theta32);
+  if (theta32 - *std::prev(it) <= *it - theta32)
+    --it;
 
-  int delta = std::abs(thetaList[start] - theta32);
-  int laser = start;
-  for (int j = start + 1; j <= end; j++) {
-    int temp = std::abs(thetaList[j] - theta32);
-    if (temp < delta) {
-      delta = temp;
-      laser = j;
-    }
-  }
-
-  return laser;
+  return std::distance(thetaList, it);
 }
 
 //============================================================================
