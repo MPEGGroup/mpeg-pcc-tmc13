@@ -241,8 +241,8 @@ public:
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
 
-  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[16];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[16];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[8];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[8];
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
@@ -964,10 +964,6 @@ GeometryOctreeEncoder::encodePointPositionAngular(
       angleR = temp;
     }
     if (angleR > (angleL << 1))
-      contextAnglePhi += 4;
-    if (angleR > (angleL << 2))
-      contextAnglePhi += 4;
-    if (angleR > (angleL << 4))
       contextAnglePhi += 4;
 
     // entropy coding

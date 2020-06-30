@@ -744,11 +744,7 @@ determineContextAngleForPlanar(
       angleL = angleR;
       angleR = temp;
     }
-    if (angleR > (angleL << 1))
-      contextAnglePhi += 4;
     if (angleR > (angleL << 2))
-      contextAnglePhi += 4;
-    if (angleR > (angleL << 4))
       contextAnglePhi += 4;
 
     if (std::abs(posx) <= std::abs(posy))
