@@ -321,16 +321,30 @@ intraDcPred(
   std::fill_n(&predBuf[0][0], 8 * numAttrs, FixedPoint(0));
 
   int64_t neighValue[3];
-
+  int64_t limitLow = 0;
+  int64_t limitHigh = 0;
   for (int i = 0; i < 19; i++) {
     if (neighIdx[i] == -1)
       continue;
 
-    // apply weighted neighbour value to masked positions
     auto neighValueIt = std::next(first, numAttrs * neighIdx[i]);
     for (int k = 0; k < numAttrs; k++)
-      neighValue[k] =
-        (*neighValueIt++) * (predWeight[i] << pcc::FixedPoint::kFracBits);
+      neighValue[k] = *neighValueIt++;
+
+    // skip neighbours that are outside of threshold limits
+    if (i) {
+      if (10 * neighValue[0] <= limitLow || 10 * neighValue[0] >= limitHigh)
+        continue;
+    } else {
+      constexpr int ratioThreshold1 = 2;
+      constexpr int ratioThreshold2 = 25;
+      limitLow = ratioThreshold1 * neighValue[0];
+      limitHigh = ratioThreshold2 * neighValue[0];
+    }
+
+    // apply weighted neighbour value to masked positions
+    for (int k = 0; k < numAttrs; k++)
+      neighValue[k] *= predWeight[i] << pcc::FixedPoint::kFracBits;
 
     int mask = predMasks[i] & occupancy;
     for (int j = 0; mask; j++, mask >>= 1) {
