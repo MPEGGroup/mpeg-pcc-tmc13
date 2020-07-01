@@ -192,6 +192,27 @@ PCCTMC3Encoder3::compress(
       tile.push_back(i);
   }
 
+  if (partitions.tileInventory.tiles.size() > 1) {
+    auto& inventory = partitions.tileInventory;
+    assert(inventory.tiles.size() == tileMaps.size());
+    std::cout << "Tile number: " << tileMaps.size() << std::endl;
+    inventory.ti_seq_parameter_set_id = _sps->sps_seq_parameter_set_id;
+    inventory.ti_origin_bits_minus1 =
+      numBits(inventory.origin.abs().max()) - 1;
+
+    // Determine the number of bits for encoding tile sizes
+    int maxValOrigin = 1;
+    int maxValSize = 1;
+    for (const auto& entry : inventory.tiles) {
+      maxValOrigin = std::max(maxValOrigin, entry.tileOrigin.max());
+      maxValSize = std::max(maxValSize, entry.tileSize.max() - 1);
+    }
+    inventory.tile_origin_bits_minus1 = numBits(maxValOrigin) - 1;
+    inventory.tile_size_bits_minus1 = numBits(maxValSize) - 1;
+
+    callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
+  }
+
   // don't partition if partitioning would result in a single slice.
   auto partitionMethod = params->partition.method;
   if (quantizedInputCloud.getPointCount() < params->partition.sliceMaxPoints)
@@ -280,27 +301,6 @@ PCCTMC3Encoder3::compress(
     }
     std::cout << "Slice number: " << partitions.slices.size() << std::endl;
   } while (0);
-
-  if (partitions.tileInventory.tiles.size() > 1) {
-    auto& inventory = partitions.tileInventory;
-    assert(inventory.tiles.size() == tileMaps.size());
-    std::cout << "Tile number: " << tileMaps.size() << std::endl;
-    inventory.ti_seq_parameter_set_id = _sps->sps_seq_parameter_set_id;
-    inventory.ti_origin_bits_minus1 =
-      numBits(inventory.origin.abs().max()) - 1;
-
-    // Determine the number of bits for encoding tile sizes
-    int maxValOrigin = 1;
-    int maxValSize = 1;
-    for (const auto& entry : inventory.tiles) {
-      maxValOrigin = std::max(maxValOrigin, entry.tileOrigin.max());
-      maxValSize = std::max(maxValSize, entry.tileSize.max() - 1);
-    }
-    inventory.tile_origin_bits_minus1 = numBits(maxValOrigin) - 1;
-    inventory.tile_size_bits_minus1 = numBits(maxValSize) - 1;
-
-    callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
-  }
 
   // Encode each partition:
   //  - create a pointset comprising just the partitioned points
