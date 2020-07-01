@@ -115,7 +115,31 @@ shortestAxis(const Box3<T>& curBox)
 //----------------------------------------------------------------------------
 
 std::vector<Partition>
-partitionByNpts(const PartitionParams& params, const PCCPointSet3& cloud)
+partitionNone(
+  const PartitionParams& params, const PCCPointSet3& cloud, int tileID)
+{
+  std::vector<Partition> slices;
+  int numSlices = 1;
+  slices.emplace_back();
+  auto& slice = slices.back();
+  slice.sliceId = 0;
+  slice.tileId = tileID;
+  slice.origin = Vec3<int>{0};
+
+  int numPoints = cloud.getPointCount();
+  slice.pointIndexes.resize(numPoints);
+
+  for (int i = 0; i < numPoints; i++)
+    slice.pointIndexes[i] = i;
+
+  return slices;
+}
+
+//----------------------------------------------------------------------------
+
+std::vector<Partition>
+partitionByNpts(
+  const PartitionParams& params, const PCCPointSet3& cloud, int tileID)
 {
   std::vector<Partition> slices;
   int sliceMaxPts = params.sliceMaxPoints;
@@ -125,7 +149,7 @@ partitionByNpts(const PartitionParams& params, const PCCPointSet3& cloud)
     slices.emplace_back();
     auto& slice = slices.back();
     slice.sliceId = sliceId;
-    slice.tileId = 0;
+    slice.tileId = tileID;
 
     // generate the point range
     int firstPointIdx = sliceMaxPts * sliceId;

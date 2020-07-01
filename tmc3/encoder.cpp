@@ -213,19 +213,6 @@ PCCTMC3Encoder3::compress(
     callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
   }
 
-  // don't partition if partitioning would result in a single slice.
-  auto partitionMethod = params->partition.method;
-  if (quantizedInputCloud.getPointCount() < params->partition.sliceMaxPoints)
-    partitionMethod = PartitionMethod::kNone;
-
-  // If partitioning is not enabled, encode input as a single "partition"
-  if (partitionMethod == PartitionMethod::kNone) {
-    compressPartition(
-      quantizedInputCloud, inputPointCloud, params, callback,
-      reconstructedCloud);
-    return 0;
-  }
-
   // Partition the input point cloud
   //  - get the partitial cloud of each tile
   //  - partitioning function produces a list of point indexes, origin and
@@ -258,6 +245,11 @@ PCCTMC3Encoder3::compress(
       quantizePositions(
         1, tile_quantized_box_xyz0, clampBox, tileCloud, &tileCloud);
 
+      // don't partition if partitioning would result in a single slice.
+      auto partitionMethod = params->partition.method;
+      if (tileCloud.getPointCount() < params->partition.sliceMaxPoints)
+        partitionMethod = PartitionMethod::kNone;
+
       // use the largest trisoup node size as a partitioning boundary for
       // consistency between slices with different trisoup node sizes.
       int partitionBoundaryLog2 = *std::max_element(
@@ -267,8 +259,9 @@ PCCTMC3Encoder3::compress(
       //Slice partition of current tile
       std::vector<Partition> curSlices;
       switch (partitionMethod) {
-      // NB: this method is handled earlier
-      case PartitionMethod::kNone: return 1;
+      case PartitionMethod::kNone:
+        curSlices = partitionNone(params->partition, tileCloud, tile_id);
+        break;
 
       case PartitionMethod::kUniformGeom:
         curSlices = partitionByUniformGeom(
@@ -286,7 +279,7 @@ PCCTMC3Encoder3::compress(
         break;
 
       case PartitionMethod::kNpoints:
-        curSlices = partitionByNpts(params->partition, tileCloud);
+        curSlices = partitionByNpts(params->partition, tileCloud, tile_id);
         break;
       }
       // Map slice indexes to tile indexes(the original indexes)

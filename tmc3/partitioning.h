@@ -132,8 +132,11 @@ std::vector<Partition> partitionByUniformSquare(
   int tileID,
   int paritionBoundaryLog2);
 
-std::vector<Partition>
-partitionByNpts(const PartitionParams& params, const PCCPointSet3& cloud);
+std::vector<Partition> partitionByNpts(
+  const PartitionParams& params, const PCCPointSet3& cloud, int tileID);
+
+std::vector<Partition> partitionNone(
+  const PartitionParams& params, const PCCPointSet3& cloud, int tileID);
 
 //============================================================================
 
