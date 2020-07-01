@@ -167,15 +167,17 @@ PCCResidualsEncoder::encode(int32_t value0, int32_t value1, int32_t value2)
   int mag0 = abs(value0);
   int mag1 = abs(value1);
   int mag2 = abs(value2);
-  //  NB: not exploiting impossibility of mag0=mag1=mag2=0
 
-  int b0 = (mag0 == 0);
-  int b1 = (mag0 <= 1);
-  int b2 = (mag1 == 0);
-  int b3 = (mag1 <= 1);
-  encodeSymbol(mag0, 0, 0, 0);
-  encodeSymbol(mag1, 1 + b0, 1 + b1, 1);
-  encodeSymbol(mag2, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
+  int b0 = (mag1 == 0);
+  int b1 = (mag1 <= 1);
+  int b2 = (mag2 == 0);
+  int b3 = (mag2 <= 1);
+  encodeSymbol(mag1, 0, 0, 1);
+  encodeSymbol(mag2, 1 + b0, 1 + b1, 1);
+
+  auto mag0minusX = b0 && b2 ? mag0 - 1 : mag0;
+  assert(mag0minusX >= 0);
+  encodeSymbol(mag0minusX, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 0);
 
   if (mag0)
     arithmeticEncoder.encode(value0 < 0);
