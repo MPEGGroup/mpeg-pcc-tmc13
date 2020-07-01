@@ -446,20 +446,8 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud)
   std::vector<uint64_t> pointToPartId(cloud.getPointCount());
 
   // for each point, determine a partition based upon the position
-  std::vector<uint8_t> tilePos(3);
-  uint64_t mortonTileID;
   for (int32_t i = 0, last = cloud.getPointCount(); i < last; i++) {
-    mortonTileID = 0;
-    for (int k = 0; k < 3; k++) {
-      tilePos[k] = std::floor(cloud[i][k] / tileSize);
-    }
-
-    for (int p = 0; p < 8; p++) {
-      mortonTileID |= ((tilePos[0] >> p) & 1) << (3 * p + 2);
-      mortonTileID |= ((tilePos[1] >> p) & 1) << (3 * p + 1);
-      mortonTileID |= ((tilePos[2] >> p) & 1) << (3 * p);
-    }
-
+    uint64_t mortonTileID = mortonAddr(cloud[i] / tileSize);
     partMap[mortonTileID]++;
     pointToPartId[i] = mortonTileID;
   }
