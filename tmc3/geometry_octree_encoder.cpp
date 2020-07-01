@@ -235,7 +235,7 @@ public:
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
   // for planar mode xyz
-  AdaptiveBitModel _ctxPlanarMode[3][2][2];
+  AdaptiveBitModel _ctxPlanarMode[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
@@ -327,8 +327,7 @@ GeometryOctreeEncoder::encodePlanarMode(
   int planeBit = (node.planePosBits & mask0) == 0 ? 0 : 1;
 
   int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
-  _arithmeticEncoder->encode(
-    isPlanar, _ctxPlanarMode[planeId][!neighb][discreteDist]);
+  _arithmeticEncoder->encode(isPlanar, _ctxPlanarMode[planeId]);
 
   if (!isPlanar) {
     node.planarPossible &= mask1[planeId];

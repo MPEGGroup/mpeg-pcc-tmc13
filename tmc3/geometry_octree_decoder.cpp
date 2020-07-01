@@ -215,7 +215,7 @@ public:
   AdaptiveBitModel _ctxThetaResExp;
 
   // for planar mode xyz
-  AdaptiveBitModel _ctxPlanarMode[3][2][2];
+  AdaptiveBitModel _ctxPlanarMode[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
@@ -305,8 +305,7 @@ GeometryOctreeDecoder::decodePlanarMode(
 
   // decode planar mode
   int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
-  bool isPlanar =
-    _arithmeticDecoder->decode(_ctxPlanarMode[planeId][!neighb][discreteDist]);
+  bool isPlanar = _arithmeticDecoder->decode(_ctxPlanarMode[planeId]);
   planar.planarMode |= isPlanar ? mask0 : 0;
 
   if (!isPlanar) {
