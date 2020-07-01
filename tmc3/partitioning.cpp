@@ -150,6 +150,7 @@ partitionByNpts(
     auto& slice = slices.back();
     slice.sliceId = sliceId;
     slice.tileId = tileID;
+    slice.origin = Vec3<int>{0};
 
     // generate the point range
     int firstPointIdx = sliceMaxPts * sliceId;
@@ -158,13 +159,6 @@ partitionByNpts(
     slice.pointIndexes.resize(numPoints);
     for (int i = 0; i < numPoints; i++)
       slice.pointIndexes[i] = firstPointIdx + i;
-
-    // work out the origin
-    auto bbox = cloud.computeBoundingBox(
-      slice.pointIndexes.begin(), slice.pointIndexes.end());
-
-    for (int k = 0; k < 3; k++)
-      slice.origin[k] = int(bbox.min[k]);
   }
 
   return slices;

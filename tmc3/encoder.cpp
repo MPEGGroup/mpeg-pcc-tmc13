@@ -185,7 +185,6 @@ PCCTMC3Encoder3::compress(
       }
     }
   } else {
-    _sliceOrigin = quantizedInputCloud.computeBoundingBox().min;
     tileMaps.emplace_back();
     auto& tile = tileMaps.back();
     for (int i = 0; i < quantizedInputCloud.getPointCount(); i++)
@@ -319,7 +318,7 @@ PCCTMC3Encoder3::compress(
 
     _sliceId = partition.sliceId;
     _tileId = partition.tileId;
-    _sliceOrigin = partition.origin;
+    _sliceOrigin = srcPartition.computeBoundingBox().min;
     compressPartition(
       srcPartition, partitionInOriginCloud, params, callback,
       reconstructedCloud);
