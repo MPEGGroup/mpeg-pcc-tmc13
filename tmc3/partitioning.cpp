@@ -249,18 +249,20 @@ partitionByUniformSquare(
   Box3<int32_t> bbox = cloud.computeBoundingBox();
 
   int maxEdgeAxis = longestAxis(bbox);
-  int maxEdge = bbox.max[maxEdgeAxis] - bbox.min[maxEdgeAxis];
 
   int minEdgeAxis = shortestAxis(bbox);
-  int minEdge = (bbox.max[minEdgeAxis] - bbox.min[minEdgeAxis]);
+  minEdgeAxis = (maxEdgeAxis == minEdgeAxis) ? 2 - minEdgeAxis : minEdgeAxis;
 
   int midEdgeAxis = 3 - maxEdgeAxis - minEdgeAxis;
+  int maxEdge = bbox.max[maxEdgeAxis] - bbox.min[maxEdgeAxis];
+  int minEdge = bbox.max[minEdgeAxis] - bbox.min[minEdgeAxis];
   int midEdge = bbox.max[midEdgeAxis] - bbox.min[midEdgeAxis];
+  minEdge = std::max(1, minEdge);
 
   int firstSliceNum = maxEdge / minEdge + 1;
   int secondSliceNum = midEdge / minEdge + 1;
   int sliceNum = firstSliceNum * secondSliceNum;
-  int sliceSize = minEdge ? minEdge : maxEdge;
+  int sliceSize = minEdge;
 
   int partitionBoundary = 1 << partitionBoundaryLog2;
   if (sliceSize % partitionBoundary) {
