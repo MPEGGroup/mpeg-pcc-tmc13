@@ -126,6 +126,9 @@ private:
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
   int _qpOffsetInterval;
+
+  Vec3<int> _maxAbsResidualMinus1Log2;
+  Vec3<int> _pgeom_resid_abs_log2_bits;
 };
 
 //============================================================================
@@ -142,6 +145,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
+  , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -154,6 +158,9 @@ PredGeomEncoder::PredGeomEncoder(
     origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
 
   _stack.reserve(1024);
+
+  for (int k = 0; k < 3; k++)
+    _maxAbsResidualMinus1Log2[k] = (1 << gbh.pgeom_resid_abs_log2_bits[k]) - 1;
 }
 
 //----------------------------------------------------------------------------
@@ -203,7 +210,7 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
-    for (int ctxIdx = 1, n = 4; n >= 0; n--) {
+    for (int ctxIdx = 1, n = _pgeom_resid_abs_log2_bits[k] - 1; n >= 0; n--) {
       auto bin = (numBits >> n) & 1;
       _aec->encode(bin, ctxs[ctxIdx]);
       ctxIdx = (ctxIdx << 1) | bin;
@@ -327,7 +334,7 @@ PredGeomEncoder::estimateBits(
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
-    for (int ctxIdx = 1, n = 4; n >= 0; n--) {
+    for (int ctxIdx = 1, n = _pgeom_resid_abs_log2_bits[k] - 1; n >= 0; n--) {
       auto bin = (numBits >> n) & 1;
       bits += estimate(bin, ctxs[ctxIdx]);
       ctxIdx = (ctxIdx << 1) | bin;
@@ -409,6 +416,17 @@ PredGeomEncoder::encodeTree(
       if (!_geom_angular_mode_enabled_flag)
         for (int k = 0; k < 3; k++)
           residual[k] = int32_t(quantizer.quantize(residual[k]));
+
+      // Check if the prediction residual can be represented with the
+      // current configuration.  If it can't, don't use this mode.
+      bool isOverflow = false;
+      for (int k = 0; k < 3; k++) {
+        if (residual[k])
+          if ((abs(residual[k]) - 1) >> _maxAbsResidualMinus1Log2[k])
+            isOverflow = true;
+      }
+      if (isOverflow)
+        continue;
 
       auto bits = estimateBits(mode, residual);
 
@@ -679,7 +697,7 @@ void
 encodePredictiveGeometry(
   const PredGeomEncOpts& opt,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& cloud,
   EntropyEncoder* arithmeticEncoder)
 {
@@ -700,6 +718,31 @@ encodePredictiveGeometry(
 
   // src indexes in coded order
   std::vector<int32_t> codedOrder(numPoints, -1);
+
+  // Assume that the number of bits required for residuals is equal to the
+  // root node size.  This allows every position to be coded using PCM.
+  for (int k = 0; k < 3; k++)
+    gbh.pgeom_resid_abs_log2_bits[k] =
+      ilog2(uint32_t(gbh.rootNodeSizeLog2[k])) + 1;
+
+  // Number of residual bits bits for angular mode.  This is slightly
+  // pessimistic in the calculation of r.
+  if (gps.geom_angular_mode_enabled_flag) {
+    auto xyzBboxLog2 = gbh.rootNodeSizeLog2;
+    auto rDivLog2 = gps.geom_angular_radius_inv_scale_log2;
+    auto azimuthBits = gps.geom_angular_azimuth_scale_log2;
+
+    // first work out the maximum number of bits for the residual
+    Vec3<int> residualBits;
+    auto r = std::round(std::hypot(1 << xyzBboxLog2[0], 1 << xyzBboxLog2[1]));
+    residualBits[0] = ceillog2(divExp2RoundHalfUp(int64_t(r), rDivLog2));
+    residualBits[1] = gps.geom_angular_azimuth_scale_log2;
+    residualBits[2] = ceillog2(gps.geom_angular_theta_laser.size() - 1);
+
+    // the number of prefix bits required
+    for (int k = 0; k < 3; k++)
+      gbh.pgeom_resid_abs_log2_bits[k] = ilog2(uint32_t(residualBits[k])) + 1;
+  }
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.

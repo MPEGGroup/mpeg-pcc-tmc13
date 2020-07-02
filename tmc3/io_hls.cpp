@@ -978,6 +978,19 @@ write(
       bs.writeUe(gbh.num_unique_segments_minus1);
     }
 
+  if (gps.predgeom_enabled_flag) {
+    int pgeom_resid_abs_log2_bits_x = gbh.pgeom_resid_abs_log2_bits[0];
+    int pgeom_resid_abs_log2_bits_delta_y =
+      gbh.pgeom_resid_abs_log2_bits[1] - gbh.pgeom_resid_abs_log2_bits[0];
+
+    int pgeom_resid_abs_log2_bits_delta_z =
+      gbh.pgeom_resid_abs_log2_bits[2] - gbh.pgeom_resid_abs_log2_bits[1];
+
+    bs.writeUe(pgeom_resid_abs_log2_bits_x);
+    bs.writeSe(pgeom_resid_abs_log2_bits_delta_y);
+    bs.writeSe(pgeom_resid_abs_log2_bits_delta_z);
+  }
+
   bs.byteAlign();
 }
 
@@ -1043,6 +1056,20 @@ parseGbh(
       bs.readUe(&gbh.trisoup_sampling_value_minus1);
       bs.readUe(&gbh.num_unique_segments_minus1);
     }
+
+  if (gps.predgeom_enabled_flag) {
+    int pgeom_resid_abs_log2_bits_x;
+    int pgeom_resid_abs_log2_bits_delta_y;
+    int pgeom_resid_abs_log2_bits_delta_z;
+    bs.readUe(&pgeom_resid_abs_log2_bits_x);
+    bs.readSe(&pgeom_resid_abs_log2_bits_delta_y);
+    bs.readSe(&pgeom_resid_abs_log2_bits_delta_z);
+    gbh.pgeom_resid_abs_log2_bits[0] = pgeom_resid_abs_log2_bits_x;
+    gbh.pgeom_resid_abs_log2_bits[1] = pgeom_resid_abs_log2_bits_delta_y;
+    gbh.pgeom_resid_abs_log2_bits[1] += gbh.pgeom_resid_abs_log2_bits[0];
+    gbh.pgeom_resid_abs_log2_bits[2] = pgeom_resid_abs_log2_bits_delta_z;
+    gbh.pgeom_resid_abs_log2_bits[2] += gbh.pgeom_resid_abs_log2_bits[1];
+  }
 
   bs.byteAlign();
 

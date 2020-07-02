@@ -447,6 +447,8 @@ struct GeometryBrickHeader {
   //     the encoder
   Vec3<int> rootNodeSizeLog2;
 
+  Vec3<int> pgeom_resid_abs_log2_bits;
+
   // the largest dimension of the root geometry node
   mutable int maxRootNodeDimLog2;
 

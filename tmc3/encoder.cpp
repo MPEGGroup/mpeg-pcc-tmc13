@@ -586,7 +586,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.maxRootNodeDimLog2 = gbh.rootNodeSizeLog2.max();
 
   // use a cubic node if qtbt is disabled
-  if (!_gps->qtbt_enabled_flag)
+  if (!_gps->predgeom_enabled_flag && !_gps->qtbt_enabled_flag)
     gbh.rootNodeSizeLog2 = gbh.maxRootNodeDimLog2;
 
   // todo(df): remove estimate when arithmetic codec is replaced

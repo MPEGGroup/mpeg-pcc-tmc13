@@ -91,6 +91,8 @@ private:
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
   int _qpOffsetInterval;
+
+  Vec3<int> _pgeom_resid_abs_log2_bits;
 };
 
 //============================================================================
@@ -108,6 +110,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
+  , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -241,9 +244,9 @@ PredGeomDecoder::decodeResidual()
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
     int32_t numBits = 1;
-    for (int n = 0; n < 5; n++)
+    for (int n = 0; n < _pgeom_resid_abs_log2_bits[k]; n++)
       numBits = (numBits << 1) | _aed->decode(ctxs[numBits]);
-    numBits ^= 1 << 5;
+    numBits ^= 1 << _pgeom_resid_abs_log2_bits[k];
 
     if (!k && !_geom_angular_mode_enabled_flag)
       ctxIdx = (numBits + 1) >> 1;

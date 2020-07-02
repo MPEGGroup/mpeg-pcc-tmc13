@@ -88,7 +88,7 @@ void decodeGeometryTrisoup(
 void encodePredictiveGeometry(
   const PredGeomEncOpts& opt,
   const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
+  GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   EntropyEncoder* arithmeticEncoder);
 
