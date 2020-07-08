@@ -455,6 +455,11 @@ Requires `geomTreeType=1`.
  | 2     | azimuth angle   |
  | 3     | radial distance |
 
+### `--predGeomAzimuthSortPrecision=INT-VALUE`
+Controls the precision used in azimuthal sorting of points prior to
+predictive tree construction.  A value of 0 represents full-precision,
+otherwise larger values represent increasing precision.
+Requires `predGeomSort=2`.
 
 ### `--predGeomTreePtsMax=INT-VALUE`
 Maximum number of points per predictive geometry tree.  A slice may contain

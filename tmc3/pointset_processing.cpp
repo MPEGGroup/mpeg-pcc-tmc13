@@ -938,9 +938,21 @@ convertYCbCrBt709ToGbr(PCCPointSet3& cloud)
 }
 
 //============================================================================
+double
+roundAtDigit(double x, double digit)
+{
+  return std::round(x * digit) / digit;
+}
+
+//============================================================================
 
 std::vector<int>
-orderByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
+orderByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin)
 {
   // build a list of inxdexes to sort
   auto pointCount = end - start;
@@ -960,6 +972,12 @@ orderByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
     double phiB = atan2(b[1], b[0]);
     double tanThetaB = b[2] / rB;
 
+    // quantise azimith to specified precision
+    if (recipBinWidth != 0.) {
+      phiA = std::round(phiA * recipBinWidth);
+      phiB = std::round(phiB * recipBinWidth);
+    }
+
     // NB: the a < b comparison adds some stability to the sort.  It is not
     // required in an actual implementation.  Either slightly more performance
     // can be achieved by sorting by a second data dependent dimension, or
@@ -974,12 +992,20 @@ orderByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
 }
 
 //============================================================================
+// Sorts according to azimuth.
+// \param recipBinWidth is the reciprocal bin width used in sorting.
+//        recipBinWidth = 0 disables binning.
 
 void
-sortByAzimuth(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
+sortByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin)
 {
   auto pointCount = end - start;
-  auto order = orderByAzimuth(cloud, start, end, origin);
+  auto order = orderByAzimuth(cloud, start, end, recipBinWidth, origin);
 
   // inefficiently reorder the point cloud
   for (int i = 0; i < pointCount; i++) {

@@ -72,6 +72,10 @@ struct PredGeomEncOpts {
 
   // limit on number of points per tree
   int maxPtsPerTree;
+
+  // Reciprocal bin width used in azimuthal sorting.
+  //  0 => full precision
+  int azimuthSortRecipBinWidth;
 };
 
 //=============================================================================

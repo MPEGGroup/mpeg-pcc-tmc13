@@ -184,15 +184,19 @@ void convertYCgCoRToGbr(int bitDepth, PCCPointSet3&);
 //============================================================================
 
 // Generate index order sorted by azimuth angle.
-std::vector<int32_t>
-orderByAzimuth(PCCPointSet3&, int start, int end, Vec3<int32_t> origin);
+std::vector<int32_t> orderByAzimuth(
+  PCCPointSet3&, int start, int end, int numDigit, Vec3<int32_t> origin);
 
 std::vector<int32_t>
 orderByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin);
 
 // Sorts points according to azimuth angle.
-void
-sortByAzimuth(PCCPointSet3&, int start, int end, Vec3<int32_t> origin = 0);
+void sortByAzimuth(
+  PCCPointSet3&,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin = 0);
 
 void sortByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin = 0);
 

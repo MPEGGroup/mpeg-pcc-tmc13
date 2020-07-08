@@ -469,7 +469,7 @@ encodePredictiveGeometry(
     if (opt.sortMode == PredGeomEncOpts::kSortMorton)
       mortonSort(cloud, i, iEnd, gbh.maxRootNodeDimLog2);
     else if (opt.sortMode == PredGeomEncOpts::kSortAzimuth)
-      sortByAzimuth(cloud, i, iEnd, origin);
+      sortByAzimuth(cloud, i, iEnd, opt.azimuthSortRecipBinWidth, origin);
     else if (opt.sortMode == PredGeomEncOpts::kSortRadius)
       sortByRadius(cloud, i, iEnd, origin);
 

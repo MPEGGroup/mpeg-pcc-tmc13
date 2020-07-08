@@ -725,6 +725,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.predGeom.sortMode, PredGeomEncOpts::kSortMorton,
     "Predictive geometry tree construction order")
 
+  ("predGeomAzimuthSortPrecision",
+    params.encoder.predGeom.azimuthSortRecipBinWidth, 0,
+    "Reciprocal precision used in azimuthal sorting for tree construction\n")
+
   ("predGeomTreePtsMax",
     params.encoder.predGeom.maxPtsPerTree, 1100000,
     "Maximum number of points per predictive geometry tree")
@@ -1364,8 +1368,10 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   // Some evaluations wish to scan the points in azimuth order to simulate
   // real-time acquisition (since the input has lost its original order).
+  // NB: because this is trying to emulate the input order, binning is disabled
   if (params->sortInputByAzimuth)
-    sortByAzimuth(pointCloud, 0, pointCloud.getPointCount(), _angularOrigin);
+    sortByAzimuth(
+      pointCloud, 0, pointCloud.getPointCount(), 0., _angularOrigin);
 
   // Sanitise the input point cloud
   // todo(df): remove the following with generic handling of properties
