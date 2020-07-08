@@ -1178,6 +1178,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       }
 
       if (
+        attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
+        && lod == 0 && attr_aps.intra_lod_prediction_enabled_flag == 0) {
+        err.error()
+          << "when transformType == 0 (Pred) and levelOfDetailCount == 0, "
+             "intraLodPredictionEnabled must be 1\n";
+      }
+
+      if (
         attr_aps.lod_decimation_enabled_flag
         && attr_aps.lodSamplingPeriod.empty()) {
         err.error() << it.first
