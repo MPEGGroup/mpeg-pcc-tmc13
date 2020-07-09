@@ -603,14 +603,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  0: bytewise\n"
     "  1: bitwise")
 
-  ("neighbourContextRestriction",
-    params.encoder.gps.neighbour_context_restriction_flag, false,
-    "Limit geometry octree occupancy contextualisation to sibling nodes")
-
   ("neighbourAvailBoundaryLog2",
     params.encoder.gps.neighbour_avail_boundary_log2, 0,
-    "Defines the avaliability volume for neighbour occupancy lookups."
-    " 0: unconstrained")
+    "Defines the avaliability volume for neighbour occupancy lookups:\n"
+    " 0: Limited to sibling nodes only")
 
   ("inferredDirectCodingMode",
     params.encoder.gps.inferred_direct_coding_mode, 1,
@@ -1186,11 +1182,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     < params.encoder.partition.sliceMinPoints)
     err.error()
       << "sliceMaxPoints must be greater than or equal to sliceMinPoints\n";
-
-  if (params.encoder.gps.intra_pred_max_node_size_log2)
-    if (!params.encoder.gps.neighbour_avail_boundary_log2)
-      err.error() << "Geometry intra prediction requires finite"
-                     "neighbour_avail_boundary_log2\n";
 
   for (const auto& it : params.encoder.attributeIdxMap) {
     const auto& attr_sps = params.encoder.sps.attributeSets[it.second];

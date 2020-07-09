@@ -548,12 +548,15 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.qtbt_enabled_flag);
-    bs.write(gps.neighbour_context_restriction_flag);
+    bs.writeUe(gps.neighbour_avail_boundary_log2);
+    if (gps.neighbour_avail_boundary_log2 > 0) {
+      bs.write(gps.adjacent_child_contextualization_enabled_flag);
+      bs.writeUe(gps.intra_pred_max_node_size_log2);
+    }
     bs.writeUe(gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
       bs.write(gps.joint_2pt_idcm_enabled_flag);
     bs.write(gps.bitwise_occupancy_coding_flag);
-    bs.write(gps.adjacent_child_contextualization_enabled_flag);
 
     bs.write(gps.geom_planar_mode_enabled_flag);
     if (gps.geom_planar_mode_enabled_flag) {
@@ -605,11 +608,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.write(gps.planar_buffer_disabled_flag);
   }
 
-  if (!gps.predgeom_enabled_flag) {
-    bs.writeUe(gps.neighbour_avail_boundary_log2);
-    bs.writeUe(gps.intra_pred_max_node_size_log2);
+  if (!gps.predgeom_enabled_flag)
     bs.writeUe(gps.trisoup_node_size_log2);
-  }
 
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag) {
@@ -647,12 +647,15 @@ parseGps(const PayloadBuffer& buf)
 
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.qtbt_enabled_flag);
-    bs.read(&gps.neighbour_context_restriction_flag);
+    bs.readUe(&gps.neighbour_avail_boundary_log2);
+    if (gps.neighbour_avail_boundary_log2 > 0) {
+      bs.read(&gps.adjacent_child_contextualization_enabled_flag);
+      bs.readUe(&gps.intra_pred_max_node_size_log2);
+    }
     bs.readUe(&gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
       bs.read(&gps.joint_2pt_idcm_enabled_flag);
     bs.read(&gps.bitwise_occupancy_coding_flag);
-    bs.read(&gps.adjacent_child_contextualization_enabled_flag);
 
     bs.read(&gps.geom_planar_mode_enabled_flag);
     if (gps.geom_planar_mode_enabled_flag) {
@@ -714,11 +717,8 @@ parseGps(const PayloadBuffer& buf)
       bs.read(&gps.planar_buffer_disabled_flag);
   }
 
-  if (!gps.predgeom_enabled_flag) {
-    bs.readUe(&gps.neighbour_avail_boundary_log2);
-    bs.readUe(&gps.intra_pred_max_node_size_log2);
+  if (!gps.predgeom_enabled_flag)
     bs.readUe(&gps.trisoup_node_size_log2);
-  }
 
   gps.geom_base_qp = 0;
   gps.geom_qp_multiplier_log2 = 0;

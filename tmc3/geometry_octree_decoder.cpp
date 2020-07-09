@@ -1562,7 +1562,9 @@ decodeGeometryOctree(
       int occupancyPrediction = 0;
 
       // generate intra prediction
-      if (nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2) {
+      if (
+        nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
+        && gps.neighbour_avail_boundary_log2 > 0) {
         predictGeometryOccupancyIntra(
           occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
           &occupancyPrediction);
@@ -1658,8 +1660,8 @@ decodeGeometryOctree(
 
         if (!gps.neighbour_avail_boundary_log2) {
           updateGeometryNeighState(
-            gps.neighbour_context_restriction_flag, fifo.end(),
-            numNodesNextLvl, child, i, node0.neighPattern, occupancy);
+            true, fifo.end(), numNodesNextLvl, child, i, node0.neighPattern,
+            occupancy);
         }
       }
     }

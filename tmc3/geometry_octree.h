@@ -185,7 +185,7 @@ isDirectModeEligible(
 inline const uint8_t*
 neighPattern64toR1(const GeometryParameterSet& gps)
 {
-  if (!gps.neighbour_context_restriction_flag)
+  if (gps.neighbour_avail_boundary_log2 > 0)
     return kNeighPattern64to9;
   return kNeighPattern64to6;
 }

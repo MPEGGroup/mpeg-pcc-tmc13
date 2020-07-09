@@ -305,24 +305,14 @@ Specifies the minimum size of quadtree and binary tree partitions.
 In octree geometry coding, there are both byte-wise and bit-wise tools to
 encode the occupancy data.  This option selects between the two methods.
 
-### `--neighbourContextRestriction=0|1`
-Octree occupancy coding is contextualised in part by the occupancy of
-neighbouring octree nodes.  The neighbour context restriction limits
-the use of neighbouring nodes to direct octree siblings.
-
-NB: This option conflicts with `neighbourAvailBoundaryLog2`.  It is
-necessary to set `neighbourAvailBoundaryLog2`=0 when
-`neighbourContextRestriction`=1.
-
 ### `--neighbourAvailBoundaryLog2=INT-VALUE`
 Defines the volume within which octree nodes are considered available
 for use in occupancy contextualisation and intra occupancy prediction.
 
-A value of 0 indicates that no constraint is applied.
+A value of 0 limits the use of neighbouring nodes to direct octree siblings.
 
 The software currently supports a maximum value of 8 or 9 when
-intra occupancy prediction prediction is enabled or disabled
-respectively.
+intra occupancy prediction is enabled or disabled respectively.
 
 ### `--inferredDirectCodingMode=0|1|2|3`
 Controls the degree to which early termination of the geometry octree is

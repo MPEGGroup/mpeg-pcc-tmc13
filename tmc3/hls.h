@@ -340,14 +340,9 @@ struct GeometryParameterSet {
   // attributes) at the same spatial position.
   bool geom_unique_points_flag;
 
-  // Controls the use of neighbour based contextualisation of octree
-  // occupancy during geometry coding.  When true, only neighbours that
-  // are direct siblings are available.
-  bool neighbour_context_restriction_flag;
-
   // Defines the size of the neighbour availiability volume (aka
   // look-ahead cube size) for occupancy searches.  A value of 0
-  // indicates that the feature is disabled.
+  // indicates that only neighbours that are direct siblings are available.
   int neighbour_avail_boundary_log2;
 
   // Controls the use of early termination of the geometry tree
