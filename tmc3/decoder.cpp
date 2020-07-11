@@ -43,6 +43,8 @@
 #include "PCCPointSet.h"
 #include "coordinate_conversion.h"
 #include "geometry.h"
+#include "geometry_octree.h"
+#include "geometry_predictive.h"
 #include "hls.h"
 #include "io_hls.h"
 #include "io_tlv.h"
@@ -53,16 +55,31 @@ namespace pcc {
 
 //============================================================================
 
+PCCTMC3Decoder3::PCCTMC3Decoder3(const DecoderParams& params) : _params(params)
+{
+  init();
+}
+
+//----------------------------------------------------------------------------
+
 void
 PCCTMC3Decoder3::init()
 {
+  _firstSliceInFrame = true;
   _currentFrameIdx = -1;
   _sps = nullptr;
   _gps = nullptr;
   _spss.clear();
   _gpss.clear();
   _apss.clear();
+
+  _ctxtMemOctreeGeom.reset(new GeometryOctreeContexts);
+  _ctxtMemPredGeom.reset(new PredGeomContexts);
 }
+
+//----------------------------------------------------------------------------
+
+PCCTMC3Decoder3::~PCCTMC3Decoder3() = default;
 
 //============================================================================
 
@@ -143,6 +160,7 @@ PCCTMC3Decoder3::decompress(
     if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr))) {
       callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
+      _firstSliceInFrame = true;
     }
 
     // avoid accidents with stale attribute decoder on next slice
@@ -257,9 +275,22 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   int gbhSize;
   _gbh = parseGbh(*_sps, *_gps, buf, &gbhSize);
+  _prevSliceId = _sliceId;
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
   _currentFrameIdx = _gbh.frame_idx;
+
+  // sanity check for loss detection
+  if (_gbh.entropy_continuation_flag) {
+    assert(!_firstSliceInFrame);
+    assert(_gbh.prev_slice_id == _prevSliceId);
+  } else {
+    // forget (reset) all saved context state at boundary
+    if (_sps->entropy_continuation_enabled_flag) {
+      _ctxtMemOctreeGeom->reset();
+      _ctxtMemPredGeom->reset();
+    }
+  }
 
   // set default attribute values (in case an attribute data unit is lost)
   // NB: it is a requirement that geom_num_points_minus1 is correct
@@ -316,19 +347,26 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, arithmeticDecoders[0].get());
+      *_gps, _gbh, _currentPointCloud, *_ctxtMemPredGeom,
+      arithmeticDecoders[0].get());
   else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
-        *_gps, _gbh, _currentPointCloud, arithmeticDecoders);
+        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
+        arithmeticDecoders);
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
-        arithmeticDecoders);
+        *_ctxtMemOctreeGeom, arithmeticDecoders);
     }
   } else {
-    decodeGeometryTrisoup(*_gps, _gbh, _currentPointCloud, arithmeticDecoders);
+    decodeGeometryTrisoup(
+      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
+      arithmeticDecoders);
   }
+
+  // At least the first slice's geometry has been decoded
+  _firstSliceInFrame = false;
 
   clock_user.stop();
 

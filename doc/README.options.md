@@ -246,6 +246,11 @@ Controls the entropy coding method used for equi-probable (bypass) bins:
   | 0     | bypass bins coded using CABAC         |
   | 1     | bypass bins coded in bypass substream |
 
+### `--entropyContinuationEnabled=0|1`
+Controls the propagation of entropy coding state (context values) between
+slices in the same frame.  When enabled, each slice (except the first) has
+a coding dependency on the previous slice.
+
 
 Geometry coding
 ---------------

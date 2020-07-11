@@ -564,6 +564,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.sps.cabac_bypass_stream_enabled_flag, false,
     "Controls coding method for ep(bypass) bins")
 
+  ("entropyContinuationEnabled",
+    params.encoder.sps.entropy_continuation_enabled_flag, false,
+    "Propagate context state between slices")
+
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,
     "Ignore attribute coding configuration")

@@ -48,17 +48,24 @@ namespace pcc {
 
 //============================================================================
 
+struct GeometryOctreeContexts;
+struct PredGeomContexts;
+
+//============================================================================
+
 void encodeGeometryOctree(
   const OctreeEncOpts& opt,
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 void decodeGeometryOctreeScalable(
@@ -66,6 +73,7 @@ void decodeGeometryOctreeScalable(
   const GeometryBrickHeader& gbh,
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 //----------------------------------------------------------------------------
@@ -75,12 +83,14 @@ void encodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
 
 void decodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoder);
 
 //----------------------------------------------------------------------------
@@ -90,12 +100,14 @@ void encodePredictiveGeometry(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder);
 
 void decodePredictiveGeometry(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  PredGeomContexts& ctxtMem,
   EntropyDecoder* arithmeticDecoder);
 
 //============================================================================

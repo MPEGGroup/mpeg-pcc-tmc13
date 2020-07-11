@@ -131,7 +131,7 @@ public:
   PCCTMC3Encoder3(PCCTMC3Encoder3&&) = default;
   PCCTMC3Encoder3& operator=(const PCCTMC3Encoder3& rhs) = delete;
   PCCTMC3Encoder3& operator=(PCCTMC3Encoder3&& rhs) = default;
-  ~PCCTMC3Encoder3() = default;
+  ~PCCTMC3Encoder3();
 
   int compress(
     const PCCPointSet3& inputPointCloud,
@@ -178,8 +178,14 @@ private:
   const GeometryParameterSet* _gps;
   std::vector<const AttributeParameterSet*> _aps;
 
+  // Indicates that this is the start of a new frame
+  bool _firstSliceInFrame;
+
   // Current identifier of payloads with the same geometry
   int _sliceId;
+
+  // Identifies the previous slice in bistream order
+  int _prevSliceId;
 
   // Identifies the current tile
   int _tileId;
@@ -190,6 +196,10 @@ private:
 
   // Map quantized points to the original input points
   std::multimap<point_t, int32_t> quantizedToOrigin;
+
+  // Memorized context buffers
+  std::unique_ptr<GeometryOctreeContexts> _ctxtMemOctreeGeom;
+  std::unique_ptr<PredGeomContexts> _ctxtMemPredGeom;
 };
 
 //----------------------------------------------------------------------------

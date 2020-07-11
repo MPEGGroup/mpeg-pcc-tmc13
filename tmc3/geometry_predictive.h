@@ -74,7 +74,11 @@ struct GNode {
 
 //============================================================================
 
-struct PredGeomCodec {
+class PredGeomContexts {
+public:
+  void reset();
+
+protected:
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
   AdaptiveBitModel _ctxIsZero[3];
@@ -100,6 +104,15 @@ struct PredGeomCodec {
   AdaptiveBitModel _ctxEGPhi;
   AdaptiveBitModel _ctxResidualPhi[15];
 };
+
+//----------------------------------------------------------------------------
+
+inline void
+PredGeomContexts::reset()
+{
+  this->~PredGeomContexts();
+  new (this) PredGeomContexts;
+}
 
 //============================================================================
 

@@ -294,7 +294,8 @@ write(const SequenceParameterSet& sps)
   // NB: if taking bits from reserved_profile_compatibility_XXbits, be sure
   // not to change the bitstream position of the other constraint flags.
   bs.writeUn(1, sps.profile.main_profile_compatibility_flag);
-  bs.writeUn(22, sps.profile.reserved_profile_compatibility_22bits);
+  bs.writeUn(21, sps.profile.reserved_profile_compatibility_21bits);
+  bs.writeUn(1, sps.profile.slice_reordering_constraint_flag);
   bs.writeUn(1, sps.profile.unique_point_positions_constraint_flag);
 
   bs.writeUn(8, sps.level);
@@ -407,6 +408,7 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(5, sps.log2_max_frame_idx);
   bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
+  bs.write(sps.entropy_continuation_enabled_flag);
 
   bool sps_extension_flag = false;
   bs.write(sps_extension_flag);
@@ -425,7 +427,8 @@ parseSps(const PayloadBuffer& buf)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUn(1, &sps.profile.main_profile_compatibility_flag);
-  bs.readUn(22, &sps.profile.reserved_profile_compatibility_22bits);
+  bs.readUn(21, &sps.profile.reserved_profile_compatibility_21bits);
+  bs.readUn(1, &sps.profile.slice_reordering_constraint_flag);
   bs.readUn(1, &sps.profile.unique_point_positions_constraint_flag);
 
   bs.readUn(8, &sps.level);
@@ -514,6 +517,11 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(5, &sps.log2_max_frame_idx);
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
+  bs.read(&sps.entropy_continuation_enabled_flag);
+
+  // conformance check: reordering constraint must be set with continuation
+  if (sps.entropy_continuation_enabled_flag)
+    assert(sps.profile.slice_reordering_constraint_flag);
 
   bool sps_extension_flag = bs.read();
   if (sps_extension_flag) {
@@ -1036,6 +1044,12 @@ write(
     bs.writeSe(pgeom_resid_abs_log2_bits_delta_z);
   }
 
+  if (sps.entropy_continuation_enabled_flag) {
+    bs.write(gbh.entropy_continuation_flag);
+    if (gbh.entropy_continuation_flag)
+      bs.writeUe(gbh.prev_slice_id);
+  }
+
   bs.byteAlign();
 }
 
@@ -1120,6 +1134,13 @@ parseGbh(
     gbh.pgeom_resid_abs_log2_bits[1] += gbh.pgeom_resid_abs_log2_bits[0];
     gbh.pgeom_resid_abs_log2_bits[2] = pgeom_resid_abs_log2_bits_delta_z;
     gbh.pgeom_resid_abs_log2_bits[2] += gbh.pgeom_resid_abs_log2_bits[1];
+  }
+
+  gbh.entropy_continuation_flag = false;
+  if (sps.entropy_continuation_enabled_flag) {
+    bs.read(&gbh.entropy_continuation_flag);
+    if (gbh.entropy_continuation_flag)
+      bs.readUe(&gbh.prev_slice_id);
   }
 
   bs.byteAlign();

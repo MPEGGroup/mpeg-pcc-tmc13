@@ -61,7 +61,10 @@ enum class DirectMode
 class GeometryOctreeEncoder : protected GeometryOctreeContexts {
 public:
   GeometryOctreeEncoder(
-    const GeometryParameterSet& gps, EntropyEncoder* arithmeticEncoder);
+    const GeometryParameterSet& gps,
+    const GeometryBrickHeader& gbh,
+    const GeometryOctreeContexts& ctxtMem,
+    EntropyEncoder* arithmeticEncoder);
 
   GeometryOctreeEncoder(const GeometryOctreeEncoder&) = default;
   GeometryOctreeEncoder(GeometryOctreeEncoder&&) = default;
@@ -218,6 +221,8 @@ public:
 
   void encodeThetaRes(int ThetaRes);
 
+  const GeometryOctreeContexts& getCtx() const { return *this; }
+
 public:
   // selects between the bitwise and bytewise occupancy coders
   bool _useBitwiseOccupancyCoder;
@@ -239,8 +244,12 @@ public:
 //============================================================================
 
 GeometryOctreeEncoder::GeometryOctreeEncoder(
-  const GeometryParameterSet& gps, EntropyEncoder* arithmeticEncoder)
-  : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const GeometryOctreeContexts& ctxtMem,
+  EntropyEncoder* arithmeticEncoder)
+  : GeometryOctreeContexts(ctxtMem)
+  , _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticEncoder(arithmeticEncoder)
   , _planar(gps)
@@ -248,7 +257,7 @@ GeometryOctreeEncoder::GeometryOctreeEncoder(
   , _phiZi(
       gps.geom_angular_num_lidar_lasers(), gps.geom_angular_num_phi_per_turn)
 {
-  if (!_useBitwiseOccupancyCoder) {
+  if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
       _bytewiseOccupancyCoder[i].init(kDualLutOccupancyCoderInit[i]);
   }
@@ -1377,11 +1386,12 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   auto arithmeticEncoderIt = arithmeticEncoders.begin();
-  GeometryOctreeEncoder encoder(gps, arithmeticEncoderIt->get());
+  GeometryOctreeEncoder encoder(gps, gbh, ctxtMem, arithmeticEncoderIt->get());
 
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
@@ -1832,6 +1842,9 @@ encodeGeometryOctree(
     }
   }
 
+  // save the context state for re-use by a future slice if required
+  ctxtMem = encoder.getCtx();
+
   // return partial coding result
   //  - add missing levels to node positions
   //  - inverse quantise the point cloud
@@ -1884,9 +1897,11 @@ encodeGeometryOctree(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders)
 {
-  encodeGeometryOctree(opt, gps, gbh, pointCloud, arithmeticEncoders, nullptr);
+  encodeGeometryOctree(
+    opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr);
 }
 
 //============================================================================

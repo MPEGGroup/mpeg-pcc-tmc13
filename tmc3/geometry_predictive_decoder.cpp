@@ -45,7 +45,7 @@ namespace pcc {
 
 //============================================================================
 
-class PredGeomDecoder : public PredGeomCodec {
+class PredGeomDecoder : protected PredGeomContexts {
 public:
   PredGeomDecoder(const PredGeomDecoder&) = delete;
   PredGeomDecoder& operator=(const PredGeomDecoder&) = delete;
@@ -53,6 +53,7 @@ public:
   PredGeomDecoder(
     const GeometryParameterSet&,
     const GeometryBrickHeader& gbh,
+    const PredGeomContexts& ctxtMem,
     EntropyDecoder* aed);
 
   /**
@@ -66,6 +67,8 @@ public:
    * @returns the number of points decoded.
    */
   int decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB);
+
+  const PredGeomContexts& getCtx() const { return *this; }
 
 private:
   int decodeNumDuplicatePoints();
@@ -100,8 +103,10 @@ private:
 PredGeomDecoder::PredGeomDecoder(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
+  const PredGeomContexts& ctxtMem,
   EntropyDecoder* aed)
-  : _aed(aed)
+  : PredGeomContexts(ctxtMem)
+  , _aed(aed)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
@@ -378,10 +383,12 @@ decodePredictiveGeometry(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  PredGeomContexts& ctxtMem,
   EntropyDecoder* aed)
 {
-  PredGeomDecoder dec(gps, gbh, aed);
+  PredGeomDecoder dec(gps, gbh, ctxtMem, aed);
   dec.decode(gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0]);
+  ctxtMem = dec.getCtx();
 }
 
 //============================================================================

@@ -46,6 +46,7 @@
 #include "pointset_processing.h"
 #include "geometry.h"
 #include "geometry_octree.h"
+#include "geometry_predictive.h"
 #include "io_hls.h"
 #include "osspecific.h"
 #include "partitioning.h"
@@ -57,7 +58,14 @@ namespace pcc {
 //============================================================================
 
 PCCTMC3Encoder3::PCCTMC3Encoder3() : _frameCounter(-1)
-{}
+{
+  _ctxtMemOctreeGeom.reset(new GeometryOctreeContexts);
+  _ctxtMemPredGeom.reset(new PredGeomContexts);
+}
+
+//----------------------------------------------------------------------------
+
+PCCTMC3Encoder3::~PCCTMC3Encoder3() = default;
 
 //============================================================================
 
@@ -127,6 +135,7 @@ PCCTMC3Encoder3::compress(
   _tileId = 0;
   _sliceId = 0;
   _sliceOrigin = Vec3<int>{0};
+  _firstSliceInFrame = true;
 
   // Partition the input point cloud into tiles
   //  - quantize the input point cloud (without duplicate point removal)
@@ -359,11 +368,13 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
 
   // development level / header
   params->sps.profile.main_profile_compatibility_flag = 0;
-  params->sps.profile.reserved_profile_compatibility_22bits = 0;
+  params->sps.profile.reserved_profile_compatibility_21bits = 0;
   params->sps.level = 0;
 
   // constraints
   params->sps.profile.unique_point_positions_constraint_flag = false;
+  params->sps.profile.slice_reordering_constraint_flag =
+    params->sps.entropy_continuation_enabled_flag;
 
   // use one bit to indicate frame boundaries
   params->sps.log2_max_frame_idx = 1;
@@ -591,9 +602,13 @@ PCCTMC3Encoder3::compressPartition(
     callback->onOutputBuffer(payload);
   }
 
+  // Note the current slice id for loss detection with entropy continuation
+  _prevSliceId = _sliceId;
+
   // prevent re-use of this sliceId:  the next slice (geometry + attributes)
   // should be distinguishable from the current slice.
   _sliceId++;
+  _firstSliceInFrame = false;
 
   appendReconstructedPoints(reconstructedCloud);
 }
@@ -607,6 +622,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   GeometryBrickHeader gbh;
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
+  gbh.prev_slice_id = _prevSliceId;
   gbh.geom_tile_id = std::max(0, _tileId);
   gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
@@ -619,6 +635,11 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
+
+  // Entropy continuation is not permitted in the first slice of a frame
+  gbh.entropy_continuation_flag = false;
+  if (_sps->entropy_continuation_enabled_flag)
+    gbh.entropy_continuation_flag = !_firstSliceInFrame;
 
   // inform the geometry coder what the root node size is
   for (int k = 0; k < 3; k++) {
@@ -650,18 +671,29 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     aec->start();
   }
 
+  // forget (reset) all saved context state at boundary
+  if (_sps->entropy_continuation_enabled_flag) {
+    if (!gbh.entropy_continuation_flag) {
+      _ctxtMemOctreeGeom->reset();
+      _ctxtMemPredGeom->reset();
+    }
+  }
+
   if (_gps->predgeom_enabled_flag)
     encodePredictiveGeometry(
-      params->predGeom, *_gps, gbh, pointCloud, arithmeticEncoders[0].get());
+      params->predGeom, *_gps, gbh, pointCloud, *_ctxtMemPredGeom,
+      arithmeticEncoders[0].get());
   else if (!_gps->trisoup_enabled_flag)
     encodeGeometryOctree(
-      params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
+      params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
+      arithmeticEncoders);
   else {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
     encodeGeometryTrisoup(
-      params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
+      params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
+      arithmeticEncoders);
   }
 
   // signal the actual number of points coded

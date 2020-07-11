@@ -50,7 +50,10 @@ namespace pcc {
 class GeometryOctreeDecoder : protected GeometryOctreeContexts {
 public:
   GeometryOctreeDecoder(
-    const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder);
+    const GeometryParameterSet& gps,
+    const GeometryBrickHeader& gbh,
+    const GeometryOctreeContexts& ctxMem,
+    EntropyDecoder* arithmeticDecoder);
 
   GeometryOctreeDecoder(const GeometryOctreeDecoder&) = default;
   GeometryOctreeDecoder(GeometryOctreeDecoder&&) = default;
@@ -196,6 +199,8 @@ public:
 
   int decodeThetaRes();
 
+  const GeometryOctreeContexts& getCtx() const { return *this; }
+
 public:
   // selects between the bitwise and bytewise occupancy coders
   bool _useBitwiseOccupancyCoder;
@@ -217,8 +222,12 @@ public:
 //============================================================================
 
 GeometryOctreeDecoder::GeometryOctreeDecoder(
-  const GeometryParameterSet& gps, EntropyDecoder* arithmeticDecoder)
-  : _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const GeometryOctreeContexts& ctxtMem,
+  EntropyDecoder* arithmeticDecoder)
+  : GeometryOctreeContexts(ctxtMem)
+  , _useBitwiseOccupancyCoder(gps.bitwise_occupancy_coding_flag)
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
   , _planar(gps)
@@ -226,7 +235,7 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   , _phiZi(
       gps.geom_angular_num_lidar_lasers(), gps.geom_angular_num_phi_per_turn)
 {
-  if (!_useBitwiseOccupancyCoder) {
+  if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
       _bytewiseOccupancyCoder[i].init(kDualLutOccupancyCoderInit[i]);
   }
@@ -1245,6 +1254,7 @@ decodeGeometryOctree(
   const GeometryBrickHeader& gbh,
   int minNodeSizeLog2,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
@@ -1336,7 +1346,7 @@ decodeGeometryOctree(
   // NB: this needs to be after the root node size is determined to
   //     allocate the planar buffer
   auto arithmeticDecoderIt = arithmeticDecoders.begin();
-  GeometryOctreeDecoder decoder(gps, arithmeticDecoderIt->get());
+  GeometryOctreeDecoder decoder(gps, gbh, ctxtMem, arithmeticDecoderIt->get());
 
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
@@ -1639,6 +1649,9 @@ decodeGeometryOctree(
     assert(numNodesNextLvl <= ringBufferSize);
   }
 
+  // save the context state for re-use by a future slice if required
+  ctxtMem = decoder.getCtx();
+
   // NB: the point cloud needs to be resized if partially decoded
   // OR: if geometry quantisation has changed the number of points
   pointCloud.resize(processedPointCount);
@@ -1664,9 +1677,11 @@ decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
 {
-  decodeGeometryOctree(gps, gbh, 0, pointCloud, arithmeticDecoders, nullptr);
+  decodeGeometryOctree(
+    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoders, nullptr);
 }
 
 //-------------------------------------------------------------------------
@@ -1677,11 +1692,13 @@ decodeGeometryOctreeScalable(
   const GeometryBrickHeader& gbh,
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, minGeomNodeSizeLog2, pointCloud, arithmeticDecoders, &nodes);
+    gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoders,
+    &nodes);
 
   if (minGeomNodeSizeLog2 > 0) {
     size_t size =

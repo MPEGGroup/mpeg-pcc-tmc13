@@ -76,7 +76,7 @@ namespace {
 
 //============================================================================
 
-class PredGeomEncoder : public PredGeomCodec {
+class PredGeomEncoder : protected PredGeomContexts {
 public:
   PredGeomEncoder(const PredGeomEncoder&) = delete;
   PredGeomEncoder& operator=(const PredGeomEncoder&) = delete;
@@ -84,6 +84,7 @@ public:
   PredGeomEncoder(
     const GeometryParameterSet&,
     const GeometryBrickHeader&,
+    const PredGeomContexts& ctxtMem,
     EntropyEncoder* aec);
 
   int qpSelector(const GNode& node) const { return _sliceQp; }
@@ -113,6 +114,8 @@ public:
 
   float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
 
+  const PredGeomContexts& getCtx() const { return *this; }
+
 private:
   EntropyEncoder* _aec;
   std::vector<int32_t> _stack;
@@ -136,8 +139,10 @@ private:
 PredGeomEncoder::PredGeomEncoder(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
+  const PredGeomContexts& ctxtMem,
   EntropyEncoder* aec)
-  : _aec(aec)
+  : PredGeomContexts(ctxtMem)
+  , _aec(aec)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
@@ -699,6 +704,7 @@ encodePredictiveGeometry(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& cloud,
+  PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder)
 {
   auto numPoints = cloud.getPointCount();
@@ -746,7 +752,7 @@ encodePredictiveGeometry(
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
-  PredGeomEncoder enc(gps, gbh, arithmeticEncoder);
+  PredGeomEncoder enc(gps, gbh, ctxtMem, arithmeticEncoder);
   int maxPtsPerTree = std::min(opt.maxPtsPerTree, int(numPoints));
 
   for (int i = 0; i < numPoints;) {
@@ -785,6 +791,9 @@ encodePredictiveGeometry(
         outCloud.setReflectance(i, cloud.getReflectance(srcIdx));
     }
   }
+
+  // save the context state for re-use by a future slice if required
+  ctxtMem = enc.getCtx();
 
   swap(cloud, outCloud);
 }

@@ -43,6 +43,7 @@
 #include "PCCMath.h"
 #include "PCCPointSet.h"
 #include "hls.h"
+#include "geometry.h"
 
 namespace pcc {
 
@@ -61,13 +62,12 @@ class PCCTMC3Decoder3 {
 public:
   class Callbacks;
 
-  PCCTMC3Decoder3(const DecoderParams& params) : _params(params) { init(); }
-
+  PCCTMC3Decoder3(const DecoderParams& params);
   PCCTMC3Decoder3(const PCCTMC3Decoder3&) = delete;
   PCCTMC3Decoder3(PCCTMC3Decoder3&&) = default;
   PCCTMC3Decoder3& operator=(const PCCTMC3Decoder3& rhs) = delete;
   PCCTMC3Decoder3& operator=(PCCTMC3Decoder3&& rhs) = default;
-  ~PCCTMC3Decoder3() = default;
+  ~PCCTMC3Decoder3();
 
   void init();
 
@@ -95,8 +95,15 @@ private:
   // Decoder specific parameters
   DecoderParams _params;
 
+  // Indicates that this is the start of a new frame.
+  // NB: this is set to false quiet early in the decoding process
+  bool _firstSliceInFrame;
+
   // Current identifier of payloads with the same geometry
   int _sliceId;
+
+  // Identifies the previous slice in bistream order
+  int _prevSliceId;
 
   // The last decoded frame_idx
   int _currentFrameIdx;
@@ -121,6 +128,10 @@ private:
   const GeometryParameterSet* _gps;
 
   GeometryBrickHeader _gbh;
+
+  // Memorized context buffers
+  std::unique_ptr<GeometryOctreeContexts> _ctxtMemOctreeGeom;
+  std::unique_ptr<PredGeomContexts> _ctxtMemPredGeom;
 
   // Attribute decoder for reuse between attributes of same slice
   std::unique_ptr<AttributeDecoderIntf> _attrDecoder;

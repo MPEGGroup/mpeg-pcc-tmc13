@@ -117,25 +117,6 @@ void updateGeometryNeighState(
   uint8_t parentOccupancy);
 
 //---------------------------------------------------------------------------
-// :: octree encoder exposing internal ringbuffer
-
-void encodeGeometryOctree(
-  const OctreeEncOpts& opt,
-  const GeometryParameterSet& gps,
-  GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
-  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
-
-void decodeGeometryOctree(
-  const GeometryParameterSet& gps,
-  const GeometryBrickHeader& gbh,
-  int minNodeSizeLog2,
-  PCCPointSet3& pointCloud,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
-  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
-
-//---------------------------------------------------------------------------
 // Determine if a node is a leaf node based on size.
 // A node with all dimension = 0 is a leaf node.
 // NB: some dimensions may be less than zero if coding of that dimension
@@ -419,7 +400,11 @@ int findLaser(point_t point, const int* thetaList, const int numTheta);
 
 //============================================================================
 
-struct GeometryOctreeContexts {
+class GeometryOctreeContexts {
+public:
+  void reset();
+
+protected:
   AdaptiveBitModel _ctxSingleChild;
   AdaptiveBitModel _ctxSinglePointPerBlock;
   AdaptiveBitModel _ctxSingleIdcmDupPoint;
@@ -467,6 +452,36 @@ struct GeometryOctreeContexts {
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
 };
+
+//----------------------------------------------------------------------------
+
+inline void
+GeometryOctreeContexts::reset()
+{
+  this->~GeometryOctreeContexts();
+  new (this) GeometryOctreeContexts;
+}
+
+//============================================================================
+// :: octree encoder exposing internal ringbuffer
+
+void encodeGeometryOctree(
+  const OctreeEncOpts& opt,
+  const GeometryParameterSet& gps,
+  GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
+
+void decodeGeometryOctree(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int minNodeSizeLog2,
+  PCCPointSet3& pointCloud,
+  GeometryOctreeContexts& ctxtMem,
+  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 //============================================================================
 

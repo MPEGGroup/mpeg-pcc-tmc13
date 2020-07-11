@@ -273,7 +273,10 @@ struct ProfileCompatibility {
   bool main_profile_compatibility_flag;
 
   // reserved for future use
-  int reserved_profile_compatibility_22bits;
+  int reserved_profile_compatibility_21bits;
+
+  // indicates that the bistream may break if slices are reordered
+  bool slice_reordering_constraint_flag;
 
   // indicates that there are no duplicate points in the reconstructed frames
   bool unique_point_positions_constraint_flag;
@@ -325,6 +328,9 @@ struct SequenceParameterSet {
   // Controls whether bypass bins are written to a seperate sub-stream, or
   // encoded as ep bins via CABAC.
   bool cabac_bypass_stream_enabled_flag;
+
+  // Indicates that context state may be propagated between slices.
+  bool entropy_continuation_enabled_flag;
 };
 
 //============================================================================
@@ -515,6 +521,12 @@ struct GeometryBrickHeader {
 
   // 'Header' information that appears at the end of the data unit
   GeometryBrickFooter footer;
+
+  // Indicates the current slice reuses contexts from the prevous slice
+  bool entropy_continuation_flag;
+
+  // The id of the previous slice in bitsream order
+  int prev_slice_id;
 };
 
 //============================================================================
