@@ -61,6 +61,7 @@ public:
     const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
     AttributeBrickHeader& abh,
+    AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload) override;
 

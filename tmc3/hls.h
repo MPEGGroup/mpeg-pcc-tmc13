@@ -592,6 +592,7 @@ struct AttributeBrickHeader {
   int attr_sps_attr_idx;
   int attr_attr_parameter_set_id;
   int attr_geom_slice_id;
+
   int attr_qp_delta_luma;
   int attr_qp_delta_chroma;
 

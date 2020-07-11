@@ -40,8 +40,13 @@
 #include "hls.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
+#include "entropy.h"
 
 namespace pcc {
+
+//============================================================================
+
+class AttributeContexts;
 
 //============================================================================
 
@@ -58,6 +63,7 @@ public:
     int minGeomNodeSizeLog2,
     const char* payload,
     size_t payloadLen,
+    AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
@@ -81,6 +87,7 @@ public:
     const AttributeDescription& desc,
     const AttributeParameterSet& attr_aps,
     AttributeBrickHeader& abh,
+    AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload) = 0;
 

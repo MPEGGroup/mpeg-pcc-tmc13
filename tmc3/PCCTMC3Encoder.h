@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 
+#include "Attribute.h"
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
@@ -178,6 +179,9 @@ private:
   const GeometryParameterSet* _gps;
   std::vector<const AttributeParameterSet*> _aps;
 
+  // Cached copy of the curent _gbh (after encoding geometry)
+  GeometryBrickHeader _gbh;
+
   // Indicates that this is the start of a new frame
   bool _firstSliceInFrame;
 
@@ -200,6 +204,8 @@ private:
   // Memorized context buffers
   std::unique_ptr<GeometryOctreeContexts> _ctxtMemOctreeGeom;
   std::unique_ptr<PredGeomContexts> _ctxtMemPredGeom;
+  std::vector<AttributeContexts> _ctxtMemAttrs;
+  std::vector<int> _ctxtMemAttrSliceIds;
 };
 
 //----------------------------------------------------------------------------

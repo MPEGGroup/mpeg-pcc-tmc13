@@ -39,6 +39,7 @@
 #include <cassert>
 #include <string>
 
+#include "AttributeCommon.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
 #include "coordinate_conversion.h"
@@ -289,6 +290,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     if (_sps->entropy_continuation_enabled_flag) {
       _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();
+      for (auto& ctxtMem : _ctxtMemAttrs)
+        ctxtMem.reset();
     }
   }
 
@@ -403,6 +406,15 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   const auto& attr_sps = _sps->attributeSets[abh.attr_sps_attr_idx];
   const auto& label = attr_sps.attributeLabel;
 
+  // sanity check for loss detection
+  if (_gbh.entropy_continuation_flag)
+    assert(_gbh.prev_slice_id == _ctxtMemAttrSliceIds[abh.attr_sps_attr_idx]);
+
+  // Ensure context arrays are allocated context arrays
+  // todo(df): move this to sps activation
+  _ctxtMemAttrSliceIds.resize(_sps->attributeSets.size());
+  _ctxtMemAttrs.resize(_sps->attributeSets.size());
+
   // In order to determinet hat the attribute decoder is reusable, the abh
   // must be inspected.
   int abhSize;
@@ -438,13 +450,17 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     _currentPointCloud.swapPoints(altPositions);
   }
 
+  auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
   _attrDecoder->decode(
     *_sps, attr_sps, attr_aps, abh, _gbh.footer.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf.data() + abhSize, buf.size() - abhSize,
-    _currentPointCloud);
+    ctxtMemAttr, _currentPointCloud);
 
   if (attr_aps.spherical_coord_flag)
     _currentPointCloud.swapPoints(altPositions);
+
+  // Note the current sliceID for loss detection
+  _ctxtMemAttrSliceIds[abh.attr_sps_attr_idx] = _sliceId;
 
   clock_user.stop();
 

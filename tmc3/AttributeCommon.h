@@ -47,6 +47,9 @@ namespace pcc {
 //============================================================================
 
 class AttributeContexts {
+public:
+  void reset();
+
 protected:
   AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxRunLen[5];
@@ -54,6 +57,15 @@ protected:
   AdaptiveBitModel ctxCoeffRemPrefix[2][3];
   AdaptiveBitModel ctxCoeffRemSuffix[2][3];
 };
+
+//----------------------------------------------------------------------------
+
+inline void
+AttributeContexts::reset()
+{
+  this->~AttributeContexts();
+  new (this) AttributeContexts;
+}
 
 //============================================================================
 

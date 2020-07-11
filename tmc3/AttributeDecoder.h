@@ -63,6 +63,7 @@ public:
     int minGeomNodeSizeLog2,
     const char* payload,
     size_t payloadLen,
+    AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud) override;
 
   bool isReusable(

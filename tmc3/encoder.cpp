@@ -40,6 +40,7 @@
 #include <stdexcept>
 
 #include "Attribute.h"
+#include "AttributeCommon.h"
 #include "coordinate_conversion.h"
 #include "geometry_params.h"
 #include "hls.h"
@@ -121,6 +122,9 @@ PCCTMC3Encoder3::compress(
     // Determine the lidar head position relative to the sequence bounding box
     params->gps.geomAngularOrigin *= params->geomPreScale;
     params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
+
+    // Allocate storage for attribute contexts
+    _ctxtMemAttrs.resize(params->sps.attributeSets.size());
   }
 
   // placeholder to "activate" the parameter sets
@@ -581,7 +585,9 @@ PCCTMC3Encoder3::compressPartition(
     if (!attrEncoder->isReusable(attr_aps, abh))
       attrEncoder = makeAttributeEncoder();
 
-    attrEncoder->encode(*_sps, attr_sps, attr_aps, abh, pointCloud, &payload);
+    auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
+    attrEncoder->encode(
+      *_sps, attr_sps, attr_aps, abh, ctxtMemAttr, pointCloud, &payload);
 
     if (attr_aps.spherical_coord_flag)
       pointCloud.swapPoints(altPositions);
@@ -676,6 +682,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     if (!gbh.entropy_continuation_flag) {
       _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();
+      for (auto& ctxtMem : _ctxtMemAttrs)
+        ctxtMem.reset();
     }
   }
 
@@ -723,6 +731,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   // append the footer
   write(gbh.footer, buf);
+
+  // Cache gbh for later reference
+  _gbh = gbh;
 }
 
 //----------------------------------------------------------------------------

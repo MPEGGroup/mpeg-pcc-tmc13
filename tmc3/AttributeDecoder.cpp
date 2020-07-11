@@ -50,7 +50,12 @@ namespace pcc {
 
 class PCCResidualsDecoder : protected AttributeContexts {
 public:
+  PCCResidualsDecoder(
+    const AttributeBrickHeader& abh, const AttributeContexts& ctxtMem);
+
   EntropyDecoder arithmeticDecoder;
+
+  const AttributeContexts& getCtx() const { return *this; }
 
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
@@ -62,6 +67,13 @@ public:
   void decode(int32_t values[3]);
   int32_t decode();
 };
+
+//----------------------------------------------------------------------------
+
+PCCResidualsDecoder::PCCResidualsDecoder(
+  const AttributeBrickHeader& abh, const AttributeContexts& ctxtMem)
+  : AttributeContexts(ctxtMem)
+{}
 
 //----------------------------------------------------------------------------
 
@@ -225,11 +237,12 @@ AttributeDecoder::decode(
   int minGeomNodeSizeLog2,
   const char* payload,
   size_t payloadLen,
+  AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud)
 {
   QpSet qpSet = deriveQpSet(attr_desc, attr_aps, abh);
 
-  PCCResidualsDecoder decoder;
+  PCCResidualsDecoder decoder(abh, ctxtMem);
   decoder.start(sps, payload, payloadLen);
 
   // generate LoDs if necessary
@@ -276,6 +289,9 @@ AttributeDecoder::decode(
   }
 
   decoder.stop();
+
+  // save the context state for re-use by a future slice if required
+  ctxtMem = decoder.getCtx();
 }
 
 //----------------------------------------------------------------------------

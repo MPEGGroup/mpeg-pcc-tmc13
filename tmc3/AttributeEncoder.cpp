@@ -56,7 +56,12 @@ namespace pcc {
 
 class PCCResidualsEncoder : protected AttributeContexts {
 public:
+  PCCResidualsEncoder(
+    const AttributeBrickHeader& abh, const AttributeContexts& ctxtMem);
+
   EntropyEncoder arithmeticEncoder;
+
+  const AttributeContexts& getCtx() const { return *this; }
 
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
@@ -68,6 +73,13 @@ public:
   void encode(int32_t value0, int32_t value1, int32_t value2);
   void encode(int32_t value);
 };
+
+//----------------------------------------------------------------------------
+
+PCCResidualsEncoder::PCCResidualsEncoder(
+  const AttributeBrickHeader& abh, const AttributeContexts& ctxtMem)
+  : AttributeContexts(ctxtMem)
+{}
 
 //----------------------------------------------------------------------------
 
@@ -373,6 +385,7 @@ AttributeEncoder::encode(
   const AttributeDescription& desc,
   const AttributeParameterSet& attr_aps,
   AttributeBrickHeader& abh,
+  AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
@@ -386,7 +399,7 @@ AttributeEncoder::encode(
   // write abh
   write(sps, attr_aps, abh, payload);
 
-  PCCResidualsEncoder encoder;
+  PCCResidualsEncoder encoder(abh, ctxtMem);
   encoder.start(sps, int(pointCloud.getPointCount()));
 
   if (desc.attr_num_dimensions_minus1 == 0) {
@@ -428,6 +441,9 @@ AttributeEncoder::encode(
   std::copy_n(
     encoder.arithmeticEncoder.buffer(), acDataLen,
     std::back_inserter(*payload));
+
+  // save the context state for re-use by a future slice if required
+  ctxtMem = encoder.getCtx();
 }
 
 //----------------------------------------------------------------------------
