@@ -732,7 +732,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   }
 
   // append the footer
-  write(gbh.footer, buf);
+  write(*_gps, gbh, gbh.footer, buf);
 
   // Cache gbh for later reference
   _gbh = gbh;

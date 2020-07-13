@@ -54,6 +54,9 @@ struct DecoderParams {
   // layers to skip during the decode process (attribute coding must take
   // this into account)
   int minGeomNodeSizeLog2;
+
+  // A maximum number of points to partially decode.
+  int decodeMaxPoints;
 };
 
 //============================================================================

@@ -477,7 +477,7 @@ void encodeGeometryOctree(
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
-  int minNodeSizeLog2,
+  int skipLastLayers,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,

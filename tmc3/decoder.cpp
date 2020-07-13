@@ -348,6 +348,22 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     bufRemaining -= bufLen;
   }
 
+  // Calculate a tree level at which to stop
+  // It should result in at most max points being decoded
+  if (_params.decodeMaxPoints && _gps->octree_point_count_list_present_flag) {
+    if (_params.decodeMaxPoints > _gbh.footer.geom_num_points_minus1)
+      _params.minGeomNodeSizeLog2 = 0;
+    else {
+      auto it = std::lower_bound(
+        std::next(_gbh.footer.octree_lvl_num_points_minus1.begin()),
+        _gbh.footer.octree_lvl_num_points_minus1.end(),
+        _params.decodeMaxPoints);
+
+      _params.minGeomNodeSizeLog2 =
+        std::distance(it, _gbh.footer.octree_lvl_num_points_minus1.end()) + 1;
+    }
+  }
+
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
       *_gps, _gbh, _currentPointCloud, *_ctxtMemPredGeom,

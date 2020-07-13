@@ -107,10 +107,17 @@ conversion process is lossless.
 Decoder-specific options
 ========================
 
-### `--minGeomNodeSizeLog2=INT-VALUE`
+### `--skipOctreeLayers=INT-VALUE`
 The option indicates the number of skipped lod layers from leaf lod.
 If aps.scalable_enable_flag is 1, the option is valid.
 Otherwise, the option is ignored.
+
+### `--decodeMaxPoints=INT-VALUE`
+A value greater than zero controls the automatic derivation of
+`skipOctreeLayers` such that at most $n$ points are decoded.
+This option only has an effect if the bitstream contains per octree level
+point count metadata (see `pointCountMetadata`).
+
 
 Encoder-specific options
 ========================
@@ -487,6 +494,10 @@ Requires `angularEnabled=1`.
 Step size used to linearly model progression of per-laser azimuthal angles
 during angular predictive geometry coding.
 Requires `angularEnabled=1`.
+
+### `--pointCountMetadata=0|1`
+Controls the addition of per octree layer point count metadata to each
+geometry slice.
 
 
 Attribute coding

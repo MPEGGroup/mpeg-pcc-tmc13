@@ -565,6 +565,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.write(gps.geom_unique_points_flag);
 
   if (!gps.predgeom_enabled_flag) {
+    bs.write(gps.octree_point_count_list_present_flag);
     bs.write(gps.trisoup_enabled_flag);
     if (!gps.trisoup_enabled_flag) {
       bs.write(gps.geom_unique_points_flag);
@@ -670,7 +671,9 @@ parseGps(const PayloadBuffer& buf)
     bs.read(&gps.geom_unique_points_flag);
 
   gps.trisoup_enabled_flag = false;
+  gps.octree_point_count_list_present_flag = false;
   if (!gps.predgeom_enabled_flag) {
+    bs.read(&gps.octree_point_count_list_present_flag);
     bs.read(&gps.trisoup_enabled_flag);
 
     gps.geom_unique_points_flag = true;
@@ -999,7 +1002,7 @@ write(
   }
 
   if (!gps.predgeom_enabled_flag) {
-    int tree_depth_minus1 = gbh.tree_lvl_coded_axis_list.size() - 1;
+    int tree_depth_minus1 = gbh.tree_depth_minus1();
     bs.writeUe(tree_depth_minus1);
     if (gps.qtbt_enabled_flag)
       for (int i = 0; i <= tree_depth_minus1; i++)
@@ -1149,7 +1152,7 @@ parseGbh(
     *bytesRead = int(std::distance(buf.begin(), bs.pos()));
 
   // To avoid having to make separate calls, the footer is parsed here
-  gbh.footer = parseGbf(buf);
+  gbh.footer = parseGbf(gps, gbh, buf);
 
   return gbh;
 }
@@ -1176,26 +1179,50 @@ parseGbhIds(const PayloadBuffer& buf)
 //============================================================================
 
 void
-write(const GeometryBrickFooter& gbf, PayloadBuffer* buf)
+write(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& /* gbh */,
+  const GeometryBrickFooter& gbf,
+  PayloadBuffer* buf)
 {
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
   // NB: if modifying this footer, it is essential that the decoder can
   // either decode backwards, or seek to the start.
+
+  if (gps.octree_point_count_list_present_flag) {
+    for (int i = 0; i < gbf.octree_lvl_num_points_minus1.size(); i++)
+      bs.writeUn(24, gbf.octree_lvl_num_points_minus1[i]);
+  }
+
   bs.writeUn(24, gbf.geom_num_points_minus1);
 }
 
 //----------------------------------------------------------------------------
 
 GeometryBrickFooter
-parseGbf(const PayloadBuffer& buf)
+parseGbf(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const PayloadBuffer& buf)
 {
   GeometryBrickFooter gbf;
   assert(buf.type == PayloadType::kGeometryBrick);
 
-  constexpr size_t kFooterLen = 3;
-  auto bs = makeBitReader(std::prev(buf.end(), kFooterLen), buf.end());
+  // todo(df): this would be simpler to parse if it were written in reverse
+  auto bufStart = buf.end() - 3; /* geom_num_points_minus1 */
+  if (gps.octree_point_count_list_present_flag)
+    bufStart -= gbh.tree_depth_minus1() * 3;
+
+  auto bs = makeBitReader(bufStart, buf.end());
+
+  if (gps.octree_point_count_list_present_flag) {
+    auto tree_depth_minus1 = gbh.tree_depth_minus1();
+    gbf.octree_lvl_num_points_minus1.resize(tree_depth_minus1);
+    for (int i = 0; i < tree_depth_minus1; i++)
+      bs.readUn(24, &gbf.octree_lvl_num_points_minus1[i]);
+  }
 
   bs.readUn(24, &gbf.geom_num_points_minus1);
 

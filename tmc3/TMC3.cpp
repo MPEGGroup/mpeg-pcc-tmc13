@@ -493,6 +493,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     " N>0 : Skip the bottom N layers in decoding process.\n"
     " skipLayerNum indicates the number of skipped lod layers from leaf lod.")
 
+  ("decodeMaxPoints",
+    params.decoder.decodeMaxPoints, 0,
+    "Partially decode up to N points\n")
+
   (po::Section("Encoder"))
 
   ("sortInputByAzimuth",
@@ -753,6 +757,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("predGeomTreePtsMax",
     params.encoder.predGeom.maxPtsPerTree, 1100000,
     "Maximum number of points per predictive geometry tree")
+
+  ("pointCountMetadata",
+    params.encoder.gps.octree_point_count_list_present_flag, false,
+    "Add octree layer point count metadata")
 
   (po::Section("Attributes"))
 

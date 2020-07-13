@@ -1502,6 +1502,9 @@ encodeGeometryOctree(
   // per coded occupancy.
   int nodesBeforePlanarUpdate = 1;
 
+  if (gps.octree_point_count_list_present_flag)
+    gbh.footer.octree_lvl_num_points_minus1.reserve(maxDepth);
+
   for (int depth = 0; depth < maxDepth; depth++) {
     // setyo at the start of each level
     auto fifoCurrLvlEnd = fifo.end();
@@ -1840,7 +1843,18 @@ encodeGeometryOctree(
         }
       }
     }
+
+    // calculate the number of points that would be decoded if decoding were
+    // to stop at this point.
+    if (gps.octree_point_count_list_present_flag) {
+      int numPtsAtLvl = numNodesNextLvl + nextDmIdx - 1;
+      gbh.footer.octree_lvl_num_points_minus1.push_back(numPtsAtLvl);
+    }
   }
+
+  // the last element is the number of decoded points
+  if (!gbh.footer.octree_lvl_num_points_minus1.empty())
+    gbh.footer.octree_lvl_num_points_minus1.pop_back();
 
   // save the context state for re-use by a future slice if required
   ctxtMem = encoder.getCtx();

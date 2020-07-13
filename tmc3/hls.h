@@ -440,6 +440,10 @@ struct GeometryParameterSet {
 
   // inverse scale factor for radius coding in predictive geometry coding
   int geom_angular_radius_inv_scale_log2;
+
+  // Indicates that the geometry footer contains a count of point
+  // in each octree level.
+  bool octree_point_count_list_present_flag;
 };
 
 //============================================================================
@@ -447,6 +451,9 @@ struct GeometryParameterSet {
 struct GeometryBrickFooter {
   // The actual number of points present in the slice
   int geom_num_points_minus1;
+
+  // The number of points that can be decoded at a particular octree level
+  std::vector<int> octree_lvl_num_points_minus1;
 };
 
 //============================================================================
@@ -476,6 +483,8 @@ struct GeometryBrickHeader {
   mutable int maxRootNodeDimLog2;
 
   std::vector<int8_t> tree_lvl_coded_axis_list;
+
+  int tree_depth_minus1() const { return tree_lvl_coded_axis_list.size() - 1; }
 
   // qp offset for geometry scaling (if enabled)
   int geom_slice_qp_offset;

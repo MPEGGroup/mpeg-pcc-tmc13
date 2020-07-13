@@ -95,8 +95,16 @@ AttributeBrickHeader parseAbh(
 ConstantAttributeDataUnit parseConstantAttribute(
   const SequenceParameterSet& sps, const PayloadBuffer& buf);
 
-void write(const GeometryBrickFooter& gbf, PayloadBuffer* buf);
-GeometryBrickFooter parseGbf(const PayloadBuffer& buf);
+void write(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const GeometryBrickFooter& gbf,
+  PayloadBuffer* buf);
+
+GeometryBrickFooter parseGbf(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const PayloadBuffer& buf);
 
 /**
  * Parse @buf, decoding only the parameter set, slice, tile.

@@ -1252,7 +1252,7 @@ void
 decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
-  int minNodeSizeLog2,
+  int skipLastLayers,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
@@ -1338,7 +1338,7 @@ decodeGeometryOctree(
 
   // the termination depth of the octree phase
   // NB: minNodeSizeLog2 is only non-zero for partial decoding (not trisoup)
-  int maxDepth = lvlNodeSizeLog2.size() - minNodeSizeLog2 - 1;
+  int maxDepth = lvlNodeSizeLog2.size() - skipLastLayers - 1;
 
   // append a dummy entry to the list so that depth+2 access is always valid
   lvlNodeSizeLog2.emplace_back(lvlNodeSizeLog2.back());
