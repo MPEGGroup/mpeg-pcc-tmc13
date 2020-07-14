@@ -46,7 +46,7 @@ struct QtBtParameters {
   // minimum size of qtbt partitions.
   int minQtbtSizeLog2;
 
-  int trisoupNodeSizeLog2;
+  bool trisoupEnabled;
 
   bool angularTweakEnabled;
   int angularMaxNodeMinDimLog2ToSplitV;

@@ -102,7 +102,7 @@ decodeGeometryTrisoup(
   // resume decoding with the last decoder
   auto arithmeticDecoder = arithmeticDecoders.back().get();
 
-  int blockWidth = 1 << gps.trisoup_node_size_log2;
+  int blockWidth = 1 << gbh.trisoup_node_size_log2;
 
   int numVertices = 0;
   AdaptiveBitModel ctxTempSeg;

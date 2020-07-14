@@ -14,7 +14,7 @@ categories:
 
      ##
      # geometry parameters (octree)
-     - trisoup_node_size_log2: 0
+     - trisoupNodeSizeLog2: 0
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      -

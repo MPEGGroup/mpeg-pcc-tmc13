@@ -652,10 +652,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Degree (0-127) of IDCM activation when planar mode is enabled.\n"
     "  0 => never, 127 => always")
 
-  ("trisoup_node_size_log2",
-    params.encoder.gps.trisoup_node_size_log2, 0,
-    "Size of nodes for surface triangulation.\n"
-    "  0: disabled\n")
+  ("trisoupNodeSizeLog2",
+    params.encoder.trisoupNodeSizesLog2, {0},
+    "Node size for surface triangulation.\n"
+    "  0: disabled")
 
   ("trisoup_sampling_value",
     params.encoder.gps.trisoup_sampling_value, 0,
@@ -990,9 +990,19 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   for (auto& aps : params.encoder.aps)
     convertXyzToStv(params.encoder.sps, &aps);
 
+  // Trisoup is enabled when a node size is specified
+  // sanity: don't enable if only node size is 0.
+  // todo(df): this needs to take into account slices where it is disabled
+  if (params.encoder.trisoupNodeSizesLog2.size() == 1)
+    if (!params.encoder.trisoupNodeSizesLog2[0])
+      params.encoder.trisoupNodeSizesLog2.clear();
+
+  params.encoder.gps.trisoup_enabled_flag =
+    !params.encoder.trisoupNodeSizesLog2.empty();
+
   // Certain coding modes are not available when trisoup is enabled.
   // Disable them, and warn if set (they may be set as defaults).
-  if (params.encoder.gps.trisoup_node_size_log2 > 0) {
+  if (params.encoder.gps.trisoup_enabled_flag) {
     if (!params.encoder.gps.geom_unique_points_flag)
       err.warn() << "TriSoup geometry does not preserve duplicated points\n";
 
@@ -1004,8 +1014,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   }
 
   // tweak qtbt generation when trisoup is /isn't enabled
-  params.encoder.geom.qtbt.trisoupNodeSizeLog2 =
-    params.encoder.gps.trisoup_node_size_log2;
+  params.encoder.geom.qtbt.trisoupEnabled =
+    params.encoder.gps.trisoup_enabled_flag;
 
   // Planar coding mode is not available for bytewise coding
   if (!params.encoder.gps.bitwise_occupancy_coding_flag) {
@@ -1264,9 +1274,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                       << ".lod_decimation_enabled_flag must be = 0 \n";
         }
 
-        if (params.encoder.gps.trisoup_node_size_log2 > 0) {
+        if (params.encoder.gps.trisoup_enabled_flag) {
           err.error() << it.first
-                      << "trisoup_node_size_log2 must be disabled \n";
+                      << "trisoup_enabled_flag must be disabled \n";
         }
       }
     }

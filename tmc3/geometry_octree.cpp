@@ -90,7 +90,7 @@ oneQtBtDecision(
 void
 updateQtBtParameters(
   const Vec3<int>& nodeSizeLog2,
-  int trisoup_node_size_log2,
+  bool trisoup_enabled_flag,
   int* maxNumQtbtBeforeOt,
   int* minSizeQtbt)
 {
@@ -110,7 +110,7 @@ updateQtBtParameters(
   }
 
   // if trisoup is enabled, perform qtbt first before ot
-  if (trisoup_node_size_log2 != 0) {
+  if (trisoup_enabled_flag) {
     *maxNumQtbtBeforeOt = nodeMaxDimLog2 - nodeMinDimLog2;
     *minSizeQtbt = 0;
   }
@@ -134,7 +134,7 @@ mkQtBtNodeSizeList(
   int maxNumQtbtBeforeOt = qtbt.maxNumQtBtBeforeOt;
   int minSizeQtbt = qtbt.minQtbtSizeLog2;
   updateQtBtParameters(
-    nodeSizeLog2, qtbt.trisoupNodeSizeLog2, &maxNumQtbtBeforeOt, &minSizeQtbt);
+    nodeSizeLog2, qtbt.trisoupEnabled, &maxNumQtbtBeforeOt, &minSizeQtbt);
 
   while (!isLeafNode(nodeSizeLog2)) {
     if (!gps.qtbt_enabled_flag)

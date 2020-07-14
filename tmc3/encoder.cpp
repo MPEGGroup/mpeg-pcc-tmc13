@@ -221,6 +221,12 @@ PCCTMC3Encoder3::compress(
       quantizePositions(
         1, tile_quantized_box_xyz0, clampBox, tileCloud, &tileCloud);
 
+      // use the largest trisoup node size as a partitioning boundary for
+      // consistency between slices with different trisoup node sizes.
+      int partitionBoundaryLog2 = *std::max_element(
+        params->trisoupNodeSizesLog2.begin(),
+        params->trisoupNodeSizesLog2.end());
+
       //Slice partition of current tile
       std::vector<Partition> curSlices;
       switch (partitionMethod) {
@@ -229,12 +235,12 @@ PCCTMC3Encoder3::compress(
 
       case PartitionMethod::kUniformGeom:
         curSlices = partitionByUniformGeom(
-          params->partition, tileCloud, tile_id, _gps->trisoup_node_size_log2);
+          params->partition, tileCloud, tile_id, partitionBoundaryLog2);
         break;
 
       case PartitionMethod::kUniformSquare:
         curSlices = partitionByUniformSquare(
-          params->partition, tileCloud, tile_id, _gps->trisoup_node_size_log2);
+          params->partition, tileCloud, tile_id, partitionBoundaryLog2);
         break;
 
       case PartitionMethod::kOctreeUniform:
@@ -435,6 +441,13 @@ PCCTMC3Encoder3::compressPartition(
   // NB: size is max - min + 1
   _sliceBoxWhd = maxBound + 1;
 
+  // apply a custom trisoup node size
+  params->gbh.trisoup_node_size_log2 = 0;
+  if (_gps->trisoup_enabled_flag) {
+    int idx = std::min(_sliceId, int(params->trisoupNodeSizesLog2.size()) - 1);
+    params->gbh.trisoup_node_size_log2 = params->trisoupNodeSizesLog2[idx];
+  }
+
   // geometry encoding
   if (1) {
     PayloadBuffer payload(PayloadType::kGeometryBrick);
@@ -468,7 +481,7 @@ PCCTMC3Encoder3::compressPartition(
 
   // recolouring
   // NB: recolouring is required if points are added / removed
-  if (_gps->geom_unique_points_flag || _gps->trisoup_node_size_log2 > 0) {
+  if (_gps->geom_unique_points_flag || _gps->trisoup_enabled_flag) {
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
         attr_sps, params->recolour, originPartCloud, params->geomPreScale,
@@ -598,6 +611,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
+  gbh.trisoup_node_size_log2 = params->gbh.trisoup_node_size_log2;
 
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
@@ -635,7 +649,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   if (_gps->predgeom_enabled_flag)
     encodePredictiveGeometry(
       params->predGeom, *_gps, gbh, pointCloud, arithmeticEncoders[0].get());
-  else if (_gps->trisoup_node_size_log2 == 0)
+  else if (!_gps->trisoup_enabled_flag)
     encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, arithmeticEncoders);
   else {

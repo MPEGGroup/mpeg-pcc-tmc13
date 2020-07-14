@@ -547,6 +547,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   bs.write(gps.geom_unique_points_flag);
 
   if (!gps.predgeom_enabled_flag) {
+    bs.write(gps.trisoup_enabled_flag);
     bs.write(gps.qtbt_enabled_flag);
     bs.writeUe(gps.neighbour_avail_boundary_log2);
     if (gps.neighbour_avail_boundary_log2 > 0) {
@@ -608,9 +609,6 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.write(gps.planar_buffer_disabled_flag);
   }
 
-  if (!gps.predgeom_enabled_flag)
-    bs.writeUe(gps.trisoup_node_size_log2);
-
   bs.write(gps.geom_scaling_enabled_flag);
   if (gps.geom_scaling_enabled_flag) {
     bs.writeUe(gps.geom_base_qp);
@@ -645,7 +643,9 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.predgeom_enabled_flag);
   bs.read(&gps.geom_unique_points_flag);
 
+  gps.trisoup_enabled_flag = false;
   if (!gps.predgeom_enabled_flag) {
+    bs.read(&gps.trisoup_enabled_flag);
     bs.read(&gps.qtbt_enabled_flag);
     bs.readUe(&gps.neighbour_avail_boundary_log2);
     if (gps.neighbour_avail_boundary_log2 > 0) {
@@ -716,9 +716,6 @@ parseGps(const PayloadBuffer& buf)
     if (!gps.predgeom_enabled_flag)
       bs.read(&gps.planar_buffer_disabled_flag);
   }
-
-  if (!gps.predgeom_enabled_flag)
-    bs.readUe(&gps.trisoup_node_size_log2);
 
   gps.geom_base_qp = 0;
   gps.geom_qp_multiplier_log2 = 0;
@@ -990,13 +987,13 @@ write(
       bs.writeUe(gbh.geom_octree_qp_offset_depth);
   }
 
-  if (!gps.predgeom_enabled_flag)
-    if (gps.trisoup_node_size_log2) {
-      bs.writeUe(gbh.trisoup_sampling_value_minus1);
-      bs.writeUe(gbh.num_unique_segments_bits_minus1);
-      auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
-      bs.writeUn(segmentBits, gbh.num_unique_segments_minus1);
-    }
+  if (gps.trisoup_enabled_flag) {
+    bs.writeUe(gbh.trisoup_node_size_log2);
+    bs.writeUe(gbh.trisoup_sampling_value_minus1);
+    bs.writeUe(gbh.num_unique_segments_bits_minus1);
+    auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
+    bs.writeUn(segmentBits, gbh.num_unique_segments_minus1);
+  }
 
   if (gps.predgeom_enabled_flag) {
     int pgeom_resid_abs_log2_bits_x = gbh.pgeom_resid_abs_log2_bits[0];
@@ -1074,13 +1071,14 @@ parseGbh(
       bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
-  if (!gps.predgeom_enabled_flag)
-    if (gps.trisoup_node_size_log2) {
-      bs.readUe(&gbh.trisoup_sampling_value_minus1);
-      bs.readUe(&gbh.num_unique_segments_bits_minus1);
-      auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
-      bs.readUn(segmentBits, &gbh.num_unique_segments_minus1);
-    }
+  gbh.trisoup_node_size_log2 = 0;
+  if (gps.trisoup_enabled_flag) {
+    bs.readUe(&gbh.trisoup_node_size_log2);
+    bs.readUe(&gbh.trisoup_sampling_value_minus1);
+    bs.readUe(&gbh.num_unique_segments_bits_minus1);
+    auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
+    bs.readUn(segmentBits, &gbh.num_unique_segments_minus1);
+  }
 
   if (gps.predgeom_enabled_flag) {
     int pgeom_resid_abs_log2_bits_x;

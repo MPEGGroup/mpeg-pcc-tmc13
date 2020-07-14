@@ -58,7 +58,7 @@ encodeGeometryTrisoup(
   // resume encoding with the last encoder
   auto arithmeticEncoder = arithmeticEncoders.back().get();
 
-  int blockWidth = 1 << gps.trisoup_node_size_log2;
+  int blockWidth = 1 << gbh.trisoup_node_size_log2;
 
   // Determine segind and vertices.
   std::vector<bool> segind;
@@ -75,7 +75,7 @@ encodeGeometryTrisoup(
     decodeTrisoupCommon(
       nodes, segind, vertices, pointCloud, blockWidth, maxval, subsample);
   } else {
-    int maxSubsample = 1 << gps.trisoup_node_size_log2;
+    int maxSubsample = 1 << gbh.trisoup_node_size_log2;
     for (subsample = 1; subsample <= maxSubsample; subsample++) {
       decodeTrisoupCommon(
         nodes, segind, vertices, pointCloud, blockWidth, maxval, subsample);

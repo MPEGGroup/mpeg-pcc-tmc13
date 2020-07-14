@@ -15,7 +15,7 @@ categories:
      - planarEnabled: 1
      - planarModeIdcmUse: 0
      - positionQuantizationScale: '$eval{ 1 / (1 << ( ${src-geometry-precision} - ${test-depth} )) }'
-     - trisoup_node_size_log2:
+     - trisoupNodeSizeLog2:
          r01: 4
          r02: 3
          r03: 3

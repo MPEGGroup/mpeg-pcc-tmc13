@@ -1353,7 +1353,7 @@ decodeGeometryOctree(
 
   // generate the list of the node size for each level in the tree
   //  - starts with the smallest node and works up
-  std::vector<Vec3<int>> lvlNodeSizeLog2{gps.trisoup_node_size_log2};
+  std::vector<Vec3<int>> lvlNodeSizeLog2{gbh.trisoup_node_size_log2};
   for (auto split : gbh.tree_lvl_coded_axis_list) {
     Vec3<int> splitStv = {!!(split & 4), !!(split & 2), !!(split & 1)};
     lvlNodeSizeLog2.push_back(lvlNodeSizeLog2.back() + splitStv);

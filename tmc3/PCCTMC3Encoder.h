@@ -110,6 +110,9 @@ struct EncoderParams {
   // floating Lasers' H (have to be converted to fixed point in gps)
   std::vector<double> lasersZ;
 
+  // per-slice trisoup node sizes
+  std::vector<int> trisoupNodeSizesLog2;
+
   // Enable enforcement of level limits (encoder will abort if exceeded)
   bool enforceLevelLimits;
 

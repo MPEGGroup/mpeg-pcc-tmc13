@@ -363,9 +363,8 @@ struct GeometryParameterSet {
   // Maximum node size where intra prediction is enabled
   int intra_pred_max_node_size_log2;
 
-  // size of triangle nodes (reconstructed surface) in trisoup geometry.
-  // a value of zero disables the feature
-  int trisoup_node_size_log2;
+  // Enables trisoup
+  bool trisoup_enabled_flag;
 
   // sampling value of trisoup decoding process
   // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
@@ -488,6 +487,9 @@ struct GeometryBrickHeader {
       return gps.gps_geom_box_log2_scale;
     return geom_box_log2_scale;
   }
+
+  // size of triangle nodes (reconstructed surface) in trisoup geometry.
+  int trisoup_node_size_log2;
 
   // downsampling rate used in tringle voxelisation
   int trisoup_sampling_value_minus1;

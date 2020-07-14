@@ -317,7 +317,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
       *_gps, _gbh, _currentPointCloud, arithmeticDecoders[0].get());
-  else if (_gps->trisoup_node_size_log2 == 0) {
+  else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
         *_gps, _gbh, _currentPointCloud, arithmeticDecoders);
