@@ -167,9 +167,8 @@ public:
   // Derives step sizes from qp
   QuantizerGeom(int qp)
   {
-    int qpShift = qp / 4;
-    _stepSize = (4 + (qp % 4)) << qpShift;
-    _stepSizeRecip = kQpStepRecip[qp % 4] >> qpShift;
+    _stepSize = (8 + (qp % 8)) << qpShift(qp);
+    _stepSizeRecip = kQpStepRecip[qp % 8] >> qpShift(qp);
   }
 
   QuantizerGeom(const QuantizerGeom&) = default;
@@ -184,6 +183,9 @@ public:
   // Scale (inverse quantise) a quantised value
   int64_t scale(int64_t x) const;
 
+  // The number of bits eliminated by a given qp
+  static int qpShift(int qp) { return qp >> 3; }
+
 private:
   // Quantisation step size
   int _stepSize;
@@ -193,8 +195,8 @@ private:
 
   static const int _shift = 20;
 
-  static const int32_t kQpStep[4];
-  static const int32_t kQpStepRecip[4];
+  static const int32_t kQpStep[8];
+  static const int32_t kQpStepRecip[8];
 };
 
 //---------------------------------------------------------------------------
@@ -211,7 +213,7 @@ QuantizerGeom::quantize(int64_t x) const
 inline int64_t
 QuantizerGeom::scale(int64_t x) const
 {
-  return (x * _stepSize + 2) >> 2;
+  return (x * _stepSize + 4) >> 3;
 }
 
 //============================================================================

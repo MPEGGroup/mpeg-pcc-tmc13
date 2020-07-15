@@ -200,10 +200,10 @@ QpSet::regionQpOffset(const Vec3<int32_t>& point) const
 
 //============================================================================
 
-const int32_t QuantizerGeom::kQpStep[4] = {4, 5, 6, 7};
+const int32_t QuantizerGeom::kQpStep[8] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-const int32_t QuantizerGeom::kQpStepRecip[4] = {1 << 20, 838861, 699051,
-                                                599186};
+const int32_t QuantizerGeom::kQpStepRecip[8] = {
+  1 << 20, 932068, 838861, 762601, 699051, 645278, 599186, 559241};
 
 //============================================================================
 

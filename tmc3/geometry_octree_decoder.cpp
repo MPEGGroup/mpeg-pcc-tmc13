@@ -1264,7 +1264,7 @@ invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
   //   |pppppssssssss| <  after scaling (s = scale(q))
 
   QuantizerGeom quantizer(qp);
-  int shiftBits = qp >> 2;
+  int shiftBits = QuantizerGeom::qpShift(qp);
   Vec3<int32_t> recon;
   for (int k = 0; k < 3; k++) {
     int lowPart = pos[k] & (quantMasks[k] >> shiftBits);
@@ -1409,7 +1409,7 @@ decodeGeometryOctree(
       // limit the idcmQp such that it cannot overquantise the node
       auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
-      idcmQp = std::min(idcmQp, minNs * 4);
+      idcmQp = std::min(idcmQp, minNs * 8);
 
       for (int k = 0; k < 3; k++)
         posQuantBitMasks[k] = (1 << quantNodeSizeLog2[k]) - 1;
@@ -1445,7 +1445,7 @@ decodeGeometryOctree(
       if (numLvlsUntilQpOffset == 0)
         node0.qp = decoder.decodeQpOffset() + sliceQp;
 
-      int shiftBits = node0.qp >> 2;
+      int shiftBits = QuantizerGeom::qpShift(node0.qp);
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
@@ -1528,8 +1528,7 @@ decodeGeometryOctree(
           auto idcmSize = effectiveNodeSizeLog2;
           if (idcmQp) {
             node0.qp = idcmQp;
-            int idcmShiftBits = idcmQp >> 2;
-            idcmSize = nodeSizeLog2 - idcmShiftBits;
+            idcmSize = nodeSizeLog2 - QuantizerGeom::qpShift(idcmQp);
           }
 
           int numPoints = decoder.decodeDirectPosition(
@@ -1672,9 +1671,8 @@ decodeGeometryOctree(
   if (nodesRemaining) {
     nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
-      int quantRemovedBits = node.qp >> 2;
       for (int k = 0; k < 3; k++)
-        node.pos[k] <<= nodeSizeLog2[k] - quantRemovedBits;
+        node.pos[k] <<= nodeSizeLog2[k] - QuantizerGeom::qpShift(node.qp);
       node.pos = invQuantPosition(node.qp, posQuantBitMasks, node.pos);
     }
     *nodesRemaining = std::move(fifo);

@@ -1144,10 +1144,10 @@ calculateNodeQps(
   // determine delta qp for each node based on the point density
   // Conformance: limit the qp such that it cannot overquantize the node
   int minNs = nodeSizeLog2.min();
-  int maxQp = minNs * 4 - 1;
-  int lowQp = PCCClip(baseQp - 4, 0, maxQp);
+  int maxQp = minNs * 8 - 1;
+  int lowQp = PCCClip(baseQp - 8, 0, maxQp);
   int mediumQp = std::min(baseQp, maxQp);
-  int highQp = std::min(baseQp + 4, maxQp);
+  int highQp = std::min(baseQp + 8, maxQp);
 
   std::vector<int> numPointsInNode;
   std::vector<double> cum_prob;
@@ -1186,7 +1186,7 @@ geometryQuantization(
   PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> nodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
-  int qpShift = node.qp >> 2;
+  int qpShift = QuantizerGeom::qpShift(node.qp);
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << nodeSizeLog2[k]) - 1;
@@ -1211,7 +1211,7 @@ geometryScale(
   PCCPointSet3& pointCloud, PCCOctree3Node& node, Vec3<int> quantNodeSizeLog2)
 {
   QuantizerGeom quantizer = QuantizerGeom(node.qp);
-  int qpShift = node.qp >> 2;
+  int qpShift = QuantizerGeom::qpShift(node.qp);
 
   for (int k = 0; k < 3; k++) {
     int quantBitsMask = (1 << quantNodeSizeLog2[k]) - 1;
@@ -1558,7 +1558,7 @@ encodeGeometryOctree(
       // limit the idcmQp such that it cannot overquantise the node
       auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
-      idcmQp = std::min(idcmQp, minNs * 4);
+      idcmQp = std::min(idcmQp, minNs * 8);
     }
 
     // determing a per node QP at the appropriate level
@@ -1595,7 +1595,7 @@ encodeGeometryOctree(
       if (numLvlsUntilQuantization == 0)
         encoder.encodeQpOffset(node0.qp - sliceQp);
 
-      int shiftBits = node0.qp >> 2;
+      int shiftBits = QuantizerGeom::qpShift(node0.qp);
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
@@ -1692,8 +1692,7 @@ encodeGeometryOctree(
 
           if (mode != DirectMode::kUnavailable && idcmQp) {
             node0.qp = idcmQp;
-            idcmShiftBits = idcmQp >> 2;
-            idcmSize = nodeSizeLog2 - idcmShiftBits;
+            idcmSize = nodeSizeLog2 - QuantizerGeom::qpShift(idcmQp);
             geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
           }
 
