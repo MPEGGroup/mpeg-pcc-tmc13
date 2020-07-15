@@ -164,10 +164,10 @@ QpSet::clipQpS(int qp) const
 Quantizers
 QpSet::quantizers(int qpLayer, Qps qpOffset) const
 {
-  int qp0 = layers[qpLayer][0] + qpOffset[0];
-  int qp1 = layers[qpLayer][1] + qpOffset[1] + qp0;
-  qp0 = clipQpP(qp0) + fixedPointQpOffset;
-  qp1 = clipQpS(qp1) + fixedPointQpOffset;
+  int qp0 = clipQpP(layers[qpLayer][0] + qpOffset[0]);
+  int qp1 = clipQpS(layers[qpLayer][1] + qpOffset[1] + qp0);
+  qp0 = qp0 + fixedPointQpOffset;
+  qp1 = qp1 + fixedPointQpOffset;
 
   return {Quantizer(qp0), Quantizer(qp1)};
 }
