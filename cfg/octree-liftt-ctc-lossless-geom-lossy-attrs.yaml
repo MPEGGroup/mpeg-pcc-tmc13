@@ -42,7 +42,7 @@ categories:
      -
        - !conditional '"${group}" eq "cat3-frame"'
        - partitionMethod: 0
-       - maxNumQtBtBeforeOt: 0
+       - maxNumQtBtBeforeOt: 6
        - planarModeIdcmUse: 127
 
      ####

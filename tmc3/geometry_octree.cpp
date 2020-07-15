@@ -64,7 +64,8 @@ oneQtBtDecision(
         nodeSizeLog2[k]--;
     }
   } else if (
-    qtbt.angularTweakEnabled
+    qtbt.angularTweakEnabled && minDepthQtbt >= 0
+    && nodeSizeLog2[2] <= maxNodeMinDimLog2ToSplitZ
     && (maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ > 0)) {
     // do not split z
     int nodeXYMaxDimLog2 = std::max(nodeSizeLog2[0], nodeSizeLog2[1]);
@@ -149,8 +150,9 @@ mkQtBtNodeSizeList(
 
     // if all dimensions have same size, then use octree for remaining nodes
     if (
-      nodeSizeLog2[0] == nodeSizeLog2[1] && nodeSizeLog2[1] == nodeSizeLog2[2])
-      minSizeQtbt = 0;
+      nodeSizeLog2[0] == minSizeQtbt && nodeSizeLog2[0] == nodeSizeLog2[1]
+      && nodeSizeLog2[1] == nodeSizeLog2[2])
+      minSizeQtbt = -1;
   }
 
   return nodeSizeLog2List;

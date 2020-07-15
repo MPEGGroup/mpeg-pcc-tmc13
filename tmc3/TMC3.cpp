@@ -1132,6 +1132,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   params.encoder.geom.qtbt.angularTweakEnabled =
     params.encoder.gps.geom_angular_mode_enabled_flag;
 
+  if (!params.encoder.geom.qtbt.angularTweakEnabled) {
+    // NB: these aren't used in this condition
+    params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV = 0;
+    params.encoder.geom.qtbt.angularMaxDiffToSplitZ = 0;
+  }
+
   // sanity checks
 
   if (params.encoder.gps.geom_qp_multiplier_log2 & ~3)
