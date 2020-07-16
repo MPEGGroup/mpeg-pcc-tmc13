@@ -1364,6 +1364,11 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
+  if (!num_tiles) {
+    bs.byteAlign();
+    return buf;
+  }
+
   bs.writeUn(5, inventory.tile_id_bits);
   bs.writeUn(8, inventory.tile_origin_bits_minus1);
   bs.writeUn(8, inventory.tile_size_bits_minus1);
@@ -1416,6 +1421,11 @@ parseTileInventory(const PayloadBuffer& buf)
 
   int num_tiles;
   bs.readUn(16, &num_tiles);
+  if (!num_tiles) {
+    bs.byteAlign();
+    return inventory;
+  }
+
   bs.readUn(5, &inventory.tile_id_bits);
   bs.readUn(8, &inventory.tile_origin_bits_minus1);
   bs.readUn(8, &inventory.tile_size_bits_minus1);
