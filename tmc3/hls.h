@@ -408,6 +408,13 @@ struct GeometryParameterSet {
   std::vector<int> geom_angular_z_laser;
   std::vector<int> geom_angular_num_phi_per_turn;
 
+  int geomAngularThetaPred(int i) const
+  {
+    if (!--i)
+      return geom_angular_theta_laser[i];
+    return 2 * geom_angular_theta_laser[i] - geom_angular_theta_laser[i - 1];
+  }
+
   // disable the use of planar buffer when angular mode is enabled
   bool planar_buffer_disabled_flag;
 
