@@ -301,9 +301,12 @@ write(const SequenceParameterSet& sps)
     auto sps_bounding_box_offset_xyz =
       toXyz(sps.geometry_axis_order, sps.seqBoundingBoxOrigin);
 
-    bs.writeSe(sps_bounding_box_offset_xyz.x());
-    bs.writeSe(sps_bounding_box_offset_xyz.y());
-    bs.writeSe(sps_bounding_box_offset_xyz.z());
+    bs.writeUe(sps.sps_bounding_box_offset_bits_minus1);
+    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
+      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.x());
+      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.y());
+      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.z());
+    }
 
     int seq_bounding_box_offset_log2_scale = 0;
     bs.writeUe(seq_bounding_box_offset_log2_scale);
@@ -311,9 +314,12 @@ write(const SequenceParameterSet& sps)
     auto seq_bounding_box_whd =
       toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize);
 
-    bs.writeUe(seq_bounding_box_whd.x());
-    bs.writeUe(seq_bounding_box_whd.y());
-    bs.writeUe(seq_bounding_box_whd.z());
+    bs.writeUe(sps.sps_bounding_box_size_bits_minus1);
+    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
+      bs.writeUn(bbSizeBits, seq_bounding_box_whd.x());
+      bs.writeUn(bbSizeBits, seq_bounding_box_whd.y());
+      bs.writeUn(bbSizeBits, seq_bounding_box_whd.z());
+    }
   }
   // todo(df): determine encoding of scale factor
   bs.writeF(sps.seq_geom_scale);
@@ -420,18 +426,24 @@ parseSps(const PayloadBuffer& buf)
   bool seq_bounding_box_present_flag = bs.read();
   if (seq_bounding_box_present_flag) {
     Vec3<int> seq_bounding_box_offset;
-    bs.readSe(&seq_bounding_box_offset.x());
-    bs.readSe(&seq_bounding_box_offset.y());
-    bs.readSe(&seq_bounding_box_offset.z());
+    bs.readUe(&sps.sps_bounding_box_offset_bits_minus1);
+    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
+      bs.readSn(bbOriginBits, &seq_bounding_box_offset.x());
+      bs.readSn(bbOriginBits, &seq_bounding_box_offset.y());
+      bs.readSn(bbOriginBits, &seq_bounding_box_offset.z());
+    }
 
     int seq_bounding_box_offset_log2_scale;
     bs.readUe(&seq_bounding_box_offset_log2_scale);
     seq_bounding_box_offset *= 1 << seq_bounding_box_offset_log2_scale;
 
     Vec3<int> seq_bounding_box_whd;
-    bs.readUe(&seq_bounding_box_whd.x());
-    bs.readUe(&seq_bounding_box_whd.y());
-    bs.readUe(&seq_bounding_box_whd.z());
+    bs.readUe(&sps.sps_bounding_box_size_bits_minus1);
+    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
+      bs.readUn(bbSizeBits, &seq_bounding_box_whd.x());
+      bs.readUn(bbSizeBits, &seq_bounding_box_whd.y());
+      bs.readUn(bbSizeBits, &seq_bounding_box_whd.z());
+    }
 
     // NB: these are in XYZ axis order until the SPS is converted to STV
     sps.seqBoundingBoxOrigin = seq_bounding_box_offset;
@@ -945,9 +957,13 @@ write(
 
   if (gps.geom_box_log2_scale_present_flag)
     bs.writeUe(gbh.geom_box_log2_scale);
-  bs.writeUe(geom_box_origin.x());
-  bs.writeUe(geom_box_origin.y());
-  bs.writeUe(geom_box_origin.z());
+
+  bs.writeUe(gbh.geom_box_origin_bits_minus1);
+  if (auto originBits = gbh.geom_box_origin_bits_minus1 + 1) {
+    bs.writeUn(originBits, geom_box_origin.x());
+    bs.writeUn(originBits, geom_box_origin.y());
+    bs.writeUn(originBits, geom_box_origin.z());
+  }
 
   if (!gps.predgeom_enabled_flag) {
     int tree_depth_minus1 = gbh.tree_lvl_coded_axis_list.size() - 1;
@@ -977,7 +993,9 @@ write(
   if (!gps.predgeom_enabled_flag)
     if (gps.trisoup_node_size_log2) {
       bs.writeUe(gbh.trisoup_sampling_value_minus1);
-      bs.writeUe(gbh.num_unique_segments_minus1);
+      bs.writeUe(gbh.num_unique_segments_bits_minus1);
+      auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
+      bs.writeUn(segmentBits, gbh.num_unique_segments_minus1);
     }
 
   if (gps.predgeom_enabled_flag) {
@@ -1018,9 +1036,12 @@ parseGbh(
     bs.readUe(&gbh.geom_box_log2_scale);
 
   Vec3<int> geom_box_origin;
-  bs.readUe(&geom_box_origin.x());
-  bs.readUe(&geom_box_origin.y());
-  bs.readUe(&geom_box_origin.z());
+  bs.readUe(&gbh.geom_box_origin_bits_minus1);
+  if (auto originBits = gbh.geom_box_origin_bits_minus1 + 1) {
+    bs.readUn(originBits, &geom_box_origin.x());
+    bs.readUn(originBits, &geom_box_origin.y());
+    bs.readUn(originBits, &geom_box_origin.z());
+  }
   gbh.geomBoxOrigin = fromXyz(sps.geometry_axis_order, geom_box_origin);
   gbh.geomBoxOrigin *= 1 << gbh.geomBoxLog2Scale(gps);
 
@@ -1056,7 +1077,9 @@ parseGbh(
   if (!gps.predgeom_enabled_flag)
     if (gps.trisoup_node_size_log2) {
       bs.readUe(&gbh.trisoup_sampling_value_minus1);
-      bs.readUe(&gbh.num_unique_segments_minus1);
+      bs.readUe(&gbh.num_unique_segments_bits_minus1);
+      auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
+      bs.readUn(segmentBits, &gbh.num_unique_segments_minus1);
     }
 
   if (gps.predgeom_enabled_flag) {
@@ -1174,6 +1197,10 @@ write(
 
   int attr_num_regions = abh.qpRegions.size();
   bs.writeUe(attr_num_regions);
+
+  if (attr_num_regions)
+    bs.writeUe(abh.attr_region_bits_minus1);
+
   for (int i = 0; i < attr_num_regions; i++) {
     // NB: only one region is currently permitted.
     auto& region = abh.qpRegions[i];
@@ -1184,12 +1211,13 @@ write(
     auto attr_region_whd_minus1 =
       toXyz(sps.geometry_axis_order, region.regionSize - 1);
 
-    bs.writeUe(attr_region_origin.x());
-    bs.writeUe(attr_region_origin.y());
-    bs.writeUe(attr_region_origin.z());
-    bs.writeUe(attr_region_whd_minus1.x());
-    bs.writeUe(attr_region_whd_minus1.y());
-    bs.writeUe(attr_region_whd_minus1.z());
+    auto regionBits = abh.attr_region_bits_minus1 + 1;
+    bs.writeUn(regionBits, attr_region_origin.x());
+    bs.writeUn(regionBits, attr_region_origin.y());
+    bs.writeUn(regionBits, attr_region_origin.z());
+    bs.writeUn(regionBits, attr_region_whd_minus1.x());
+    bs.writeUn(regionBits, attr_region_whd_minus1.y());
+    bs.writeUn(regionBits, attr_region_whd_minus1.z());
     bs.writeSe(region.attr_region_qp_offset[0]);
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
       bs.writeSe(region.attr_region_qp_offset[1]);
@@ -1263,19 +1291,25 @@ parseAbh(
   int attr_num_regions;
   bs.readUe(&attr_num_regions);
   assert(attr_num_regions <= 1);
+
+  if (attr_num_regions)
+    bs.readUe(&abh.attr_region_bits_minus1);
+
   abh.qpRegions.resize(attr_num_regions);
   for (int i = 0; i < attr_num_regions; i++) {
+    auto regionBits = abh.attr_region_bits_minus1 + 1;
     auto& region = abh.qpRegions[i];
+
     Vec3<int> attr_region_origin;
-    bs.readUe(&attr_region_origin.x());
-    bs.readUe(&attr_region_origin.y());
-    bs.readUe(&attr_region_origin.z());
+    bs.readUn(regionBits, &attr_region_origin.x());
+    bs.readUn(regionBits, &attr_region_origin.y());
+    bs.readUn(regionBits, &attr_region_origin.z());
     region.regionOrigin = fromXyz(sps.geometry_axis_order, attr_region_origin);
 
     Vec3<int> attr_region_whd_minus1;
-    bs.readUe(&attr_region_whd_minus1.x());
-    bs.readUe(&attr_region_whd_minus1.y());
-    bs.readUe(&attr_region_whd_minus1.z());
+    bs.readUn(regionBits, &attr_region_whd_minus1.x());
+    bs.readUn(regionBits, &attr_region_whd_minus1.y());
+    bs.readUn(regionBits, &attr_region_whd_minus1.z());
     region.regionSize =
       fromXyz(sps.geometry_axis_order, attr_region_whd_minus1 + 1);
 
@@ -1331,39 +1365,33 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
-
-  // calculate the maximum size of any values
-  int maxVal = 1;
-  for (const auto& entry : inventory.tiles) {
-    for (int k = 0; k < 3; k++) {
-      maxVal = std::max(maxVal, entry.tileOrigin[k]);
-      maxVal = std::max(maxVal, entry.tileSize[k] - 1);
-    }
-  }
-
-  int tile_bounding_box_bits = ceillog2(uint32_t(maxVal));
-  bs.writeUn(8, tile_bounding_box_bits);
+  bs.writeUn(8, inventory.tile_bounding_box_bits_minus1);
 
   for (const auto& entry : inventory.tiles) {
     if (inventory.tile_id_present_flag)
       bs.writeUe(entry.tile_id);
 
+    auto tileBbBits = inventory.tile_bounding_box_bits_minus1 + 1;
+
     auto tile_origin = toXyz(sps.geometry_axis_order, entry.tileOrigin);
-    bs.writeSn(tile_bounding_box_bits, tile_origin.x());
-    bs.writeSn(tile_bounding_box_bits, tile_origin.y());
-    bs.writeSn(tile_bounding_box_bits, tile_origin.z());
+    bs.writeSn(tileBbBits, tile_origin.x());
+    bs.writeSn(tileBbBits, tile_origin.y());
+    bs.writeSn(tileBbBits, tile_origin.z());
 
     auto tile_size_minus1 = toXyz(sps.geometry_axis_order, entry.tileSize) - 1;
-    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.x());
-    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.y());
-    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.z());
+    bs.writeUn(tileBbBits, tile_size_minus1.x());
+    bs.writeUn(tileBbBits, tile_size_minus1.y());
+    bs.writeUn(tileBbBits, tile_size_minus1.z());
   }
 
   // NB: this is at the end of the inventory to aid fixed-width parsing
-  auto ti_origin_xyz = toXyz(sps.geometry_axis_order, inventory.origin);
-  bs.writeSe(ti_origin_xyz.x());
-  bs.writeSe(ti_origin_xyz.y());
-  bs.writeSe(ti_origin_xyz.z());
+  bs.writeUe(inventory.ti_origin_bits_minus1);
+  if (auto tiOriginBits = inventory.ti_origin_bits_minus1 + 1) {
+    auto ti_origin_xyz = toXyz(sps.geometry_axis_order, inventory.origin);
+    bs.writeSn(tiOriginBits, ti_origin_xyz.x());
+    bs.writeSn(tiOriginBits, ti_origin_xyz.y());
+    bs.writeSn(tiOriginBits, ti_origin_xyz.z());
+  }
 
   int ti_origin_log2_scale = 0;
   bs.writeUe(ti_origin_log2_scale);
@@ -1387,23 +1415,23 @@ parseTileInventory(const PayloadBuffer& buf)
 
   int num_tiles;
   bs.readUn(16, &num_tiles);
-
-  int tile_bounding_box_bits;
-  bs.readUn(8, &tile_bounding_box_bits);
+  bs.readUn(8, &inventory.tile_bounding_box_bits_minus1);
 
   for (int i = 0; i < num_tiles; i++) {
     int tile_id = i;
     if (inventory.tile_id_present_flag)
       bs.readUe(&tile_id);
 
+    auto tileBbBits = inventory.tile_bounding_box_bits_minus1 + 1;
+
     Vec3<int> tile_origin;
-    bs.readSn(tile_bounding_box_bits, &tile_origin.x());
-    bs.readSn(tile_bounding_box_bits, &tile_origin.y());
-    bs.readSn(tile_bounding_box_bits, &tile_origin.z());
+    bs.readSn(tileBbBits, &tile_origin.x());
+    bs.readSn(tileBbBits, &tile_origin.y());
+    bs.readSn(tileBbBits, &tile_origin.z());
     Vec3<int> tile_size_minus1;
-    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.x());
-    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.y());
-    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.z());
+    bs.readUn(tileBbBits, &tile_size_minus1.x());
+    bs.readUn(tileBbBits, &tile_size_minus1.y());
+    bs.readUn(tileBbBits, &tile_size_minus1.z());
 
     // NB: this is in XYZ axis order until the inventory is converted to STV
     TileInventory::Entry entry;
@@ -1414,9 +1442,12 @@ parseTileInventory(const PayloadBuffer& buf)
   }
 
   Vec3<int> ti_origin_xyz;
-  bs.readSe(&ti_origin_xyz.x());
-  bs.readSe(&ti_origin_xyz.y());
-  bs.readSe(&ti_origin_xyz.z());
+  bs.readUe(&inventory.ti_origin_bits_minus1);
+  if (auto tiOriginBits = inventory.ti_origin_bits_minus1 + 1) {
+    bs.readSn(tiOriginBits, &ti_origin_xyz.x());
+    bs.readSn(tiOriginBits, &ti_origin_xyz.y());
+    bs.readSn(tiOriginBits, &ti_origin_xyz.z());
+  }
 
   int ti_origin_log2_scale;
   bs.readUe(&ti_origin_log2_scale);

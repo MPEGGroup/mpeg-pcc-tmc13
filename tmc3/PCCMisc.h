@@ -175,6 +175,17 @@ ceillog2(uint32_t x)
 }
 
 //---------------------------------------------------------------------------
+// The number of bits required to represent x.
+// NB: x must be >= 0.
+// NB: numBits(0) = 1.
+
+inline int
+numBits(int x)
+{
+  return std::max(0, ilog2(uint32_t(x))) + 1;
+}
+
+//---------------------------------------------------------------------------
 // Compute an approximation of \left\floor \sqrt{x} \right\floor
 
 uint32_t isqrt(uint64_t x) __attribute__((const));

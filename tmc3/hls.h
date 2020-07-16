@@ -288,8 +288,14 @@ struct SequenceParameterSet {
   ProfileCompatibility profileCompatibility;
   int level;
 
+  // Number of bits used to code seqBoundingBoxOrigin
+  int sps_bounding_box_offset_bits_minus1;
+
   // the bounding box origin (in stv axis order).
   Vec3<int> seqBoundingBoxOrigin;
+
+  // Number of bits used to code seqBoundingBoxSize
+  int sps_bounding_box_size_bits_minus1;
 
   // the size of the bounding box (in stv axis order).
   Vec3<int> seqBoundingBoxSize;
@@ -442,6 +448,9 @@ struct GeometryBrickHeader {
   Vec3<int> geomBoxOrigin;
   int geom_box_log2_scale;
 
+  // Number of bits to represent geomBoxOrigin >> geom_box_log2_scale
+  int geom_box_origin_bits_minus1;
+
   // the size of the root geometry node
   // NB: this is only needed for the initial node size determination at
   //     the encoder
@@ -489,6 +498,9 @@ struct GeometryBrickHeader {
   int trisoup_sampling_value_minus1;
 
   int num_unique_segments_minus1;
+
+  // Number of bits to represent num_unique_segments_minus1
+  int num_unique_segments_bits_minus1;
 
   // 'Header' information that appears at the end of the data unit
   GeometryBrickFooter footer;
@@ -585,6 +597,9 @@ struct AttributeBrickHeader {
 
   std::vector<QpRegion> qpRegions;
 
+  // Number of bits to represent regionOrigin and regionSize
+  int attr_region_bits_minus1;
+
   int32_t attr_dist2_delta;
 
   // (r, phi, laserid) scale factors for domain conversion
@@ -624,7 +639,13 @@ struct TileInventory {
   // the origin of the tiles (in stv axis order).  Likely the sps origin
   Vec3<int> origin;
 
+  // Number of bits to represent the inventory origin
+  int ti_origin_bits_minus1;
+
   std::vector<Entry> tiles;
+
+  // Number of bits to represent each tile origin and size
+  int tile_bounding_box_bits_minus1;
 };
 
 //============================================================================

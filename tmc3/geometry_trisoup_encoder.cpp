@@ -86,6 +86,8 @@ encodeGeometryTrisoup(
 
   gbh.trisoup_sampling_value_minus1 = subsample - 1;
   gbh.num_unique_segments_minus1 = segind.size() - 1;
+  gbh.num_unique_segments_bits_minus1 =
+    numBits(gbh.num_unique_segments_minus1) - 1;
   assert(segind.size() > 0);
 
   // Encode segind to bitstream.

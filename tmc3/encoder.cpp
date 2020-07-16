@@ -103,6 +103,13 @@ PCCTMC3Encoder3::compress(
       params->sps.seqBoundingBoxSize[k] = max_k - min_k + 1;
     }
 
+    // Determine the number of bits to signal the bounding box
+    params->sps.sps_bounding_box_offset_bits_minus1 =
+      numBits(params->sps.seqBoundingBoxOrigin.abs().max()) - 1;
+
+    params->sps.sps_bounding_box_size_bits_minus1 =
+      numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
+
     // Determine the lidar head position relative to the sequence bounding box
     params->gps.geomAngularOrigin *= params->geomPreScale;
     params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
@@ -258,6 +265,17 @@ PCCTMC3Encoder3::compress(
     std::cout << "Tile number: " << tileMaps.size() << std::endl;
     inventory.ti_seq_parameter_set_id = _sps->sps_seq_parameter_set_id;
     inventory.origin = _sps->seqBoundingBoxOrigin;
+    inventory.ti_origin_bits_minus1 =
+      numBits(inventory.origin.abs().max()) - 1;
+
+    // Determine the number of bits for encoding tile sizes
+    int maxVal = 1;
+    for (const auto& entry : inventory.tiles) {
+      maxVal = std::max(maxVal, entry.tileOrigin.max());
+      maxVal = std::max(maxVal, entry.tileSize.max() - 1);
+    }
+    inventory.tile_bounding_box_bits_minus1 = numBits(maxVal) - 1;
+
     callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
   }
 
@@ -493,6 +511,9 @@ PCCTMC3Encoder3::compressPartition(
       region.regionOrigin = 0;
       region.regionSize = 0;
       region.attr_region_qp_offset = {0, 0};
+      abh.attr_region_bits_minus1 = -1
+        + numBits(
+            std::max(region.regionOrigin.max(), region.regionSize.max()));
     }
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
@@ -570,6 +591,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_tile_id = std::max(0, _tileId);
   gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
+  gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;

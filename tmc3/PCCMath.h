@@ -92,7 +92,10 @@ public:
     return Vec3<ResultT>(*this) * Vec3<ResultT>(*this);
   }
 
-  T getNorm1() const { return abs(data[0]) + abs(data[1]) + abs(data[2]); }
+  T getNorm1() const
+  {
+    return std::abs(data[0]) + std::abs(data[1]) + std::abs(data[2]);
+  }
 
   T getNormInf() const
   {
@@ -104,6 +107,12 @@ public:
 
   // The maximum element
   T max() const { return std::max({data[0], data[1], data[2]}); }
+
+  // Applies std::abs to each element
+  Vec3 abs() const
+  {
+    return {std::abs(data[0]), std::abs(data[1]), std::abs(data[2])};
+  }
 
   Vec3& operator=(const Vec3& rhs)
   {
