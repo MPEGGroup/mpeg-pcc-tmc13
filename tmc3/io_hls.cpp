@@ -544,19 +544,25 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   if (!gps.geom_box_log2_scale_present_flag)
     bs.writeUe(gps.gps_geom_box_log2_scale);
   bs.write(gps.predgeom_enabled_flag);
-  bs.write(gps.geom_unique_points_flag);
+
+  if (gps.predgeom_enabled_flag)
+    bs.write(gps.geom_unique_points_flag);
 
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.trisoup_enabled_flag);
+    if (!gps.trisoup_enabled_flag) {
+      bs.write(gps.geom_unique_points_flag);
+      bs.writeUe(gps.inferred_direct_coding_mode);
+      if (gps.inferred_direct_coding_mode)
+        bs.write(gps.joint_2pt_idcm_enabled_flag);
+    }
+
     bs.write(gps.qtbt_enabled_flag);
     bs.writeUe(gps.neighbour_avail_boundary_log2);
     if (gps.neighbour_avail_boundary_log2 > 0) {
       bs.write(gps.adjacent_child_contextualization_enabled_flag);
       bs.writeUe(gps.intra_pred_max_node_size_log2);
     }
-    bs.writeUe(gps.inferred_direct_coding_mode);
-    if (gps.inferred_direct_coding_mode)
-      bs.write(gps.joint_2pt_idcm_enabled_flag);
     bs.write(gps.bitwise_occupancy_coding_flag);
 
     bs.write(gps.geom_planar_mode_enabled_flag);
@@ -641,20 +647,28 @@ parseGps(const PayloadBuffer& buf)
   if (!gps.geom_box_log2_scale_present_flag)
     bs.readUe(&gps.gps_geom_box_log2_scale);
   bs.read(&gps.predgeom_enabled_flag);
-  bs.read(&gps.geom_unique_points_flag);
+
+  if (gps.predgeom_enabled_flag)
+    bs.read(&gps.geom_unique_points_flag);
 
   gps.trisoup_enabled_flag = false;
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.trisoup_enabled_flag);
+
+    gps.geom_unique_points_flag = true;
+    gps.inferred_direct_coding_mode = 0;
+    if (!gps.trisoup_enabled_flag) {
+      bs.read(&gps.geom_unique_points_flag);
+      bs.readUe(&gps.inferred_direct_coding_mode);
+      if (gps.inferred_direct_coding_mode)
+        bs.read(&gps.joint_2pt_idcm_enabled_flag);
+    }
     bs.read(&gps.qtbt_enabled_flag);
     bs.readUe(&gps.neighbour_avail_boundary_log2);
     if (gps.neighbour_avail_boundary_log2 > 0) {
       bs.read(&gps.adjacent_child_contextualization_enabled_flag);
       bs.readUe(&gps.intra_pred_max_node_size_log2);
     }
-    bs.readUe(&gps.inferred_direct_coding_mode);
-    if (gps.inferred_direct_coding_mode)
-      bs.read(&gps.joint_2pt_idcm_enabled_flag);
     bs.read(&gps.bitwise_occupancy_coding_flag);
 
     bs.read(&gps.geom_planar_mode_enabled_flag);
