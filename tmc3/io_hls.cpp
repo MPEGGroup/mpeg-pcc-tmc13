@@ -548,7 +548,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeUe(gps.geom_planar_threshold0);
       bs.writeUe(gps.geom_planar_threshold1);
       bs.writeUe(gps.geom_planar_threshold2);
-      bs.writeUe(gps.geom_planar_idcm_threshold);
+      if (gps.inferred_direct_coding_mode == 1)
+        bs.writeUe(gps.geom_planar_idcm_threshold);
     }
   }
 
@@ -604,7 +605,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.writeUn(2, gps.geom_qp_multiplier_log2);
     if (gps.predgeom_enabled_flag)
       bs.writeUe(gps.geom_qp_offset_intvl_log2);
-    else
+    else if (gps.inferred_direct_coding_mode)
       bs.writeSe(gps.geom_idcm_qp_offset);
   }
 
@@ -646,10 +647,10 @@ parseGps(const PayloadBuffer& buf)
       bs.readUe(&gps.geom_planar_threshold0);
       bs.readUe(&gps.geom_planar_threshold1);
       bs.readUe(&gps.geom_planar_threshold2);
-      bs.readUe(&gps.geom_planar_idcm_threshold);
-    }
-    if (gps.inferred_direct_coding_mode > 1)
       gps.geom_planar_idcm_threshold = 127;
+      if (gps.inferred_direct_coding_mode == 1)
+        bs.readUe(&gps.geom_planar_idcm_threshold);
+    }
   }
 
   gps.planar_buffer_disabled_flag = false;
@@ -716,7 +717,7 @@ parseGps(const PayloadBuffer& buf)
     bs.readUn(2, &gps.geom_qp_multiplier_log2);
     if (gps.predgeom_enabled_flag)
       bs.readUe(&gps.geom_qp_offset_intvl_log2);
-    else
+    else if (gps.inferred_direct_coding_mode)
       bs.readSe(&gps.geom_idcm_qp_offset);
   }
 
