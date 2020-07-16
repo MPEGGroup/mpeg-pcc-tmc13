@@ -644,8 +644,11 @@ struct TileInventory {
 
   std::vector<Entry> tiles;
 
-  // Number of bits to represent each tile origin and size
-  int tile_bounding_box_bits_minus1;
+  // Number of bits to represent each tile's origin
+  int tile_origin_bits_minus1;
+
+  // Number of bits to represent each tile's size
+  int tile_size_bits_minus1;
 };
 
 //============================================================================

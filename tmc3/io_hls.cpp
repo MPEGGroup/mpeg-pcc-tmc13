@@ -1365,23 +1365,26 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
-  bs.writeUn(8, inventory.tile_bounding_box_bits_minus1);
+  bs.writeUn(8, inventory.tile_origin_bits_minus1);
+  bs.writeUn(8, inventory.tile_size_bits_minus1);
 
   for (const auto& entry : inventory.tiles) {
     if (inventory.tile_id_present_flag)
       bs.writeUe(entry.tile_id);
 
-    auto tileBbBits = inventory.tile_bounding_box_bits_minus1 + 1;
-
     auto tile_origin = toXyz(sps.geometry_axis_order, entry.tileOrigin);
-    bs.writeSn(tileBbBits, tile_origin.x());
-    bs.writeSn(tileBbBits, tile_origin.y());
-    bs.writeSn(tileBbBits, tile_origin.z());
+    if (auto tileOriginBits = inventory.tile_origin_bits_minus1 + 1) {
+      bs.writeSn(tileOriginBits, tile_origin.x());
+      bs.writeSn(tileOriginBits, tile_origin.y());
+      bs.writeSn(tileOriginBits, tile_origin.z());
+    }
 
     auto tile_size_minus1 = toXyz(sps.geometry_axis_order, entry.tileSize) - 1;
-    bs.writeUn(tileBbBits, tile_size_minus1.x());
-    bs.writeUn(tileBbBits, tile_size_minus1.y());
-    bs.writeUn(tileBbBits, tile_size_minus1.z());
+    if (auto tileSizeBits = inventory.tile_size_bits_minus1 + 1) {
+      bs.writeUn(tileSizeBits, tile_size_minus1.x());
+      bs.writeUn(tileSizeBits, tile_size_minus1.y());
+      bs.writeUn(tileSizeBits, tile_size_minus1.z());
+    }
   }
 
   // NB: this is at the end of the inventory to aid fixed-width parsing
@@ -1415,24 +1418,27 @@ parseTileInventory(const PayloadBuffer& buf)
 
   int num_tiles;
   bs.readUn(16, &num_tiles);
-  bs.readUn(8, &inventory.tile_bounding_box_bits_minus1);
+  bs.readUn(8, &inventory.tile_origin_bits_minus1);
+  bs.readUn(8, &inventory.tile_size_bits_minus1);
 
   for (int i = 0; i < num_tiles; i++) {
     int tile_id = i;
     if (inventory.tile_id_present_flag)
       bs.readUe(&tile_id);
 
-    auto tileBbBits = inventory.tile_bounding_box_bits_minus1 + 1;
-
     Vec3<int> tile_origin;
-    bs.readSn(tileBbBits, &tile_origin.x());
-    bs.readSn(tileBbBits, &tile_origin.y());
-    bs.readSn(tileBbBits, &tile_origin.z());
-    Vec3<int> tile_size_minus1;
-    bs.readUn(tileBbBits, &tile_size_minus1.x());
-    bs.readUn(tileBbBits, &tile_size_minus1.y());
-    bs.readUn(tileBbBits, &tile_size_minus1.z());
+    if (auto tileOriginBits = inventory.tile_origin_bits_minus1 + 1) {
+      bs.readSn(tileOriginBits, &tile_origin.x());
+      bs.readSn(tileOriginBits, &tile_origin.y());
+      bs.readSn(tileOriginBits, &tile_origin.z());
+    }
 
+    Vec3<int> tile_size_minus1;
+    if (auto tileSizeBits = inventory.tile_size_bits_minus1 + 1) {
+      bs.readUn(tileSizeBits, &tile_size_minus1.x());
+      bs.readUn(tileSizeBits, &tile_size_minus1.y());
+      bs.readUn(tileSizeBits, &tile_size_minus1.z());
+    }
     // NB: this is in XYZ axis order until the inventory is converted to STV
     TileInventory::Entry entry;
     entry.tile_id = tile_id;

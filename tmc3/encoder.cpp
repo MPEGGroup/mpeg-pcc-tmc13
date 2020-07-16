@@ -269,12 +269,14 @@ PCCTMC3Encoder3::compress(
       numBits(inventory.origin.abs().max()) - 1;
 
     // Determine the number of bits for encoding tile sizes
-    int maxVal = 1;
+    int maxValOrigin = 1;
+    int maxValSize = 1;
     for (const auto& entry : inventory.tiles) {
-      maxVal = std::max(maxVal, entry.tileOrigin.max());
-      maxVal = std::max(maxVal, entry.tileSize.max() - 1);
+      maxValOrigin = std::max(maxValOrigin, entry.tileOrigin.max());
+      maxValSize = std::max(maxValSize, entry.tileSize.max() - 1);
     }
-    inventory.tile_bounding_box_bits_minus1 = numBits(maxVal) - 1;
+    inventory.tile_origin_bits_minus1 = numBits(maxValOrigin) - 1;
+    inventory.tile_size_bits_minus1 = numBits(maxValSize) - 1;
 
     callback->onOutputBuffer(write(*_sps, partitions.tileInventory));
   }
