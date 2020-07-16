@@ -764,10 +764,11 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     bs.writeUe(aps.dist2);
     bs.write(aps.aps_slice_dist2_deltas_present_flag);
 
-    auto lod_neigh_bias = toXyz(sps.geometry_axis_order, aps.lodNeighBias);
-    bs.writeUe(lod_neigh_bias.x());
-    bs.writeUe(lod_neigh_bias.y());
-    bs.writeUe(lod_neigh_bias.z());
+    auto lod_neigh_bias_minus1 =
+      toXyz(sps.geometry_axis_order, aps.lodNeighBias) - 1;
+    bs.writeUe(lod_neigh_bias_minus1.x());
+    bs.writeUe(lod_neigh_bias_minus1.y());
+    bs.writeUe(lod_neigh_bias_minus1.z());
 
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       bs.write(aps.scalable_lifting_enabled_flag);
@@ -845,12 +846,12 @@ parseAps(const PayloadBuffer& buf)
     bs.readUe(&aps.dist2);
     bs.read(&aps.aps_slice_dist2_deltas_present_flag);
 
-    Vec3<int> lod_neigh_bias;
-    bs.readUe(&lod_neigh_bias.x());
-    bs.readUe(&lod_neigh_bias.y());
-    bs.readUe(&lod_neigh_bias.z());
+    Vec3<int> lod_neigh_bias_minus1;
+    bs.readUe(&lod_neigh_bias_minus1.x());
+    bs.readUe(&lod_neigh_bias_minus1.y());
+    bs.readUe(&lod_neigh_bias_minus1.z());
     // NB: this is in XYZ axis order until the GPS is converted to STV
-    aps.lodNeighBias = lod_neigh_bias;
+    aps.lodNeighBias = lod_neigh_bias_minus1 + 1;
 
     aps.scalable_lifting_enabled_flag = false;
     if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
