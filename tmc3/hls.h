@@ -633,8 +633,8 @@ struct TileInventory {
   // id of an applicable sequence parameter set
   int ti_seq_parameter_set_id;
 
-  // Indicates if tile_id is signalled
-  bool tile_id_present_flag;
+  // Number of bits, if any, used to signal tile_id
+  bool tile_id_bits;
 
   // the origin of the tiles (in stv axis order).  Likely the sps origin
   Vec3<int> origin;

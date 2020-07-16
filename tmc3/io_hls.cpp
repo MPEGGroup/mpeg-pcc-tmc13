@@ -1359,18 +1359,17 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   PayloadBuffer buf(PayloadType::kTileInventory);
   auto bs = makeBitWriter(std::back_inserter(buf));
 
-  // todo(df): 7 is possible excessive, but is to maintain byte alignment
-  bs.writeUn(7, inventory.ti_seq_parameter_set_id);
-  bs.write(inventory.tile_id_present_flag);
+  // todo(df): 8 is possiblly excessive, but it was to maintain byte alignment
+  bs.writeUn(8, inventory.ti_seq_parameter_set_id);
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
+  bs.writeUn(5, inventory.tile_id_bits);
   bs.writeUn(8, inventory.tile_origin_bits_minus1);
   bs.writeUn(8, inventory.tile_size_bits_minus1);
 
   for (const auto& entry : inventory.tiles) {
-    if (inventory.tile_id_present_flag)
-      bs.writeUe(entry.tile_id);
+    bs.writeUn(inventory.tile_id_bits, entry.tile_id);
 
     auto tile_origin = toXyz(sps.geometry_axis_order, entry.tileOrigin);
     if (auto tileOriginBits = inventory.tile_origin_bits_minus1 + 1) {
@@ -1413,18 +1412,17 @@ parseTileInventory(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kTileInventory);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(7, &inventory.ti_seq_parameter_set_id);
-  bs.read(&inventory.tile_id_present_flag);
+  bs.readUn(8, &inventory.ti_seq_parameter_set_id);
 
   int num_tiles;
   bs.readUn(16, &num_tiles);
+  bs.readUn(5, &inventory.tile_id_bits);
   bs.readUn(8, &inventory.tile_origin_bits_minus1);
   bs.readUn(8, &inventory.tile_size_bits_minus1);
 
   for (int i = 0; i < num_tiles; i++) {
     int tile_id = i;
-    if (inventory.tile_id_present_flag)
-      bs.readUe(&tile_id);
+    bs.readUn(inventory.tile_id_bits, &tile_id);
 
     Vec3<int> tile_origin;
     if (auto tileOriginBits = inventory.tile_origin_bits_minus1 + 1) {

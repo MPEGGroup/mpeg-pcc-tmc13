@@ -153,7 +153,7 @@ PCCTMC3Encoder3::compress(
     tileMaps = tilePartition(params->partition, quantizedInputCloud);
 
     // Default is to use implicit tile ids (ie list index)
-    partitions.tileInventory.tile_id_present_flag = false;
+    partitions.tileInventory.tile_id_bits = 0;
 
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
