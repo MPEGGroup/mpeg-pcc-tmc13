@@ -1337,7 +1337,7 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   for (const auto& entry : inventory.tiles) {
     for (int k = 0; k < 3; k++) {
       maxVal = std::max(maxVal, entry.tileOrigin[k]);
-      maxVal = std::max(maxVal, entry.tileSize[k]);
+      maxVal = std::max(maxVal, entry.tileSize[k] - 1);
     }
   }
 
@@ -1353,10 +1353,10 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
     bs.writeSn(tile_bounding_box_bits, tile_origin.y());
     bs.writeSn(tile_bounding_box_bits, tile_origin.z());
 
-    auto tile_size = toXyz(sps.geometry_axis_order, entry.tileSize);
-    bs.writeUn(tile_bounding_box_bits, tile_size.x());
-    bs.writeUn(tile_bounding_box_bits, tile_size.y());
-    bs.writeUn(tile_bounding_box_bits, tile_size.z());
+    auto tile_size_minus1 = toXyz(sps.geometry_axis_order, entry.tileSize) - 1;
+    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.x());
+    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.y());
+    bs.writeUn(tile_bounding_box_bits, tile_size_minus1.z());
   }
 
   // NB: this is at the end of the inventory to aid fixed-width parsing
@@ -1400,16 +1400,16 @@ parseTileInventory(const PayloadBuffer& buf)
     bs.readSn(tile_bounding_box_bits, &tile_origin.x());
     bs.readSn(tile_bounding_box_bits, &tile_origin.y());
     bs.readSn(tile_bounding_box_bits, &tile_origin.z());
-    Vec3<int> tile_size;
-    bs.readUn(tile_bounding_box_bits, &tile_size.x());
-    bs.readUn(tile_bounding_box_bits, &tile_size.y());
-    bs.readUn(tile_bounding_box_bits, &tile_size.z());
+    Vec3<int> tile_size_minus1;
+    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.x());
+    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.y());
+    bs.readUn(tile_bounding_box_bits, &tile_size_minus1.z());
 
     // NB: this is in XYZ axis order until the inventory is converted to STV
     TileInventory::Entry entry;
     entry.tile_id = tile_id;
     entry.tileOrigin = tile_origin;
-    entry.tileSize = tile_size;
+    entry.tileSize = tile_size_minus1 + 1;
     inventory.tiles.push_back(entry);
   }
 
