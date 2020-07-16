@@ -55,13 +55,10 @@ oneQtBtDecision(
 {
   int maxNodeMinDimLog2ToSplitZ = qtbt.angularMaxNodeMinDimLog2ToSplitV;
   int maxDiffToSplitZ = qtbt.angularMaxDiffToSplitZ;
-
-  int nodeMinDimLog2 =
-    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int nodeMinDimLog2 = nodeSizeLog2.min();
 
   if (maxNumQtbtBeforeOt || nodeMinDimLog2 == minDepthQtbt) {
-    int nodeMaxDimLog2 =
-      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+    int nodeMaxDimLog2 = nodeSizeLog2.max();
     for (int k = 0; k < 3; k++) {
       if (nodeSizeLog2[k] == nodeMaxDimLog2)
         nodeSizeLog2[k]--;
@@ -70,7 +67,7 @@ oneQtBtDecision(
     qtbt.angularTweakEnabled
     && (maxNodeMinDimLog2ToSplitZ + maxDiffToSplitZ > 0)) {
     // do not split z
-    int nodeXYMaxDimLog2 = std::max({nodeSizeLog2[0], nodeSizeLog2[1]});
+    int nodeXYMaxDimLog2 = std::max(nodeSizeLog2[0], nodeSizeLog2[1]);
     for (int k = 0; k < 2; k++) {
       if (nodeSizeLog2[k] == nodeXYMaxDimLog2)
         nodeSizeLog2[k]--;
@@ -96,10 +93,8 @@ updateQtBtParameters(
   int* maxNumQtbtBeforeOt,
   int* minSizeQtbt)
 {
-  int nodeMinDimLog2 =
-    std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
-  int nodeMaxDimLog2 =
-    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int nodeMinDimLog2 = nodeSizeLog2.min();
+  int nodeMaxDimLog2 = nodeSizeLog2.max();
 
   // max number of qtbt partitions before ot is bounded by difference between
   // max and min node size

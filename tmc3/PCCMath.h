@@ -99,6 +99,12 @@ public:
     return std::max(data[2], std::max(abs(data[0]), abs(data[1])));
   }
 
+  // The minimum element
+  T min() const { return std::min({data[0], data[1], data[2]}); }
+
+  // The maximum element
+  T max() const { return std::max({data[0], data[1], data[2]}); }
+
   Vec3& operator=(const Vec3& rhs)
   {
     memcpy(data, rhs.data, sizeof(data));

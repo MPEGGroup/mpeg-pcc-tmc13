@@ -394,8 +394,7 @@ decodeTrisoupCommon(
       // unless voxel is first or last along the edge, in which case put the
       // decoded vertex at the start or endpoint of the segment.
       Vec3<int32_t> direction = segment.endpos - segment.startpos;
-      blockWidth =
-        std::max(direction[0], std::max(direction[1], direction[2]));
+      blockWidth = direction.max();
       int32_t distance;
       if (segment.vertex == 0)
         distance = 0;

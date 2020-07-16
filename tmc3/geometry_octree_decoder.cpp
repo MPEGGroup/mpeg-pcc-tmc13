@@ -1246,8 +1246,7 @@ decodeGeometryOctree(
 
   // represents the largest dimension of the current node
   int nodeMaxDimLog2;
-  gbh.maxRootNodeDimLog2 =
-    std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  gbh.maxRootNodeDimLog2 = nodeSizeLog2.max();
 
   // the termination depth of the octree phase
   // NB: minNodeSizeLog2 is only non-zero for partial decoding (not trisoup)
@@ -1276,9 +1275,7 @@ decodeGeometryOctree(
     nodeSizeLog2 = lvlNodeSizeLog2[depth];
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
     auto grandchildSizeLog2 = lvlNodeSizeLog2[depth + 2];
-
-    nodeMaxDimLog2 =
-      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+    nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
     int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
@@ -1298,8 +1295,7 @@ decodeGeometryOctree(
         quantNodeSizeLog2[k] = std::max(0, quantNodeSizeLog2[k]);
 
       // limit the idcmQp such that it cannot overquantise the node
-      auto minNs = std::min(
-        {quantNodeSizeLog2[0], quantNodeSizeLog2[1], quantNodeSizeLog2[2]});
+      auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
       idcmQp = std::min(idcmQp, minNs * 4);
 

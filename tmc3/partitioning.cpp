@@ -344,7 +344,7 @@ partitionByOctreeDepth(
   // and octree node, calculate the position mask and shift required
   // to determine the node address for a point.
   Box3<int32_t> bbox = cloud.computeBoundingBox();
-  int maxBb = (int)std::max({bbox.max[0], bbox.max[1], bbox.max[2]});
+  int maxBb = bbox.max.max();
 
   int cloudSizeLog2 = ceillog2(maxBb + 1);
   int depOctree = splitByDepth ? params.octreeDepth : 1;
@@ -436,8 +436,7 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud)
   // let tile_origin = floor(pos / tile_size)
   // append pointIdx to tileMap[tile_origin]
   Box3<int32_t> bbox = cloud.computeBoundingBox();
-  int maxtileNum =
-    std::ceil(std::max({bbox.max[0], bbox.max[1], bbox.max[2]}) / tileSize);
+  int maxtileNum = std::ceil(bbox.max.max() / tileSize);
   int tileNumlog2 = ceillog2(maxtileNum);
   std::vector<int> partMap(1 << (3 * tileNumlog2));
 

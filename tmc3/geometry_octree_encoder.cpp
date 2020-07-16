@@ -1058,7 +1058,7 @@ calculateNodeQps(
 {
   // determine delta qp for each node based on the point density
   // Conformance: limit the qp such that it cannot overquantize the node
-  int minNs = std::min({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+  int minNs = nodeSizeLog2.min();
   int maxQp = minNs * 4 - 1;
   int lowQp = PCCClip(baseQp - 4, 0, maxQp);
   int mediumQp = std::min(baseQp, maxQp);
@@ -1407,9 +1407,7 @@ encodeGeometryOctree(
     nodeSizeLog2 = lvlNodeSizeLog2[depth];
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
     auto grandchildSizeLog2 = lvlNodeSizeLog2[depth + 2];
-
-    nodeMaxDimLog2 =
-      std::max({nodeSizeLog2[0], nodeSizeLog2[1], nodeSizeLog2[2]});
+    nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
     int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
@@ -1431,8 +1429,7 @@ encodeGeometryOctree(
         quantNodeSizeLog2[k] = std::max(0, quantNodeSizeLog2[k]);
 
       // limit the idcmQp such that it cannot overquantise the node
-      auto minNs = std::min(
-        {quantNodeSizeLog2[0], quantNodeSizeLog2[1], quantNodeSizeLog2[2]});
+      auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
       idcmQp = std::min(idcmQp, minNs * 4);
     }

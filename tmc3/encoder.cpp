@@ -563,13 +563,11 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
 
   // inform the geometry coder what the root node size is
-  gbh.maxRootNodeDimLog2 = 0;
   for (int k = 0; k < 3; k++) {
     // NB: A minimum whd of 2 means there is always at least 1 tree level
     gbh.rootNodeSizeLog2[k] = ceillog2(std::max(2, _sliceBoxWhd[k]));
-    gbh.maxRootNodeDimLog2 =
-      std::max(gbh.maxRootNodeDimLog2, gbh.rootNodeSizeLog2[k]);
   }
+  gbh.maxRootNodeDimLog2 = gbh.rootNodeSizeLog2.max();
 
   // use a cubic node if qtbt is disabled
   if (!_gps->qtbt_enabled_flag)
