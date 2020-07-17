@@ -71,20 +71,6 @@ public:
     int k,
     StaticBitModel& bModel0,
     AdaptiveBitModel& bModel1);
-
-  void encodeIntACEGC(
-    long predResidual,
-    AdaptiveMAryModel& mModelValues,
-    StaticBitModel& bModel0,
-    AdaptiveBitModel& bModel1,
-    const unsigned long M);
-
-  void encodeUIntACEGC(
-    long predResidual,
-    AdaptiveMAryModel& mModelValues,
-    StaticBitModel& bModel0,
-    AdaptiveBitModel& bModel1,
-    const unsigned long M);
 };
 
 //============================================================================
@@ -116,20 +102,6 @@ public:
 
   unsigned int
   decodeExpGolomb(int k, StaticBitModel& bModel0, AdaptiveBitModel& bModel1);
-
-  long decodeIntACEGC(
-    AdaptiveMAryModel& mModelValues,
-    StaticBitModel& bModel0,
-    AdaptiveBitModel& bModel1,
-    unsigned long exp_k,
-    unsigned long M);
-
-  unsigned long decodeUIntACEGC(
-    AdaptiveMAryModel& mModelValues,
-    StaticBitModel& bModel0,
-    AdaptiveBitModel& bModel1,
-    unsigned long exp_k,
-    unsigned long M);
 };
 
 //============================================================================
@@ -199,82 +171,6 @@ EntropyDecoderWrapper<Base>::decodeExpGolomb(
       binary_symbol |= (1 << k);
     }
   return static_cast<unsigned int>(symbol + binary_symbol);
-}
-
-//----------------------------------------------------------------------------
-
-template<class Base>
-inline long
-EntropyDecoderWrapper<Base>::decodeIntACEGC(
-  AdaptiveMAryModel& mModelValues,
-  StaticBitModel& bModel0,
-  AdaptiveBitModel& bModel1,
-  unsigned long exp_k,
-  unsigned long M)
-{
-  unsigned long uiValue = decode(mModelValues);
-  if (uiValue == M) {
-    uiValue += decodeExpGolomb(exp_k, bModel0, bModel1);
-  }
-  return UIntToInt(uiValue);
-}
-
-//----------------------------------------------------------------------------
-
-template<class Base>
-inline unsigned long
-EntropyDecoderWrapper<Base>::decodeUIntACEGC(
-  AdaptiveMAryModel& mModelValues,
-  StaticBitModel& bModel0,
-  AdaptiveBitModel& bModel1,
-  unsigned long exp_k,
-  unsigned long M)
-{
-  unsigned long uiValue = decode(mModelValues);
-  if (uiValue == M) {
-    uiValue += decodeExpGolomb(exp_k, bModel0, bModel1);
-  }
-  return uiValue;
-}
-
-//----------------------------------------------------------------------------
-
-template<class Base>
-inline void
-EntropyEncoderWrapper<Base>::encodeIntACEGC(
-  long predResidual,
-  AdaptiveMAryModel& mModelValues,
-  StaticBitModel& bModel0,
-  AdaptiveBitModel& bModel1,
-  unsigned long M)
-{
-  unsigned long uiValue = IntToUInt(predResidual);
-  if (uiValue < M) {
-    encode(uiValue, mModelValues);
-  } else {
-    encode(M, mModelValues);
-    encodeExpGolomb(uiValue - M, 0, bModel0, bModel1);
-  }
-}
-
-//----------------------------------------------------------------------------
-
-template<class Base>
-inline void
-EntropyEncoderWrapper<Base>::encodeUIntACEGC(
-  long predResidual,
-  AdaptiveMAryModel& mModelValues,
-  StaticBitModel& bModel0,
-  AdaptiveBitModel& bModel1,
-  unsigned long M)
-{
-  unsigned long uiValue = static_cast<unsigned long>(predResidual);
-  if (uiValue < M) {
-    encode(uiValue, mModelValues);
-  } else {
-    encode(M, mModelValues);
-    encodeExpGolomb(uiValue - M, 0, bModel0, bModel1);
-  }
 }
 
 //============================================================================
