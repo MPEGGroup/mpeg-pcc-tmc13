@@ -729,6 +729,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.write(aps.scalable_lifting_enabled_flag);
       if (aps.scalable_lifting_enabled_flag)
         bs.writeUe(aps.max_neigh_range);
+
+      bs.write(aps.last_component_prediction_enabled_flag);
     }
 
     if (!aps.scalable_lifting_enabled_flag) {
@@ -814,6 +816,8 @@ parseAps(const PayloadBuffer& buf)
       bs.read(&aps.scalable_lifting_enabled_flag);
       if (aps.scalable_lifting_enabled_flag)
         bs.readUe(&aps.max_neigh_range);
+
+      bs.read(&aps.last_component_prediction_enabled_flag);
     }
 
     aps.canonical_point_order_flag = false;

@@ -495,6 +495,7 @@ struct AttributeParameterSet {
 
   bool intra_lod_prediction_enabled_flag;
   bool inter_component_prediction_enabled_flag;
+  bool last_component_prediction_enabled_flag;
 
   // NB: derived from num_detail_levels_minus1
   int num_detail_levels;

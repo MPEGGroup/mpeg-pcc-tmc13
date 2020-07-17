@@ -532,7 +532,18 @@ A value of -1 is replaced by 2**(bitdepth-2).
 
 ### `--interComponentPredictionEnabled=0|1`
 Controls the use of an in-loop inter-component prediction of attribute
-residuals.  Applies to `transformType=1` and `attribute=color` only.
+residuals.  When enabled, the secondary attribute residuals (e.g. red/blue)
+are predicted from the primary component (e.g. green).
+
+Applies to `transformType=0` and `attribute=color` only.
+
+### `--lastComponentPredictionEnabled=0|1`
+Controls the use of an in-loop inter-component prediction of attribute
+coefficients.  When enabled, the coefficient of the last component (e.g. Cr)
+of the secondary attribute is predicted from the corresponding first
+component (e.g. Cb) according to a simple model.
+
+Applies to `transformType=2` and `attribute=color` only.
 
 ### `--attributeSearchRange=INT-VALUE`
 Range for nearest neighbour search.

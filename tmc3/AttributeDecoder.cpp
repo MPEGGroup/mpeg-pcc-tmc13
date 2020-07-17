@@ -59,6 +59,8 @@ struct PCCResidualsDecoder {
 
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
+
+  std::vector<int8_t> decodeLastCompPredCoeffs(int numLods);
   int decodePredMode(int max);
   int decodeRunLength();
   int decodeSymbol(int k1, int k2, int k3);
@@ -83,6 +85,24 @@ void
 PCCResidualsDecoder::stop()
 {
   arithmeticDecoder.stop();
+}
+
+//----------------------------------------------------------------------------
+
+std::vector<int8_t>
+PCCResidualsDecoder::decodeLastCompPredCoeffs(int numLods)
+{
+  // todo: should this be in the slice header?
+  std::vector<int8_t> coeffs(numLods, 0);
+  for (int lod = 0; lod < numLods; lod++) {
+    bool last_comp_pred_coeff_ne0 = arithmeticDecoder.decode();
+    if (last_comp_pred_coeff_ne0) {
+      bool last_comp_pred_coeff_sign = arithmeticDecoder.decode();
+      coeffs[lod] = 1 - 2 * last_comp_pred_coeff_sign;
+    }
+  }
+
+  return coeffs;
 }
 
 //----------------------------------------------------------------------------
@@ -607,6 +627,15 @@ AttributeDecoder::decodeColorsLift(
   colors.resize(pointCount);
 
   // decompress
+  // Per level-of-detail coefficients {-1,0,1} for last component prediction
+  int lod = 0;
+  int8_t lastCompPredCoeff = 0;
+  std::vector<int8_t> lastCompPredCoeffs;
+  if (aps.last_component_prediction_enabled_flag) {
+    lastCompPredCoeffs = decoder.decodeLastCompPredCoeffs(lodCount);
+    lastCompPredCoeff = lastCompPredCoeffs[0];
+  }
+
   int zero_cnt = decoder.decodeRunLength();
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -614,6 +643,13 @@ AttributeDecoder::decodeColorsLift(
     if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
+
+    if (predictorIndex == _lods.numPointsInLod[lod]) {
+      lod++;
+      if (aps.last_component_prediction_enabled_flag)
+        lastCompPredCoeff = lastCompPredCoeffs[lod];
+    }
+
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
@@ -628,14 +664,16 @@ AttributeDecoder::decodeColorsLift(
 
     const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
-    const int64_t delta = values[0];
-    const int64_t reconstructedDelta = quant[0].scale(delta);
-    color[0] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
-    for (size_t d = 1; d < 3; ++d) {
-      const int64_t delta = values[d];
-      const int64_t reconstructedDelta = quant[1].scale(delta);
-      color[d] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
-    }
+
+    int64_t scaled = quant[0].scale(values[0]);
+    color[0] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+
+    scaled = quant[1].scale(values[1]);
+    color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+
+    scaled *= lastCompPredCoeff;
+    scaled += quant[1].scale(values[2]);
+    color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
   }
 
   // reconstruct

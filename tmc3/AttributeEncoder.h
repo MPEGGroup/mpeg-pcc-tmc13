@@ -143,6 +143,10 @@ protected:
     const Quantizer& quant);
 
 private:
+  std::vector<int8_t> computeLastComponentPredictionCoeff(
+    const std::vector<Vec3<int64_t>>& coeffs);
+
+private:
   AttributeLods _lods;
 };
 

@@ -64,6 +64,8 @@ struct PCCResidualsEncoder {
 
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
+
+  void encodeLastCompPredCoeffs(const std::vector<int8_t>& coeffs);
   void encodePredMode(int value, int max);
   void encodeRunLength(int runLength);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
@@ -89,6 +91,22 @@ int
 PCCResidualsEncoder::stop()
 {
   return arithmeticEncoder.stop();
+}
+
+//----------------------------------------------------------------------------
+
+void
+PCCResidualsEncoder::encodeLastCompPredCoeffs(
+  const std::vector<int8_t>& coeffs)
+{
+  for (auto coeff : coeffs) {
+    bool last_comp_pred_coeff_ne0 = coeff != 0;
+    arithmeticEncoder.encode(last_comp_pred_coeff_ne0);
+    if (last_comp_pred_coeff_ne0) {
+      bool last_comp_pred_coeff_sign = coeff == -1;
+      arithmeticEncoder.encode(last_comp_pred_coeff_sign);
+    }
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -984,14 +1002,30 @@ AttributeEncoder::encodeColorsLift(
       _lods.predictors, weights, startIndex, endIndex, true, colors);
   }
 
-  // compress
+  // Per level-of-detail coefficients {-1,0,1} for last component prediction
+  int8_t lastCompPredCoeff = 0;
+  std::vector<int8_t> lastCompPredCoeffs;
+  if (aps.last_component_prediction_enabled_flag) {
+    lastCompPredCoeffs = computeLastComponentPredictionCoeff(colors);
+    encoder.encodeLastCompPredCoeffs(lastCompPredCoeffs);
+    lastCompPredCoeff = lastCompPredCoeffs[0];
+  }
+
   int zero_cnt = 0;
   int quantLayer = 0;
+  int lod = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
+
+    if (predictorIndex == _lods.numPointsInLod[lod]) {
+      lod++;
+      if (aps.last_component_prediction_enabled_flag)
+        lastCompPredCoeff = lastCompPredCoeffs[lod];
+    }
+
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
@@ -1000,19 +1034,22 @@ AttributeEncoder::encodeColorsLift(
       (weights[predictorIndex] * iQuantWeight + (1ull << 39)) >> 40;
 
     auto& color = colors[predictorIndex];
-    const int64_t delta = quant[0].quantize(color[0] * quantWeight);
-    auto detail = delta;
-    const int64_t reconstructedDelta = quant[0].scale(delta);
-    color[0] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     int values[3];
-    values[0] = detail;
-    for (size_t d = 1; d < 3; ++d) {
-      const int64_t delta = quant[1].quantize(color[d] * quantWeight);
-      const auto detail = delta;
-      const int64_t reconstructedDelta = quant[1].scale(delta);
-      color[d] = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
-      values[d] = detail;
-    }
+    values[0] = quant[0].quantize(color[0] * quantWeight);
+    int64_t scaled = quant[0].scale(values[0]);
+    color[0] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+
+    values[1] = quant[1].quantize(color[1] * quantWeight);
+    scaled = quant[1].scale(values[1]);
+    color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+
+    color[2] -= lastCompPredCoeff * color[1];
+    scaled *= lastCompPredCoeff;
+
+    values[2] = quant[1].quantize(color[2] * quantWeight);
+    scaled += quant[1].scale(values[2]);
+    color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+
     if (!values[0] && !values[1] && !values[2])
       ++zero_cnt;
     else {
@@ -1045,6 +1082,72 @@ AttributeEncoder::encodeColorsLift(
     }
     pointCloud.setColor(_lods.indexes[f], color);
   }
+}
+
+//----------------------------------------------------------------------------
+
+std::vector<int8_t>
+AttributeEncoder::computeLastComponentPredictionCoeff(
+  const std::vector<Vec3<int64_t>>& coeffs)
+{
+  std::vector<int8_t> signs(_lods.numPointsInLod.size(), 0);
+
+  int numGt0 = 0;
+  int numLt0 = 0;
+  int lod = 0;
+  int lodPointIdx = 0;
+  for (size_t coeffIdx = 0; coeffIdx < coeffs.size(); ++coeffIdx) {
+    auto& color = coeffs[coeffIdx];
+    lodPointIdx++;
+
+    int mult = color[1] * color[2];
+    if (mult > 0)
+      numGt0++;
+    else if (mult < 0)
+      numLt0++;
+
+    if (coeffIdx == _lods.numPointsInLod[lod] - 1) {
+      constexpr double threshold = 0.7;
+      if (numGt0 > threshold * lodPointIdx)
+        signs[lod] = 1;
+      else if (numLt0 > threshold * lodPointIdx)
+        signs[lod] = -1;
+      else
+        signs[lod] = 0;
+
+      lodPointIdx = 0;
+      numGt0 = 0;
+      numLt0 = 0;
+      lod++;
+    }
+  }
+
+  // check if residual prediction is effective
+  lod = 0;
+  int64_t sumPredCoeff = 0;
+  int64_t sumOrigCoeff = 0;
+  for (size_t coeffIdx = 0; coeffIdx < coeffs.size(); ++coeffIdx) {
+    auto& coeff = coeffs[coeffIdx];
+    if (signs[lod] == 1) {
+      sumPredCoeff += abs(coeff[2] - coeff[1]);
+      sumOrigCoeff += abs(coeff[2]);
+    } else if (signs[lod] == -1) {
+      sumPredCoeff += abs(coeff[2] + coeff[1]);
+      sumOrigCoeff += abs(coeff[2]);
+    }
+
+    if (coeffIdx == _lods.numPointsInLod[lod] - 1) {
+      constexpr double threshold2 = 0.9;
+      if (signs[lod] != 0 && sumPredCoeff > threshold2 * sumOrigCoeff)
+        signs[lod] = 0;
+
+      sumPredCoeff = 0;
+      sumOrigCoeff = 0;
+      lod++;
+    }
+  }
+
+  return signs;
 }
 
 //----------------------------------------------------------------------------

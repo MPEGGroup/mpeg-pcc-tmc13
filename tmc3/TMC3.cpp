@@ -815,6 +815,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Use primary attribute component to predict values of subsequent "
     "components")
 
+  ("lastComponentPredictionEnabled",
+    params_attr.aps.last_component_prediction_enabled_flag, true,
+    "Use second attribute component to predict value of the final component")
+
   ("canonical_point_order_flag",
     params_attr.aps.canonical_point_order_flag, false,
     "Enable skipping morton sort in case of number of LoD equal to 1")
