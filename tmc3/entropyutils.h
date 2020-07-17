@@ -35,6 +35,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <stddef.h>
 
 namespace pcc {
@@ -67,6 +68,13 @@ public:
   // :: encoding / common binarisation methods
 
   void encodeExpGolomb(unsigned int symbol, int k, AdaptiveBitModel& bModel1);
+
+  template<size_t NumPrefixCtx, size_t NumSuffixCtx>
+  void encodeExpGolomb(
+    unsigned int symbol,
+    int k,
+    AdaptiveBitModel (&ctxPrefix)[NumPrefixCtx],
+    AdaptiveBitModel (&ctxSuffix)[NumSuffixCtx]);
 };
 
 //============================================================================
@@ -97,6 +105,12 @@ public:
   // :: encoding / common binarisation methods
 
   unsigned int decodeExpGolomb(int k, AdaptiveBitModel& bModel1);
+
+  template<size_t NumPrefixCtx, size_t NumSuffixCtx>
+  unsigned int decodeExpGolomb(
+    int k,
+    AdaptiveBitModel (&ctxPrefix)[NumPrefixCtx],
+    AdaptiveBitModel (&ctxSuffix)[NumSuffixCtx]);
 };
 
 //============================================================================
@@ -123,19 +137,17 @@ UIntToInt(unsigned long uiValue)
 template<class Base>
 inline void
 EntropyEncoderWrapper<Base>::encodeExpGolomb(
-  unsigned int symbol, int k, AdaptiveBitModel& bModel1)
+  unsigned int symbol, int k, AdaptiveBitModel& ctxPrefix)
 {
   while (1) {
-    if (symbol >= static_cast<unsigned int>(1 << k)) {
-      encode(1, bModel1);
-      symbol = symbol - (1 << k);
+    if (symbol >= (1u << k)) {
+      encode(1, ctxPrefix);
+      symbol -= (1u << k);
       k++;
     } else {
-      encode(0, bModel1);  // now terminated zero of unary part
-      while (k--)          // next binary part
-      {
-        encode(static_cast<signed short>((symbol >> k) & 1));
-      }
+      encode(0, ctxPrefix);
+      while (k--)
+        encode((symbol >> k) & 1);
       break;
     }
   }
@@ -144,14 +156,41 @@ EntropyEncoderWrapper<Base>::encodeExpGolomb(
 //----------------------------------------------------------------------------
 
 template<class Base>
+template<size_t NumPrefixCtx, size_t NumSuffixCtx>
+inline void
+EntropyEncoderWrapper<Base>::encodeExpGolomb(
+  unsigned int symbol,
+  int k,
+  AdaptiveBitModel (&ctxPrefix)[NumPrefixCtx],
+  AdaptiveBitModel (&ctxSuffix)[NumSuffixCtx])
+{
+  constexpr int maxPrefixIdx = NumPrefixCtx - 1;
+  constexpr int maxSuffixIdx = NumSuffixCtx - 1;
+  const int k0 = k;
+
+  while (symbol >= (1u << k)) {
+    encode(1, ctxPrefix[std::min(maxPrefixIdx, k - k0)]);
+    symbol -= 1u << k;
+    k++;
+  }
+  encode(0, ctxPrefix[std::min(maxPrefixIdx, k - k0)]);
+
+  while (k--)
+    encode((symbol >> k) & 1, ctxSuffix[std::min(maxSuffixIdx, k)]);
+}
+
+//----------------------------------------------------------------------------
+
+template<class Base>
 inline unsigned int
-EntropyDecoderWrapper<Base>::decodeExpGolomb(int k, AdaptiveBitModel& bModel1)
+EntropyDecoderWrapper<Base>::decodeExpGolomb(
+  int k, AdaptiveBitModel& ctxPrefix)
 {
   unsigned int l;
   int symbol = 0;
   int binary_symbol = 0;
   do {
-    l = decode(bModel1);
+    l = decode(ctxPrefix);
     if (l == 1) {
       symbol += (1 << k);
       k++;
@@ -161,6 +200,37 @@ EntropyDecoderWrapper<Base>::decodeExpGolomb(int k, AdaptiveBitModel& bModel1)
     if (decode() == 1) {
       binary_symbol |= (1 << k);
     }
+  return static_cast<unsigned int>(symbol + binary_symbol);
+}
+
+//----------------------------------------------------------------------------
+
+template<class Base>
+template<size_t NumPrefixCtx, size_t NumSuffixCtx>
+inline unsigned int
+EntropyDecoderWrapper<Base>::decodeExpGolomb(
+  int k,
+  AdaptiveBitModel (&ctxPrefix)[NumPrefixCtx],
+  AdaptiveBitModel (&ctxSuffix)[NumSuffixCtx])
+{
+  constexpr int maxPrefixIdx = NumPrefixCtx - 1;
+  constexpr int maxSuffixIdx = NumSuffixCtx - 1;
+  const int k0 = k;
+  unsigned int l;
+  int symbol = 0;
+  int binary_symbol = 0;
+
+  do {
+    l = decode(ctxPrefix[std::min(maxPrefixIdx, k - k0)]);
+    if (l == 1) {
+      symbol += (1 << k);
+      k++;
+    }
+  } while (l != 0);
+
+  while (k--)
+    binary_symbol |= decode(ctxSuffix[std::min(maxSuffixIdx, k)]) << k;
+
   return static_cast<unsigned int>(symbol + binary_symbol);
 }
 

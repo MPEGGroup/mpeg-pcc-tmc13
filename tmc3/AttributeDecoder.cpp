@@ -49,20 +49,19 @@ namespace pcc {
 
 struct PCCResidualsDecoder {
   EntropyDecoder arithmeticDecoder;
-  AdaptiveBitModel binaryModelDiff[7];
-  AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxRunLen[5];
-  AdaptiveBitModel binaryModelIsOne[7];
-  AdaptiveBitModel ctxSymbolBit[2];
-  AdaptiveBitModel ctxSetIdx[2][16];
+  AdaptiveBitModel ctxCoeffEqN[2][7];
+  AdaptiveBitModel ctxCoeffRemPrefix[2][3];
+  AdaptiveBitModel ctxCoeffRemSuffix[2][3];
+
+  StaticBitModel _ctxEquiProb;
 
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
   int decodePredMode(int max);
   int decodeRunLength();
-  uint32_t decodeSymbol(int k1, int k2, int k3);
-  int decodeInterval(int k3);
+  int decodeSymbol(int k1, int k2, int k3);
   void decode(int32_t values[3]);
   int32_t decode();
 };
@@ -135,49 +134,19 @@ PCCResidualsDecoder::decodeRunLength()
 
 //----------------------------------------------------------------------------
 
-uint32_t
+int
 PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
 {
-  if (arithmeticDecoder.decode(binaryModelIsZero[k1]))
-    return 0u;
+  if (arithmeticDecoder.decode(ctxCoeffEqN[0][k1]))
+    return 0;
 
-  if (arithmeticDecoder.decode(binaryModelIsOne[k2]))
-    return 1u;
+  if (arithmeticDecoder.decode(ctxCoeffEqN[1][k2]))
+    return 1;
 
-  uint32_t value = decodeInterval(k3);
-  if (value == kAttributeResidualAlphabetSize) {
-    value += arithmeticDecoder.decodeExpGolomb(0, binaryModelDiff[k1]);
-  }
+  int coeff_abs_minus2 = arithmeticDecoder.decodeExpGolomb(
+    1, ctxCoeffRemPrefix[k3], ctxCoeffRemSuffix[k3]);
 
-  return value + 2;
-}
-
-//----------------------------------------------------------------------------
-
-int
-PCCResidualsDecoder::decodeInterval(int k3)
-{
-  // Decoding of interval index
-  auto& aed = arithmeticDecoder;
-  int setIdx = 0;
-  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][0]);
-  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][1 + setIdx]);
-  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][3 + setIdx]);
-  setIdx = (setIdx << 1) | aed.decode(ctxSetIdx[k3][7 + setIdx]);
-
-  // Decode position within interval
-  int intervalStart = kCoeffIntervalStart[setIdx];
-  int intervalEnd = kCoeffIntervalStart[setIdx + 1];
-  int intervalRange = intervalEnd - intervalStart;
-
-  // Number of bits to code is log2(intervalEnd - intervalStart)
-  // The following assumes that the range is a power of two
-  int symbolIdx = 0;
-  for (int mask = intervalRange - 1, i = 0; mask; mask >>= 1, ++i)
-    symbolIdx |= aed.decode(ctxSymbolBit[k3]) << i;
-
-  // Reconstruct
-  return intervalStart + symbolIdx;
+  return coeff_abs_minus2 + 2;
 }
 
 //----------------------------------------------------------------------------
