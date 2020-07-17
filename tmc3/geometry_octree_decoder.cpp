@@ -199,7 +199,6 @@ public:
   const uint8_t* _neighPattern64toR1;
 
   EntropyDecoder* _arithmeticDecoder;
-  StaticBitModel _ctxEquiProb;
   AdaptiveBitModel _ctxSingleChild;
   AdaptiveBitModel _ctxSinglePointPerBlock;
   AdaptiveBitModel _ctxSingleIdcmDupPoint;
@@ -284,9 +283,8 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 
   int count = 1;
   if (!isSinglePoint) {
-    count += 1
-      + _arithmeticDecoder->decodeExpGolomb(
-          0, _ctxEquiProb, _ctxPointCountPerBlock);
+    count++;
+    count += _arithmeticDecoder->decodeExpGolomb(0, _ctxPointCountPerBlock);
   }
 
   return count;
@@ -798,17 +796,17 @@ GeometryOctreeDecoder::decodeOccupancy(
     if (singleChild) {
       uint32_t cnt;
       if (!planarMaskZ)
-        cnt = _arithmeticDecoder->decode(_ctxEquiProb);
+        cnt = _arithmeticDecoder->decode();
       else
         cnt = (planarMaskZ & 1);
 
       if (!planarMaskY)
-        cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 1;
+        cnt |= _arithmeticDecoder->decode() << 1;
       else
         cnt |= (planarMaskY & 1) << 1;
 
       if (!planarMaskX)
-        cnt |= _arithmeticDecoder->decode(_ctxEquiProb) << 2;
+        cnt |= _arithmeticDecoder->decode() << 2;
       else
         cnt |= (planarMaskX & 1) << 2;
 
@@ -879,7 +877,7 @@ GeometryOctreeDecoder::decodePointPosition(
 
     for (int i = nodeSizeLog2[k]; i > 0; i--) {
       delta[k] <<= 1;
-      delta[k] |= _arithmeticDecoder->decode(_ctxEquiProb);
+      delta[k] |= _arithmeticDecoder->decode();
     }
   }
 
@@ -892,9 +890,7 @@ GeometryOctreeDecoder::decodeQpOffset()
   int dqp = 0;
   if (!_arithmeticDecoder->decode(_ctxQpOffsetIsZero)) {
     int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
-    dqp =
-      _arithmeticDecoder->decodeExpGolomb(0, _ctxEquiProb, _ctxQpOffsetAbsEgl)
-      + 1;
+    dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
     dqp = dqp_sign ? dqp : -dqp;
   }
   return dqp;
@@ -927,7 +923,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     if (nodeSizeLog2AfterPlanar[1])
       for (int i = nodeSizeLog2AfterPlanar[1]; i > 0; i--) {
         delta[1] <<= 1;
-        delta[1] |= _arithmeticDecoder->decode(_ctxEquiProb);
+        delta[1] |= _arithmeticDecoder->decode();
       }
     posXyz[1] += delta[1];
     posXyz[0] += delta[0] << nodeSizeLog2AfterPlanar[0];
@@ -935,7 +931,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     if (nodeSizeLog2AfterPlanar[0])
       for (int i = nodeSizeLog2AfterPlanar[0]; i > 0; i--) {
         delta[0] <<= 1;
-        delta[0] |= _arithmeticDecoder->decode(_ctxEquiProb);
+        delta[0] |= _arithmeticDecoder->decode();
       }
     posXyz[0] += delta[0];
     posXyz[1] += delta[1] << nodeSizeLog2AfterPlanar[1];
@@ -1087,9 +1083,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
     if (numDuplicatePoints) {
       bool singleDup = _arithmeticDecoder->decode(_ctxSingleIdcmDupPoint);
       if (!singleDup)
-        numDuplicatePoints += 1
-          + _arithmeticDecoder->decodeExpGolomb(
-              0, _ctxEquiProb, _ctxPointCountPerBlock);
+        numDuplicatePoints +=
+          1 + _arithmeticDecoder->decodeExpGolomb(0, _ctxPointCountPerBlock);
     }
   }
 
@@ -1141,8 +1136,7 @@ GeometryOctreeDecoder::decodeThetaRes()
   if (thetaRes == 2)
     thetaRes += _arithmeticDecoder->decode(_ctxThetaResIsTwo) ? 0 : 1;
   if (thetaRes == 3)
-    thetaRes +=
-      _arithmeticDecoder->decodeExpGolomb(1, _ctxEquiProb, _ctxThetaResExp);
+    thetaRes += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
   return sign ? thetaRes : -thetaRes;
 }
 

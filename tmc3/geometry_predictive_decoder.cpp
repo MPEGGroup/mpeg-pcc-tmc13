@@ -93,7 +93,7 @@ PredGeomDecoder::decodeNumDuplicatePoints()
   bool num_dup_points_gt0 = _aed->decode(_ctxNumDupPointsGt0);
   if (!num_dup_points_gt0)
     return 0;
-  return 1 + _aed->decodeExpGolomb(0, _ctxBypass, _ctxNumDupPoints);
+  return 1 + _aed->decodeExpGolomb(0, _ctxNumDupPoints);
 }
 
 //----------------------------------------------------------------------------
@@ -148,7 +148,7 @@ PredGeomDecoder::decodeResidual(GPredicter::Mode mode)
     } else {
       res = 1 + (1 << numBits);
       for (int i = 0; i < numBits; ++i) {
-        res += _aed->decode(_ctxBypass) << i;
+        res += _aed->decode() << i;
       }
     }
     residual[k] = sign ? res : -res;

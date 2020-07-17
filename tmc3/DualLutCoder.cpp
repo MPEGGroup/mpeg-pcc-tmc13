@@ -221,25 +221,25 @@ DualLutCoder<true>::encodeFrequencySortedLutIndex(
 
   entropy->encode(b0, _ctxLutIndex[0]);
   if (b0) {
-    entropy->encode(b1, _ctxBypass);
-    entropy->encode(b2, _ctxBypass);
-    entropy->encode(b3, _ctxBypass);
-    entropy->encode(b4, _ctxBypass);
+    entropy->encode(b1);
+    entropy->encode(b2);
+    entropy->encode(b3);
+    entropy->encode(b4);
     return;
   }
 
   entropy->encode(b1, _ctxLutIndex[1]);
   if (b1) {
-    entropy->encode(b2, _ctxBypass);
-    entropy->encode(b3, _ctxBypass);
-    entropy->encode(b4, _ctxBypass);
+    entropy->encode(b2);
+    entropy->encode(b3);
+    entropy->encode(b4);
     return;
   }
 
   entropy->encode(b2, _ctxLutIndex[2]);
   if (b2) {
-    entropy->encode(b3, _ctxBypass);
-    entropy->encode(b4, _ctxBypass);
+    entropy->encode(b3);
+    entropy->encode(b4);
     return;
   }
 
@@ -291,7 +291,7 @@ DualLutCoder<_limitedContextMode>::encode(int value, EntropyEncoder* entropy)
   entropy->encode(inCache, _ctxCacheHit);
   if (inCache) {
     for (int i = 0; i < kLog2CacheSize; ++i) {
-      entropy->encode(index & 1, _ctxBypass);
+      entropy->encode(index & 1);
       index >>= 1;
     }
     return;
@@ -314,21 +314,21 @@ DualLutCoder<true>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
 
   b0 = entropy->decode(_ctxLutIndex[0]);
   if (b0) {
-    b1 = entropy->decode(_ctxBypass);
-    b2 = entropy->decode(_ctxBypass);
-    b3 = entropy->decode(_ctxBypass);
-    b4 = entropy->decode(_ctxBypass);
+    b1 = entropy->decode();
+    b2 = entropy->decode();
+    b3 = entropy->decode();
+    b4 = entropy->decode();
   } else {
     b1 = entropy->decode(_ctxLutIndex[1]);
     if (b1) {
-      b2 = entropy->decode(_ctxBypass);
-      b3 = entropy->decode(_ctxBypass);
-      b4 = entropy->decode(_ctxBypass);
+      b2 = entropy->decode();
+      b3 = entropy->decode();
+      b4 = entropy->decode();
     } else {
       b2 = entropy->decode(_ctxLutIndex[2]);
       if (b2) {
-        b3 = entropy->decode(_ctxBypass);
-        b4 = entropy->decode(_ctxBypass);
+        b3 = entropy->decode();
+        b4 = entropy->decode();
       } else {
         b3 = entropy->decode(_ctxLutIndex[3]);
         b4 = entropy->decode(_ctxLutIndex[4]);
@@ -374,7 +374,7 @@ DualLutCoder<_limitedContextMode>::decode(EntropyDecoder* entropy)
     if (inCache) {
       int index = 0;
       for (int i = 0; i < kLog2CacheSize; ++i) {
-        index |= entropy->decode(_ctxBypass) << i;
+        index |= entropy->decode() << i;
       }
       symbol = _cache.getSymbol(index);
     } else {

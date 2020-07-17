@@ -158,7 +158,11 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    void encode(int bit, SchroContextFixed&)
+    void encode(int bit, SchroContextFixed&) { encode(bit); }
+
+    //------------------------------------------------------------------------
+
+    void encode(int bit)
     {
       if (!_cabac_bypass_stream_enabled_flag) {
         uint16_t probability = 0x8000;  // p=0.5
@@ -250,7 +254,11 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
-    int decode(SchroContextFixed&)
+    int decode(SchroContextFixed&) { return decode(); }
+
+    //------------------------------------------------------------------------
+
+    int decode()
     {
       if (!_cabac_bypass_stream_enabled_flag) {
         uint16_t probability = 0x8000;  // p=0.5

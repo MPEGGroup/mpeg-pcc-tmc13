@@ -54,7 +54,6 @@ namespace pcc {
 
 struct PCCResidualsEncoder {
   EntropyEncoder arithmeticEncoder;
-  StaticBitModel binaryModel0;
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
@@ -186,7 +185,7 @@ PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2, int k3)
     int alphabetSize = kAttributeResidualAlphabetSize;
     encodeInterval(alphabetSize, k3);
     arithmeticEncoder.encodeExpGolomb(
-      value - alphabetSize, 0, binaryModel0, binaryModelDiff[k1]);
+      value - alphabetSize, 0, binaryModelDiff[k1]);
   }
 }
 
@@ -209,11 +208,11 @@ PCCResidualsEncoder::encode(int32_t value0, int32_t value1, int32_t value2)
   encodeSymbol(mag2, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
 
   if (mag0)
-    arithmeticEncoder.encode(value0 < 0, binaryModel0);
+    arithmeticEncoder.encode(value0 < 0);
   if (mag1)
-    arithmeticEncoder.encode(value1 < 0, binaryModel0);
+    arithmeticEncoder.encode(value1 < 0);
   if (mag2)
-    arithmeticEncoder.encode(value2 < 0, binaryModel0);
+    arithmeticEncoder.encode(value2 < 0);
 }
 
 //----------------------------------------------------------------------------
@@ -223,7 +222,7 @@ PCCResidualsEncoder::encode(int32_t value)
 {
   int mag = abs(value) - 1;
   encodeSymbol(mag, 0, 0, 0);
-  arithmeticEncoder.encode(value < 0, binaryModel0);
+  arithmeticEncoder.encode(value < 0);
 }
 
 //============================================================================

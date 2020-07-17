@@ -124,7 +124,7 @@ PredGeomEncoder::encodeNumDuplicatePoints(int numDupPoints)
 {
   _aec->encode(numDupPoints > 0, _ctxNumDupPointsGt0);
   if (numDupPoints)
-    _aec->encodeExpGolomb(numDupPoints - 1, 0, _ctxBypass, _ctxNumDupPoints);
+    _aec->encodeExpGolomb(numDupPoints - 1, 0, _ctxNumDupPoints);
 }
 
 //----------------------------------------------------------------------------
@@ -179,7 +179,7 @@ PredGeomEncoder::encodeResidual(
 
     --numBits;
     for (int32_t i = 0; i < numBits; ++i)
-      _aec->encode((value >> i) & 1, _ctxBypass);
+      _aec->encode((value >> i) & 1);
   }
 }
 

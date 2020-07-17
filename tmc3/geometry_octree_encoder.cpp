@@ -217,7 +217,6 @@ public:
   const uint8_t* _neighPattern64toR1;
 
   EntropyEncoder* _arithmeticEncoder;
-  StaticBitModel _ctxEquiProb;
   AdaptiveBitModel _ctxSingleChild;
   AdaptiveBitModel _ctxSinglePointPerBlock;
   AdaptiveBitModel _ctxSingleIdcmDupPoint;
@@ -304,7 +303,7 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
   } else {
     _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
     _arithmeticEncoder->encodeExpGolomb(
-      uint32_t(count - 2), 0, _ctxEquiProb, _ctxPointCountPerBlock);
+      uint32_t(count - 2), 0, _ctxPointCountPerBlock);
   }
 
   return count;
@@ -814,13 +813,13 @@ GeometryOctreeEncoder::encodeOccupancy(
       // no siblings => encode index = (z,y,x) not 8bit pattern
       // if mask is not zero, then planar, then child z known from plane index
       if (!planarMaskZ)
-        _arithmeticEncoder->encode(!!(occupancy & 0xaa), _ctxEquiProb);  // z
+        _arithmeticEncoder->encode(!!(occupancy & 0xaa));
 
       if (!planarMaskY)
-        _arithmeticEncoder->encode(!!(occupancy & 0xcc), _ctxEquiProb);  // y
+        _arithmeticEncoder->encode(!!(occupancy & 0xcc));
 
       if (!planarMaskX)
-        _arithmeticEncoder->encode(!!(occupancy & 0xf0), _ctxEquiProb);  // x
+        _arithmeticEncoder->encode(!!(occupancy & 0xf0));
 
       return;
     }
@@ -872,7 +871,7 @@ GeometryOctreeEncoder::encodePointPosition(
       continue;
 
     for (int mask = 1 << (nodeSizeLog2AfterPlanar[k] - 1); mask; mask >>= 1) {
-      _arithmeticEncoder->encode(!!(pos[k] & mask), _ctxEquiProb);
+      _arithmeticEncoder->encode(!!(pos[k] & mask));
     }
   }
 }
@@ -902,7 +901,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   if (codeXorY) {  // direct code y
     if (nodeSizeLog2AfterPlanar[1])
       for (int mask = 1 << (nodeSizeLog2AfterPlanar[1] - 1); mask; mask >>= 1)
-        _arithmeticEncoder->encode(!!(pos[1] & mask), _ctxEquiProb);
+        _arithmeticEncoder->encode(!!(pos[1] & mask));
 
     posXyz[1] = pos[1] - headPos[1];
     if (child.planarMode & 1) {
@@ -913,7 +912,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   } else {  //direct code x
     if (nodeSizeLog2AfterPlanar[0])
       for (int mask = 1 << (nodeSizeLog2AfterPlanar[0] - 1); mask; mask >>= 1)
-        _arithmeticEncoder->encode(!!(pos[0] & mask), _ctxEquiProb);
+        _arithmeticEncoder->encode(!!(pos[0] & mask));
 
     posXyz[0] = pos[0] - headPos[0];
     if (child.planarMode & 2) {
@@ -1047,8 +1046,7 @@ GeometryOctreeEncoder::encodeQpOffset(int dqp)
     return;
   }
   _arithmeticEncoder->encode(dqp > 0, _ctxQpOffsetSign);
-  _arithmeticEncoder->encodeExpGolomb(
-    abs(dqp) - 1, 0, _ctxEquiProb, _ctxQpOffsetAbsEgl);
+  _arithmeticEncoder->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
 }
 
 //-------------------------------------------------------------------------
@@ -1230,7 +1228,7 @@ GeometryOctreeEncoder::encodeDirectPosition(
     _arithmeticEncoder->encode(numPoints == 2, _ctxSingleIdcmDupPoint);
     if (numPoints > 2)
       _arithmeticEncoder->encodeExpGolomb(
-        numPoints - 3, 0, _ctxEquiProb, _ctxPointCountPerBlock);
+        numPoints - 3, 0, _ctxPointCountPerBlock);
 
     // only one actual psoition to code
     numPoints = 1;
@@ -1278,8 +1276,7 @@ GeometryOctreeEncoder::encodeThetaRes(int thetaRes)
     if (absThetaRes >= 2)
       _arithmeticEncoder->encode(absThetaRes == 2 ? 1 : 0, _ctxThetaResIsTwo);
     if (absThetaRes >= 3)
-      _arithmeticEncoder->encodeExpGolomb(
-        absThetaRes - 3, 1, _ctxEquiProb, _ctxThetaResExp);
+      _arithmeticEncoder->encodeExpGolomb(absThetaRes - 3, 1, _ctxThetaResExp);
   }
 }
 

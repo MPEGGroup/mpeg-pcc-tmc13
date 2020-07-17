@@ -49,7 +49,6 @@ namespace pcc {
 
 struct PCCResidualsDecoder {
   EntropyDecoder arithmeticDecoder;
-  StaticBitModel binaryModel0;
   AdaptiveBitModel binaryModelDiff[7];
   AdaptiveBitModel binaryModelIsZero[7];
   AdaptiveBitModel ctxPredMode[2];
@@ -141,8 +140,7 @@ PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
 
   uint32_t value = decodeInterval(k3);
   if (value == kAttributeResidualAlphabetSize) {
-    value +=
-      arithmeticDecoder.decodeExpGolomb(0, binaryModel0, binaryModelDiff[k1]);
+    value += arithmeticDecoder.decodeExpGolomb(0, binaryModelDiff[k1]);
   }
 
   return value + 2;
@@ -189,11 +187,11 @@ PCCResidualsDecoder::decode(int32_t value[3])
   int b3 = value[1] <= 1;
   value[2] = decodeSymbol(3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 1);
 
-  if (value[0] && arithmeticDecoder.decode(binaryModel0))
+  if (value[0] && arithmeticDecoder.decode())
     value[0] = -value[0];
-  if (value[1] && arithmeticDecoder.decode(binaryModel0))
+  if (value[1] && arithmeticDecoder.decode())
     value[1] = -value[1];
-  if (value[2] && arithmeticDecoder.decode(binaryModel0))
+  if (value[2] && arithmeticDecoder.decode())
     value[2] = -value[2];
 }
 
@@ -203,7 +201,7 @@ int32_t
 PCCResidualsDecoder::decode()
 {
   auto mag = decodeSymbol(0, 0, 0) + 1;
-  bool sign = arithmeticDecoder.decode(binaryModel0);
+  bool sign = arithmeticDecoder.decode();
   return sign ? -mag : mag;
 }
 

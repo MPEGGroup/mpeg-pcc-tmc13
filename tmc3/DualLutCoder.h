@@ -210,7 +210,6 @@ private:
   FrequentSymbolCache<kCacheSize, 256> _cache;
   FrequencySortingLut<kLutSize, 256> _adaptiveLut;
 
-  StaticBitModel _ctxBypass;
   AdaptiveBitModelFast _ctxLutHit;
   AdaptiveBitModelFast _ctxCacheHit;
   AdaptiveBitModelFast _ctxSymbolBit;

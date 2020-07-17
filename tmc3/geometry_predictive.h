@@ -73,7 +73,6 @@ struct GNode {
 //============================================================================
 
 struct PredGeomCodec {
-  StaticBitModel _ctxBypass;
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
   AdaptiveBitModel _ctxIsZero[3];

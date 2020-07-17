@@ -66,11 +66,7 @@ public:
   //--------------------------------------------------------------------------
   // :: encoding / common binarisation methods
 
-  void encodeExpGolomb(
-    unsigned int symbol,
-    int k,
-    StaticBitModel& bModel0,
-    AdaptiveBitModel& bModel1);
+  void encodeExpGolomb(unsigned int symbol, int k, AdaptiveBitModel& bModel1);
 };
 
 //============================================================================
@@ -100,8 +96,7 @@ public:
   //--------------------------------------------------------------------------
   // :: encoding / common binarisation methods
 
-  unsigned int
-  decodeExpGolomb(int k, StaticBitModel& bModel0, AdaptiveBitModel& bModel1);
+  unsigned int decodeExpGolomb(int k, AdaptiveBitModel& bModel1);
 };
 
 //============================================================================
@@ -128,10 +123,7 @@ UIntToInt(unsigned long uiValue)
 template<class Base>
 inline void
 EntropyEncoderWrapper<Base>::encodeExpGolomb(
-  unsigned int symbol,
-  int k,
-  StaticBitModel& bModel0,
-  AdaptiveBitModel& bModel1)
+  unsigned int symbol, int k, AdaptiveBitModel& bModel1)
 {
   while (1) {
     if (symbol >= static_cast<unsigned int>(1 << k)) {
@@ -142,7 +134,7 @@ EntropyEncoderWrapper<Base>::encodeExpGolomb(
       encode(0, bModel1);  // now terminated zero of unary part
       while (k--)          // next binary part
       {
-        encode(static_cast<signed short>((symbol >> k) & 1), bModel0);
+        encode(static_cast<signed short>((symbol >> k) & 1));
       }
       break;
     }
@@ -153,8 +145,7 @@ EntropyEncoderWrapper<Base>::encodeExpGolomb(
 
 template<class Base>
 inline unsigned int
-EntropyDecoderWrapper<Base>::decodeExpGolomb(
-  int k, StaticBitModel& bModel0, AdaptiveBitModel& bModel1)
+EntropyDecoderWrapper<Base>::decodeExpGolomb(int k, AdaptiveBitModel& bModel1)
 {
   unsigned int l;
   int symbol = 0;
@@ -167,7 +158,7 @@ EntropyDecoderWrapper<Base>::decodeExpGolomb(
     }
   } while (l != 0);
   while (k--)  //next binary part
-    if (decode(bModel0) == 1) {
+    if (decode() == 1) {
       binary_symbol |= (1 << k);
     }
   return static_cast<unsigned int>(symbol + binary_symbol);
