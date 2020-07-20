@@ -116,7 +116,6 @@ public:
   int decodePlanarMode(
     OctreeNodePlanar& planar,
     int planeZ,
-    int posz,
     int dist,
     int neighb,
     int& h,
@@ -131,7 +130,6 @@ public:
     int coord2,
     int coord3,
     uint8_t neighPattern,
-    int pos,
     int planarProb[3],
     int planarRate[3],
     int contextAngle);
@@ -141,9 +139,6 @@ public:
     PCCOctree3Node& child,
     OctreeNodePlanar& planar,
     uint8_t neighPattern,
-    int x,
-    int y,
-    int z,
     int planarProb[3],
     int contextAngle,
     int contextAnglePhiX,
@@ -221,7 +216,7 @@ public:
 
   // for planar mode xyz
   AdaptiveBitModel _ctxPlanarMode[3][2][2];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6][2];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
@@ -299,7 +294,6 @@ int
 GeometryOctreeDecoder::decodePlanarMode(
   OctreeNodePlanar& planar,
   int planeZ,
-  int posz,
   int dist,
   int neighb,
   int& h,
@@ -332,10 +326,9 @@ GeometryOctreeDecoder::decodePlanarMode(
       discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       int lastIndexPlane2d = planeZ + (discreteDist << 1);
       planeBit = _arithmeticDecoder->decode(
-        _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posz]);
+        _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
       h = approxSymbolProbability(
-        planeBit,
-        _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d][posz]);
+        planeBit, _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
     }
   } else {               // angular mode on
     if (planeId == 2) {  // angular
@@ -366,7 +359,6 @@ GeometryOctreeDecoder::determinePlanarMode(
   int coord2,
   int coord3,
   uint8_t neighPattern,
-  int pos,
   int planarProb[3],
   int planarRate[3],
   int contextAngle)
@@ -419,7 +411,7 @@ GeometryOctreeDecoder::determinePlanarMode(
   const int kAdjNeighIdxFromPlaneMask[3] = {0, 2, 4};
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlaneMask[planeId]) & 3;
   int planeBit = decodePlanarMode(
-    planar, closestPlanarFlag, pos, closestDist, adjNeigh, planarProb[planeId],
+    planar, closestPlanarFlag, closestDist, adjNeigh, planarProb[planeId],
     planeId, contextAngle);
 
   bool isPlanar = (planar.planarMode & planeSelector)
@@ -441,9 +433,6 @@ GeometryOctreeDecoder::determinePlanarMode(
   PCCOctree3Node& child,
   OctreeNodePlanar& planar,
   uint8_t neighPattern,
-  int x,
-  int y,
-  int z,
   int planarProb[3],
   int contextAngle,
   int contextAnglePhiX,
@@ -458,19 +447,19 @@ GeometryOctreeDecoder::determinePlanarMode(
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern, x,
+      0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern,
       planarProb, _planar._rate.data(), contextAnglePhiX);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern, y,
+      1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern,
       planarProb, _planar._rate.data(), contextAnglePhiY);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern, z,
+      2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern,
       planarProb, _planar._rate.data(), contextAngle);
   }
 }
@@ -1411,13 +1400,10 @@ decodeGeometryOctree(
 
         int planarProb[3] = {127, 127, 127};
         // determine planarity if eligible
-        int x = !!(node0.childIdx & 4);
-        int y = !!(node0.childIdx & 2);
-        int z = !!(node0.childIdx & 1);
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           decoder.determinePlanarMode(
-            planarEligible, node0, planar, node0.neighPattern, x, y, z,
-            planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
+            planarEligible, node0, planar, node0.neighPattern, planarProb,
+            contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
           planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
@@ -1546,7 +1532,6 @@ decodeGeometryOctree(
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
-        child.childIdx = i;
 
         // IDCM
         bool idcmEnabled = gps.inferred_direct_coding_mode_enabled_flag;

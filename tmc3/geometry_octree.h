@@ -75,8 +75,6 @@ struct PCCOctree3Node {
   //   4 16 (z)
   uint8_t neighPattern = 0;
 
-  uint8_t childIdx;
-
   // The current node's number of siblings plus one.
   // ie, the number of child nodes present in this node's parent.
   uint8_t numSiblingsPlus1;
