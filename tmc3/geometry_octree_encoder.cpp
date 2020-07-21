@@ -1139,15 +1139,25 @@ GeometryOctreeEncoder::encodeQpOffset(int dqp)
 template<typename It>
 void
 calculateNodeQps(
-  Vec3<int> nodeSizeLog2, int baseQp, It nodesBegin, It nodesEnd)
+  Vec3<int> nodeSizeLog2,
+  int baseQp,
+  int geom_qp_multiplier_log2,
+  It nodesBegin,
+  It nodesEnd)
 {
   // determine delta qp for each node based on the point density
   // Conformance: limit the qp such that it cannot overquantize the node
   int minNs = nodeSizeLog2.min();
-  int maxQp = minNs * 8 - 1;
+  int maxQp = minNs * 8 - (1 << geom_qp_multiplier_log2);
   int lowQp = PCCClip(baseQp - 8, 0, maxQp);
   int mediumQp = std::min(baseQp, maxQp);
   int highQp = std::min(baseQp + 8, maxQp);
+
+  // NB: node.qp always uses a step size doubling interval of 8 QPs.
+  //     the chosen QPs (and conformance limit) must respect the qp multiplier
+  assert(lowQp % (1 << geom_qp_multiplier_log2) == 0);
+  assert(mediumQp % (1 << geom_qp_multiplier_log2) == 0);
+  assert(highQp % (1 << geom_qp_multiplier_log2) == 0);
 
   std::vector<int> numPointsInNode;
   std::vector<double> cum_prob;
@@ -1509,7 +1519,7 @@ encodeGeometryOctree(
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
   int idcmQp = 0;
-  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
+  int sliceQp = gbh.sliceQp(gps);
   int numLvlsUntilQuantization = 0;
   if (gps.geom_scaling_enabled_flag) {
     // if an invalid depth is set, use tree height instead
@@ -1558,6 +1568,7 @@ encodeGeometryOctree(
       // limit the idcmQp such that it cannot overquantise the node
       auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
+      idcmQp <<= gps.geom_qp_multiplier_log2;
       idcmQp = std::min(idcmQp, minNs * 8);
     }
 
@@ -1570,7 +1581,8 @@ encodeGeometryOctree(
         fifo.front().qp = sliceQp;
       else
         calculateNodeQps(
-          nodeSizeLog2, gps.geom_base_qp, fifo.begin(), fifoCurrLvlEnd);
+          nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2, fifo.begin(),
+          fifoCurrLvlEnd);
     }
 
     // save context state for parallel coding
@@ -1592,8 +1604,10 @@ encodeGeometryOctree(
       PCCOctree3Node& node0 = fifo.front();
 
       // encode delta qp for each octree block
-      if (numLvlsUntilQuantization == 0)
-        encoder.encodeQpOffset(node0.qp - sliceQp);
+      if (numLvlsUntilQuantization == 0) {
+        int qpOffset = (node0.qp - sliceQp) >> gps.geom_qp_multiplier_log2;
+        encoder.encodeQpOffset(qpOffset);
+      }
 
       int shiftBits = QuantizerGeom::qpShift(node0.qp);
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;

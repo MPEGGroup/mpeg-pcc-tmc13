@@ -85,7 +85,8 @@ struct PCCOctree3Node {
   // Indicatest hat the current node qualifies for IDCM
   bool idcmEligible;
 
-  // The qp used for geometry quantisation
+  // The qp used for geometry quantisation.
+  // NB: this qp value always uses a step size doubling interval of 8 qps
   int qp;
 
   // angular

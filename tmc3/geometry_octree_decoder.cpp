@@ -1339,7 +1339,7 @@ decodeGeometryOctree(
 
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int idcmQp = 0;
-  int sliceQp = gps.geom_base_qp + gbh.geom_slice_qp_offset;
+  int sliceQp = gbh.sliceQp(gps);
   int numLvlsUntilQpOffset = 0;
   if (gps.geom_scaling_enabled_flag)
     numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
@@ -1409,6 +1409,7 @@ decodeGeometryOctree(
       // limit the idcmQp such that it cannot overquantise the node
       auto minNs = quantNodeSizeLog2.min();
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
+      idcmQp <<= gps.geom_qp_multiplier_log2;
       idcmQp = std::min(idcmQp, minNs * 8);
 
       for (int k = 0; k < 3; k++)
@@ -1442,8 +1443,10 @@ decodeGeometryOctree(
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
 
-      if (numLvlsUntilQpOffset == 0)
-        node0.qp = decoder.decodeQpOffset() + sliceQp;
+      if (numLvlsUntilQpOffset == 0) {
+        node0.qp = sliceQp;
+        node0.qp += decoder.decodeQpOffset() << gps.geom_qp_multiplier_log2;
+      }
 
       int shiftBits = QuantizerGeom::qpShift(node0.qp);
       auto effectiveNodeSizeLog2 = nodeSizeLog2 - shiftBits;

@@ -670,6 +670,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_scaling_enabled_flag, false,
     "Enable in-loop quantisation of positions")
 
+  ("positionQpMultiplierLog2",
+    params.encoder.gps.geom_qp_multiplier_log2, 0,
+    "Granularity of QP to step size mapping:\n"
+    "  n: 2^n QPs per doubling interval, n in 0..3")
+
   ("positionBaseQp",
     params.encoder.gps.geom_base_qp, 0,
     "Base QP used in position quantisation (0 = lossless)")
@@ -1128,6 +1133,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_mode_enabled_flag;
 
   // sanity checks
+
+  if (params.encoder.gps.geom_qp_multiplier_log2 & ~3)
+    err.error() << "positionQpMultiplierLog2 must be in the range 0..3\n";
 
   if (
     params.encoder.gps.planar_buffer_disabled_flag

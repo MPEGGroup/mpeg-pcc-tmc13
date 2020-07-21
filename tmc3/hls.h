@@ -373,10 +373,13 @@ struct GeometryParameterSet {
   // controls the ability to perform in-loop geometry scaling
   bool geom_scaling_enabled_flag;
 
-  // intial qp for geometry scaling
+  // factor by which to shift geometry QPs before use
+  int geom_qp_multiplier_log2;
+
+  // intial qp for geometry scaling, scaled by the qp multiplier
   int geom_base_qp;
 
-  // initial qp (offset) for idcm nodes
+  // initial qp (offset) for idcm nodes, scaled by the qp multiplier
   int geom_idcm_qp_offset;
 
   // Enables/disables non-cubic geometry nodes
@@ -441,6 +444,12 @@ struct GeometryBrickHeader {
 
   // qp offset for geometry scaling (if enabled)
   int geom_slice_qp_offset;
+
+  int sliceQp(const GeometryParameterSet& gps) const
+  {
+    return (gps.geom_base_qp + geom_slice_qp_offset)
+      << gps.geom_qp_multiplier_log2;
+  }
 
   // octree depth at which qp offsets whould be signalled
   int geom_octree_qp_offset_depth;

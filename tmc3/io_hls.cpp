@@ -588,6 +588,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.write(gps.geom_scaling_enabled_flag);
     if (gps.geom_scaling_enabled_flag) {
       bs.writeUe(gps.geom_base_qp);
+      bs.writeUn(2, gps.geom_qp_multiplier_log2);
       bs.writeSe(gps.geom_idcm_qp_offset);
     }
   }
@@ -679,10 +680,12 @@ parseGps(const PayloadBuffer& buf)
     bs.readUe(&gps.trisoup_node_size_log2);
 
     gps.geom_base_qp = 0;
+    gps.geom_qp_multiplier_log2 = 0;
     gps.geom_idcm_qp_offset = 0;
     bs.read(&gps.geom_scaling_enabled_flag);
     if (gps.geom_scaling_enabled_flag) {
       bs.readUe(&gps.geom_base_qp);
+      bs.readUn(2, &gps.geom_qp_multiplier_log2);
       bs.readSe(&gps.geom_idcm_qp_offset);
     }
   }

@@ -270,6 +270,11 @@ effective QP may be varied according to `positionSliceQpOffset` and
 `positionQuantisationOctreeDepth`.
 A QP equal to 0 results in a scale factor of 1.
 
+### `--positionQpMultiplierLog2=0|1|2|3`
+Controls the granularity of quantisation step sizes by limiting the number
+of QP values per step size doubling interval.  There are $2^n$ QPs per
+step size doubling interval.
+
 ### `--positionIdcmQp=INT-VALUE`
 The quantisation parameter used to quantise directly coded (IDCM) point
 positions prior to reaching the `positionQuantisationOctreeDepth`.
