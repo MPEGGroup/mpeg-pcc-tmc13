@@ -802,13 +802,12 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     bs.writeUe(lod_neigh_bias_minus1.y());
     bs.writeUe(lod_neigh_bias_minus1.z());
 
-    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
-      bs.write(aps.scalable_lifting_enabled_flag);
-      if (aps.scalable_lifting_enabled_flag)
-        bs.writeUe(aps.max_neigh_range);
-
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
       bs.write(aps.last_component_prediction_enabled_flag);
-    }
+
+    bs.write(aps.scalable_lifting_enabled_flag);
+    if (aps.scalable_lifting_enabled_flag)
+      bs.writeUe(aps.max_neigh_range);
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.writeUe(aps.num_detail_levels);
@@ -885,14 +884,12 @@ parseAps(const PayloadBuffer& buf)
     // NB: this is in XYZ axis order until the GPS is converted to STV
     aps.lodNeighBias = lod_neigh_bias_minus1 + 1;
 
-    aps.scalable_lifting_enabled_flag = false;
-    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
-      bs.read(&aps.scalable_lifting_enabled_flag);
-      if (aps.scalable_lifting_enabled_flag)
-        bs.readUe(&aps.max_neigh_range);
-
+    if (aps.attr_encoding == AttributeEncoding::kLiftingTransform)
       bs.read(&aps.last_component_prediction_enabled_flag);
-    }
+
+    bs.read(&aps.scalable_lifting_enabled_flag);
+    if (aps.scalable_lifting_enabled_flag)
+      bs.readUe(&aps.max_neigh_range);
 
     aps.canonical_point_order_flag = false;
     if (!aps.scalable_lifting_enabled_flag) {

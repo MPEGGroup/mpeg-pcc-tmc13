@@ -1263,12 +1263,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                     << ".numberOfNearestNeighborsInPrediction must be <= "
                     << kAttributePredictionMaxNeighbourCount << "\n";
       }
-      if (attr_aps.scalable_lifting_enabled_flag) {
-        if (attr_aps.attr_encoding != AttributeEncoding::kLiftingTransform) {
-          err.error() << it.first << "AttributeEncoding must be "
-                      << (int)AttributeEncoding::kLiftingTransform << "\n";
-        }
 
+      if (attr_aps.scalable_lifting_enabled_flag) {
         if (attr_aps.lod_decimation_enabled_flag) {
           err.error() << it.first
                       << ".lod_decimation_enabled_flag must be = 0 \n";
