@@ -168,6 +168,9 @@ PCCTMC3Encoder3::compress(
     // Default is to use implicit tile ids (ie list index)
     partitions.tileInventory.tile_id_bits = 0;
 
+    // all tileOrigins are relative to the sequence bounding box
+    partitions.tileInventory.origin = _sps->seqBoundingBoxOrigin;
+
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
     for (int t = 0; t < tileMaps.size(); t++) {
@@ -178,7 +181,7 @@ PCCTMC3Encoder3::compress(
       tileIvt.tile_id = t;
       for (int k = 0; k < 3; k++) {
         tileIvt.tileSize[k] = bbox.max[k] - bbox.min[k] + 1;
-        tileIvt.tileOrigin[k] = bbox.min[k] - _sps->seqBoundingBoxOrigin[k];
+        tileIvt.tileOrigin[k] = bbox.min[k];
       }
     }
   } else {
@@ -283,7 +286,6 @@ PCCTMC3Encoder3::compress(
     assert(inventory.tiles.size() == tileMaps.size());
     std::cout << "Tile number: " << tileMaps.size() << std::endl;
     inventory.ti_seq_parameter_set_id = _sps->sps_seq_parameter_set_id;
-    inventory.origin = _sps->seqBoundingBoxOrigin;
     inventory.ti_origin_bits_minus1 =
       numBits(inventory.origin.abs().max()) - 1;
 
