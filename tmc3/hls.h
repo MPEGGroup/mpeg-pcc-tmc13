@@ -269,7 +269,11 @@ struct AttributeDescription {
 //============================================================================
 
 struct ProfileCompatibility {
-  int profile_compatibility_flags;
+  // indicates conformance with the "main" profile
+  bool main_profile_compatibility_flag;
+
+  // reserved for future use
+  int reserved_profile_compatibility_23bits;
 };
 
 //============================================================================
@@ -285,7 +289,7 @@ enum class ScaleUnit : bool
 struct SequenceParameterSet {
   int sps_seq_parameter_set_id;
 
-  ProfileCompatibility profileCompatibility;
+  ProfileCompatibility profile;
   int level;
 
   // Number of bits used to code seqBoundingBoxOrigin

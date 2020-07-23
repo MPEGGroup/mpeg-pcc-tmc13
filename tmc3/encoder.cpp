@@ -358,7 +358,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   }
 
   // development level / header
-  params->sps.profileCompatibility.profile_compatibility_flags = 0;
+  params->sps.profile.main_profile_compatibility_flag = 0;
+  params->sps.profile.reserved_profile_compatibility_23bits = 0;
   params->sps.level = 0;
 
   // use one bit to indicate frame boundaries
