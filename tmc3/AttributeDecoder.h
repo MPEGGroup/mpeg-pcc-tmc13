@@ -48,7 +48,7 @@ namespace pcc {
 //============================================================================
 // Opaque definitions (Internal detail)
 
-struct PCCResidualsDecoder;
+class PCCResidualsDecoder;
 
 //============================================================================
 

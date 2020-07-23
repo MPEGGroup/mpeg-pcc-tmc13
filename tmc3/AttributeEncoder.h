@@ -49,7 +49,7 @@ namespace pcc {
 //============================================================================
 // Opaque definitions (Internal detail)
 
-struct PCCResidualsEncoder;
+class PCCResidualsEncoder;
 struct PCCResidualsEntropyEstimator;
 
 //============================================================================

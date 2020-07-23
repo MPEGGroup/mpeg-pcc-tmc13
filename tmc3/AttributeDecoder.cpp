@@ -35,6 +35,7 @@
 
 #include "AttributeDecoder.h"
 
+#include "AttributeCommon.h"
 #include "DualLutCoder.h"
 #include "constants.h"
 #include "entropy.h"
@@ -47,15 +48,9 @@ namespace pcc {
 //============================================================================
 // An encapsulation of the entropy decoding methods used in attribute coding
 
-struct PCCResidualsDecoder {
+class PCCResidualsDecoder : protected AttributeContexts {
+public:
   EntropyDecoder arithmeticDecoder;
-  AdaptiveBitModel ctxPredMode[2];
-  AdaptiveBitModel ctxRunLen[5];
-  AdaptiveBitModel ctxCoeffEqN[2][7];
-  AdaptiveBitModel ctxCoeffRemPrefix[2][3];
-  AdaptiveBitModel ctxCoeffRemSuffix[2][3];
-
-  StaticBitModel _ctxEquiProb;
 
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();

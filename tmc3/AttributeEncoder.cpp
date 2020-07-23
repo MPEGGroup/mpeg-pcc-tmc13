@@ -54,15 +54,9 @@ namespace pcc {
 //============================================================================
 // An encapsulation of the entropy coding methods used in attribute coding
 
-struct PCCResidualsEncoder {
+class PCCResidualsEncoder : protected AttributeContexts {
+public:
   EntropyEncoder arithmeticEncoder;
-  AdaptiveBitModel ctxPredMode[2];
-  AdaptiveBitModel ctxRunLen[5];
-  AdaptiveBitModel ctxCoeffEqN[2][7];
-  AdaptiveBitModel ctxCoeffRemPrefix[2][3];
-  AdaptiveBitModel ctxCoeffRemSuffix[2][3];
-
-  StaticBitModel _ctxEquiProb;
 
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();

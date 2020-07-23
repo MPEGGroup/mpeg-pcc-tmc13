@@ -38,10 +38,22 @@
 #include <stdint.h>
 #include <vector>
 
+#include "entropy.h"
 #include "hls.h"
 #include "PCCTMC3Common.h"
 
 namespace pcc {
+
+//============================================================================
+
+class AttributeContexts {
+protected:
+  AdaptiveBitModel ctxPredMode[2];
+  AdaptiveBitModel ctxRunLen[5];
+  AdaptiveBitModel ctxCoeffEqN[2][7];
+  AdaptiveBitModel ctxCoeffRemPrefix[2][3];
+  AdaptiveBitModel ctxCoeffRemSuffix[2][3];
+};
 
 //============================================================================
 
