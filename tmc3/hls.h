@@ -273,7 +273,10 @@ struct ProfileCompatibility {
   bool main_profile_compatibility_flag;
 
   // reserved for future use
-  int reserved_profile_compatibility_23bits;
+  int reserved_profile_compatibility_22bits;
+
+  // indicates that there are no duplicate points in the reconstructed frames
+  bool unique_point_positions_constraint_flag;
 };
 
 //============================================================================

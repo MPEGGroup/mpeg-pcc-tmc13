@@ -294,7 +294,8 @@ write(const SequenceParameterSet& sps)
   // NB: if taking bits from reserved_profile_compatibility_XXbits, be sure
   // not to change the bitstream position of the other constraint flags.
   bs.writeUn(1, sps.profile.main_profile_compatibility_flag);
-  bs.writeUn(23, sps.profile.reserved_profile_compatibility_23bits);
+  bs.writeUn(22, sps.profile.reserved_profile_compatibility_22bits);
+  bs.writeUn(1, sps.profile.unique_point_positions_constraint_flag);
 
   bs.writeUn(8, sps.level);
   bs.writeUe(sps.sps_seq_parameter_set_id);
@@ -424,7 +425,8 @@ parseSps(const PayloadBuffer& buf)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUn(1, &sps.profile.main_profile_compatibility_flag);
-  bs.readUn(23, &sps.profile.reserved_profile_compatibility_23bits);
+  bs.readUn(22, &sps.profile.reserved_profile_compatibility_22bits);
+  bs.readUn(1, &sps.profile.unique_point_positions_constraint_flag);
 
   bs.readUn(8, &sps.level);
   bs.readUe(&sps.sps_seq_parameter_set_id);
