@@ -37,6 +37,7 @@
 
 #include <cstdint>
 
+#include "DualLutCoder.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
 #include "entropy.h"
@@ -415,6 +416,57 @@ int determineContextAngleForPlanar(
 //----------------------------------------------------------------------------
 
 int findLaser(point_t point, const int* thetaList, const int numTheta);
+
+//============================================================================
+
+struct GeometryOctreeContexts {
+  AdaptiveBitModel _ctxSingleChild;
+  AdaptiveBitModel _ctxSinglePointPerBlock;
+  AdaptiveBitModel _ctxSingleIdcmDupPoint;
+  AdaptiveBitModel _ctxPointCountPerBlock;
+  AdaptiveBitModel _ctxBlockSkipTh;
+  AdaptiveBitModel _ctxNumIdcmPointsGt1;
+  AdaptiveBitModel _ctxSameZ;
+
+  // IDCM unordered
+  AdaptiveBitModel _ctxSameBitHighx[5];
+  AdaptiveBitModel _ctxSameBitHighy[5];
+  AdaptiveBitModel _ctxSameBitHighz[5];
+
+  // residual laser index
+  AdaptiveBitModel _ctxThetaResIsZero;
+  AdaptiveBitModel _ctxThetaResSign;
+  AdaptiveBitModel _ctxThetaResIsOne;
+  AdaptiveBitModel _ctxThetaResIsTwo;
+  AdaptiveBitModel _ctxThetaResExp;
+
+  AdaptiveBitModel _ctxPhiResIsZero;
+  AdaptiveBitModel _ctxPhiSign;
+  AdaptiveBitModel _ctxPhiResIsOne;
+  AdaptiveBitModel _ctxPhiResIsTwo;
+  AdaptiveBitModel _ctxPhiResExp;
+
+  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetSign;
+  AdaptiveBitModel _ctxQpOffsetAbsEgl;
+
+  // for planar mode xyz
+  AdaptiveBitModel _ctxPlanarMode[3];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][4][6];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
+
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[8];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[8];
+
+  // For bitwise occupancy coding
+  CtxModelOctreeOccupancy _ctxOccupancy;
+  CtxMapOctreeOccupancy _ctxIdxMaps[18];
+
+  // For bytewise occupancy coding
+  DualLutCoder<true> _bytewiseOccupancyCoder[10];
+};
 
 //============================================================================
 
