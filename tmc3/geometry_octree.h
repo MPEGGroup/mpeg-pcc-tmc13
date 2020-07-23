@@ -88,7 +88,7 @@ struct PCCOctree3Node {
 
   // The qp used for geometry quantisation.
   // NB: this qp value always uses a step size doubling interval of 8 qps
-  int qp;
+  int8_t qp;
 
   // angular
   uint8_t laserIndex = 255;
