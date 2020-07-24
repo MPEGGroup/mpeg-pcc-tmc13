@@ -16,12 +16,11 @@ categories:
      - planarModeIdcmUse: 0
      - positionQuantizationScale: '$eval{ 1 / (1 << ( ${src-geometry-precision} - ${test-depth} )) }'
      - trisoupNodeSizeLog2:
-         r01: 4
-         r02: 3
+         r01: 5
+         r02: 4
          r03: 3
-         r04: 3
-         r05: 2
-         r06: 0
+         r04: 2
+         r05: 1
 
      ####
      # attribute coding (common options -- relies on option ordering)
@@ -42,12 +41,11 @@ categories:
        - !conditional '${has_colour}'
        - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
        - qp:
-           r01: 51
-           r02: 46
-           r03: 40
-           r04: 34
-           r05: 28
-           r06: 22
+           r01: 46
+           r02: 40
+           r03: 34
+           r04: 28
+           r05: 22
        - qpChromaOffset: 0
        - bitdepth: 8
        - attribute: color
