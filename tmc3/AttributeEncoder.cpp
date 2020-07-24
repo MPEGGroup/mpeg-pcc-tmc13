@@ -599,8 +599,7 @@ AttributeEncoder::encodeReflectancesPred(
       zero_cnt--;
     else {
       encoder.encode(residual[predictorIndex]);
-      if (predictorIndex != pointCount - 1)
-        encoder.encodeRunLength(zerorun[run_index]);
+      encoder.encodeRunLength(zerorun[run_index]);
       zero_cnt = zerorun[run_index++];
     }
   }
@@ -812,8 +811,7 @@ AttributeEncoder::encodeColorsPred(
         values[k] = residual[k][predictorIndex];
 
       encoder.encode(values[0], values[1], values[2]);
-      if (predictorIndex != pointCount - 1)
-        encoder.encodeRunLength(zerorun[run_index]);
+      encoder.encodeRunLength(zerorun[run_index]);
       zero_cnt = zerorun[run_index++];
     }
   }
