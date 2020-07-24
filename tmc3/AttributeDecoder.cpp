@@ -225,18 +225,17 @@ AttributeDecoder::decode(
   const SequenceParameterSet& sps,
   const AttributeDescription& attr_desc,
   const AttributeParameterSet& attr_aps,
+  const AttributeBrickHeader& abh,
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
-  const PayloadBuffer& payload,
+  const char* payload,
+  size_t payloadLen,
   PCCPointSet3& pointCloud)
 {
-  int abhSize;
-  AttributeBrickHeader abh = parseAbh(sps, attr_aps, payload, &abhSize);
-
   QpSet qpSet = deriveQpSet(attr_desc, attr_aps, abh);
 
   PCCResidualsDecoder decoder;
-  decoder.start(sps, payload.data() + abhSize, payload.size() - abhSize);
+  decoder.start(sps, payload, payloadLen);
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())

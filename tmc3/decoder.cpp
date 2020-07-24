@@ -405,8 +405,8 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   // In order to determinet hat the attribute decoder is reusable, the abh
   // must be inspected.
-  // todo(df): remove duplicate parsing from attribute decoder
-  abh = parseAbh(*_sps, attr_aps, buf, nullptr);
+  int abhSize;
+  abh = parseAbh(*_sps, attr_aps, buf, &abhSize);
 
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
@@ -439,8 +439,9 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   }
 
   _attrDecoder->decode(
-    *_sps, attr_sps, attr_aps, _gbh.footer.geom_num_points_minus1,
-    _params.minGeomNodeSizeLog2, buf, _currentPointCloud);
+    *_sps, attr_sps, attr_aps, abh, _gbh.footer.geom_num_points_minus1,
+    _params.minGeomNodeSizeLog2, buf.data() + abhSize, buf.size() - abhSize,
+    _currentPointCloud);
 
   if (attr_aps.spherical_coord_flag)
     _currentPointCloud.swapPoints(altPositions);

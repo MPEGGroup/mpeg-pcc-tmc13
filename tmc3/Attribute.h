@@ -53,9 +53,11 @@ public:
     const SequenceParameterSet& sps,
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
-    const PayloadBuffer&,
+    const char* payload,
+    size_t payloadLen,
     PCCPointSet3& pointCloud) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
