@@ -1290,7 +1290,14 @@ decodeGeometryOctree(
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
-  pcc::ringbuf<PCCOctree3Node> fifo(gbh.footer.geom_num_points_minus1 + 2);
+  // NB: some trisoup configurations can generate fewer points than
+  //     octree nodes.  Blindly trusting the number of points to guide
+  //     the ringbuffer size is problematic.
+  // todo(df): derive buffer size from level limit
+  size_t ringBufferSize = gbh.footer.geom_num_points_minus1 + 1;
+  if (gbh.trisoup_node_size_log2)
+    ringBufferSize = 1100000;
+  pcc::ringbuf<PCCOctree3Node> fifo(ringBufferSize + 1);
 
   // push the first node
   fifo.emplace_back();
@@ -1665,6 +1672,10 @@ decodeGeometryOctree(
         }
       }
     }
+
+    // Check that one level hasn't produced too many nodes
+    // todo(df): this check is too weak to spot overflowing the fifo
+    assert(numNodesNextLvl <= ringBufferSize);
   }
 
   // NB: the point cloud needs to be resized if partially decoded
