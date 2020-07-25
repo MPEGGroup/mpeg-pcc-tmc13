@@ -481,15 +481,15 @@ AttributeDecoder::decodeReflectancesRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  int64_t* mortonCode = new int64_t[voxelCount];
+  std::vector<int64_t> mortonCode(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
 
   // Entropy decode
   const int attribCount = 1;
-  int* coefficients = new int[attribCount * voxelCount];
-  Qps* pointQpOffsets = new Qps[voxelCount];
+  std::vector<int> coefficients(attribCount * voxelCount);
+  std::vector<Qps> pointQpOffsets(voxelCount);
   int zero_cnt = decoder.decodeRunLength();
   for (int n = 0; n < voxelCount; ++n) {
     uint32_t value = 0;
@@ -503,13 +503,14 @@ AttributeDecoder::decodeReflectancesRaht(
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
-  int* attributes = new int[attribCount * voxelCount];
+  std::vector<int> attributes(attribCount * voxelCount);
   const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
-    mortonCode, attributes, attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
+    voxelCount, coefficients.data());
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -519,11 +520,6 @@ AttributeDecoder::decodeReflectancesRaht(
       attr_t(PCCClip(val, minReflectance, maxReflectance));
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
   }
-
-  // De-allocate arrays.
-  delete[] mortonCode;
-  delete[] attributes;
-  delete[] coefficients;
 }
 
 //----------------------------------------------------------------------------
@@ -545,7 +541,7 @@ AttributeDecoder::decodeColorsRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Morton codes
-  int64_t* mortonCode = new int64_t[voxelCount];
+  std::vector<int64_t> mortonCode(voxelCount);
   for (int n = 0; n < voxelCount; n++) {
     mortonCode[n] = packedVoxel[n].mortonCode;
   }
@@ -553,8 +549,8 @@ AttributeDecoder::decodeColorsRaht(
   // Entropy decode
   const int attribCount = 3;
   int zero_cnt = decoder.decodeRunLength();
-  int* coefficients = new int[attribCount * voxelCount];
-  Qps* pointQpOffsets = new Qps[voxelCount];
+  std::vector<int> coefficients(attribCount * voxelCount);
+  std::vector<Qps> pointQpOffsets(voxelCount);
 
   for (int n = 0; n < voxelCount; ++n) {
     int32_t values[3];
@@ -571,13 +567,14 @@ AttributeDecoder::decodeColorsRaht(
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
-  int* attributes = new int[attribCount * voxelCount];
+  std::vector<int> attributes(attribCount * voxelCount);
   const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
                                     aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
-    mortonCode, attributes, attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
+    voxelCount, coefficients.data());
 
   Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
                     (1 << desc.bitdepthSecondary) - 1,
@@ -593,11 +590,6 @@ AttributeDecoder::decodeColorsRaht(
     color[2] = attr_t(PCCClip(b, 0, clipMax[2]));
     pointCloud.setColor(packedVoxel[n].index, color);
   }
-
-  // De-allocate arrays.
-  delete[] mortonCode;
-  delete[] attributes;
-  delete[] coefficients;
 }
 
 //----------------------------------------------------------------------------

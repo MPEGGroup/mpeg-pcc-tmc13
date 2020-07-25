@@ -838,11 +838,11 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Allocate arrays.
-  int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 1;
-  int* attributes = new int[attribCount * voxelCount];
-  int* coefficients = new int[attribCount * voxelCount];
-  Qps* pointQpOffsets = new Qps[voxelCount];
+  std::vector<int64_t> mortonCode(voxelCount);
+  std::vector<int> attributes(attribCount * voxelCount);
+  std::vector<int> coefficients(attribCount * voxelCount);
+  std::vector<Qps> pointQpOffsets(voxelCount);
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
@@ -857,8 +857,9 @@ AttributeEncoder::encodeReflectancesTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
-    mortonCode, attributes, attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
+    voxelCount, coefficients.data());
 
   // Entropy encode.
   int zero_cnt = 0;
@@ -882,11 +883,6 @@ AttributeEncoder::encodeReflectancesTransformRaht(
       attr_t(PCCClip(val, minReflectance, maxReflectance));
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
   }
-
-  // De-allocate arrays.
-  delete[] mortonCode;
-  delete[] attributes;
-  delete[] coefficients;
 }
 
 //----------------------------------------------------------------------------
@@ -908,11 +904,11 @@ AttributeEncoder::encodeColorsTransformRaht(
   sort(packedVoxel.begin(), packedVoxel.end());
 
   // Allocate arrays.
-  int64_t* mortonCode = new int64_t[voxelCount];
   const int attribCount = 3;
-  int* attributes = new int[attribCount * voxelCount];
-  int* coefficients = new int[attribCount * voxelCount];
-  Qps* pointQpOffsets = new Qps[voxelCount];
+  std::vector<int64_t> mortonCode(voxelCount);
+  std::vector<int> attributes(attribCount * voxelCount);
+  std::vector<int> coefficients(attribCount * voxelCount);
+  std::vector<Qps> pointQpOffsets(voxelCount);
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
@@ -929,8 +925,9 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet, pointQpOffsets,
-    mortonCode, attributes, attribCount, voxelCount, coefficients);
+    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
+    voxelCount, coefficients.data());
 
   // Entropy encode.
   int values[attribCount];
@@ -963,12 +960,8 @@ AttributeEncoder::encodeColorsTransformRaht(
     color[2] = attr_t(PCCClip(b, 0, clipMax[2]));
     pointCloud.setColor(packedVoxel[n].index, color);
   }
-
-  // De-allocate arrays.
-  delete[] mortonCode;
-  delete[] attributes;
-  delete[] coefficients;
 }
+
 //----------------------------------------------------------------------------
 
 void
