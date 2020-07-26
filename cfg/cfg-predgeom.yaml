@@ -1,0 +1,68 @@
+---
+# the following flags are common to all predgeom configurations
+# NB: these are applied after the category config
+encflags:
+ # Some sequences input order is not characteristic of a real
+ # system.  This will make it so.
+ - sortInputByAzimuth: '$eval{ ${needs_azimuth_presort} || 0 }'
+
+ # use predictive geometry, default to azimuthal sort
+ - geomTreeType: 1
+ - predGeomSort: 2
+ - predGeomAzimuthSortPrecision: 8
+
+ # configuration for angular predictive geometry
+ -
+   - !conditional '${numLasers}'
+   - predGeomAzimuthSortPrecision: 1024
+
+# the following are for specific configurations
+categories:
+  lossless-geom-lossless-attrs: &predgeomlossless
+    encflags:
+     # configuration for angular predictive geometry
+     -
+       - !conditional '${numLasers}'
+       - positionAzimuthSpeed: '${pos_azimuth_speed}'
+
+  # these conditions use the same config as earlier
+  lossless-geom-lossy-attrs: *predgeomlossless
+  lossless-geom-nearlossless-attrs: *predgeomlossless
+
+  lossy-geom-lossy-attrs:
+    encflags:
+     # configuration for angular predictive geometry
+     -
+       - !conditional '${numLasers}'
+       - positionQuantisationEnabled: 1
+       - positionBaseQp: 58
+       - positionRadiusInvScaleLog2:
+          r06: 1
+          r05: 2
+          r04: 4
+          r03: 5
+          r02: 7
+          r01: 8
+       - positionAzimuthScaleLog2:
+          r06: 15
+          r05: 15
+          r04: 13
+          r03: 12
+          r02: 12
+          r01: 12
+       - positionAzimuthSpeed:
+          r06: '$eval{ ${pos_azimuth_speed} + 2 >> 2}'
+          r05: '$eval{ ${pos_azimuth_speed} + 2 >> 2}'
+          r04: '$eval{ ${pos_azimuth_speed} + 8 >> 4}'
+          r03: '$eval{ ${pos_azimuth_speed} + 16 >> 5}'
+          r02: '$eval{ ${pos_azimuth_speed} + 16 >> 5}'
+          r01: '$eval{ ${pos_azimuth_speed} + 16 >> 5}'
+
+sequences:
+  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: 33 }
+  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: 33 }
+  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: 33 }
+  qnxadas-junction-approach: { pos_azimuth_speed: 363 }
+  qnxadas-junction-exit: { pos_azimuth_speed: 363 }
+  qnxadas-motorway-join: { pos_azimuth_speed: 363 }
+  qnxadas-navigating-bends: { pos_azimuth_speed: 363 }
