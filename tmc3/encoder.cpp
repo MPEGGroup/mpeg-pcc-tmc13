@@ -606,6 +606,13 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   for (int k = 0; k < 3; k++) {
     // NB: A minimum whd of 2 means there is always at least 1 tree level
     gbh.rootNodeSizeLog2[k] = ceillog2(std::max(2, _sliceBoxWhd[k]));
+
+    // The root node size cannot be smaller than the trisoup node size
+    // since this is how the root node size is defined at the decoder.
+    // NB: the following isn't strictly necessary, but avoids accidents
+    // involving the qtbt derivation.
+    gbh.rootNodeSizeLog2[k] =
+      std::max(gbh.trisoup_node_size_log2, gbh.rootNodeSizeLog2[k]);
   }
   gbh.maxRootNodeDimLog2 = gbh.rootNodeSizeLog2.max();
 

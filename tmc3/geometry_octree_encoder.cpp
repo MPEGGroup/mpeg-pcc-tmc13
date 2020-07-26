@@ -1491,6 +1491,7 @@ encodeGeometryOctree(
 
   // prune anything smaller than the minimum node size (these won't be coded)
   // NB: this must result in a cubic node at the end of the list
+  // NB: precondition: root node size >= minNodeSizeLog2.
   lvlNodeSizeLog2.erase(
     std::remove_if(
       lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
@@ -1504,9 +1505,8 @@ encodeGeometryOctree(
   // the termination depth of the octree phase
   // NB: the tree depth may be greater than the maxNodeSizeLog2 due to
   //     perverse qtbt splitting.
-  int maxDepth = std::count_if(
-    lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end(),
-    [&](const Vec3<int>& nodeSize) { return nodeSize > minNodeSizeLog2; });
+  // NB: by definition, the last two elements are minNodeSizeLog2
+  int maxDepth = lvlNodeSizeLog2.size() - 2;
 
   // generate the qtbt splitting list
   //  - start at the leaf, and work up
