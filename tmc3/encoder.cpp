@@ -251,9 +251,11 @@ PCCTMC3Encoder3::compress(
 
       // use the largest trisoup node size as a partitioning boundary for
       // consistency between slices with different trisoup node sizes.
-      int partitionBoundaryLog2 = *std::max_element(
-        params->trisoupNodeSizesLog2.begin(),
-        params->trisoupNodeSizesLog2.end());
+      int partitionBoundaryLog2 = 0;
+      if (!params->trisoupNodeSizesLog2.empty())
+        partitionBoundaryLog2 = *std::max_element(
+          params->trisoupNodeSizesLog2.begin(),
+          params->trisoupNodeSizesLog2.end());
 
       //Slice partition of current tile
       std::vector<Partition> curSlices;
