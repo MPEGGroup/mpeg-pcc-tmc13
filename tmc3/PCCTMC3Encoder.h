@@ -155,12 +155,7 @@ private:
 
   void encodeGeometryBrick(const EncoderParams*, PayloadBuffer* buf);
 
-  PCCPointSet3 quantization(const PCCPointSet3& inputPointCloud);
-
-  void getSrcPartition(
-    const PCCPointSet3& inputPointCloud,
-    PCCPointSet3& srcPartition,
-    std::vector<int32_t> indexes);
+  SrcMappedPointSet quantization(const PCCPointSet3& src);
 
 private:
   PCCPointSet3 pointCloud;
@@ -197,9 +192,6 @@ private:
   // Current frame number.
   // NB: only the log2_max_frame_idx LSBs are sampled for frame_idx
   int _frameCounter;
-
-  // Map quantized points to the original input points
-  std::multimap<point_t, int32_t> quantizedToOrigin;
 
   // Memorized context buffers
   std::unique_ptr<GeometryOctreeContexts> _ctxtMemOctreeGeom;

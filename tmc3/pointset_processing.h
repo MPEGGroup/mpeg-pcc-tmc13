@@ -63,38 +63,43 @@ struct RecolourParams {
 };
 
 //============================================================================
+// Represents a quatized point cloud with index mappings to source positions.
+
+struct SrcMappedPointSet {
+  // A subsampled or quantised pointcloud generated from a source.
+  PCCPointSet3 cloud;
+
+  // Maps cloud indexes to the generating source index.
+  std::vector<int> idxToSrcIdx;
+
+  // Linked lists of source indexes that map to the same generated position.
+  // Each element is the index of the next element in the chain.
+  // The end of a chain is indicated by: srcIdxDupList[i] == i.
+  std::vector<int> srcIdxDupList;
+};
+
+//============================================================================
 // Subsample a point cloud, retaining unique points only.
-// Points in the @src point cloud are translated by -@offset, quantised by a
-// multiplicitive @scaleFactor with rounding, then clamped to @clamp.
-//
-// The destination and source point clouds may be the same object.
+// Uniqueness is assessed by quantising each position by a multiplicative
+// @scaleFactor.  Output points are not quantised, only translated by -@offset.
 //
 // NB: attributes are not processed.
 
-void samplePositionsUniq(
-  const float scaleFactor,
-  const Vec3<int> offset,
-  const Box3<int> clamp,
-  const PCCPointSet3& src,
-  PCCPointSet3* dst,
-  std::multimap<point_t, int32_t>& doubleQuantizedToOrigin);
+SrcMappedPointSet samplePositionsUniq(
+  const float scaleFactor, const Vec3<int> offset, const PCCPointSet3& src);
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
 // Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.
 //
-// The destination and source point clouds may be the same object.
-//
 // NB: attributes are not processed.
 
-void quantizePositionsUniq(
+SrcMappedPointSet quantizePositionsUniq(
   const float scaleFactor,
   const Vec3<int> offset,
   const Box3<int> clamp,
-  const PCCPointSet3& src,
-  PCCPointSet3* dst,
-  std::multimap<point_t, int32_t>& doubleQuantizedToOrigin);
+  const PCCPointSet3& src);
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining duplicate points.

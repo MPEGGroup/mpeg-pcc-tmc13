@@ -58,6 +58,16 @@ namespace pcc {
 
 //============================================================================
 
+PCCPointSet3
+getPartition(const PCCPointSet3& src, const std::vector<int32_t>& indexes);
+
+PCCPointSet3 getPartition(
+  const PCCPointSet3& src,
+  const SrcMappedPointSet& map,
+  const std::vector<int32_t>& indexes);
+
+//============================================================================
+
 PCCTMC3Encoder3::PCCTMC3Encoder3() : _frameCounter(-1)
 {
   _ctxtMemOctreeGeom.reset(new GeometryOctreeContexts);
@@ -151,8 +161,7 @@ PCCTMC3Encoder3::compress(
   //    slice partitioning subsequent
   //  todo(df):
   PartitionSet partitions;
-  PCCPointSet3 quantizedInputCloud;
-  quantizedInputCloud = quantization(inputPointCloud);
+  SrcMappedPointSet quantizedInput = quantization(inputPointCloud);
 
   // write out all parameter sets prior to encoding
   callback->onOutputBuffer(write(*_sps));
@@ -163,7 +172,7 @@ PCCTMC3Encoder3::compress(
 
   std::vector<std::vector<int32_t>> tileMaps;
   if (params->partition.tileSize) {
-    tileMaps = tilePartition(params->partition, quantizedInputCloud);
+    tileMaps = tilePartition(params->partition, quantizedInput.cloud);
 
     // Default is to use implicit tile ids (ie list index)
     partitions.tileInventory.tile_id_bits = 0;
@@ -174,7 +183,7 @@ PCCTMC3Encoder3::compress(
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
     for (int t = 0; t < tileMaps.size(); t++) {
-      Box3<int32_t> bbox = quantizedInputCloud.computeBoundingBox(
+      Box3<int32_t> bbox = quantizedInput.cloud.computeBoundingBox(
         tileMaps[t].begin(), tileMaps[t].end());
 
       auto& tileIvt = partitions.tileInventory.tiles[t];
@@ -187,7 +196,7 @@ PCCTMC3Encoder3::compress(
   } else {
     tileMaps.emplace_back();
     auto& tile = tileMaps.back();
-    for (int i = 0; i < quantizedInputCloud.getPointCount(); i++)
+    for (int i = 0; i < quantizedInput.cloud.getPointCount(); i++)
       tile.push_back(i);
   }
 
@@ -222,8 +231,6 @@ PCCTMC3Encoder3::compress(
   //  todo(df): consider requiring partitioning function to sort the input
   //            points and provide ranges rather than a set of indicies.
   do {
-    Box3<int32_t> clampBox(0, INT32_MAX);
-
     for (int t = 0; t < tileMaps.size(); t++) {
       const auto& tile = tileMaps[t];
       auto tile_id = partitions.tileInventory.tiles.empty()
@@ -231,18 +238,13 @@ PCCTMC3Encoder3::compress(
         : partitions.tileInventory.tiles[t].tile_id;
 
       // Get the point cloud of current tile and compute their bounding boxes
-      PCCPointSet3 tileCloud;
-      getSrcPartition(quantizedInputCloud, tileCloud, tile);
+      PCCPointSet3 tileCloud = getPartition(quantizedInput.cloud, tile);
       Box3<int32_t> bbox = tileCloud.computeBoundingBox();
-      Vec3<int> tile_quantized_box_xyz0;
-      for (int k = 0; k < 3; k++) {
-        tile_quantized_box_xyz0[k] = int(bbox.min[k]);
-      }
 
       // Move the tile cloud to coodinate origin
       // for the convenience of slice partitioning
-      quantizePositions(
-        1, tile_quantized_box_xyz0, clampBox, tileCloud, &tileCloud);
+      for (int i = 0; i < tileCloud.getPointCount(); i++)
+        tileCloud[i] -= bbox.min;
 
       // don't partition if partitioning would result in a single slice.
       auto partitionMethod = params->partition.method;
@@ -301,29 +303,17 @@ PCCTMC3Encoder3::compress(
   //  - compress
   for (const auto& partition : partitions.slices) {
     // create partitioned point set
-    PCCPointSet3 srcPartition;
-    getSrcPartition(quantizedInputCloud, srcPartition, partition.pointIndexes);
+    PCCPointSet3 sliceCloud =
+      getPartition(quantizedInput.cloud, partition.pointIndexes);
 
-    // Get the original partial cloud corresponding to each slice for recolor
-    std::vector<int32_t> partitionOriginIdxes;
-    for (int i = 0; i < partition.pointIndexes.size(); i++) {
-      const auto& point = srcPartition[i];
-      std::multimap<point_t, int32_t>::iterator pos;
-      for (pos = quantizedToOrigin.lower_bound(point);
-           pos != quantizedToOrigin.upper_bound(point); ++pos) {
-        partitionOriginIdxes.push_back(pos->second);
-      }
-    }
-    PCCPointSet3 partitionInOriginCloud;
-    getSrcPartition(
-      inputPointCloud, partitionInOriginCloud, partitionOriginIdxes);
+    PCCPointSet3 sliceSrcCloud =
+      getPartition(inputPointCloud, quantizedInput, partition.pointIndexes);
 
     _sliceId = partition.sliceId;
     _tileId = partition.tileId;
-    _sliceOrigin = srcPartition.computeBoundingBox().min;
+    _sliceOrigin = sliceCloud.computeBoundingBox().min;
     compressPartition(
-      srcPartition, partitionInOriginCloud, params, callback,
-      reconstructedCloud);
+      sliceCloud, sliceSrcCloud, params, callback, reconstructedCloud);
   }
 
   return 0;
@@ -763,13 +753,9 @@ PCCTMC3Encoder3::appendReconstructedPoints(PCCPointSet3* reconstructedCloud)
 // translates and scales inputPointCloud, storing the result in
 // this->pointCloud for use by the encoding process.
 
-PCCPointSet3
-PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
+SrcMappedPointSet
+PCCTMC3Encoder3::quantization(const PCCPointSet3& src)
 {
-  PCCPointSet3 pointCloud;
-  // todo(df): remove side-effect
-  quantizedToOrigin.clear();
-
   // Currently the sequence bounding box size must be set
   assert(_sps->seqBoundingBoxSize != Vec3<int>{0});
 
@@ -779,50 +765,93 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& inputPointCloud)
 
   // When using predictive geometry, sub-sample the point cloud and let
   // the predictive geometry coder quantise internally.
-  if (_gps->predgeom_enabled_flag && _gps->geom_unique_points_flag) {
-    samplePositionsUniq(
-      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
-      &pointCloud, quantizedToOrigin);
-  } else if (_gps->geom_unique_points_flag) {
-    quantizePositionsUniq(
-      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
-      &pointCloud, quantizedToOrigin);
-  } else {
-    quantizePositions(
-      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, inputPointCloud,
-      &pointCloud);
-  }
+  if (_gps->predgeom_enabled_flag && _gps->geom_unique_points_flag)
+    return samplePositionsUniq(_geomPreScale, _sps->seqBoundingBoxOrigin, src);
 
-  return pointCloud;
+  if (_gps->geom_unique_points_flag)
+    return quantizePositionsUniq(
+      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, src);
+
+  SrcMappedPointSet dst;
+  quantizePositions(
+    _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, src, &dst.cloud);
+  return dst;
 }
 
 //----------------------------------------------------------------------------
 // get the partial point cloud according to required point indexes
-void
-PCCTMC3Encoder3::getSrcPartition(
-  const PCCPointSet3& inputPointCloud,
-  PCCPointSet3& srcPartition,
-  std::vector<int32_t> Indexes)
-{
-  //PCCPointSet3 srcPartition;
-  srcPartition.addRemoveAttributes(
-    inputPointCloud.hasColors(), inputPointCloud.hasReflectances());
 
-  int partitionSize = Indexes.size();
-  srcPartition.resize(partitionSize);
+PCCPointSet3
+getPartition(const PCCPointSet3& src, const std::vector<int32_t>& indexes)
+{
+  PCCPointSet3 dst;
+  dst.addRemoveAttributes(src.hasColors(), src.hasReflectances());
+
+  int partitionSize = indexes.size();
+  dst.resize(partitionSize);
 
   for (int i = 0; i < partitionSize; i++) {
-    int inputIdx = Indexes[i];
-    srcPartition[i] = inputPointCloud[inputIdx];
+    int inputIdx = indexes[i];
+    dst[i] = src[inputIdx];
 
-    if (inputPointCloud.hasColors())
-      srcPartition.setColor(i, inputPointCloud.getColor(inputIdx));
+    if (src.hasColors())
+      dst.setColor(i, src.getColor(inputIdx));
 
-    if (inputPointCloud.hasReflectances())
-      srcPartition.setReflectance(i, inputPointCloud.getReflectance(inputIdx));
+    if (src.hasReflectances())
+      dst.setReflectance(i, src.getReflectance(inputIdx));
   }
 
-  //return srcPartition;
+  return dst;
+}
+
+//----------------------------------------------------------------------------
+// get the partial point cloud according to required point indexes
+
+PCCPointSet3
+getPartition(
+  const PCCPointSet3& src,
+  const SrcMappedPointSet& map,
+  const std::vector<int32_t>& indexes)
+{
+  // Without the list, do nothing
+  if (map.idxToSrcIdx.empty())
+    return {};
+
+  // work out the destination size.
+  // loop over each linked list until an element points to itself
+  int size = 0;
+  for (int idx : indexes) {
+    int prevIdx, srcIdx = map.idxToSrcIdx[idx];
+    do {
+      size++;
+      prevIdx = srcIdx;
+      srcIdx = map.srcIdxDupList[srcIdx];
+    } while (srcIdx != prevIdx);
+  }
+
+  PCCPointSet3 dst;
+  dst.addRemoveAttributes(src.hasColors(), src.hasReflectances());
+  dst.resize(size);
+
+  int dstIdx = 0;
+  for (int idx : indexes) {
+    int prevIdx, srcIdx = map.idxToSrcIdx[idx];
+    do {
+      dst[dstIdx] = src[srcIdx];
+
+      if (src.hasColors())
+        dst.setColor(dstIdx, src.getColor(srcIdx));
+
+      if (src.hasReflectances())
+        dst.setReflectance(dstIdx, src.getReflectance(srcIdx));
+
+      dstIdx++;
+      prevIdx = srcIdx;
+      srcIdx = map.srcIdxDupList[srcIdx];
+    } while (srcIdx != prevIdx);
+  }
+
+  return dst;
 }
 
 //============================================================================

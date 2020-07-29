@@ -48,56 +48,74 @@
 namespace pcc {
 
 //============================================================================
+
+template<typename UniqueFn, typename QFn>
+SrcMappedPointSet
+reducePointSet(const PCCPointSet3& src, UniqueFn uniqueFn, QFn qFn)
+{
+  SrcMappedPointSet dst;
+  int numSrcPoints = src.getPointCount();
+
+  // Build a map of duplicate points
+  int numDstPoints = 0;
+  if (1) {
+    std::map<Vec3<int32_t>, int> qPosToSrcIdx;
+    dst.srcIdxDupList.resize(numSrcPoints);
+    for (int i = numSrcPoints - 1; i >= 0; i--) {
+      // Attempt to insert quantised position
+      auto res = qPosToSrcIdx.insert({uniqueFn(src[i]), i});
+
+      // Append to linked list of same positions.
+      // Index of the src point (i) or the index of the previous point with
+      // the same quantised position
+      dst.srcIdxDupList[res.first->second] ^= 0x80000000;
+      dst.srcIdxDupList[i] = res.first->second | 0x80000000;
+      res.first->second = i;
+    }
+
+    numDstPoints = qPosToSrcIdx.size();
+  }
+
+  // Number of quantised points is now known
+  dst.cloud.resize(numDstPoints);
+  dst.idxToSrcIdx.resize(numDstPoints);
+
+  // Generate dst outputs
+  for (int i = 0, dstIdx = 0; i < numSrcPoints; ++i) {
+    // Find head of each linked list
+    if (dst.srcIdxDupList[i] >= 0)
+      continue;
+
+    dst.srcIdxDupList[i] ^= 0x80000000;
+    dst.idxToSrcIdx[dstIdx] = i;
+    dst.cloud[dstIdx++] = qFn(src[i]);
+  }
+
+  // Add attribute storage to match src
+  dst.cloud.addRemoveAttributes(src.hasColors(), src.hasReflectances());
+
+  return dst;
+}
+
+//============================================================================
 // Subsample a point cloud, retaining unique points only.
-// Points in the @src point cloud are translated by -@offset, subsampled by a
-// multiplicitive @scaleFactor with rounding, andclamped to @clamp.
-//
-// The destination and source point clouds may be the same object.
+// Uniqueness is assessed by quantising each position by a multiplicative
+// @scaleFactor.  Output points are not quantised, only translated by -@offset.
 //
 // NB: attributes are not processed.
 
-void
+SrcMappedPointSet
 samplePositionsUniq(
-  const float scaleFactor,
-  const Vec3<int> offset,
-  const Box3<int> clamp,
-  const PCCPointSet3& src,
-  PCCPointSet3* dst,
-  std::multimap<Vec3<int32_t>, int32_t>& mapQuantisedPosToIndexes)
+  const float scaleFactor, const Vec3<int> offset, const PCCPointSet3& src)
 {
-  int numSrcPoints = src.getPointCount();
-
-  // prepare output storage: this will be overallocated and resized afterwards.
-  if (&src != dst) {
-    dst->clear();
-  }
-  dst->resize(numSrcPoints);
-
-  // Determine the set of unique quantised points
-  std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
-  int dstIdx = 0;
-  for (int i = 0; i < numSrcPoints; ++i) {
-    const auto& point = src[i];
-
-    Vec3<int32_t> quantizedPoint;
-    for (int k = 0; k < 3; k++) {
-      quantizedPoint[k] = std::round(point[k] * scaleFactor);
-      //quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
-    }
-
-    // NB: only add point to output if it is the first unique point
-    auto it = intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
-    if (it == intQuantizedToOrigin.begin() || (--it)->first != quantizedPoint)
-      (*dst)[dstIdx++] = point - offset;
-  }
-
-  // Trim output and add attribute storage to match src
-  dst->resize(dstIdx);
-  if (&src != dst) {
-    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
-  }
-
-  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
+  return reducePointSet(
+    src,
+    [=](Vec3<int> point) {
+      for (int k = 0; k < 3; k++)
+        point[k] = std::round(point[k] * scaleFactor);
+      return point;
+    },
+    [=](Vec3<int> point) { return point - offset; });
 }
 
 //============================================================================
@@ -105,52 +123,24 @@ samplePositionsUniq(
 // Points in the @src point cloud are translated by -@offset, quantised by a
 // multiplicitive @scaleFactor with rounding, then clamped to @clamp.
 //
-// The destination and source point clouds may be the same object.
-//
 // NB: attributes are not processed.
 
-void
+SrcMappedPointSet
 quantizePositionsUniq(
   const float scaleFactor,
   const Vec3<int> offset,
   const Box3<int> clamp,
-  const PCCPointSet3& src,
-  PCCPointSet3* dst,
-  std::multimap<Vec3<int32_t>, int32_t>& mapQuantisedPosToIndexes)
+  const PCCPointSet3& src)
 {
-  int numSrcPoints = src.getPointCount();
-
-  // prepare output storage: this will be overallocated and resized afterwards.
-  if (&src != dst) {
-    dst->clear();
-  }
-  dst->resize(numSrcPoints);
-
-  // Determine the set of unique quantised points
-  std::multimap<Vec3<int32_t>, int32_t> intQuantizedToOrigin;
-  int dstIdx = 0;
-  for (int i = 0; i < numSrcPoints; ++i) {
-    const auto& point = src[i];
-
-    Vec3<int32_t> quantizedPoint;
+  auto qFn = [=](Vec3<int> point) {
     for (int k = 0; k < 3; k++) {
-      double k_pos = std::round(point[k] * scaleFactor) - offset[k];
-      quantizedPoint[k] = PCCClip(int32_t(k_pos), clamp.min[k], clamp.max[k]);
+      double posk = std::round(point[k] * scaleFactor) - offset[k];
+      point[k] = PCCClip(int32_t(posk), clamp.min[k], clamp.max[k]);
     }
+    return point;
+  };
 
-    // NB: only add quantised point to output if it is the first unique point
-    auto it = intQuantizedToOrigin.insert(std::make_pair(quantizedPoint, i));
-    if (it == intQuantizedToOrigin.begin() || (--it)->first != quantizedPoint)
-      (*dst)[dstIdx++] = quantizedPoint;
-  }
-
-  // Trim output and add attribute storage to match src
-  dst->resize(dstIdx);
-  if (&src != dst) {
-    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
-  }
-
-  std::swap(intQuantizedToOrigin, mapQuantisedPosToIndexes);
+  return reducePointSet(src, qFn, qFn);
 }
 
 //============================================================================
