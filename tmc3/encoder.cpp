@@ -354,6 +354,10 @@ PCCTMC3Encoder3::compress(
     compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);
   }
 
+  // Apply global scaling to reconstructed point cloud
+  if (reconCloud)
+    scaleGeometry(reconCloud->cloud, _sps->globalScale);
+
   return 0;
 }
 
@@ -413,6 +417,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // number of bits for slice tag (tileid) if tiles partitioning enabled
   // NB: the limit of 64 tiles is arbritrary
   params->sps.slice_tag_bits = params->partition.tileSize > 0 ? 6 : 0;
+
+  // global scaling is not currently supported
+  params->sps.globalScale = SequenceParameterSet::GlobalScale();
 
   // slice origin parameters used by this encoder implementation
   params->gps.geom_box_log2_scale_present_flag = true;

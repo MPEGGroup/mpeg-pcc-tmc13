@@ -84,5 +84,11 @@ struct CloudFrame {
 };
 
 //============================================================================
+// Scale point cloud geometry by global scale factor
+
+void scaleGeometry(
+  PCCPointSet3& cloud, const SequenceParameterSet::GlobalScale& globalScale);
+
+//============================================================================
 
 }  // namespace pcc

@@ -425,6 +425,10 @@ write(const SequenceParameterSet& sps)
   bs.writeUe(sps.seq_geom_scale.denominator);
   bs.writeUn(1, sps.seq_geom_scale_unit_flag);
 
+  bs.writeUe(sps.global_scale_mul_log2());
+  bs.writeUe(sps.global_scale_fp_bits());
+  bs.writeUn(sps.global_scale_fp_bits(), sps.global_scale_rem());
+
   int num_attribute_sets = int(sps.attributeSets.size());
   bs.writeUe(num_attribute_sets);
   for (const auto& attr : sps.attributeSets) {
@@ -507,6 +511,10 @@ parseSps(const PayloadBuffer& buf)
   bs.readUe(&sps.seq_geom_scale.numerator);
   bs.readUe(&sps.seq_geom_scale.denominator);
   bs.readUn(1, &sps.seq_geom_scale_unit_flag);
+
+  bs.readUe(&sps.global_scale_mul_log2());
+  bs.readUe(&sps.global_scale_fp_bits());
+  bs.readUn(sps.global_scale_fp_bits(), &sps.global_scale_rem());
 
   int num_attribute_sets = int(bs.readUe());
   for (int i = 0; i < num_attribute_sets; i++) {

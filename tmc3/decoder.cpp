@@ -141,6 +141,12 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
 
   std::swap(_outCloud.cloud, _accumCloud);
 
+  // Apply global scaling to output for integer conformance
+  // todo: add other output scaling modes
+  // NB: if accumCloud is reused for future inter-prediction, global scaling
+  //     must be applied to a copy.
+  scaleGeometry(_outCloud.cloud, _sps->globalScale);
+
   callback->onOutputCloud(_outCloud);
 
   std::swap(_outCloud.cloud, _accumCloud);

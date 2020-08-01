@@ -35,6 +35,8 @@
 
 #include "frame.h"
 
+#include "PCCMisc.h"
+
 namespace pcc {
 
 //============================================================================
@@ -47,6 +49,30 @@ CloudFrame::setParametersFrom(const SequenceParameterSet& sps)
   this->outputUnitLength = reciprocal(sps.seq_geom_scale);
   this->outputUnit = sps.seq_geom_scale_unit_flag;
   this->attrDesc = sps.attributeSets;
+}
+
+//============================================================================
+
+void
+scaleGeometry(
+  PCCPointSet3& cloud, const SequenceParameterSet::GlobalScale& globalScale)
+{
+  int denominator = 1 << globalScale.denominatorLog2;
+  int numerator = denominator + globalScale.numeratorModDenominator;
+  numerator <<= globalScale.numeratorMulLog2;
+
+  // Nothing to do if scale factor is 1.
+  if (numerator == denominator)
+    return;
+
+  int gsDenominatorLog2 = globalScale.denominatorLog2;
+
+  // The scaling here is equivalent to the integer conformance output
+  size_t numPoints = cloud.getPointCount();
+  for (size_t i = 0; i < numPoints; i++) {
+    auto& pos = cloud[i];
+    pos = (pos * numerator + (denominator >> 1)) >> gsDenominatorLog2;
+  }
 }
 
 //============================================================================

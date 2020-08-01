@@ -372,6 +372,30 @@ struct SequenceParameterSet {
   // Indicates that units used to interpret seq_geom_scale.
   ScaleUnit seq_geom_scale_unit_flag;
 
+  // Represents a coded factorisation of a rational:
+  //  (2^denominatorLog2 + numeratorModDenominator) * 2^numeratorMulLog2
+  //  ------------------------------------------------------------------
+  //                       2^denominatorLog2
+  struct GlobalScale {
+    int numeratorMulLog2 = 0;
+    int numeratorModDenominator = 0;
+    int denominatorLog2 = 0;
+
+    // Initialized to 1/1
+    GlobalScale() = default;
+  };
+
+  // Scale factor applied to the coded geometry to get the output geometry
+  GlobalScale globalScale;
+
+  int& global_scale_mul_log2() { return globalScale.numeratorMulLog2; }
+  int& global_scale_rem() { return globalScale.numeratorModDenominator; }
+  int& global_scale_fp_bits() { return globalScale.denominatorLog2; }
+
+  int global_scale_mul_log2() const { return globalScale.numeratorMulLog2; }
+  int global_scale_rem() const { return globalScale.numeratorModDenominator; }
+  int global_scale_fp_bits() const { return globalScale.denominatorLog2; }
+
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;
 
