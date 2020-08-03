@@ -14,6 +14,7 @@ src_cfg_dir=""
 while (( $# )); do
 	case $1 in
 	--octree) geom="octree" ;;
+	--predgeom) geom="predgeom" ;;
 	--trisoup) geom="trisoup" ;;
 	--raht) attr="raht" ;;
 	--pred-lift) attr="predlift" ;;
@@ -22,7 +23,7 @@ while (( $# )); do
 	--) shift; break ;;
 	--help|*)
 		echo -e "usage:\n $0\n" \
-			"    [[--octree|--trisoup] [--raht|--pred-lift] | --all]\n" \
+			"    [[--octree|--predgeom|--trisoup] [--raht|--pred-lift] | --all]\n" \
 			"    [--cfgdir=<dir>]"
 		exit 1
 	esac
@@ -45,6 +46,16 @@ cfg_octree_predlift=(
 cfg_octree_raht=(
 	octree-raht-ctc-lossless-geom-lossy-attrs.yaml
 	octree-raht-ctc-lossy-geom-lossy-attrs.yaml
+)
+
+cfg_predgeom_predlift=(
+	"${cfg_octree_predlift[@]}"
+	cfg-predgeom.yaml
+)
+
+cfg_predgeom_raht=(
+	"${cfg_octree_raht[@]}"
+	cfg-predgeom.yaml
 )
 
 cfg_trisoup_predlift=(
@@ -87,6 +98,8 @@ then
 else
 	do_one_cfgset "octree" "predlift"
 	do_one_cfgset "octree" "raht"
+	do_one_cfgset "predgeom" "predlift"
+	do_one_cfgset "predgeom" "raht"
 	do_one_cfgset "trisoup" "predlift"
 	do_one_cfgset "trisoup" "raht"
 fi
