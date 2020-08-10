@@ -739,8 +739,14 @@ encodePredictiveGeometry(
     auto azimuthBits = gps.geom_angular_azimuth_scale_log2;
 
     // first work out the maximum number of bits for the residual
+    // NB: the slice coordinate system is used here: ie, minX|minY = 0
+    int maxX = (1 << xyzBboxLog2[0]) - 1;
+    int maxY = (1 << xyzBboxLog2[1]) - 1;
+    int maxAbsDx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
+    int maxAbsDy = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
+    auto r = std::round(std::hypot(maxAbsDx, maxAbsDy));
+
     Vec3<int> residualBits;
-    auto r = std::round(std::hypot(1 << xyzBboxLog2[0], 1 << xyzBboxLog2[1]));
     residualBits[0] = ceillog2(divExp2RoundHalfUp(int64_t(r), rDivLog2));
     residualBits[1] = gps.geom_angular_azimuth_scale_log2;
     residualBits[2] = ceillog2(gps.geom_angular_theta_laser.size() - 1);
