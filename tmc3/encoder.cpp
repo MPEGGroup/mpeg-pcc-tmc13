@@ -664,13 +664,11 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   }
 
   // forget (reset) all saved context state at boundary
-  if (_sps->entropy_continuation_enabled_flag) {
-    if (!gbh.entropy_continuation_flag) {
-      _ctxtMemOctreeGeom->reset();
-      _ctxtMemPredGeom->reset();
-      for (auto& ctxtMem : _ctxtMemAttrs)
-        ctxtMem.reset();
-    }
+  if (!gbh.entropy_continuation_flag) {
+    _ctxtMemOctreeGeom->reset();
+    _ctxtMemPredGeom->reset();
+    for (auto& ctxtMem : _ctxtMemAttrs)
+      ctxtMem.reset();
   }
 
   if (_gps->predgeom_enabled_flag)
