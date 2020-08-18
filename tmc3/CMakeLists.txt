@@ -3,6 +3,8 @@ enable_language(C)
 
 if (UNIX)
   add_definitions(-D_POSIX_C_SOURCE=200809L)
+elseif (WIN32)
+  add_definitions(-D_USE_MATH_DEFINES)
 endif()
 
 include(CheckSymbolExists)
