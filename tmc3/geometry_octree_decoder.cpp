@@ -1493,11 +1493,9 @@ decodeGeometryOctree(
         }
 
         int planarProb[3] = {127, 127, 127};
-        // determine planarity if eligible
-        if (planarEligible[0] || planarEligible[1] || planarEligible[2])
-          decoder.determinePlanarMode(
-            planarEligible, node0, planar, node0.neighPattern, planarProb,
-            contextAngle, contextAnglePhiX, contextAnglePhiY);
+        decoder.determinePlanarMode(
+          planarEligible, node0, planar, node0.neighPattern, planarProb,
+          contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
           planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;

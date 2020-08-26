@@ -589,11 +589,8 @@ OctreePlanarState::operator=(OctreePlanarState&& rhs)
 // directional mask depending on the planarity
 
 int
-maskPlanarX(const OctreeNodePlanar& planar, bool implicitSkip)
+maskPlanarX(const OctreeNodePlanar& planar)
 {
-  if (implicitSkip)
-    return 0xf0;
-
   if ((planar.planarMode & 1) == 0)
     return 0;
 
@@ -603,11 +600,8 @@ maskPlanarX(const OctreeNodePlanar& planar, bool implicitSkip)
 //----------------------------------------------------------------------------
 
 int
-maskPlanarY(const OctreeNodePlanar& planar, bool implicitSkip)
+maskPlanarY(const OctreeNodePlanar& planar)
 {
-  if (implicitSkip)
-    return 0xcc;
-
   if ((planar.planarMode & 2) == 0)
     return 0;
 
@@ -617,13 +611,8 @@ maskPlanarY(const OctreeNodePlanar& planar, bool implicitSkip)
 //----------------------------------------------------------------------------
 
 int
-maskPlanarZ(const OctreeNodePlanar& planar, bool implicitSkip)
+maskPlanarZ(const OctreeNodePlanar& planar)
 {
-  // QTBT does not split in this direction
-  //   => infer the mask low for occupancy bit coding
-  if (implicitSkip)
-    return 0xaa;
-
   if ((planar.planarMode & 4) == 0)
     return 0;
 
@@ -636,20 +625,18 @@ maskPlanarZ(const OctreeNodePlanar& planar, bool implicitSkip)
 void
 maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes)
 {
-  static const uint8_t kPossibleMask[3] = {6, 5, 3};
   for (int k = 0; k <= 2; k++) {
     // QTBT does not split in this direction
     //   => infer the mask low for occupancy bit coding
     if (!(codedAxes & (4 >> k))) {
-      planar.planarPossible = planar.planarPossible | (1 << k);
-      planar.planePosBits = planar.planePosBits & kPossibleMask[k];
-      planar.planarMode = planar.planarMode | (1 << k);
+      planar.planePosBits &= ~(1 << k);
+      planar.planarMode |= 1 << k;
     }
   }
 
-  mask[0] = maskPlanarX(planar, !(codedAxes & 4));
-  mask[1] = maskPlanarY(planar, !(codedAxes & 2));
-  mask[2] = maskPlanarZ(planar, !(codedAxes & 1));
+  mask[0] = maskPlanarX(planar);
+  mask[1] = maskPlanarY(planar);
+  mask[2] = maskPlanarZ(planar);
 }
 
 //----------------------------------------------------------------------------

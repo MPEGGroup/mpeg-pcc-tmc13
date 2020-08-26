@@ -364,9 +364,9 @@ struct OctreePlanarState {
 // determine if a 222 block is planar
 void setPlanesFromOccupancy(int occupancy, OctreeNodePlanar& planar);
 
-int maskPlanarX(const OctreeNodePlanar& planar, bool activatable);
-int maskPlanarY(const OctreeNodePlanar& planar, bool activatable);
-int maskPlanarZ(const OctreeNodePlanar& planar, bool activatable);
+int maskPlanarX(const OctreeNodePlanar& planar);
+int maskPlanarY(const OctreeNodePlanar& planar);
+int maskPlanarZ(const OctreeNodePlanar& planar);
 
 void maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes);
 
