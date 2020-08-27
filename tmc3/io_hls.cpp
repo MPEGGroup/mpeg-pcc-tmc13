@@ -601,9 +601,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     }
     auto geom_angular_origin =
       toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
-    bs.writeUe(geom_angular_origin.x());
-    bs.writeUe(geom_angular_origin.y());
-    bs.writeUe(geom_angular_origin.z());
+    bs.writeSe(geom_angular_origin.x());
+    bs.writeSe(geom_angular_origin.y());
+    bs.writeSe(geom_angular_origin.z());
     bs.writeUe(gps.geom_angular_num_lidar_lasers());
 
     if (gps.geom_angular_num_lidar_lasers()) {
@@ -713,9 +713,9 @@ parseGps(const PayloadBuffer& buf)
     }
 
     Vec3<int> geom_angular_origin;
-    bs.readUe(&geom_angular_origin.x());
-    bs.readUe(&geom_angular_origin.y());
-    bs.readUe(&geom_angular_origin.z());
+    bs.readSe(&geom_angular_origin.x());
+    bs.readSe(&geom_angular_origin.y());
+    bs.readSe(&geom_angular_origin.z());
 
     // NB: this is in XYZ axis order until the GPS is converted to STV
     gps.geomAngularOrigin = geom_angular_origin;
