@@ -985,6 +985,12 @@ write(
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
 
+  if (sps.entropy_continuation_enabled_flag) {
+    bs.write(gbh.entropy_continuation_flag);
+    if (gbh.entropy_continuation_flag)
+      bs.writeUe(gbh.prev_slice_id);
+  }
+
   int geomBoxLog2Scale = gbh.geomBoxLog2Scale(gps);
   auto geom_box_origin = toXyz(sps.geometry_axis_order, gbh.geomBoxOrigin);
   geom_box_origin.x() >>= geomBoxLog2Scale;
@@ -1047,12 +1053,6 @@ write(
     bs.writeSe(pgeom_resid_abs_log2_bits_delta_z);
   }
 
-  if (sps.entropy_continuation_enabled_flag) {
-    bs.write(gbh.entropy_continuation_flag);
-    if (gbh.entropy_continuation_flag)
-      bs.writeUe(gbh.prev_slice_id);
-  }
-
   bs.byteAlign();
 }
 
@@ -1074,6 +1074,13 @@ parseGbh(
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
+
+  gbh.entropy_continuation_flag = false;
+  if (sps.entropy_continuation_enabled_flag) {
+    bs.read(&gbh.entropy_continuation_flag);
+    if (gbh.entropy_continuation_flag)
+      bs.readUe(&gbh.prev_slice_id);
+  }
 
   if (gps.geom_box_log2_scale_present_flag)
     bs.readUe(&gbh.geom_box_log2_scale);
@@ -1138,13 +1145,6 @@ parseGbh(
     gbh.pgeom_resid_abs_log2_bits[1] += gbh.pgeom_resid_abs_log2_bits[0];
     gbh.pgeom_resid_abs_log2_bits[2] = pgeom_resid_abs_log2_bits_delta_z;
     gbh.pgeom_resid_abs_log2_bits[2] += gbh.pgeom_resid_abs_log2_bits[1];
-  }
-
-  gbh.entropy_continuation_flag = false;
-  if (sps.entropy_continuation_enabled_flag) {
-    bs.read(&gbh.entropy_continuation_flag);
-    if (gbh.entropy_continuation_flag)
-      bs.readUe(&gbh.prev_slice_id);
   }
 
   bs.byteAlign();
