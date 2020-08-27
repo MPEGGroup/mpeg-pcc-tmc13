@@ -569,7 +569,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.write(gps.trisoup_enabled_flag);
     if (!gps.trisoup_enabled_flag) {
       bs.write(gps.geom_unique_points_flag);
-      bs.writeUe(gps.inferred_direct_coding_mode);
+      bs.writeUn(2, gps.inferred_direct_coding_mode);
       if (gps.inferred_direct_coding_mode)
         bs.write(gps.joint_2pt_idcm_enabled_flag);
     }
@@ -680,7 +680,7 @@ parseGps(const PayloadBuffer& buf)
     gps.inferred_direct_coding_mode = 0;
     if (!gps.trisoup_enabled_flag) {
       bs.read(&gps.geom_unique_points_flag);
-      bs.readUe(&gps.inferred_direct_coding_mode);
+      bs.readUn(2, &gps.inferred_direct_coding_mode);
       if (gps.inferred_direct_coding_mode)
         bs.read(&gps.joint_2pt_idcm_enabled_flag);
     }
