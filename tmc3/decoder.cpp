@@ -158,7 +158,7 @@ PCCTMC3Decoder3::decompress(
 
   case PayloadType::kGeometryBrick:
     activateParameterSets(parseGbhIds(*buf));
-    if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr))) {
+    if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr, nullptr))) {
       callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
       _firstSliceInFrame = true;
@@ -274,8 +274,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
   clock_user.start();
 
-  int gbhSize;
-  _gbh = parseGbh(*_sps, *_gps, buf, &gbhSize);
+  int gbhSize, gbfSize;
+  _gbh = parseGbh(*_sps, *_gps, buf, &gbhSize, &gbfSize);
   _prevSliceId = _sliceId;
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
@@ -329,7 +329,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _gbh.geom_stream_len.push_back(buf.size());
 
   std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
-  size_t bufRemaining = buf.size() - gbhSize;
+  size_t bufRemaining = buf.size() - gbhSize - gbfSize;
   const char* bufPtr = buf.data() + gbhSize;
 
   for (int i = 0; i <= _gbh.geom_stream_cnt_minus1; i++) {

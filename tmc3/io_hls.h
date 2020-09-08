@@ -84,7 +84,8 @@ GeometryBrickHeader parseGbh(
   const SequenceParameterSet& sps,
   const GeometryParameterSet& gps,
   const PayloadBuffer& buf,
-  int* bytesRead);
+  int* bytesReadHead,
+  int* bytesReadFoot);
 
 AttributeBrickHeader parseAbh(
   const SequenceParameterSet& sps,
@@ -104,7 +105,8 @@ void write(
 GeometryBrickFooter parseGbf(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
-  const PayloadBuffer& buf);
+  const PayloadBuffer& buf,
+  int* bytesRead);
 
 /**
  * Parse @buf, decoding only the parameter set, slice, tile.

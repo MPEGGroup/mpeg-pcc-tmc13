@@ -1063,7 +1063,8 @@ parseGbh(
   const SequenceParameterSet& sps,
   const GeometryParameterSet& gps,
   const PayloadBuffer& buf,
-  int* bytesRead)
+  int* bytesReadHead,
+  int* bytesReadFoot)
 {
   GeometryBrickHeader gbh;
   assert(buf.type == PayloadType::kGeometryBrick);
@@ -1148,11 +1149,11 @@ parseGbh(
 
   bs.byteAlign();
 
-  if (bytesRead)
-    *bytesRead = int(std::distance(buf.begin(), bs.pos()));
+  if (bytesReadHead)
+    *bytesReadHead = int(std::distance(buf.begin(), bs.pos()));
 
   // To avoid having to make separate calls, the footer is parsed here
-  gbh.footer = parseGbf(gps, gbh, buf);
+  gbh.footer = parseGbf(gps, gbh, buf, bytesReadFoot);
 
   return gbh;
 }
@@ -1205,7 +1206,8 @@ GeometryBrickFooter
 parseGbf(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
-  const PayloadBuffer& buf)
+  const PayloadBuffer& buf,
+  int* bytesRead)
 {
   GeometryBrickFooter gbf;
   assert(buf.type == PayloadType::kGeometryBrick);
@@ -1214,6 +1216,9 @@ parseGbf(
   auto bufStart = buf.end() - 3; /* geom_num_points_minus1 */
   if (gps.octree_point_count_list_present_flag)
     bufStart -= gbh.tree_depth_minus1() * 3;
+
+  if (bytesRead)
+    *bytesRead = int(std::distance(bufStart, buf.end()));
 
   auto bs = makeBitReader(bufStart, buf.end());
 
