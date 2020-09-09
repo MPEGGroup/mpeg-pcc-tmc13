@@ -1330,11 +1330,9 @@ decodeGeometryOctree(
     lvlNodeSizeLog2.push_back(lvlNodeSizeLog2.back() + splitStv);
   }
   std::reverse(lvlNodeSizeLog2.begin(), lvlNodeSizeLog2.end());
-  auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
-  // represents the largest dimension of the current node
-  int nodeMaxDimLog2;
-  gbh.maxRootNodeDimLog2 = nodeSizeLog2.max();
+  // Derived parameter used by trisoup.
+  gbh.maxRootNodeDimLog2 = lvlNodeSizeLog2[0].max();
 
   // the termination depth of the octree phase
   // NB: minNodeSizeLog2 is only non-zero for partial decoding (not trisoup)
@@ -1364,14 +1362,14 @@ decodeGeometryOctree(
     Vec3<int32_t> occupancyAtlasOrigin = 0xffffffff;
 
     // derive per-level node size related parameters
-    auto parentNodeSizeLog2 = nodeSizeLog2;
-    nodeSizeLog2 = lvlNodeSizeLog2[depth];
+    auto nodeSizeLog2 = lvlNodeSizeLog2[depth];
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
-    nodeMaxDimLog2 = nodeSizeLog2.max();
+    // represents the largest dimension of the current node
+    int nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
-    int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
-    int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
+    int atlasShift = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
+    int occupancySkipLevel = gbh.tree_lvl_coded_axis_list[depth] ^ 7;
 
     // Idcm quantisation applies to child nodes before per node qps
     if (--numLvlsUntilQpOffset > 0) {
@@ -1674,7 +1672,7 @@ decodeGeometryOctree(
   // return partial coding result
   //  - add missing levels to node positions and inverse quantise
   if (nodesRemaining) {
-    nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
+    auto nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
       for (int k = 0; k < 3; k++)
         node.pos[k] <<= nodeSizeLog2[k] - QuantizerGeom::qpShift(node.qp);
