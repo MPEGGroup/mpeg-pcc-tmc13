@@ -1194,10 +1194,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   if (params.encoder.gps.geom_qp_multiplier_log2 & ~3)
     err.error() << "positionQpMultiplierLog2 must be in the range 0..3\n";
 
-  if (
-    params.encoder.gps.planar_buffer_disabled_flag
-    && !params.encoder.gps.geom_angular_mode_enabled_flag)
-    err.error() << "planar buffer can only be disabled with angular mode\n";
+  if (!params.encoder.gps.geom_angular_mode_enabled_flag) {
+    if (params.encoder.gps.planar_buffer_disabled_flag) {
+      params.encoder.gps.planar_buffer_disabled_flag = 0;
+      err.warn() << "ignoring planarBufferDisabled without angularEnabled\n";
+    }
+  }
 
   // The following featues depend upon the occupancy atlas
   if (!params.encoder.gps.neighbour_avail_boundary_log2) {
