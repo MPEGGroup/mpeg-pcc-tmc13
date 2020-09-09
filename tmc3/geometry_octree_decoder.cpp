@@ -1479,7 +1479,7 @@ decodeGeometryOctree(
       }
 
       OctreeNodePlanar planar;
-      if (!isLeafNode(effectiveNodeSizeLog2) || node0.idcmEligible) {
+      if (!isLeafNode(effectiveNodeSizeLog2)) {
         // planar eligibility
         bool planarEligible[3] = {false, false, false};
         if (gps.geom_planar_mode_enabled_flag) {
@@ -1505,6 +1505,12 @@ decodeGeometryOctree(
         node0.idcmEligible &=
           planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
       }
+
+      // At the scaling depth, it is possible for a node that has previously
+      // been marked as being eligible for idcm to be fully quantised due
+      // to the choice of QP.  There is therefore nothing to code with idcm.
+      if (isLeafNode(effectiveNodeSizeLog2))
+        node0.idcmEligible = false;
 
       if (node0.idcmEligible) {
         bool isDirectMode = decoder.decodeIsIdcm();
