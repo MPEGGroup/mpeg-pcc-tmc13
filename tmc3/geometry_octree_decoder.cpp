@@ -286,7 +286,6 @@ GeometryOctreeDecoder::decodePlanarMode(
   const int mask1[3] = {6, 5, 3};
 
   // decode planar mode
-  int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
   bool isPlanar = _arithmeticDecoder->decode(_ctxPlanarMode[planeId]);
   planar.planarMode |= isPlanar ? mask0 : 0;
 
@@ -304,8 +303,10 @@ GeometryOctreeDecoder::decodePlanarMode(
       h =
         approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
     } else {
+      int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       int lastIndexPlane2d = planeZ + (discreteDist << 1);
+
       planeBit = _arithmeticDecoder->decode(
         _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
       h = approxSymbolProbability(
