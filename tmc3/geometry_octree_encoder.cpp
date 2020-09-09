@@ -1480,6 +1480,9 @@ encodeGeometryOctree(
   for (int lvl = maxDepth; lvl > 0; lvl--) {
     gbh.tree_lvl_coded_axis_list.push_back(
       ~nonSplitQtBtAxes(lvlNodeSizeLog2[lvl - 1], lvlNodeSizeLog2[lvl]));
+
+    // Conformance: at least one axis must attempt to be coded at each level
+    assert(gbh.tree_lvl_coded_axis_list.back() != 0);
   }
 
   // the node size where quantisation is performed
@@ -1737,7 +1740,6 @@ encodeGeometryOctree(
       if (!isLeafNode(effectiveNodeSizeLog2)) {
         // encode child occupancy map
         assert(occupancy > 0);
-        assert(occupancySkip != 7);
 
         // planar mode for current node
         // mask to be used for the occupancy coding

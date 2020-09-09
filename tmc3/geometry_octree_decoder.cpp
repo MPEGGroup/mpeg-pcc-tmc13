@@ -1559,8 +1559,6 @@ decodeGeometryOctree(
 
       uint8_t occupancy = 1;
       if (!isLeafNode(effectiveNodeSizeLog2)) {
-        assert(occupancySkip != 7);
-
         // planar mode for current node
         // mask to be used for the occupancy coding
         // (bit =1 => occupancy bit not coded due to not belonging to the plane)
