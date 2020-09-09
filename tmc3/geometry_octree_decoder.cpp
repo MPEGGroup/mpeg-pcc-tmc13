@@ -1468,18 +1468,21 @@ decodeGeometryOctree(
           &contextAnglePhiX, &contextAnglePhiY);
       }
 
+      if (gps.geom_planar_mode_enabled_flag) {
+        // update the plane rate depending on the occupancy and local density
+        auto occupancy = node0.siblingOccupancy;
+        auto numOccupied = node0.numSiblingsPlus1;
+        if (!nodesBeforePlanarUpdate--) {
+          decoder._planar.updateRate(occupancy, numOccupied);
+          nodesBeforePlanarUpdate = numOccupied - 1;
+        }
+      }
+
       OctreeNodePlanar planar;
       if (!isLeafNode(effectiveNodeSizeLog2) || node0.idcmEligible) {
         // planar eligibility
         bool planarEligible[3] = {false, false, false};
         if (gps.geom_planar_mode_enabled_flag) {
-          // update the plane rate depending on the occupancy and local density
-          auto occupancy = node0.siblingOccupancy;
-          auto numOccupied = node0.numSiblingsPlus1;
-          if (!nodesBeforePlanarUpdate--) {
-            decoder._planar.updateRate(occupancy, numOccupied);
-            nodesBeforePlanarUpdate = numOccupied - 1;
-          }
           decoder._planar.isEligible(planarEligible);
           if (gps.geom_angular_mode_enabled_flag) {
             if (contextAngle != -1)
