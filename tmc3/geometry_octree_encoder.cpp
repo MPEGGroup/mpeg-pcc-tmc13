@@ -1435,7 +1435,6 @@ encodeGeometryOctree(
 
   // generate the list of the node size for each level in the tree
   auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, params.qtbt, gbh);
-  auto nodeSizeLog2 = lvlNodeSizeLog2[0];
 
   const int idcmThreshold = gps.geom_planar_mode_enabled_flag
     ? gps.geom_planar_idcm_threshold * 127 * 127
@@ -1511,9 +1510,6 @@ encodeGeometryOctree(
     numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
   }
 
-  // represents the largest dimension of the current node
-  int nodeMaxDimLog2;
-
   // The number of nodes to wait before updating the planar rate.
   // This is to match the prior behaviour where planar is updated once
   // per coded occupancy.
@@ -1529,14 +1525,14 @@ encodeGeometryOctree(
     Vec3<int32_t> occupancyAtlasOrigin = 0xffffffff;
 
     // derive per-level node size related parameters
-    auto parentNodeSizeLog2 = nodeSizeLog2;
-    nodeSizeLog2 = lvlNodeSizeLog2[depth];
+    auto nodeSizeLog2 = lvlNodeSizeLog2[depth];
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
-    nodeMaxDimLog2 = nodeSizeLog2.max();
+    // represents the largest dimension of the current node
+    int nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
-    int atlasShift = 7 & ~nonSplitQtBtAxes(parentNodeSizeLog2, nodeSizeLog2);
-    int occupancySkipLevel = nonSplitQtBtAxes(nodeSizeLog2, childSizeLog2);
+    int atlasShift = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
+    int occupancySkipLevel = gbh.tree_lvl_coded_axis_list[depth] ^ 7;
 
     auto pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
 
@@ -1902,7 +1898,7 @@ encodeGeometryOctree(
   //  - inverse quantise the point cloud
   // todo(df): this does not yet support inverse quantisation of node.pos
   if (nodesRemaining) {
-    nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
+    auto nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
       for (int k = 0; k < 3; k++)
         node.pos[k] <<= nodeSizeLog2[k];
