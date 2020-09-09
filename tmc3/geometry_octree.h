@@ -365,13 +365,7 @@ struct OctreePlanarState {
 };
 
 // determine if a 222 block is planar
-void isPlanarNode(
-  const PCCPointSet3& pointCloud,
-  const PCCOctree3Node& node0,
-  const Vec3<int>& sizeLog2,
-  uint8_t& planarMode,
-  uint8_t& planePosBits,
-  const bool planarEligible[3]);
+void setPlanesFromOccupancy(int occupancy, OctreeNodePlanar& planar);
 
 int maskPlanarX(const OctreeNodePlanar& planar, bool activatable);
 int maskPlanarY(const OctreeNodePlanar& planar, bool activatable);

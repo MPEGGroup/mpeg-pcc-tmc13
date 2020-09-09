@@ -87,8 +87,6 @@ public:
   void determinePlanarMode(
     int planeId,
     OctreeNodePlanar& planar,
-    uint8_t planarMode,
-    uint8_t planePosBits,
     OctreePlanarBuffer::Row* planeBuffer,
     int coord1,
     int coord2,
@@ -99,9 +97,8 @@ public:
     int contextAngle);
 
   void determinePlanarMode(
-    PCCPointSet3& pointCloud,
+    int occupancy,
     const bool planarEligible[3],
-    const Vec3<int>& childSizeLog2,
     PCCOctree3Node& child,
     OctreeNodePlanar& planar,
     uint8_t neighPattern,
@@ -355,8 +352,6 @@ void
 GeometryOctreeEncoder::determinePlanarMode(
   int planeId,
   OctreeNodePlanar& planar,
-  uint8_t planarMode,
-  uint8_t planePosBits,
   OctreePlanarBuffer::Row* planeBuffer,
   int coord1,
   int coord2,
@@ -369,9 +364,6 @@ GeometryOctreeEncoder::determinePlanarMode(
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
   const int planeSelector = 1 << planeId;
-
-  planar.planarMode |= planarMode & planeSelector;
-  planar.planePosBits |= planePosBits & planeSelector;
 
   OctreePlanarBuffer::Elmt* row;
   int rowLen = OctreePlanarBuffer::rowSize;
@@ -436,9 +428,8 @@ GeometryOctreeEncoder::determinePlanarMode(
 
 void
 GeometryOctreeEncoder::determinePlanarMode(
-  PCCPointSet3& pointCloud,
+  int occupancy,
   const bool planarEligible[3],
-  const Vec3<int>& childSizeLog2,
   PCCOctree3Node& node,
   OctreeNodePlanar& planar,
   uint8_t neighPattern,
@@ -449,11 +440,15 @@ GeometryOctreeEncoder::determinePlanarMode(
 {
   auto& planeBuffer = _planar._planarBuffer;
 
-  // planarity
-  uint8_t planarMode, planePosBits;
-  isPlanarNode(
-    pointCloud, node, childSizeLog2 - 1, planarMode, planePosBits,
-    planarEligible);
+  // determine what planes exist in occupancy
+  setPlanesFromOccupancy(occupancy, planar);
+
+  uint8_t planarEligibleMask = 0;
+  planarEligibleMask |= planarEligible[2] << 2;
+  planarEligibleMask |= planarEligible[1] << 1;
+  planarEligibleMask |= planarEligible[0] << 0;
+  planar.planarMode &= planarEligibleMask;
+  planar.planePosBits &= planarEligibleMask;
 
   int xx = node.pos[0];
   int yy = node.pos[1];
@@ -462,20 +457,20 @@ GeometryOctreeEncoder::determinePlanarMode(
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, planar, planarMode, planePosBits, planeBuffer.getBuffer(0), yy, zz,
-      xx, neighPattern, planarProb, _planar._rate.data(), contextAnglePhiX);
+      0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern,
+      planarProb, _planar._rate.data(), contextAnglePhiX);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, planar, planarMode, planePosBits, planeBuffer.getBuffer(1), xx, zz,
-      yy, neighPattern, planarProb, _planar._rate.data(), contextAnglePhiY);
+      1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern,
+      planarProb, _planar._rate.data(), contextAnglePhiY);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, planar, planarMode, planePosBits, planeBuffer.getBuffer(2), xx, yy,
-      zz, neighPattern, planarProb, _planar._rate.data(), contextAngle);
+      2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern,
+      planarProb, _planar._rate.data(), contextAngle);
   }
 }
 
@@ -1619,6 +1614,31 @@ encodeGeometryOctree(
         occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
       }
 
+      // split the current node into 8 children
+      //  - perform an 8-way counting sort of the current node's points
+      //  - (later) map to child nodes
+      std::array<int, 8> childCounts = {};
+      countingSort(
+        PCCPointSet3::iterator(&pointCloud, node0.start),
+        PCCPointSet3::iterator(&pointCloud, node0.end), childCounts,
+        [=](const PCCPointSet3::Proxy& proxy) {
+          const auto& point = *proxy;
+          return !!(int(point[2]) & pointSortMask[2])
+            | (!!(int(point[1]) & pointSortMask[1]) << 1)
+            | (!!(int(point[0]) & pointSortMask[0]) << 2);
+        });
+
+      // generate the bitmap of child occupancy and count
+      // the number of occupied children in node0.
+      int occupancy = 0;
+      int numSiblings = 0;
+      for (int i = 0; i < 8; i++) {
+        if (childCounts[i]) {
+          occupancy |= 1 << i;
+          numSiblings++;
+        }
+      }
+
       int contextAngle = -1;
       int contextAnglePhiX = -1;
       int contextAnglePhiY = -1;
@@ -1660,9 +1680,8 @@ encodeGeometryOctree(
         // determine planarity if eligible
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           encoder.determinePlanarMode(
-            pointCloud, planarEligible, effectiveNodeSizeLog2, node0, planar,
-            node0.neighPattern, planarProb, contextAngle, contextAnglePhiX,
-            contextAnglePhiY);
+            occupancy, planarEligible, node0, planar, node0.neighPattern,
+            planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
           planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
@@ -1714,31 +1733,6 @@ encodeGeometryOctree(
               node0.pos, 0, &occupancyAtlas);
 
           continue;
-        }
-      }
-
-      // split the current node into 8 children
-      //  - perform an 8-way counting sort of the current node's points
-      //  - (later) map to child nodes
-      std::array<int, 8> childCounts = {};
-      countingSort(
-        PCCPointSet3::iterator(&pointCloud, node0.start),
-        PCCPointSet3::iterator(&pointCloud, node0.end), childCounts,
-        [=](const PCCPointSet3::Proxy& proxy) {
-          const auto& point = *proxy;
-          return !!(int(point[2]) & pointSortMask[2])
-            | (!!(int(point[1]) & pointSortMask[1]) << 1)
-            | (!!(int(point[0]) & pointSortMask[0]) << 2);
-        });
-
-      // generate the bitmap of child occupancy and count
-      // the number of occupied children in node0.
-      int occupancy = 0;
-      int numSiblings = 0;
-      for (int i = 0; i < 8; i++) {
-        if (childCounts[i]) {
-          occupancy |= 1 << i;
-          numSiblings++;
         }
       }
 

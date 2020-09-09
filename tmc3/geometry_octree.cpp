@@ -374,31 +374,21 @@ CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
 // determine if a 222 block is planar
 
 void
-isPlanarNode(
-  const PCCPointSet3& pointCloud,
-  const PCCOctree3Node& node0,
-  const Vec3<int>& nodeSizeLog2Minus1,
-  uint8_t& planarMode,
-  uint8_t& planePosBits,
-  const bool planarEligible[3])
+setPlanesFromOccupancy(int occupancy, OctreeNodePlanar& planar)
 {
-  const point_t occupMask{planarEligible[0] << nodeSizeLog2Minus1[0],
-                          planarEligible[1] << nodeSizeLog2Minus1[1],
-                          planarEligible[2] << nodeSizeLog2Minus1[2]};
+  uint8_t plane0 = 0;
+  plane0 |= !!(occupancy & 0x0f) << 0;
+  plane0 |= !!(occupancy & 0x33) << 1;
+  plane0 |= !!(occupancy & 0x55) << 2;
 
-  point_t occup = 0;
-  // find occupancy N xyz-planes
-  for (int k = node0.start; k < node0.end; k++) {
-    occup[0] |= planarEligible[0] << bool(pointCloud[k][0] & occupMask[0]);
-    occup[1] |= planarEligible[1] << bool(pointCloud[k][1] & occupMask[1]);
-    occup[2] |= planarEligible[2] << bool(pointCloud[k][2] & occupMask[2]);
-  }
+  uint8_t plane1 = 0;
+  plane1 |= !!(occupancy & 0xf0) << 0;
+  plane1 |= !!(occupancy & 0xcc) << 1;
+  plane1 |= !!(occupancy & 0xaa) << 2;
 
-  // determine planar
-  planarMode =
-    (occup[0] != 3) | ((occup[1] != 3) << 1) | ((occup[2] != 3) << 2);
-  planePosBits =
-    (occup[0] == 2) | ((occup[1] == 2) << 1) | ((occup[2] == 2) << 2);
+  // Only planar if a single plane normal to an axis is occupied
+  planar.planarMode = plane0 ^ plane1;
+  planar.planePosBits = planar.planarMode & plane1;
 }
 
 //============================================================================
