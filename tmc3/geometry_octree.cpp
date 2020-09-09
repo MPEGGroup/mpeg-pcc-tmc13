@@ -359,15 +359,16 @@ CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
   b[6] = map->b6;
   b[7] = map->b7;
 
-  using namespace std;
-  fill(begin(map->b0), end(map->b0), 127);
-  fill(begin(map->b1), end(map->b1), 127);
-  fill(begin(map->b2), end(map->b2), 127);
-  fill(begin(map->b3), end(map->b3), 127);
-  fill(begin(map->b4), end(map->b4), 127);
-  fill(begin(map->b5), end(map->b5), 127);
-  fill(begin(map->b6), end(map->b6), 127);
-  fill(begin(map->b7), end(map->b7), 127);
+  using std::begin;
+  using std::end;
+  std::fill(begin(map->b0), end(map->b0), 127);
+  std::fill(begin(map->b1), end(map->b1), 127);
+  std::fill(begin(map->b2), end(map->b2), 127);
+  std::fill(begin(map->b3), end(map->b3), 127);
+  std::fill(begin(map->b4), end(map->b4), 127);
+  std::fill(begin(map->b5), end(map->b5), 127);
+  std::fill(begin(map->b6), end(map->b6), 127);
+  std::fill(begin(map->b7), end(map->b7), 127);
 }
 
 //============================================================================

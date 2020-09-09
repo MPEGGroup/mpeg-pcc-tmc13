@@ -1491,9 +1491,9 @@ encodeGeometryOctree(
   // generate the qtbt splitting list
   //  - start at the leaf, and work up
   std::vector<int8_t> tree_lvl_partition_list;
-  for (int lvl = maxDepth; lvl > 0; lvl--) {
+  for (int lvl = 0; lvl < maxDepth; lvl++) {
     gbh.tree_lvl_coded_axis_list.push_back(
-      ~nonSplitQtBtAxes(lvlNodeSizeLog2[lvl - 1], lvlNodeSizeLog2[lvl]));
+      ~nonSplitQtBtAxes(lvlNodeSizeLog2[lvl], lvlNodeSizeLog2[lvl + 1]));
 
     // Conformance: at least one axis must attempt to be coded at each level
     assert(gbh.tree_lvl_coded_axis_list.back() != 0);
