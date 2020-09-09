@@ -1541,6 +1541,12 @@ decodeGeometryOctree(
           if (gps.inferred_direct_coding_mode <= 1)
             assert(node0.numSiblingsPlus1 == 1);
 
+          // This node has no children, ensure that future nodes avoid
+          // accessing stale child occupancy data.
+          if (gps.neighbour_avail_boundary_log2)
+            updateGeometryOccupancyAtlasOccChild(
+              node0.pos, 0, &occupancyAtlas);
+
           continue;
         }
       }
@@ -1575,11 +1581,13 @@ decodeGeometryOctree(
 
       assert(occupancy > 0);
 
-      // update atlas for advanced neighbours
-      if (gps.neighbour_avail_boundary_log2) {
+      // update atlas for child neighbours
+      // NB: the child occupancy atlas must be updated even if the current
+      //     node has no occupancy coded in order to clear any stale state in
+      //     the atlas.
+      if (gps.neighbour_avail_boundary_log2)
         updateGeometryOccupancyAtlasOccChild(
           node0.pos, occupancy, &occupancyAtlas);
-      }
 
       // population count of occupancy for IDCM
       int numOccupied = popcnt(occupancy);
