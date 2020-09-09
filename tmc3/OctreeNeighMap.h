@@ -209,7 +209,8 @@ struct GeometryNeighPattern {
 GeometryNeighPattern makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& currentPosition,
-  const int atlasShift,
+  int codedAxesPrevLvl,
+  int codedAxesCurLvl,
   const MortonMap3D& occupancyAtlas);
 
 // populate (if necessary) the occupancy atlas with occupancy information

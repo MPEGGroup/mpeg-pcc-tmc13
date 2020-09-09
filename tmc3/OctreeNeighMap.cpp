@@ -104,7 +104,7 @@ updatePatternFromNeighOccupancy(
   int z,
   GeometryNeighPattern gnp,
   int neighIdx,
-  bool occupancySkip)
+  bool codedAxisCurLvl)
 {
   static const uint8_t childMasks[] = {
     0xf0 /* x-1 */, 0xcc /* y-1 */, 0xaa /* z-1 */
@@ -117,7 +117,9 @@ updatePatternFromNeighOccupancy(
   //  x: >> 4, y: >> 2, z: >> 1
   int adjacencyShift = 4 >> neighIdx;
 
-  if (occupancySkip) {
+  // Always inspect the adjacent children, taking into account that their
+  // position changes depending upon whther the current axis is coded or not.
+  if (!codedAxisCurLvl) {
     childMask ^= 0xff;
     adjacencyShift = 0;
   }
@@ -148,7 +150,8 @@ GeometryNeighPattern
 makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& position,
-  const int atlasShift,
+  int codedAxesPrevLvl,
+  int codedAxesCurLvl,
   const MortonMap3D& occupancyAtlas)
 {
   const int mask = occupancyAtlas.cubeSize() - 1;
@@ -157,7 +160,7 @@ makeGeometryNeighPattern(
   const int32_t y = position[1] & mask;
   const int32_t z = position[2] & mask;
   uint8_t neighPattern;
-  if (atlasShift == 0) {
+  if (codedAxesPrevLvl == 0) {
     if (
       x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
       && z < cubeSizeMinusOne) {
@@ -176,9 +179,9 @@ makeGeometryNeighPattern(
       neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1) << 5;
     }
   } else {
-    const int shiftX = (atlasShift & 4 ? 1 : 0);
-    const int shiftY = (atlasShift & 2 ? 1 : 0);
-    const int shiftZ = (atlasShift & 1 ? 1 : 0);
+    const int shiftX = codedAxesPrevLvl & 4 ? 1 : 0;
+    const int shiftY = codedAxesPrevLvl & 2 ? 1 : 0;
+    const int shiftZ = codedAxesPrevLvl & 1 ? 1 : 0;
 
     if (
       x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
@@ -224,15 +227,15 @@ makeGeometryNeighPattern(
 
   if (x > 0)
     gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x - 1, y, z, gnp, 0, !(atlasShift & 4));
+      occupancyAtlas, x - 1, y, z, gnp, 0, codedAxesCurLvl & 4);
 
   if (y > 0)
     gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y - 1, z, gnp, 1, !(atlasShift & 2));
+      occupancyAtlas, x, y - 1, z, gnp, 1, codedAxesCurLvl & 2);
 
   if (z > 0)
     gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y, z - 1, gnp, 2, !(atlasShift & 1));
+      occupancyAtlas, x, y, z - 1, gnp, 2, codedAxesCurLvl & 1);
 
   return gnp;
 }

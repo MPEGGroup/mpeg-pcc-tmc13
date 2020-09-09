@@ -1450,7 +1450,7 @@ decodeGeometryOctree(
 
         GeometryNeighPattern gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-          atlasShift, occupancyAtlas);
+          atlasShift, ~occupancySkipLevel, occupancyAtlas);
 
         node0.neighPattern = gnp.neighPattern;
         occupancyAdjacencyGt0 = gnp.adjacencyGt0;
