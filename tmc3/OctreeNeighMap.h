@@ -137,7 +137,8 @@ public:
     assert(
       x >= 0 && y >= 0 && z >= 0 && x < _cubeSize && y < _cubeSize
       && z < _cubeSize);
-    return _buffer[getByteIndex(x, y, z)] & 1;
+
+    return get(x, y, z, 1, 1, 1);
   }
 
   uint32_t
@@ -148,7 +149,7 @@ public:
       || z >= _cubeSize) {
       return false;
     }
-    return get(x, y, z);
+    return getWithCheck(x, y, z, 1, 1, 1);
   }
 
   void setChildOcc(int32_t x, int32_t y, int32_t z, uint8_t childOccupancy)

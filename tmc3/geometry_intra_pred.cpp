@@ -68,55 +68,30 @@ predictGeometryOccupancyIntra(
   const int8_t* kNeigh = &kNeighToChildIdx[0][0];
   int numOccupied = 0;
 
-  if (atlasShift == 0) {
-    for (int dx = -1; dx <= 1; dx++) {
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dz = -1; dz <= 1; dz++) {
-          if (dz == 0 && dy == 0 && dx == 0)
-            continue;
+  const int shiftX = (atlasShift & 4 ? 1 : 0);
+  const int shiftY = (atlasShift & 2 ? 1 : 0);
+  const int shiftZ = (atlasShift & 1 ? 1 : 0);
 
-          // todo(df): remove unnecessary checks
-          bool occupied = occupancyAtlas.getWithCheck(x + dx, y + dy, z + dz);
+  for (int dx = -1; dx <= 1; dx++) {
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dz = -1; dz <= 1; dz++) {
+        if (dz == 0 && dy == 0 && dx == 0)
+          continue;
 
-          if (occupied) {
-            numOccupied++;
-            for (int i = 0; i < 4; i++) {
-              if (!kNeigh[i])
-                break;
-              score[kNeigh[i] - 1]++;
-            }
+        // todo(df): remove unnecessary checks
+        bool occupied = occupancyAtlas.getWithCheck(
+          x + dx, y + dy, z + dz, shiftX, shiftY, shiftZ);
+
+        if (occupied) {
+          numOccupied++;
+          for (int i = 0; i < 4; i++) {
+            if (!kNeigh[i])
+              break;
+            score[kNeigh[i] - 1]++;
           }
-          // next pattern
-          kNeigh += 4;
         }
-      }
-    }
-  } else {
-    const int shiftX = (atlasShift & 4 ? 1 : 0);
-    const int shiftY = (atlasShift & 2 ? 1 : 0);
-    const int shiftZ = (atlasShift & 1 ? 1 : 0);
-
-    for (int dx = -1; dx <= 1; dx++) {
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dz = -1; dz <= 1; dz++) {
-          if (dz == 0 && dy == 0 && dx == 0)
-            continue;
-
-          // todo(df): remove unnecessary checks
-          bool occupied = occupancyAtlas.getWithCheck(
-            x + dx, y + dy, z + dz, shiftX, shiftY, shiftZ);
-
-          if (occupied) {
-            numOccupied++;
-            for (int i = 0; i < 4; i++) {
-              if (!kNeigh[i])
-                break;
-              score[kNeigh[i] - 1]++;
-            }
-          }
-          // next pattern
-          kNeigh += 4;
-        }
+        // next pattern
+        kNeigh += 4;
       }
     }
   }

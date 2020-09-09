@@ -160,57 +160,27 @@ makeGeometryNeighPattern(
   const int32_t y = position[1] & mask;
   const int32_t z = position[2] & mask;
   uint8_t neighPattern;
-  if (codedAxesPrevLvl == 0) {
-    if (
-      x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
-      && z < cubeSizeMinusOne) {
-      neighPattern = occupancyAtlas.get(x + 1, y, z);
-      neighPattern |= occupancyAtlas.get(x - 1, y, z) << 1;
-      neighPattern |= occupancyAtlas.get(x, y - 1, z) << 2;
-      neighPattern |= occupancyAtlas.get(x, y + 1, z) << 3;
-      neighPattern |= occupancyAtlas.get(x, y, z - 1) << 4;
-      neighPattern |= occupancyAtlas.get(x, y, z + 1) << 5;
-    } else {
-      neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z);
-      neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z) << 1;
-      neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z) << 2;
-      neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z) << 3;
-      neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1) << 4;
-      neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1) << 5;
-    }
-  } else {
-    const int shiftX = codedAxesPrevLvl & 4 ? 1 : 0;
-    const int shiftY = codedAxesPrevLvl & 2 ? 1 : 0;
-    const int shiftZ = codedAxesPrevLvl & 1 ? 1 : 0;
 
-    if (
-      x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
-      && z < cubeSizeMinusOne) {
-      neighPattern = occupancyAtlas.get(x + 1, y, z, shiftX, shiftY, shiftZ);
-      neighPattern |= occupancyAtlas.get(x - 1, y, z, shiftX, shiftY, shiftZ)
-        << 1;
-      neighPattern |= occupancyAtlas.get(x, y - 1, z, shiftX, shiftY, shiftZ)
-        << 2;
-      neighPattern |= occupancyAtlas.get(x, y + 1, z, shiftX, shiftY, shiftZ)
-        << 3;
-      neighPattern |= occupancyAtlas.get(x, y, z - 1, shiftX, shiftY, shiftZ)
-        << 4;
-      neighPattern |= occupancyAtlas.get(x, y, z + 1, shiftX, shiftY, shiftZ)
-        << 5;
-    } else {
-      neighPattern =
-        occupancyAtlas.getWithCheck(x + 1, y, z, shiftX, shiftY, shiftZ);
-      neighPattern |=
-        occupancyAtlas.getWithCheck(x - 1, y, z, shiftX, shiftY, shiftZ) << 1;
-      neighPattern |=
-        occupancyAtlas.getWithCheck(x, y - 1, z, shiftX, shiftY, shiftZ) << 2;
-      neighPattern |=
-        occupancyAtlas.getWithCheck(x, y + 1, z, shiftX, shiftY, shiftZ) << 3;
-      neighPattern |=
-        occupancyAtlas.getWithCheck(x, y, z - 1, shiftX, shiftY, shiftZ) << 4;
-      neighPattern |=
-        occupancyAtlas.getWithCheck(x, y, z + 1, shiftX, shiftY, shiftZ) << 5;
-    }
+  const int sx = codedAxesPrevLvl & 4 ? 1 : 0;
+  const int sy = codedAxesPrevLvl & 2 ? 1 : 0;
+  const int sz = codedAxesPrevLvl & 1 ? 1 : 0;
+
+  if (
+    x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+    && z < cubeSizeMinusOne) {
+    neighPattern = occupancyAtlas.get(x + 1, y, z, sx, sy, sz);
+    neighPattern |= occupancyAtlas.get(x - 1, y, z, sx, sy, sz) << 1;
+    neighPattern |= occupancyAtlas.get(x, y - 1, z, sx, sy, sz) << 2;
+    neighPattern |= occupancyAtlas.get(x, y + 1, z, sx, sy, sz) << 3;
+    neighPattern |= occupancyAtlas.get(x, y, z - 1, sx, sy, sz) << 4;
+    neighPattern |= occupancyAtlas.get(x, y, z + 1, sx, sy, sz) << 5;
+  } else {
+    neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z, sx, sy, sz);
+    neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z, sx, sy, sz) << 1;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z, sx, sy, sz) << 2;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z, sx, sy, sz) << 3;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1, sx, sy, sz) << 4;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1, sx, sy, sz) << 5;
   }
 
   // Above, the neighbour pattern corresponds directly to the six same
