@@ -634,19 +634,22 @@ maskPlanarZ(const OctreeNodePlanar& planar, bool implicitSkip)
 
 // three direction mask
 void
-maskPlanar(OctreeNodePlanar& planar, int mask[3], const int occupancySkip)
+maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes)
 {
   static const uint8_t kPossibleMask[3] = {6, 5, 3};
-  for (int k = 0; k <= 2; k++)
-    if (occupancySkip & (4 >> k)) {
+  for (int k = 0; k <= 2; k++) {
+    // QTBT does not split in this direction
+    //   => infer the mask low for occupancy bit coding
+    if (!(codedAxes & (4 >> k))) {
       planar.planarPossible = planar.planarPossible | (1 << k);
       planar.planePosBits = planar.planePosBits & kPossibleMask[k];
       planar.planarMode = planar.planarMode | (1 << k);
     }
+  }
 
-  mask[0] = maskPlanarX(planar, occupancySkip & 4);
-  mask[1] = maskPlanarY(planar, occupancySkip & 2);
-  mask[2] = maskPlanarZ(planar, occupancySkip & 1);
+  mask[0] = maskPlanarX(planar, !(codedAxes & 4));
+  mask[1] = maskPlanarY(planar, !(codedAxes & 2));
+  mask[2] = maskPlanarZ(planar, !(codedAxes & 1));
 }
 
 //----------------------------------------------------------------------------

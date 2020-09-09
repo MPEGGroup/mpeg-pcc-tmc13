@@ -1368,8 +1368,8 @@ decodeGeometryOctree(
     int nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
-    int atlasShift = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
-    int occupancySkipLevel = gbh.tree_lvl_coded_axis_list[depth] ^ 7;
+    int codedAxesPrevLvl = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
+    int codedAxesCurLvl = gbh.tree_lvl_coded_axis_list[depth];
 
     // Idcm quantisation applies to child nodes before per node qps
     if (--numLvlsUntilQpOffset > 0) {
@@ -1429,11 +1429,11 @@ decodeGeometryOctree(
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
       // make quantisation work with qtbt and planar.
-      auto occupancySkip = occupancySkipLevel;
+      auto codedAxesCurNode = codedAxesCurLvl;
       if (shiftBits != 0) {
         for (int k = 0; k < 3; k++) {
           if (effectiveChildSizeLog2[k] < 0)
-            occupancySkip |= (4 >> k);
+            codedAxesCurNode &= ~(4 >> k);
         }
       }
 
@@ -1443,12 +1443,12 @@ decodeGeometryOctree(
 
       if (gps.neighbour_avail_boundary_log2) {
         updateGeometryOccupancyAtlas(
-          node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          node0.pos, codedAxesPrevLvl, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
 
         GeometryNeighPattern gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-          atlasShift, ~occupancySkipLevel, occupancyAtlas);
+          codedAxesPrevLvl, codedAxesCurLvl, occupancyAtlas);
 
         node0.neighPattern = gnp.neighPattern;
         occupancyAdjacencyGt0 = gnp.adjacencyGt0;
@@ -1490,7 +1490,7 @@ decodeGeometryOctree(
           }
 
           for (int k = 0; k < 3; k++)
-            planarEligible[k] &= (~occupancySkip >> (2 - k)) & 1;
+            planarEligible[k] &= (codedAxesCurNode >> (2 - k)) & 1;
         }
 
         int planarProb[3] = {127, 127, 127};
@@ -1557,7 +1557,7 @@ decodeGeometryOctree(
         nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
         && gps.neighbour_avail_boundary_log2 > 0) {
         predictGeometryOccupancyIntra(
-          occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
+          occupancyAtlas, node0.pos, codedAxesPrevLvl, &occupancyIsPredicted,
           &occupancyPrediction);
       }
 
@@ -1567,7 +1567,7 @@ decodeGeometryOctree(
         // mask to be used for the occupancy coding
         // (bit =1 => occupancy bit not coded due to not belonging to the plane)
         int mask_planar[3] = {0, 0, 0};
-        maskPlanar(planar, mask_planar, occupancySkip);
+        maskPlanar(planar, mask_planar, codedAxesCurNode);
 
         occupancy = decoder.decodeOccupancy(
           node0.neighPattern, occupancyIsPredicted, occupancyPrediction,
@@ -1615,9 +1615,9 @@ decodeGeometryOctree(
           }
 
           // the final bits from the leaf:
-          Vec3<int32_t> point{(node0.posQ[0] << !(occupancySkip & 4)) + x,
-                              (node0.posQ[1] << !(occupancySkip & 2)) + y,
-                              (node0.posQ[2] << !(occupancySkip & 1)) + z};
+          Vec3<int32_t> point{(node0.posQ[0] << !!(codedAxesCurNode & 4)) + x,
+                              (node0.posQ[1] << !!(codedAxesCurNode & 2)) + y,
+                              (node0.posQ[2] << !!(codedAxesCurNode & 1)) + z};
 
           point = invQuantPosition(node0.qp, posQuantBitMasks, point);
 
@@ -1634,12 +1634,12 @@ decodeGeometryOctree(
 
         child.qp = node0.qp;
         // only shift position if an occupancy bit was coded for the axis
-        child.pos[0] = (node0.pos[0] << !(occupancySkipLevel & 4)) + x;
-        child.pos[1] = (node0.pos[1] << !(occupancySkipLevel & 2)) + y;
-        child.pos[2] = (node0.pos[2] << !(occupancySkipLevel & 1)) + z;
-        child.posQ[0] = (node0.posQ[0] << !(occupancySkip & 4)) + x;
-        child.posQ[1] = (node0.posQ[1] << !(occupancySkip & 2)) + y;
-        child.posQ[2] = (node0.posQ[2] << !(occupancySkip & 1)) + z;
+        child.pos[0] = (node0.pos[0] << !!(codedAxesCurLvl & 4)) + x;
+        child.pos[1] = (node0.pos[1] << !!(codedAxesCurLvl & 2)) + y;
+        child.pos[2] = (node0.pos[2] << !!(codedAxesCurLvl & 1)) + z;
+        child.posQ[0] = (node0.posQ[0] << !!(codedAxesCurNode & 4)) + x;
+        child.posQ[1] = (node0.posQ[1] << !!(codedAxesCurNode & 2)) + y;
+        child.posQ[2] = (node0.posQ[2] << !!(codedAxesCurNode & 1)) + z;
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;

@@ -1531,8 +1531,8 @@ encodeGeometryOctree(
     int nodeMaxDimLog2 = nodeSizeLog2.max();
 
     // if one dimension is not split, atlasShift[k] = 0
-    int atlasShift = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
-    int occupancySkipLevel = gbh.tree_lvl_coded_axis_list[depth] ^ 7;
+    int codedAxesPrevLvl = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
+    int codedAxesCurLvl = gbh.tree_lvl_coded_axis_list[depth];
 
     auto pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
 
@@ -1596,11 +1596,11 @@ encodeGeometryOctree(
       auto effectiveChildSizeLog2 = childSizeLog2 - shiftBits;
 
       // make quantisation work with qtbt and planar.
-      int occupancySkip = occupancySkipLevel;
+      int codedAxesCurNode = codedAxesCurLvl;
       if (shiftBits != 0) {
         for (int k = 0; k < 3; k++) {
           if (effectiveChildSizeLog2[k] < 0)
-            occupancySkip |= (4 >> k);
+            codedAxesCurNode &= ~(4 >> k);
         }
       }
 
@@ -1616,12 +1616,12 @@ encodeGeometryOctree(
 
       if (gps.neighbour_avail_boundary_log2) {
         updateGeometryOccupancyAtlas(
-          node0.pos, atlasShift, fifo, fifoCurrLvlEnd, &occupancyAtlas,
+          node0.pos, codedAxesPrevLvl, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
 
         GeometryNeighPattern gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag, node0.pos,
-          atlasShift, ~occupancySkipLevel, occupancyAtlas);
+          codedAxesPrevLvl, codedAxesCurLvl, occupancyAtlas);
 
         node0.neighPattern = gnp.neighPattern;
         occupancyAdjacencyGt0 = gnp.adjacencyGt0;
@@ -1688,7 +1688,7 @@ encodeGeometryOctree(
           }
 
           for (int k = 0; k < 3; k++)
-            planarEligible[k] &= (~occupancySkip >> (2 - k)) & 1;
+            planarEligible[k] &= (codedAxesCurNode >> (2 - k)) & 1;
         }
 
         int planarProb[3] = {127, 127, 127};
@@ -1767,7 +1767,7 @@ encodeGeometryOctree(
         // mask to be used for the occupancy coding
         // (bit =1 => occupancy bit not coded due to not belonging to the plane)
         int planarMask[3] = {0, 0, 0};
-        maskPlanar(planar, planarMask, occupancySkip);
+        maskPlanar(planar, planarMask, codedAxesCurNode);
 
         // generate intra prediction
         bool intraPredUsed = !(planarMask[0] | planarMask[1] | planarMask[2]);
@@ -1777,7 +1777,7 @@ encodeGeometryOctree(
           nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
           && gps.neighbour_avail_boundary_log2 > 0 && intraPredUsed) {
           predictGeometryOccupancyIntra(
-            occupancyAtlas, node0.pos, atlasShift, &occupancyIsPredicted,
+            occupancyAtlas, node0.pos, codedAxesPrevLvl, &occupancyIsPredicted,
             &occupancyPrediction);
         }
 
@@ -1852,9 +1852,9 @@ encodeGeometryOctree(
 
         child.qp = node0.qp;
         // only shift position if an occupancy bit was coded for the axis
-        child.pos[0] = (node0.pos[0] << !(occupancySkipLevel & 4)) + x;
-        child.pos[1] = (node0.pos[1] << !(occupancySkipLevel & 2)) + y;
-        child.pos[2] = (node0.pos[2] << !(occupancySkipLevel & 1)) + z;
+        child.pos[0] = (node0.pos[0] << !!(codedAxesCurLvl & 4)) + x;
+        child.pos[1] = (node0.pos[1] << !!(codedAxesCurLvl & 2)) + y;
+        child.pos[2] = (node0.pos[2] << !!(codedAxesCurLvl & 1)) + z;
 
         child.start = childPointsStartIdx;
         childPointsStartIdx += childCounts[i];

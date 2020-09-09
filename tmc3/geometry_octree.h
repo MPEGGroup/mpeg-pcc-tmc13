@@ -371,8 +371,7 @@ int maskPlanarX(const OctreeNodePlanar& planar, bool activatable);
 int maskPlanarY(const OctreeNodePlanar& planar, bool activatable);
 int maskPlanarZ(const OctreeNodePlanar& planar, bool activatable);
 
-void
-maskPlanar(OctreeNodePlanar& planar, int mask[3], const int occupancySkip);
+void maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes);
 
 int determineContextAngleForPlanar(
   PCCOctree3Node& child,
