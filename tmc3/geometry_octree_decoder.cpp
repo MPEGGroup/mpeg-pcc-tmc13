@@ -1377,7 +1377,7 @@ decodeGeometryOctree(
     if (--numLvlsUntilQpOffset > 0) {
       // If planar is enabled, the planar bits are not quantised (since
       // the planar mode is determined before quantisation)
-      auto quantNodeSizeLog2 = childSizeLog2;
+      auto quantNodeSizeLog2 = nodeSizeLog2;
       if (gps.geom_planar_mode_enabled_flag)
         quantNodeSizeLog2 -= 1;
 
