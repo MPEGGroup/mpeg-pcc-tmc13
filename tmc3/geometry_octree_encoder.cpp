@@ -1714,6 +1714,9 @@ encodeGeometryOctree(
         node0.idcmEligible = false;
 
       if (node0.idcmEligible) {
+        // todo(df): this is pessimistic in the presence of idcm quantisation,
+        // since that is eligible may only meet the point count constraint
+        // after quantisation, which is performed after the decision is taken.
         auto mode = canEncodeDirectPosition(
           gps.geom_unique_points_flag, node0, pointCloud);
 
@@ -1727,6 +1730,9 @@ encodeGeometryOctree(
             node0.qp = idcmQp;
             idcmSize = nodeSizeLog2 - QuantizerGeom::qpShift(idcmQp);
             geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
+
+            if (gps.geom_unique_points_flag)
+              checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
           }
 
           encoder.encodeDirectPosition(
