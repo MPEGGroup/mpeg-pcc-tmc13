@@ -62,9 +62,6 @@ struct PCCOctree3Node {
   uint32_t start;
   uint32_t end;
 
-  // address of the current node in 3D morton order.
-  int64_t mortonIdx;
-
   // pattern denoting occupied neighbour nodes.
   //    32 8 (y)
   //     |/

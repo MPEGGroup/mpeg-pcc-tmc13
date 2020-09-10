@@ -236,11 +236,6 @@ updateGeometryNeighState(
   uint8_t neighPattern,
   uint8_t parentOccupancy)
 {
-  int64_t midx;
-  if (!siblingRestriction) {
-    midx = child.mortonIdx = mortonAddr(child.pos);
-  }
-
   static const struct {
     int childIdxBitPos;
     int axis;
@@ -259,54 +254,10 @@ updateGeometryNeighState(
       // $axis co-ordinate = 0
       if (parentOccupancy & (1 << (childIdx + param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagThem;
-
-      if (!(neighPattern & param.patternFlagUs))
-        continue;
     } else {
       if (parentOccupancy & (1 << (childIdx - param.childIdxBitPos)))
         child.neighPattern |= param.patternFlagUs;
-
-      // no external search is required for $axis co-ordinate = 1
-      continue;
     }
-
-    if (siblingRestriction)
-      continue;
-
-    // calculate the morton address of the 'left' neighbour,
-    // the delta is then used as the starting position for a search
-    int64_t mortonIdxNeigh =
-      morton3dAxisDec(midx, param.axis) & ~0x8000000000000000ull;
-    int64_t mortonDelta = midx - mortonIdxNeigh;
-
-    if (mortonDelta < 0) {
-      // no neighbour due to being in zero-th col/row/plane
-      continue;
-    }
-
-    // NB: fifo already contains current node, no point searching it
-    auto posEnd = bufEnd;
-    std::advance(posEnd, -1);
-
-    auto posStart = bufEnd;
-    std::advance(posStart, -std::min(numNodesNextLvl, mortonDelta + 2));
-
-    auto found = std::lower_bound(
-      posStart, posEnd, mortonIdxNeigh,
-      [](const PCCOctree3Node& node, int64_t mortonIdx) {
-        return node.mortonIdx < mortonIdx;
-      });
-
-    // NB: found is always valid (see posEnd) => can skip check.
-    if (found->mortonIdx != mortonIdxNeigh) {
-      // neighbour isn't present => must have been empty
-      continue;
-    }
-
-    // update both node's neighbour pattern
-    // NB: neighours being present implies occupancy
-    child.neighPattern |= param.patternFlagUs;
-    found->neighPattern |= param.patternFlagThem;
   }
 }
 
