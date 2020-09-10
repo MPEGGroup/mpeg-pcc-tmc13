@@ -1726,9 +1726,10 @@ encodeGeometryOctree(
           int idcmShiftBits = shiftBits;
           auto idcmSize = effectiveNodeSizeLog2;
 
-          if (mode != DirectMode::kUnavailable && idcmQp) {
+          if (idcmQp) {
             node0.qp = idcmQp;
-            idcmSize = nodeSizeLog2 - QuantizerGeom::qpShift(idcmQp);
+            idcmShiftBits = QuantizerGeom::qpShift(idcmQp);
+            idcmSize = nodeSizeLog2 - idcmShiftBits;
             geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
 
             if (gps.geom_unique_points_flag)
