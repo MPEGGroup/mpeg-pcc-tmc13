@@ -1276,7 +1276,6 @@ decodeGeometryOctree(
   node00.start = uint32_t(0);
   node00.end = uint32_t(0);
   node00.pos = int32_t(0);
-  node00.posQ = int32_t(0);
   node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
@@ -1527,10 +1526,8 @@ decodeGeometryOctree(
 
           for (int j = 0; j < numPoints; j++) {
             auto& point = pointCloud[processedPointCount++];
-            for (int k = 0; k < 3; k++) {
-              int shift = std::max(0, idcmSize[k]);
-              point[k] += node0.posQ[k] << shift;
-            }
+            for (int k = 0; k < 3; k++)
+              point[k] += rotateLeft(node0.pos[k], idcmSize[k]);
 
             point = invQuantPosition(node0.qp, posQuantBitMasks, point);
           }
@@ -1615,9 +1612,13 @@ decodeGeometryOctree(
           }
 
           // the final bits from the leaf:
-          Vec3<int32_t> point{(node0.posQ[0] << !!(codedAxesCurNode & 4)) + x,
-                              (node0.posQ[1] << !!(codedAxesCurNode & 2)) + y,
-                              (node0.posQ[2] << !!(codedAxesCurNode & 1)) + z};
+          Vec3<int32_t> point{(node0.pos[0] << !!(codedAxesCurLvl & 4)) + x,
+                              (node0.pos[1] << !!(codedAxesCurLvl & 2)) + y,
+                              (node0.pos[2] << !!(codedAxesCurLvl & 1)) + z};
+
+          // remove any padding bits that were not coded
+          for (int k = 0; k < 3; k++)
+            point[k] = rotateLeft(point[k], effectiveChildSizeLog2[k]);
 
           point = invQuantPosition(node0.qp, posQuantBitMasks, point);
 
@@ -1637,9 +1638,6 @@ decodeGeometryOctree(
         child.pos[0] = (node0.pos[0] << !!(codedAxesCurLvl & 4)) + x;
         child.pos[1] = (node0.pos[1] << !!(codedAxesCurLvl & 2)) + y;
         child.pos[2] = (node0.pos[2] << !!(codedAxesCurLvl & 1)) + z;
-        child.posQ[0] = (node0.posQ[0] << !!(codedAxesCurNode & 4)) + x;
-        child.posQ[1] = (node0.posQ[1] << !!(codedAxesCurNode & 2)) + y;
-        child.posQ[2] = (node0.posQ[2] << !!(codedAxesCurNode & 1)) + z;
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;

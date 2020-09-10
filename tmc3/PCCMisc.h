@@ -186,6 +186,20 @@ numBits(int x)
 }
 
 //---------------------------------------------------------------------------
+// rotate left by n bits.
+// If n is negative, the effect is to rotate right.
+// NB: Signed types are treated as unsigned.
+
+template<typename T>
+T
+rotateLeft(T val, int n)
+{
+  n &= sizeof(T) * 8 - 1;
+  using unsigned_t = typename std::make_unsigned<T>::type;
+  return (unsigned_t(val) << n) | (unsigned_t(val) >> (8 * sizeof(val) - n));
+}
+
+//---------------------------------------------------------------------------
 // Compute an approximation of \left\floor \sqrt{x} \right\floor
 
 uint32_t isqrt(uint64_t x) __attribute__((const));
