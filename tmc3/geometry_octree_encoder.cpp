@@ -1101,8 +1101,7 @@ calculateNodeQps(
 {
   // determine delta qp for each node based on the point density
   // Conformance: limit the qp such that it cannot overquantize the node
-  int minNs = nodeSizeLog2.min();
-  int maxQp = minNs * 8 - (1 << geom_qp_multiplier_log2);
+  int maxQp = nodeSizeLog2.min() * 8;
   int lowQp = PCCClip(baseQp - 8, 0, maxQp);
   int mediumQp = std::min(baseQp, maxQp);
   int highQp = std::min(baseQp + 8, maxQp);
