@@ -71,21 +71,12 @@ public:
   int cubeSize() const { return _cubeSize; }
   int cubeSizeLog2() const { return _cubeSizeLog2; }
 
-  void clear(bool clearOccupancy)
-  {
-    memset(_buffer.get(), 0, _bufferSizeInBytes);
-    if (clearOccupancy)
-      memset(_childOccupancy.get(), 0, _bufferSizeInBytes << 3);
-    _updates.resize(0);
-  }
+  // Removes all updates, zeros all map entries.  Does not affect child map.
+  void clear();
 
-  void clearUpdates()
-  {
-    for (const auto byteIndex : _updates) {
-      _buffer[byteIndex] = uint8_t(0);
-    }
-    _updates.resize(0);
-  }
+  // Reverts all updates, zeroing affected map entries.
+  // Only modified bytes are touched.
+  void clearUpdates();
 
   void setByte(
     const int32_t x, const int32_t y, const int32_t z, const uint8_t value)

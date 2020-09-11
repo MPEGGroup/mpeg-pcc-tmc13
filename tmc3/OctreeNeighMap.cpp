@@ -37,7 +37,45 @@
 
 #include <iostream>
 
+#if WITH_MEMCHECK
+#  include <valgrind/memcheck.h>
+#else
+#  define VALGRIND_MAKE_MEM_UNDEFINED(a, b) (void)0
+#endif
+
 namespace pcc {
+
+//============================================================================
+
+void
+MortonMap3D::clearUpdates()
+{
+  for (const auto byteIndex : _updates) {
+    _buffer[byteIndex] = uint8_t(0);
+  }
+  _updates.resize(0);
+
+  // Access to the child array is supposed to be guarded by checking the main
+  // map first.  It is therefore not necessary to clear the array between
+  // updates.  Setting it to zero just hides the issue -- ie, tools like
+  // valgrind don't complain, but the logic error is still present.
+  //
+  // The following undoes the effect of any writes that have cleared the
+  // undefined state.
+  VALGRIND_MAKE_MEM_UNDEFINED(_childOccupancy.get(), _bufferSizeInBytes << 3);
+}
+
+//----------------------------------------------------------------------------
+
+void
+MortonMap3D::clear()
+{
+  memset(_buffer.get(), 0, _bufferSizeInBytes);
+  _updates.resize(0);
+
+  // See clearUpdates()
+  VALGRIND_MAKE_MEM_UNDEFINED(_childOccupancy.get(), _bufferSizeInBytes << 3);
+}
 
 //============================================================================
 

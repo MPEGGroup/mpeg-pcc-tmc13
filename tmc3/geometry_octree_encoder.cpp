@@ -1459,9 +1459,7 @@ encodeGeometryOctree(
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
     occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
-    occupancyAtlas.clear(
-      gps.adjacent_child_contextualization_enabled_flag
-      && gps.inferred_direct_coding_mode > 1);
+    occupancyAtlas.clear();
   }
 
   // the minimum node size is ordinarily 2**0, but may be larger due to
