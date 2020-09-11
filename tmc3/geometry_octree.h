@@ -62,14 +62,6 @@ struct PCCOctree3Node {
   uint32_t start;
   uint32_t end;
 
-  // pattern denoting occupied neighbour nodes.
-  //    32 8 (y)
-  //     |/
-  //  2--n--1 (x)
-  //    /|
-  //   4 16 (z)
-  uint8_t neighPattern = 0;
-
   // The current node's number of siblings plus one.
   // ie, the number of child nodes present in this node's parent.
   uint8_t numSiblingsPlus1;
@@ -128,6 +120,7 @@ inline bool
 isDirectModeEligible(
   int intensity,
   int nodeSizeLog2,
+  int nodeNeighPattern,
   const PCCOctree3Node& node,
   const PCCOctree3Node& child)
 {
@@ -135,11 +128,11 @@ isDirectModeEligible(
     return false;
 
   if (intensity == 1)
-    return (nodeSizeLog2 >= 2) && (node.neighPattern == 0)
+    return (nodeSizeLog2 >= 2) && (nodeNeighPattern == 0)
       && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 
   if (intensity == 2)
-    return (nodeSizeLog2 >= 2) && (node.neighPattern == 0);
+    return (nodeSizeLog2 >= 2) && (nodeNeighPattern == 0);
 
   // This is basically unconditionally enabled.
   // If a node is that is IDCM-eligible is not coded with IDCM and has only

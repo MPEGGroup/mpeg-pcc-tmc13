@@ -163,13 +163,10 @@ public:
   void encodeOccupancyBytewise(int neighPattern, int mappedOccupancy);
 
   void encodeOccupancy(
-    int neighPattern,
+    const GeometryNeighPattern& gnp,
     int occupancy,
     int occupancyIsPredicted,
     int occupancyPrediction,
-    int occupancyAdjGt0,
-    int occupancyAdjGt1,
-    int occupancyAdjUnocc,
     int planarMaskX,
     int planarMaskY,
     int planarMaskZ,
@@ -754,13 +751,10 @@ GeometryOctreeEncoder::encodeOccupancyBytewise(
 
 void
 GeometryOctreeEncoder::encodeOccupancy(
-  int neighPattern,
+  const GeometryNeighPattern& gnp,
   int occupancy,
   int occupancyIsPred,
   int occupancyPred,
-  int occupancyAdjGt0,
-  int occupancyAdjGt1,
-  int occupancyAdjUnocc,
   int planarMaskX,
   int planarMaskY,
   int planarMaskZ,
@@ -772,7 +766,7 @@ GeometryOctreeEncoder::encodeOccupancy(
   if (planarMaskX && planarMaskY && planarMaskZ)
     return;
 
-  if (neighPattern == 0) {
+  if (gnp.neighPattern == 0) {
     bool singleChild = !popcntGt1(occupancy);
     if (planarPossibleX && planarPossibleY && planarPossibleZ) {
       _arithmeticEncoder->encode(singleChild, _ctxSingleChild);
@@ -795,7 +789,7 @@ GeometryOctreeEncoder::encodeOccupancy(
   }
 
   // at least two child nodes occupied and two planars => we know the occupancy
-  if (neighPattern == 0) {
+  if (gnp.neighPattern == 0) {
     if (planarMaskX && planarMaskY)
       return;
     if (planarMaskY && planarMaskZ)
@@ -804,20 +798,21 @@ GeometryOctreeEncoder::encodeOccupancy(
       return;
   }
 
-  uint32_t mapOcc = mapGeometryOccupancy(occupancy, neighPattern);
-  uint32_t mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
-  uint32_t mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
-  uint32_t mapAdjGt0 = mapGeometryOccupancy(occupancyAdjGt0, neighPattern);
-  uint32_t mapAdjGt1 = mapGeometryOccupancy(occupancyAdjGt1, neighPattern);
-  uint32_t mapAdjUnocc = mapGeometryOccupancy(occupancyAdjUnocc, neighPattern);
+  auto neighPattern = gnp.neighPattern;
+  auto mapOcc = mapGeometryOccupancy(occupancy, neighPattern);
+  auto mapOccIsP = mapGeometryOccupancy(occupancyIsPred, neighPattern);
+  auto mapOccP = mapGeometryOccupancy(occupancyPred, neighPattern);
+  auto mapAdjGt0 = mapGeometryOccupancy(gnp.adjacencyGt0, neighPattern);
+  auto mapAdjGt1 = mapGeometryOccupancy(gnp.adjacencyGt1, neighPattern);
+  auto mapAdjUnocc = mapGeometryOccupancy(gnp.adjacencyUnocc, neighPattern);
 
-  uint32_t mapPlanarMaskX = mapGeometryOccupancy(planarMaskX, neighPattern);
-  uint32_t mapPlanarMaskY = mapGeometryOccupancy(planarMaskY, neighPattern);
-  uint32_t mapPlanarMaskZ = mapGeometryOccupancy(planarMaskZ, neighPattern);
+  auto mapPlanarMaskX = mapGeometryOccupancy(planarMaskX, neighPattern);
+  auto mapPlanarMaskY = mapGeometryOccupancy(planarMaskY, neighPattern);
+  auto mapPlanarMaskZ = mapGeometryOccupancy(planarMaskZ, neighPattern);
 
-  uint32_t mapFixedMaskX0 = mapGeometryOccupancy(0xf0, neighPattern);
-  uint32_t mapFixedMaskY0 = mapGeometryOccupancy(0xcc, neighPattern);
-  uint32_t mapFixedMaskZ0 = mapGeometryOccupancy(0xaa, neighPattern);
+  auto mapFixedMaskX0 = mapGeometryOccupancy(0xf0, neighPattern);
+  auto mapFixedMaskY0 = mapGeometryOccupancy(0xcc, neighPattern);
+  auto mapFixedMaskZ0 = mapGeometryOccupancy(0xaa, neighPattern);
 
   if (_useBitwiseOccupancyCoder)
     encodeOccupancyBitwise(
@@ -1422,7 +1417,6 @@ encodeGeometryOctree(
   node00.start = uint32_t(0);
   node00.end = uint32_t(pointCloud.getPointCount());
   node00.pos = int32_t(0);
-  node00.neighPattern = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
   node00.qp = 0;
@@ -1610,23 +1604,15 @@ encodeGeometryOctree(
           checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
       }
 
-      int occupancyAdjacencyGt0 = 0;
-      int occupancyAdjacencyGt1 = 0;
-      int occupancyAdjacencyUnocc = 0;
-
+      GeometryNeighPattern gnp{};
       if (gps.neighbour_avail_boundary_log2) {
         updateGeometryOccupancyAtlas(
           node0.pos, codedAxesPrevLvl, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
 
-        GeometryNeighPattern gnp = makeGeometryNeighPattern(
+        gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag, node0.pos,
           codedAxesPrevLvl, codedAxesCurLvl, occupancyAtlas);
-
-        node0.neighPattern = gnp.neighPattern;
-        occupancyAdjacencyGt0 = gnp.adjacencyGt0;
-        occupancyAdjacencyGt1 = gnp.adjacencyGt1;
-        occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
       } else {
         // The position of the node in the parent's occupancy map
         int posInParent = 0;
@@ -1635,7 +1621,7 @@ encodeGeometryOctree(
         posInParent |= (node0.pos[2] & 1) << 0;
         posInParent &= codedAxesPrevLvl;
 
-        node0.neighPattern =
+        gnp.neighPattern =
           neighPatternFromOccupancy(posInParent, node0.siblingOccupancy);
       }
 
@@ -1705,7 +1691,7 @@ encodeGeometryOctree(
         // determine planarity if eligible
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           encoder.determinePlanarMode(
-            occupancy, planarEligible, node0, planar, node0.neighPattern,
+            occupancy, planarEligible, node0, planar, gnp.neighPattern,
             planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
 
         node0.idcmEligible &=
@@ -1792,9 +1778,8 @@ encodeGeometryOctree(
         }
 
         encoder.encodeOccupancy(
-          node0.neighPattern, occupancy, occupancyIsPredicted,
-          occupancyPrediction, occupancyAdjacencyGt0, occupancyAdjacencyGt1,
-          occupancyAdjacencyUnocc, planarMask[0], planarMask[1], planarMask[2],
+          gnp, occupancy, occupancyIsPredicted, occupancyPrediction,
+          planarMask[0], planarMask[1], planarMask[2],
           planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4);
       }
@@ -1874,7 +1859,8 @@ encodeGeometryOctree(
         child.laserIndex = node0.laserIndex;
 
         child.idcmEligible = isDirectModeEligible(
-          gps.inferred_direct_coding_mode, nodeMaxDimLog2, node0, child);
+          gps.inferred_direct_coding_mode, nodeMaxDimLog2, gnp.neighPattern,
+          node0, child);
 
         numNodesNextLvl++;
       }

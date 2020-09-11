@@ -184,6 +184,11 @@ private:
 
 struct GeometryNeighPattern {
   // Mask indicating presence of neigbours of the corresponding tree node
+  //    32 8 (y)
+  //     |/
+  //  2--n--1 (x)
+  //    /|
+  //   4 16 (z)
   uint8_t neighPattern;
 
   // mask indicating the number of external child neighbours
