@@ -1458,7 +1458,9 @@ encodeGeometryOctree(
 
   MortonMap3D occupancyAtlas;
   if (gps.neighbour_avail_boundary_log2) {
-    occupancyAtlas.resize(gps.neighbour_avail_boundary_log2);
+    occupancyAtlas.resize(
+      gps.adjacent_child_contextualization_enabled_flag,
+      gps.neighbour_avail_boundary_log2);
     occupancyAtlas.clear();
   }
 
@@ -1748,7 +1750,7 @@ encodeGeometryOctree(
 
           // This node has no children, ensure that future nodes avoid
           // accessing stale child occupancy data.
-          if (gps.neighbour_avail_boundary_log2)
+          if (gps.adjacent_child_contextualization_enabled_flag)
             updateGeometryOccupancyAtlasOccChild(
               node0.pos, 0, &occupancyAtlas);
 
@@ -1791,7 +1793,7 @@ encodeGeometryOctree(
       // NB: the child occupancy atlas must be updated even if the current
       //     node has no occupancy coded in order to clear any stale state in
       //     the atlas.
-      if (gps.neighbour_avail_boundary_log2)
+      if (gps.adjacent_child_contextualization_enabled_flag)
         updateGeometryOccupancyAtlasOccChild(
           node0.pos, occupancy, &occupancyAtlas);
 

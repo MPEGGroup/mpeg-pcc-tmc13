@@ -686,6 +686,8 @@ parseGps(const PayloadBuffer& buf)
     }
     bs.read(&gps.qtbt_enabled_flag);
     bs.readUe(&gps.neighbour_avail_boundary_log2);
+
+    gps.adjacent_child_contextualization_enabled_flag = 0;
     if (gps.neighbour_avail_boundary_log2 > 0) {
       bs.read(&gps.adjacent_child_contextualization_enabled_flag);
       bs.readUe(&gps.intra_pred_max_node_size_log2);

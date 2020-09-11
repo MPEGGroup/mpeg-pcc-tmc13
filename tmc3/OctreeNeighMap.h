@@ -56,7 +56,7 @@ namespace pcc {
 
 class MortonMap3D {
 public:
-  void resize(const uint32_t cubeSizeLog2)
+  void resize(bool childOccupancyEnabled, const uint32_t cubeSizeLog2)
   {
     assert(cubeSizeLog2 < 10);
     const uint32_t halfCubeSizeLog2 = cubeSizeLog2 ? cubeSizeLog2 - 1 : 0;
@@ -64,7 +64,8 @@ public:
     _cubeSize = 1 << cubeSizeLog2;
     _bufferSizeInBytes = 1 << (3 * cubeSizeLog2);
     _buffer.reset(new uint8_t[_bufferSizeInBytes]);
-    _childOccupancy.reset(new uint8_t[_bufferSizeInBytes << 3]);
+    if (childOccupancyEnabled)
+      _childOccupancy.reset(new uint8_t[_bufferSizeInBytes << 3]);
     _updates.reserve(1 << 16);
   }
 

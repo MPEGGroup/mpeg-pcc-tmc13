@@ -380,6 +380,11 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   if (params->gps.inferred_direct_coding_mode > 1)
     params->gps.geom_planar_idcm_threshold = 127;
 
+  // Feature dependencies
+  if (!params->gps.neighbour_avail_boundary_log2) {
+    params->gps.adjacent_child_contextualization_enabled_flag = 0;
+  }
+
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
     auto& attr_sps = params->sps.attributeSets[it.second];

@@ -1199,6 +1199,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     && !params.encoder.gps.geom_angular_mode_enabled_flag)
     err.error() << "planar buffer can only be disabled with angular mode\n";
 
+  // The following featues depend upon the occupancy atlas
+  if (!params.encoder.gps.neighbour_avail_boundary_log2) {
+    if (params.encoder.gps.adjacent_child_contextualization_enabled_flag)
+      err.warn() << "ignoring adjacentChildContextualization when"
+                    " neighbourAvailBoundaryLog2=0\n";
+
+    params.encoder.gps.adjacent_child_contextualization_enabled_flag = 0;
+  }
+
   if (
     params.encoder.partition.sliceMaxPoints
     < params.encoder.partition.sliceMinPoints)
