@@ -383,6 +383,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // Feature dependencies
   if (!params->gps.neighbour_avail_boundary_log2) {
     params->gps.adjacent_child_contextualization_enabled_flag = 0;
+    params->gps.intra_pred_max_node_size_log2 = 0;
   }
 
   // fixup attribute parameters

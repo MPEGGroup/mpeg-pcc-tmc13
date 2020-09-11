@@ -1205,7 +1205,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       err.warn() << "ignoring adjacentChildContextualization when"
                     " neighbourAvailBoundaryLog2=0\n";
 
+    if (params.encoder.gps.intra_pred_max_node_size_log2)
+      err.warn() << "ignoring intra_pred_max_node_size_log2 when"
+                    " neighbourAvailBoundaryLog2=0\n";
+
     params.encoder.gps.adjacent_child_contextualization_enabled_flag = 0;
+    params.encoder.gps.intra_pred_max_node_size_log2 = 0;
   }
 
   if (
