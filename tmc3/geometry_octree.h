@@ -98,17 +98,13 @@ struct OctreeNodePlanar {
 };
 
 //---------------------------------------------------------------------------
+
+int neighPatternFromOccupancy(int pos, int occupancy);
+
+//---------------------------------------------------------------------------
+
 uint8_t mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern);
 uint8_t mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern);
-
-void updateGeometryNeighState(
-  bool siblingRestriction,
-  const ringbuf<PCCOctree3Node>::iterator& bufEnd,
-  int64_t numNodesNextLvl,
-  PCCOctree3Node& child,
-  int childIdx,
-  uint8_t neighPattern,
-  uint8_t parentOccupancy);
 
 //---------------------------------------------------------------------------
 // Determine if a node is a leaf node based on size.

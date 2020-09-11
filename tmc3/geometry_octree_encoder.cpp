@@ -1627,6 +1627,16 @@ encodeGeometryOctree(
         occupancyAdjacencyGt0 = gnp.adjacencyGt0;
         occupancyAdjacencyGt1 = gnp.adjacencyGt1;
         occupancyAdjacencyUnocc = gnp.adjacencyUnocc;
+      } else {
+        // The position of the node in the parent's occupancy map
+        int posInParent = 0;
+        posInParent |= (node0.pos[0] & 1) << 2;
+        posInParent |= (node0.pos[1] & 1) << 1;
+        posInParent |= (node0.pos[2] & 1) << 0;
+        posInParent &= codedAxesPrevLvl;
+
+        node0.neighPattern =
+          neighPatternFromOccupancy(posInParent, node0.siblingOccupancy);
       }
 
       // split the current node into 8 children
@@ -1867,14 +1877,6 @@ encodeGeometryOctree(
           gps.inferred_direct_coding_mode, nodeMaxDimLog2, node0, child);
 
         numNodesNextLvl++;
-
-        // NB: when neighbourAvailBoundaryLog2 is set equal to 0, an alternative
-        //     implementation is used to calculate sibling neighPattern.
-        if (!gps.neighbour_avail_boundary_log2) {
-          updateGeometryNeighState(
-            true, fifo.end(), numNodesNextLvl, child, i, node0.neighPattern,
-            occupancy);
-        }
       }
     }
 

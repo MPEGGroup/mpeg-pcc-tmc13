@@ -221,44 +221,35 @@ mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
 }
 
 //============================================================================
-// Update the neighbour pattern flags for a node and the 'left' neighbour on
-// each axis.  This update should be applied to each newly inserted node.
+// Derive the neighbour pattern for the three siblings of a node
+// from the parent's occupancy byte.
 //
-// @param siblingRestriction limits neighbours to direct siblings of child
+// @param pos        index of the node in the occupancy scan order.
+// @param occupancy  occupancy byte of the parent node
+//
+// @returns the six-neighbour pattern.
 
-void
-updateGeometryNeighState(
-  bool siblingRestriction,
-  const ringbuf<PCCOctree3Node>::iterator& bufEnd,
-  int64_t numNodesNextLvl,
-  PCCOctree3Node& child,
-  int childIdx,
-  uint8_t neighPattern,
-  uint8_t parentOccupancy)
+int
+neighPatternFromOccupancy(int pos, int occupancy)
 {
-  static const struct {
-    int childIdxBitPos;
-    int axis;
-    int patternFlagUs;
-    int patternFlagThem;
-  } neighParamMap[] = {
-    {4, 2, 1 << 1, 1 << 0},  // x
-    {2, 1, 1 << 2, 1 << 3},  // y
-    {1, 0, 1 << 4, 1 << 5},  // z
-  };
-
-  for (const auto& param : neighParamMap) {
-    // skip expensive check if parent's flags indicate adjacent neighbour
-    // is not present.
-    if ((childIdx & param.childIdxBitPos) == 0) {
-      // $axis co-ordinate = 0
-      if (parentOccupancy & (1 << (childIdx + param.childIdxBitPos)))
-        child.neighPattern |= param.patternFlagThem;
-    } else {
-      if (parentOccupancy & (1 << (childIdx - param.childIdxBitPos)))
-        child.neighPattern |= param.patternFlagUs;
-    }
-  }
+  /* The following maps the three neighbours of a child at position pos
+   * to form a six-neighbour pattern from occupancy:
+   *    pos | occupancy | neighpat
+   *    xyz |  76543210 |  udfblr
+   *    000 |  ...r.fu. |  1.2..4
+   *    001 |  ..r.f..d |  .03..5
+   *    010 |  .r..u..b |  3..0.6
+   *    011 |  r....db. |  .2.1.7
+   *    100 |  .fu....l |  5.6.0.
+   *    101 |  f..d..l. |  .47.1.
+   *    110 |  u..b.l.. |  7..42.
+   *    111 |  .db.l... |  .6.53.
+   */
+  int neighPat = 0;
+  neighPat |= ((occupancy >> (pos ^ 4)) & 1) << (0 + ((pos >> 2) & 1));   // x
+  neighPat |= ((occupancy >> (pos ^ 2)) & 1) << (2 + ((~pos >> 1) & 1));  // y
+  neighPat |= ((occupancy >> (pos ^ 1)) & 1) << (4 + ((~pos >> 0) & 1));  // z
+  return neighPat;
 }
 
 //============================================================================
