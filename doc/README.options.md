@@ -276,6 +276,27 @@ Enables in-loop quantisation and reconstruction of geometry positions.
 NB: All in-loop quantisation is independent (and happens after) any
 position scaling due to `positionQuantizationScale`.
 
+### `--positionQuantisationMethod=0|1|2`
+Selects the method used to determine the QP value for each quantised
+tree node.
+
+  | Value | Description      |
+  |:-----:| ---------------- |
+  | 0     | Uniform          |
+  | 1     | Random           |
+  | 2     | By point density |
+
+The 'uniform' method sets every node QP to the slice QP.
+
+The 'random' method picks a uniformly distributed random QP for each node from
+the range of permitted values.  The seed for random number generation may
+be set using the environment variable `SEED`.
+
+The 'point density' method varies the per-node qp according to the relative
+number of points in each node.  The sparsest 5% of nodes use $sliceQp +
+qpPot$, the densest 40% of nodes use $sliceQp - qpPot$, and the remaining
+nodes use $sliceQp$, where qpPot is `8 >> positionQpMultiplierLog2`.
+
 ### `--positionBaseQp=INT-VALUE`
 The quantisation parameter used to quantise geometry positions.  The
 effective QP may be varied according to `positionSliceQpOffset` and

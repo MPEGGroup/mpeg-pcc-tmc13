@@ -44,6 +44,7 @@
 #include "quantization.h"
 
 #include <set>
+#include <random>
 
 namespace pcc {
 
@@ -1087,14 +1088,57 @@ GeometryOctreeEncoder::encodeQpOffset(int dqp)
 
 template<typename It>
 void
-calculateNodeQps(
+setNodeQpsUniform(
+  Vec3<int> nodeSizeLog2,
+  int qp,
+  int geom_qp_multiplier_log2,
+  It nodesBegin,
+  It nodesEnd)
+{
+  // Conformance: limit the qp such that it cannot overquantize the node
+  qp = std::min(qp, nodeSizeLog2.min() * 8);
+  assert(qp % (1 << geom_qp_multiplier_log2) == 0);
+
+  for (auto it = nodesBegin; it != nodesEnd; ++it)
+    it->qp = qp;
+}
+
+//-------------------------------------------------------------------------
+// Sets QP randomly
+
+template<typename It>
+void
+setNodeQpsRandom(
+  Vec3<int> nodeSizeLog2,
+  int /* qp */,
+  int geom_qp_multiplier_log2,
+  It nodesBegin,
+  It nodesEnd)
+{
+  // Conformance: limit the qp such that it cannot overquantize the node
+  int maxQp = nodeSizeLog2.min() * 8;
+
+  int seed = getenv("SEED") ? atoi(getenv("SEED")) : 0;
+  static std::minstd_rand gen(seed);
+  std::uniform_int_distribution<> uniform(0, maxQp);
+
+  // pick a random qp, avoiding unrepresentable values
+  for (auto it = nodesBegin; it != nodesEnd; ++it)
+    it->qp = uniform(gen) & (~0 << geom_qp_multiplier_log2);
+}
+
+//-------------------------------------------------------------------------
+// determine delta qp for each node based on the point density
+
+template<typename It>
+void
+setNodeQpsByDensity(
   Vec3<int> nodeSizeLog2,
   int baseQp,
   int geom_qp_multiplier_log2,
   It nodesBegin,
   It nodesEnd)
 {
-  // determine delta qp for each node based on the point density
   // Conformance: limit the qp such that it cannot overquantize the node
   int maxQp = nodeSizeLog2.min() * 8;
   int lowQp = PCCClip(baseQp - 8, 0, maxQp);
@@ -1135,6 +1179,31 @@ calculateNodeQps(
     else
       it->qp = lowQp;
   }
+}
+
+//-------------------------------------------------------------------------
+
+template<typename It>
+void
+calculateNodeQps(
+  OctreeEncOpts::QpMethod method,
+  Vec3<int> nodeSizeLog2,
+  int baseQp,
+  int geom_qp_multiplier_log2,
+  It nodesBegin,
+  It nodesEnd)
+{
+  auto fn = &setNodeQpsUniform<It>;
+
+  switch (method) {
+    using Method = OctreeEncOpts::QpMethod;
+  default:
+  case Method::kUniform: fn = &setNodeQpsUniform<It>; break;
+  case Method::kRandom: fn = &setNodeQpsRandom<It>; break;
+  case Method::kByDensity: fn = &setNodeQpsByDensity<It>; break;
+  }
+
+  fn(nodeSizeLog2, baseQp, geom_qp_multiplier_log2, nodesBegin, nodesEnd);
 }
 
 //-------------------------------------------------------------------------
@@ -1564,12 +1633,10 @@ encodeGeometryOctree(
       // idcm qps are no longer independent
       idcmQp = 0;
       quantNodeSizeLog2 = nodeSizeLog2;
-      if (!depth)
-        fifo.front().qp = sliceQp;
-      else
-        calculateNodeQps(
-          nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2, fifo.begin(),
-          fifoCurrLvlEnd);
+      calculateNodeQps(
+        params.qpMethod,
+        nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2, fifo.begin(),
+        fifoCurrLvlEnd);
     }
 
     // save context state for parallel coding

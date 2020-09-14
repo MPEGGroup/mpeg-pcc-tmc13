@@ -58,6 +58,13 @@ struct QtBtParameters {
 struct OctreeEncOpts {
   QtBtParameters qtbt;
 
+  // Method used to derive in-tree quantisation parameters
+  enum class QpMethod {
+    kUniform = 0,
+    kRandom = 1,
+    kByDensity = 2,
+  } qpMethod;
+
   // Node size (rather than depth) at which to apply geometry quantisation
   int qpOffsetNodeSizeLog2;
 };

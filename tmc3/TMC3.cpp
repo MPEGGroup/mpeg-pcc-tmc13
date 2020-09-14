@@ -269,6 +269,14 @@ operator>>(std::istream& in, PredGeomEncOpts::SortMode& val)
 }  // namespace pcc
 
 namespace pcc {
+static std::istream&
+operator>>(std::istream& in, OctreeEncOpts::QpMethod& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
 static std::ostream&
 operator<<(std::ostream& out, const ColourMatrix& val)
 {
@@ -349,6 +357,21 @@ operator<<(std::ostream& out, const PredGeomEncOpts::SortMode& val)
   case SortMode::kSortMorton: out << int(val) << " (Morton)"; break;
   case SortMode::kSortAzimuth: out << int(val) << " (Azimuth)"; break;
   case SortMode::kSortRadius: out << int(val) << " (Radius)"; break;
+  default: out << int(val) << " (Unknown)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const OctreeEncOpts::QpMethod& val)
+{
+  switch (val) {
+    using Method = OctreeEncOpts::QpMethod;
+  case Method::kUniform: out << int(val) << " (Uniform)"; break;
+  case Method::kRandom: out << int(val) << " (Random)"; break;
+  case Method::kByDensity: out << int(val) << " (ByDensity)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -673,6 +696,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("positionQuantisationEnabled",
     params.encoder.gps.geom_scaling_enabled_flag, false,
     "Enable in-loop quantisation of positions")
+
+  ("positionQuantisationMethod",
+    params.encoder.geom.qpMethod, OctreeEncOpts::QpMethod::kUniform,
+    "Method used to determine per-node QP:\n"
+    "  0: uniform\n"
+    "  1: random\n"
+    "  2: by node point density")
 
   ("positionQpMultiplierLog2",
     params.encoder.gps.geom_qp_multiplier_log2, 0,
