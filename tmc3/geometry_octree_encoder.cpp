@@ -1492,6 +1492,17 @@ encodeGeometryOctree(
     assert(gbh.tree_lvl_coded_axis_list.back() != 0);
   }
 
+  // Determine the desired quantisation depth after qtbt is determined
+  if (params.qpOffsetNodeSizeLog2 > 0) {
+    // find the first level that matches the scaling node size
+    for (int lvl = 0; lvl < maxDepth; lvl++) {
+      if (lvlNodeSizeLog2[lvl].min() > params.qpOffsetNodeSizeLog2)
+        continue;
+      gbh.geom_octree_qp_offset_depth = lvl;
+      break;
+    }
+  }
+
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
   int idcmQp = 0;

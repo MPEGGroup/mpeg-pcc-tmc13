@@ -57,6 +57,9 @@ struct QtBtParameters {
 
 struct OctreeEncOpts {
   QtBtParameters qtbt;
+
+  // Node size (rather than depth) at which to apply geometry quantisation
+  int qpOffsetNodeSizeLog2;
 };
 
 //=============================================================================

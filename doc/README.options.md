@@ -300,6 +300,14 @@ A non-normative encoder process determines the QP offset based upon
 the local density of the octree.  A value of -1 disables signalling
 of per-node QP offsets.
 
+### `--positionQuantisationSizeLog2=INT-VALUE`
+Sets the depth at which per-node QP offsets are signalled.  The depth
+is the tree level with the configured node size.  This value, if greater
+than 0, overrides `positionQuantisationOctreeDepth`.
+
+When non-cubic nodes are present, the depth is the tree level with the
+minimum node size dimension.
+
 ### `qtbtEnabled=0|1`
 Enables non-cubic geometry tree coding.  When enabled, the geometry
 tree may have a cuboid bounding box.  The partitioning of internal tree
