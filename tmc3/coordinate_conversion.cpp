@@ -73,7 +73,7 @@ convertXyzToRpl(
 Vec3<int>
 normalisedAxesWeights(Box3<int>& bbox)
 {
-  auto width = bbox.max - bbox.min;
+  auto width = bbox.max - bbox.min + 1;
   auto maxWidth = width.max();
 
   Vec3<int> axesWeight;
