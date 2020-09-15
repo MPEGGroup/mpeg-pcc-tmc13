@@ -398,6 +398,11 @@ namespace program_options_lite {
 //---------------------------------------------------------------------------
 // :: Command line / config parsing
 
+void sanitizeEncoderOpts(
+  Parameters& params, df::program_options_lite::ErrorReporter& err);
+
+//---------------------------------------------------------------------------
+
 bool
 ParseParameters(int argc, char* argv[], Parameters& params)
 {
@@ -1016,6 +1021,60 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
+  if (!params.isDecoder)
+    sanitizeEncoderOpts(params, err);
+
+  // set default output resolution (this works for the decoder too)
+  if (params.outputResolution < 0)
+    params.outputResolution = params.encoder.srcResolution;
+
+  // check required arguments are specified
+  if (!params.isDecoder && params.uncompressedDataPath.empty())
+    err.error() << "uncompressedDataPath not set\n";
+
+  if (params.isDecoder && params.reconstructedDataPath.empty())
+    err.error() << "reconstructedDataPath not set\n";
+
+  if (params.compressedStreamPath.empty())
+    err.error() << "compressedStreamPath not set\n";
+
+  // report the current configuration (only in the absence of errors so
+  // that errors/warnings are more obvious and in the same place).
+  if (err.is_errored)
+    return false;
+
+  // Dump the complete derived configuration
+  cout << "+ Effective configuration parameters\n";
+
+  po::dumpCfg(cout, opts, "General", 4);
+  if (params.isDecoder) {
+    po::dumpCfg(cout, opts, "Decoder", 4);
+  } else {
+    po::dumpCfg(cout, opts, "Encoder", 4);
+    po::dumpCfg(cout, opts, "Geometry", 4);
+    po::dumpCfg(cout, opts, "Recolouring", 4);
+
+    for (const auto& it : params.encoder.attributeIdxMap) {
+      // NB: when dumping the config, opts references params_attr
+      params_attr.desc = params.encoder.sps.attributeSets[it.second];
+      params_attr.aps = params.encoder.aps[it.second];
+      params_attr.encoder = params.encoder.attr[it.second];
+      cout << "    " << it.first << "\n";
+      po::dumpCfg(cout, opts, "Attributes", 8);
+    }
+  }
+
+  cout << endl;
+
+  return true;
+}
+
+//----------------------------------------------------------------------------
+
+void
+sanitizeEncoderOpts(
+  Parameters& params, df::program_options_lite::ErrorReporter& err)
+{
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
   for (auto& attr_aps : params.encoder.aps) {
@@ -1026,10 +1085,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // Config options are absolute, but signalling is relative
   params.encoder.gbh.geom_qp_offset_intvl_log2_delta -=
     params.encoder.gps.geom_qp_offset_intvl_log2;
-
-  // set default output resolution (this works for the decoder too)
-  if (params.outputResolution < 0)
-    params.outputResolution = params.encoder.srcResolution;
 
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);
@@ -1348,47 +1403,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
                   << ".qpChromaOffset must be in the range [-47,47]\n";
     }
   }
-
-  // check required arguments are specified
-
-  if (!params.isDecoder && params.uncompressedDataPath.empty())
-    err.error() << "uncompressedDataPath not set\n";
-
-  if (params.isDecoder && params.reconstructedDataPath.empty())
-    err.error() << "reconstructedDataPath not set\n";
-
-  if (params.compressedStreamPath.empty())
-    err.error() << "compressedStreamPath not set\n";
-
-  // report the current configuration (only in the absence of errors so
-  // that errors/warnings are more obvious and in the same place).
-  if (err.is_errored)
-    return false;
-
-  // Dump the complete derived configuration
-  cout << "+ Effective configuration parameters\n";
-
-  po::dumpCfg(cout, opts, "General", 4);
-  if (params.isDecoder) {
-    po::dumpCfg(cout, opts, "Decoder", 4);
-  } else {
-    po::dumpCfg(cout, opts, "Encoder", 4);
-    po::dumpCfg(cout, opts, "Geometry", 4);
-    po::dumpCfg(cout, opts, "Recolouring", 4);
-
-    for (const auto& it : params.encoder.attributeIdxMap) {
-      // NB: when dumping the config, opts references params_attr
-      params_attr.desc = params.encoder.sps.attributeSets[it.second];
-      params_attr.aps = params.encoder.aps[it.second];
-      params_attr.encoder = params.encoder.attr[it.second];
-      cout << "    " << it.first << "\n";
-      po::dumpCfg(cout, opts, "Attributes", 8);
-    }
-  }
-
-  cout << endl;
-
-  return true;
 }
 
 //============================================================================
