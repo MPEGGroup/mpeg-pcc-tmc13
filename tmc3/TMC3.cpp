@@ -685,9 +685,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Lower values imply more use of the third planar mode")
 
    ("planarModeIdcmUse",
-    params.encoder.gps.geom_planar_idcm_threshold, 0,
-    "Degree (0-127) of IDCM activation when planar mode is enabled.\n"
-    "  0 => never, 127 => always")
+    // NB: this is adjusted by minus1 after thearguments are parsed
+    params.encoder.gps.geom_idcm_rate_minus1, 0,
+    "Degree (1/32%) of IDCM activation when planar mode is enabled.\n"
+    "  0 => never, 32 => always")
 
   ("trisoupNodeSizeLog2",
     params.encoder.trisoupNodeSizesLog2, {0},
@@ -1079,6 +1080,7 @@ sanitizeEncoderOpts(
 {
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
+  params.encoder.gps.geom_idcm_rate_minus1--;
   params.encoder.gps.geom_angular_azimuth_speed_minus1--;
   params.encoder.gps.neighbour_avail_boundary_log2_minus1 =
     std::max(0, params.encoder.gps.neighbour_avail_boundary_log2_minus1 - 1);
@@ -1090,6 +1092,10 @@ sanitizeEncoderOpts(
   // Config options are absolute, but signalling is relative
   params.encoder.gbh.geom_qp_offset_intvl_log2_delta -=
     params.encoder.gps.geom_qp_offset_intvl_log2;
+
+  // If idcm rate is configured as 0, disable idcm
+  if (params.encoder.gps.geom_idcm_rate_minus1 < 0)
+    params.encoder.gps.inferred_direct_coding_mode = 0;
 
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);

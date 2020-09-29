@@ -314,6 +314,32 @@ CtxMapOctreeOccupancy::CtxMapOctreeOccupancy()
 }
 
 //============================================================================
+
+uint32_t
+mkIdcmEnableMask(const GeometryParameterSet& gps)
+{
+  if (!gps.inferred_direct_coding_mode)
+    return 0;
+
+  // intense IDCM requires idcm to be enabled all the time
+  if (gps.inferred_direct_coding_mode != 1)
+    return 0xffffffff;
+
+  // if planar is disabled, there is no control over the rate
+  if (!gps.geom_planar_mode_enabled_flag)
+    return 0xffffffff;
+
+  int mask = 0, acc = 0;
+  for (int i = 0; i < 32; i++) {
+    acc += gps.geom_idcm_rate_minus1 + 1;
+    mask |= (acc >= 32) << i;
+    acc &= 0x1f;
+  }
+
+  return mask;
+}
+
+//============================================================================
 // determine if a 222 block is planar
 
 void

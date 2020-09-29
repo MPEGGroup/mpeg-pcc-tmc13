@@ -39,7 +39,7 @@ categories:
        - !conditional '"${group}" eq "cat3-frame"'
        - partitionMethod: 0
        - maxNumQtBtBeforeOt: 6
-       - planarModeIdcmUse: 127
+       - planarModeIdcmUse: 32
 
      ####
      # attribute coding (common options -- relies on option ordering)

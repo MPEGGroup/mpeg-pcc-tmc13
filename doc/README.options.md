@@ -385,10 +385,9 @@ occupancy prediction.
 ### `--planarEnabled=0|1`
 Controls the use of planar coding mode for geometry occupancy.
 
-### `--planarModeIdcmUse=0--127`
-Controls the frequency of IDCM eligibility.  A value of zero prevents
-IDCM being eligible for use, while the value 127 does not further
-constrain IDCM use.
+### `--planarModeIdcmUse=0--32`
+Controls the frequency in 1/32 percent of IDCM eligibility.  Set to zero,
+IDCM is disabled.  Set to 32, IDCM is unconstrained.
 
 ### `--planarModeThreshold0=0--127`
 Controls the eligibility threshold of the first planar mode based upon

@@ -590,7 +590,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeUe(gps.geom_planar_threshold1);
       bs.writeUe(gps.geom_planar_threshold2);
       if (gps.inferred_direct_coding_mode == 1)
-        bs.writeUe(gps.geom_planar_idcm_threshold);
+        bs.writeUn(5, gps.geom_idcm_rate_minus1);
     }
   }
 
@@ -715,9 +715,8 @@ parseGps(const PayloadBuffer& buf)
       bs.readUe(&gps.geom_planar_threshold0);
       bs.readUe(&gps.geom_planar_threshold1);
       bs.readUe(&gps.geom_planar_threshold2);
-      gps.geom_planar_idcm_threshold = 127;
       if (gps.inferred_direct_coding_mode == 1)
-        bs.readUe(&gps.geom_planar_idcm_threshold);
+        bs.readUn(5, &gps.geom_idcm_rate_minus1);
     }
   }
 

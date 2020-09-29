@@ -1279,9 +1279,8 @@ decodeGeometryOctree(
   size_t processedPointCount = 0;
   std::vector<uint32_t> values;
 
-  const int idcmThreshold = gps.geom_planar_mode_enabled_flag
-    ? gps.geom_planar_idcm_threshold * 127 * 127
-    : 127 * 127 * 127;
+  // rotating mask used to enable idcm
+  uint32_t idcmEnableMaskInit = mkIdcmEnableMask(gps);
 
   // Lidar angles for planar prediction
   const int numLasers = gps.geom_angular_num_lidar_lasers();
@@ -1404,6 +1403,10 @@ decodeGeometryOctree(
       decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
     }
 
+    // reset the idcm eligibility mask at the start of each level to
+    // support multiple streams
+    auto idcmEnableMask = rotateRight(idcmEnableMaskInit, depth);
+
     auto planarDepth = lvlNodeSizeLog2[0] - nodeSizeLog2;
     decoder.beginOctreeLevel(planarDepth);
 
@@ -1491,9 +1494,6 @@ decodeGeometryOctree(
         decoder.determinePlanarMode(
           planarEligible, node0, planar, gnp.neighPattern, planarProb,
           contextAngle, contextAnglePhiX, contextAnglePhiY);
-
-        node0.idcmEligible &=
-          planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
       }
 
       // At the scaling depth, it is possible for a node that has previously
@@ -1636,6 +1636,11 @@ decodeGeometryOctree(
         child.idcmEligible = isDirectModeEligible(
           gps.inferred_direct_coding_mode, nodeMaxDimLog2, gnp.neighPattern,
           node0, child);
+
+        if (child.idcmEligible) {
+          child.idcmEligible &= idcmEnableMask & 1;
+          idcmEnableMask = rotateRight(idcmEnableMask, 1);
+        }
 
         numNodesNextLvl++;
       }

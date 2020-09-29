@@ -111,6 +111,11 @@ isLeafNode(const Vec3<int>& sizeLog2)
 }
 
 //---------------------------------------------------------------------------
+// Generates an idcm enable mask
+
+uint32_t mkIdcmEnableMask(const GeometryParameterSet& gps);
+
+//---------------------------------------------------------------------------
 // Determine if direct coding is permitted.
 // If tool is enabled:
 //   - Block must not be near the bottom of the tree

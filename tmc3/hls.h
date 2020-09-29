@@ -407,7 +407,7 @@ struct GeometryParameterSet {
   int geom_planar_threshold0;
   int geom_planar_threshold1;
   int geom_planar_threshold2;
-  int geom_planar_idcm_threshold;
+  int geom_idcm_rate_minus1;
 
   // Enables angular coding in octree/predgeom
   bool geom_angular_mode_enabled_flag;

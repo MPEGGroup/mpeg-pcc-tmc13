@@ -1498,9 +1498,8 @@ encodeGeometryOctree(
   // generate the list of the node size for each level in the tree
   auto lvlNodeSizeLog2 = mkQtBtNodeSizeList(gps, params.qtbt, gbh);
 
-  const int idcmThreshold = gps.geom_planar_mode_enabled_flag
-    ? gps.geom_planar_idcm_threshold * 127 * 127
-    : 127 * 127 * 127;
+  // rotating mask used to enable idcm
+  uint32_t idcmEnableMaskInit = mkIdcmEnableMask(gps);
 
   //  Lidar angles for planar prediction
   const int numLasers = gps.geom_angular_num_lidar_lasers();
@@ -1647,6 +1646,10 @@ encodeGeometryOctree(
       encoder._arithmeticEncoder = (++arithmeticEncoderIt)->get();
     }
 
+    // reset the idcm eligibility mask at the start of each level to
+    // support multiple streams
+    auto idcmEnableMask = rotateRight(idcmEnableMaskInit, depth);
+
     auto planarDepth = gbh.rootNodeSizeLog2 - nodeSizeLog2;
     encoder.beginOctreeLevel(planarDepth);
 
@@ -1768,9 +1771,6 @@ encodeGeometryOctree(
           encoder.determinePlanarMode(
             occupancy, planarEligible, node0, planar, gnp.neighPattern,
             planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
-
-        node0.idcmEligible &=
-          planarProb[0] * planarProb[1] * planarProb[2] <= idcmThreshold;
       }
 
       // At the scaling depth, it is possible for a node that has previously
@@ -1936,6 +1936,11 @@ encodeGeometryOctree(
         child.idcmEligible = isDirectModeEligible(
           gps.inferred_direct_coding_mode, nodeMaxDimLog2, gnp.neighPattern,
           node0, child);
+
+        if (child.idcmEligible) {
+          child.idcmEligible &= idcmEnableMask & 1;
+          idcmEnableMask = rotateRight(idcmEnableMask, 1);
+        }
 
         numNodesNextLvl++;
       }
