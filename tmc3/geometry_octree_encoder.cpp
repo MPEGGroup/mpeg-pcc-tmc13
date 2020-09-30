@@ -93,7 +93,6 @@ public:
     int coord2,
     int coord3,
     uint8_t neighPattern,
-    int planarProb[3],
     int planarRate[3],
     int contextAngle);
 
@@ -103,7 +102,6 @@ public:
     PCCOctree3Node& child,
     OctreeNodePlanar& planar,
     uint8_t neighPattern,
-    int planarProb[3],
     int contextAngle,
     int contextAnglePhiX,
     int contextAnglePhiY);
@@ -351,7 +349,6 @@ GeometryOctreeEncoder::determinePlanarMode(
   int coord2,
   int coord3,
   uint8_t neighPattern,
-  int planarProb[3],
   int planarRate[3],
   int contextAngle)
 {
@@ -402,12 +399,13 @@ GeometryOctreeEncoder::determinePlanarMode(
   }
   const int kAdjNeighIdxFromPlaneMask[3] = {0, 2, 4};
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlaneMask[planeId]) & 3;
+  int planarProb = 127;
   int planeBit = encodePlanarMode(
-    planar, closestPlanarFlag, closestDist, adjNeigh, planarProb[planeId],
-    planeId, contextAngle);
+    planar, closestPlanarFlag, closestDist, adjNeigh, planarProb, planeId,
+    contextAngle);
 
-  bool isPlanar = (planar.planarMode & planeSelector)
-    && planarProb[planeId] > kPlanarChildThreshold;
+  bool isPlanar =
+    (planar.planarMode & planeSelector) && planarProb > kPlanarChildThreshold;
 
   planarRate[planeId] =
     (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
@@ -427,7 +425,6 @@ GeometryOctreeEncoder::determinePlanarMode(
   PCCOctree3Node& node,
   OctreeNodePlanar& planar,
   uint8_t neighPattern,
-  int planarProb[3],
   int contextAngle,
   int contextAnglePhiX,
   int contextAnglePhiY)
@@ -452,19 +449,19 @@ GeometryOctreeEncoder::determinePlanarMode(
   if (planarEligible[0]) {
     determinePlanarMode(
       0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern,
-      planarProb, _planar._rate.data(), contextAnglePhiX);
+      _planar._rate.data(), contextAnglePhiX);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
       1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern,
-      planarProb, _planar._rate.data(), contextAnglePhiY);
+      _planar._rate.data(), contextAnglePhiY);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
       2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern,
-      planarProb, _planar._rate.data(), contextAngle);
+      _planar._rate.data(), contextAngle);
   }
 }
 
@@ -1765,12 +1762,11 @@ encodeGeometryOctree(
             planarEligible[k] &= (codedAxesCurNode >> (2 - k)) & 1;
         }
 
-        int planarProb[3] = {127, 127, 127};
         // determine planarity if eligible
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           encoder.determinePlanarMode(
             occupancy, planarEligible, node0, planar, gnp.neighPattern,
-            planarProb, contextAngle, contextAnglePhiX, contextAnglePhiY);
+            contextAngle, contextAnglePhiX, contextAnglePhiY);
       }
 
       // At the scaling depth, it is possible for a node that has previously
