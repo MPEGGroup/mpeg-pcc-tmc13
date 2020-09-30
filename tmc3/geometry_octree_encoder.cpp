@@ -81,7 +81,6 @@ public:
     int plane,
     int dist,
     int neighb,
-    int& h,
     int planeId,
     int contextAngle);
 
@@ -289,7 +288,6 @@ GeometryOctreeEncoder::encodePlanarMode(
   int plane,
   int dist,
   int neighb,
-  int& h,
   int planeId,
   int contextAngle)
 {
@@ -311,26 +309,18 @@ GeometryOctreeEncoder::encodePlanarMode(
   if (contextAngle == -1) {  // angular mode off
     if (plane < 0) {
       _arithmeticEncoder->encode(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
-      h =
-        approxSymbolProbability(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
     } else {
       discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       int lastIndexPlane2d = plane + (discreteDist << 1);
       _arithmeticEncoder->encode(
-        planeBit, _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
-      h = approxSymbolProbability(
         planeBit, _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
     }
   } else {               // angular mode on
     if (planeId == 2) {  // angular
       _arithmeticEncoder->encode(
         planeBit, _ctxPlanarPlaneLastIndexAngular[contextAngle]);
-      h = approxSymbolProbability(
-        planeBit, _ctxPlanarPlaneLastIndexAngular[contextAngle]);
     } else {  // azimuthal
       _arithmeticEncoder->encode(
-        planeBit, _ctxPlanarPlaneLastIndexAngularPhi[contextAngle]);
-      h = approxSymbolProbability(
         planeBit, _ctxPlanarPlaneLastIndexAngularPhi[contextAngle]);
     }
   }
@@ -399,13 +389,10 @@ GeometryOctreeEncoder::determinePlanarMode(
   }
   const int kAdjNeighIdxFromPlaneMask[3] = {0, 2, 4};
   int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlaneMask[planeId]) & 3;
-  int planarProb = 127;
   int planeBit = encodePlanarMode(
-    planar, closestPlanarFlag, closestDist, adjNeigh, planarProb, planeId,
-    contextAngle);
+    planar, closestPlanarFlag, closestDist, adjNeigh, planeId, contextAngle);
 
-  bool isPlanar =
-    (planar.planarMode & planeSelector) && planarProb > kPlanarChildThreshold;
+  bool isPlanar = (planar.planarMode & planeSelector);
 
   planarRate[planeId] =
     (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
