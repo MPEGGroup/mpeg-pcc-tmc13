@@ -101,6 +101,8 @@ protected:
   AdaptiveBitModel _ctxSignPhi;
   AdaptiveBitModel _ctxEGPhi;
   AdaptiveBitModel _ctxResidualPhi[7];
+
+  AdaptiveBitModel _ctxEndOfTrees;
 };
 
 //----------------------------------------------------------------------------

@@ -78,6 +78,7 @@ private:
   Vec3<int32_t> decodeResidual2();
   int32_t decodePhiMultiplier(GPredicter::Mode mode);
   int32_t decodeQpOffset();
+  bool decodeEndOfTreesFlag();
 
 private:
   EntropyDecoder* _aed;
@@ -235,6 +236,14 @@ PredGeomDecoder::decodeQpOffset()
 
 //----------------------------------------------------------------------------
 
+bool
+PredGeomDecoder::decodeEndOfTreesFlag()
+{
+  return _aed->decode(_ctxEndOfTrees);
+}
+
+//----------------------------------------------------------------------------
+
 Vec3<int32_t>
 PredGeomDecoder::decodeResidual()
 {
@@ -366,12 +375,12 @@ PredGeomDecoder::decode(int numPoints, Vec3<int32_t>* outputPoints)
   }
 
   int32_t pointCount = 0;
-  while (pointCount < numPoints) {
+  do {
     auto numSubtreePoints = decodeTree(reconA, outputPoints);
     outputPoints += numSubtreePoints;
     reconA += numSubtreePoints;
     pointCount += numSubtreePoints;
-  }
+  } while (!decodeEndOfTreesFlag());
 
   return pointCount;
 }

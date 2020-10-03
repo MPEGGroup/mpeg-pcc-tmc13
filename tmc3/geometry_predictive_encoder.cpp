@@ -113,6 +113,7 @@ public:
   void encodeResidual2(const Vec3<int32_t>& residual);
   void encodePhiMultiplier(const int32_t multiplier);
   void encodeQpOffset(int dqp);
+  void encodeEndOfTreesFlag(int endFlag);
 
   float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
 
@@ -307,6 +308,14 @@ PredGeomEncoder::encodeQpOffset(int dqp)
 
 //----------------------------------------------------------------------------
 
+void
+PredGeomEncoder::encodeEndOfTreesFlag(int end_of_trees_flag)
+{
+  _aec->encode(end_of_trees_flag, _ctxEndOfTrees);
+}
+
+//----------------------------------------------------------------------------
+
 float
 PredGeomEncoder::estimateBits(
   GPredicter::Mode mode, const Vec3<int32_t>& residual)
@@ -497,6 +506,12 @@ PredGeomEncoder::encode(
     int numSubtreeNodes = encodeTree(
       cloudA, cloudB, nodes, numNodes, rootIdx, codedOrder + processedNodes);
     processedNodes += numSubtreeNodes;
+
+    // NB: this is just in case this call to encode needs to encode an
+    // additional tree.  The actual end_of_trees_flag = true is signalled
+    // at the end.
+    if (processedNodes != numNodes)
+      encodeEndOfTreesFlag(false);
   }
   assert(processedNodes == numNodes);
 }
@@ -775,6 +790,8 @@ encodePredictiveGeometry(
     auto* a = gps.geom_angular_mode_enabled_flag ? beginSph : begin;
     auto* b = begin;
 
+    if (i > 0)
+      enc.encodeEndOfTreesFlag(false);
     enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i);
 
     // put points in output cloud in decoded order
@@ -788,6 +805,9 @@ encodePredictiveGeometry(
         outCloud.setReflectance(i, cloud.getReflectance(srcIdx));
     }
   }
+
+  // the slice has finished
+  enc.encodeEndOfTreesFlag(true);
 
   // save the context state for re-use by a future slice if required
   ctxtMem = enc.getCtx();
