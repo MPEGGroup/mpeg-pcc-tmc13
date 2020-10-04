@@ -148,9 +148,13 @@ PredGeomDecoder::decodeNumDuplicatePoints()
 int
 PredGeomDecoder::decodeNumChildren()
 {
-  int numChld = _aed->decode(_ctxNumChildren[0]);
-  numChld = (numChld << 1) + _aed->decode(_ctxNumChildren[1 + numChld]);
-  return numChld;
+  int numChildren = _aed->decode(_ctxNumChildren[0]);
+  if (numChildren == 0) {
+    numChildren = 1 - _aed->decode(_ctxNumChildren[1]);
+    if (numChildren == 1)
+      numChildren = 2 + _aed->decode(_ctxNumChildren[2]);
+  }
+  return numChildren;
 }
 
 //----------------------------------------------------------------------------
