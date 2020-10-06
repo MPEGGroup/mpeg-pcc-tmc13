@@ -775,10 +775,14 @@ encodePredictiveGeometry(
   std::vector<int32_t> codedOrder(numPoints, -1);
 
   // Assume that the number of bits required for residuals is equal to the
-  // root node size.  This allows every position to be coded using PCM.
-  for (int k = 0; k < 3; k++)
-    gbh.pgeom_resid_abs_log2_bits[k] =
-      ilog2(uint32_t(gbh.rootNodeSizeLog2[k])) + 1;
+  // quantised root node size.  This allows every position to be coded with PCM
+  if (!gps.geom_angular_mode_enabled_flag) {
+    QuantizerGeom quant(gbh.sliceQp(gps));
+    for (int k = 0; k < 3; k++) {
+      int max = quant.quantize((1 << gbh.rootNodeSizeLog2[k]) - 1);
+      gbh.pgeom_resid_abs_log2_bits[k] = numBits(ceillog2(std::max(1, max)));
+    }
+  }
 
   // Number of residual bits bits for angular mode.  This is slightly
   // pessimistic in the calculation of r.
