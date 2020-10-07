@@ -255,19 +255,16 @@ PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
       continue;
 
     int32_t value = abs(res) - 2;
-    auto& ctxs = _ctxResidual2[k];
-    if (value < 15) {
-      _aec->encode(value & 1, ctxs[0]);
-      _aec->encode((value >> 1) & 1, ctxs[1 + (value & 1)]);
-      _aec->encode((value >> 2) & 1, ctxs[3 + (value & 3)]);
-      _aec->encode((value >> 3) & 1, ctxs[7 + (value & 7)]);
-    } else {
-      _aec->encode(1, ctxs[0]);
-      _aec->encode(1, ctxs[2]);
-      _aec->encode(1, ctxs[6]);
-      _aec->encode(1, ctxs[14]);
-      _aec->encodeExpGolomb(value - 15, 0, _ctxEG2[k]);
-    }
+    int valueMinus15 = value - 15;
+
+    value = std::min(value, 15);
+    _aec->encode((value >> 3) & 1, _ctxResidual2[k][0]);
+    _aec->encode((value >> 2) & 1, _ctxResidual2[k][1 + (value >> 3)]);
+    _aec->encode((value >> 1) & 1, _ctxResidual2[k][3 + (value >> 2)]);
+    _aec->encode((value >> 0) & 1, _ctxResidual2[k][7 + (value >> 1)]);
+
+    if (valueMinus15 >= 0)
+      _aec->encodeExpGolomb(valueMinus15, 0, _ctxEG2[k]);
   }
 }
 
@@ -290,19 +287,15 @@ PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
     return;
 
   value--;
-  auto& ctxs = _ctxResidualPhi;
-  if (value < 15) {
-    _aec->encode(value & 1, ctxs[0]);
-    _aec->encode((value >> 1) & 1, ctxs[1 + (value & 1)]);
-    _aec->encode((value >> 2) & 1, ctxs[3 + (value & 3)]);
-    _aec->encode((value >> 3) & 1, ctxs[7 + (value & 7)]);
-  } else {
-    _aec->encode(1, ctxs[0]);
-    _aec->encode(1, ctxs[2]);
-    _aec->encode(1, ctxs[6]);
-    _aec->encode(1, ctxs[14]);
-    _aec->encodeExpGolomb(value - 15, 0, _ctxEGPhi);
-  }
+  int valueMinus15 = value - 15;
+  value = std::min(value, 15);
+  _aec->encode((value >> 3) & 1, _ctxResidualPhi[0]);
+  _aec->encode((value >> 2) & 1, _ctxResidualPhi[1 + (value >> 3)]);
+  _aec->encode((value >> 1) & 1, _ctxResidualPhi[3 + (value >> 2)]);
+  _aec->encode((value >> 0) & 1, _ctxResidualPhi[7 + (value >> 1)]);
+
+  if (valueMinus15 >= 0)
+    _aec->encodeExpGolomb(valueMinus15, 0, _ctxEGPhi);
 }
 
 //----------------------------------------------------------------------------

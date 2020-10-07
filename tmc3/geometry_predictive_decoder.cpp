@@ -182,11 +182,12 @@ PredGeomDecoder::decodeResidual2()
       continue;
     }
 
-    auto& ctxs = _ctxResidual2[k];
-    int32_t value = _aed->decode(ctxs[0]);
-    value += _aed->decode(ctxs[1 + (value & 1)]) << 1;
-    value += _aed->decode(ctxs[3 + (value & 3)]) << 2;
-    value += _aed->decode(ctxs[7 + (value & 7)]) << 3;
+    AdaptiveBitModel* ctxs = _ctxResidual2[k] - 1;
+    int32_t value = 1;
+    for (int n = 4; n > 0; n--)
+      value = (value << 1) | _aed->decode(ctxs[value]);
+    value ^= 1 << 4;
+
     if (value == 15)
       value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
 
@@ -210,11 +211,12 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (_aed->decode(_ctxIsOnePhi))
     return sign ? 1 : -1;
 
-  auto& ctxs = _ctxResidualPhi;
-  int32_t value = _aed->decode(ctxs[0]);
-  value += _aed->decode(ctxs[1 + (value & 1)]) << 1;
-  value += _aed->decode(ctxs[3 + (value & 3)]) << 2;
-  value += _aed->decode(ctxs[7 + (value & 7)]) << 3;
+  auto* ctxs = _ctxResidualPhi - 1;
+  int32_t value = 1;
+  for (int n = 4; n > 0; n--)
+    value = (value << 1) | _aed->decode(ctxs[value]);
+  value ^= 1 << 4;
+
   if (value == 15)
     value += _aed->decodeExpGolomb(0, _ctxEGPhi);
 
