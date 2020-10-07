@@ -188,8 +188,8 @@ PredGeomEncoder::encodeNumDuplicatePoints(int numDupPoints)
 void
 PredGeomEncoder::encodeNumChildren(int numChildren)
 {
-  _aec->encode(numChildren & 1, _ctxNumChildren[0]);
-  _aec->encode((numChildren >> 1) & 1, _ctxNumChildren[1 + (numChildren & 1)]);
+  _aec->encode((numChildren >> 1) & 1, _ctxNumChildren[0]);
+  _aec->encode(numChildren & 1, _ctxNumChildren[1 + (numChildren >> 1)]);
 }
 
 //----------------------------------------------------------------------------
@@ -198,8 +198,8 @@ void
 PredGeomEncoder::encodePredMode(GPredicter::Mode mode)
 {
   int iMode = int(mode);
-  _aec->encode(iMode & 1, _ctxPredMode[0]);
-  _aec->encode((iMode >> 1) & 1, _ctxPredMode[1 + (iMode & 1)]);
+  _aec->encode((iMode >> 1) & 1, _ctxPredMode[0]);
+  _aec->encode(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
 }
 
 //----------------------------------------------------------------------------
@@ -326,8 +326,8 @@ PredGeomEncoder::estimateBits(
 {
   int iMode = int(mode);
   float bits = 0.;
-  bits += estimate(iMode & 1, _ctxPredMode[0]);
-  bits += estimate((iMode >> 1) & 1, _ctxPredMode[1 + (iMode & 1)]);
+  bits += estimate((iMode >> 1) & 1, _ctxPredMode[0]);
+  bits += estimate(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
 
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
     const auto res = residual[k];

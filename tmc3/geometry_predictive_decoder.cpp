@@ -148,9 +148,9 @@ PredGeomDecoder::decodeNumDuplicatePoints()
 int
 PredGeomDecoder::decodeNumChildren()
 {
-  int numChildren = _aed->decode(_ctxNumChildren[0]);
-  numChildren += _aed->decode(_ctxNumChildren[1 + numChildren]) << 1;
-  return numChildren;
+  int numChld = _aed->decode(_ctxNumChildren[0]);
+  numChld = (numChld << 1) + _aed->decode(_ctxNumChildren[1 + numChld]);
+  return numChld;
 }
 
 //----------------------------------------------------------------------------
@@ -159,7 +159,7 @@ GPredicter::Mode
 PredGeomDecoder::decodePredMode()
 {
   int mode = _aed->decode(_ctxPredMode[0]);
-  mode += _aed->decode(_ctxPredMode[1 + mode]) << 1;
+  mode = (mode << 1) + _aed->decode(_ctxPredMode[1 + mode]);
   return GPredicter::Mode(mode);
 }
 
