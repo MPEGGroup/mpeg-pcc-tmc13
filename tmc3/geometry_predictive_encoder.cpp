@@ -231,7 +231,7 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
     }
 
     if (!k && !_geom_angular_mode_enabled_flag)
-      ctxIdx = (numBits + 1) >> 1;
+      ctxIdx = std::min(4, (numBits + 1) >> 1);
 
     --numBits;
     for (int32_t i = 0; i < numBits; ++i)
@@ -338,7 +338,7 @@ PredGeomEncoder::estimateBits(
     }
 
     if (!k && !_geom_angular_mode_enabled_flag)
-      ctxIdx = (numBits + 1) >> 1;
+      ctxIdx = std::min(4, (numBits + 1) >> 1);
 
     bits += std::max(0, numBits - 1);
   }

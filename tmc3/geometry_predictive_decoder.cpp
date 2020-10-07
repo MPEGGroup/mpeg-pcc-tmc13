@@ -254,7 +254,7 @@ PredGeomDecoder::decodeResidual()
     numBits ^= 1 << _pgeom_resid_abs_log2_bits[k];
 
     if (!k && !_geom_angular_mode_enabled_flag)
-      ctxIdx = (numBits + 1) >> 1;
+      ctxIdx = std::min(4, (numBits + 1) >> 1);
 
     int32_t res = 0;
     --numBits;
