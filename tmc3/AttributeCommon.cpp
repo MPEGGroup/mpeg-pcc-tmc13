@@ -61,8 +61,12 @@ AttributeLods::generate(
     numPointsInLod, indexes);
 
   assert(predictors.size() == cloud.getPointCount());
-  for (auto& predictor : predictors)
+  for (auto& predictor : predictors) {
     predictor.computeWeights();
+    if (aps.attr_encoding == AttributeEncoding::kPredictingTransform)
+      if (aps.pred_weight_blending_enabled_flag)
+        predictor.blendWeights(cloud, indexes);
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -119,6 +123,11 @@ AttributeLods::isReusable(
     return false;
 
   if (_aps.canonical_point_order_flag != aps.canonical_point_order_flag)
+    return false;
+
+  if (
+    _aps.pred_weight_blending_enabled_flag
+    != aps.pred_weight_blending_enabled_flag)
     return false;
 
   return true;

@@ -593,6 +593,9 @@ struct AttributeParameterSet {
   bool inter_component_prediction_enabled_flag;
   bool last_component_prediction_enabled_flag;
 
+  // Whether prediction weights are blended according to spatial positions
+  bool pred_weight_blending_enabled_flag;
+
   // The number of refinement layers
   int num_detail_levels_minus1;
 

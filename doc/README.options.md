@@ -616,6 +616,12 @@ than 8, the threshold is scaled by 2**(bitDepth - 8).
 
 Applies to `transformType=0` only.
 
+### `--predWeightBlending=0|1`
+When enabled, blends the distance derived weights of the three-neighbour
+predictor according to the relative distances between the neighbours.
+
+Applies to `transformType=0` only.
+
 ### `--direct_avg_predictor_disabled_flag=0|1`
 Controls the use of the neighbour average predictor when direct prediction
 is invoked.

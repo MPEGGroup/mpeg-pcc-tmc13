@@ -889,6 +889,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.direct_avg_predictor_disabled_flag, false,
     "Disable average predictor")
 
+  ("predWeightBlending",
+    params_attr.aps.pred_weight_blending_enabled_flag, false,
+    "Blend prediction weights according to neigbour distances. "
+    "Applies to transformType=0 only")
+
   // NB: this parameter actually represents the number of refinement layers
   ("levelOfDetailCount",
     params_attr.aps.num_detail_levels_minus1, 1,

@@ -866,6 +866,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
     bs.write(aps.intra_lod_prediction_enabled_flag);
     bs.write(aps.inter_component_prediction_enabled_flag);
+    bs.write(aps.pred_weight_blending_enabled_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
@@ -952,6 +953,7 @@ parseAps(const PayloadBuffer& buf)
     }
   }
 
+  aps.pred_weight_blending_enabled_flag = false;
   aps.intra_lod_prediction_enabled_flag = false;
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.max_num_direct_predictors);
@@ -963,6 +965,7 @@ parseAps(const PayloadBuffer& buf)
     }
     bs.read(&aps.intra_lod_prediction_enabled_flag);
     bs.read(&aps.inter_component_prediction_enabled_flag);
+    bs.read(&aps.pred_weight_blending_enabled_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {

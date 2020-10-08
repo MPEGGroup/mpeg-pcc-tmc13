@@ -332,6 +332,47 @@ struct PCCPredictor {
     }
   }
 
+  Vec3<int>
+  blendWeights(const PCCPointSet3& cloud, const std::vector<uint32_t>& indexes)
+  {
+    int w0 = neighbors[0].weight;
+    int w1 = neighbors[1].weight;
+    int w2 = neighbors[2].weight;
+
+    if (neighborCount != 3)
+      return Vec3<int>{16 * w0, 16 * w1, 16 * w2};
+
+    auto neigh0Pos = cloud[indexes[neighbors[0].predictorIndex]];
+    auto neigh1Pos = cloud[indexes[neighbors[1].predictorIndex]];
+    auto neigh2Pos = cloud[indexes[neighbors[2].predictorIndex]];
+
+    constexpr bool variant = 1;
+    const auto d = variant ? 10 : 8;
+    const auto bb = variant ? 1 : 4;
+    const auto cc = variant ? 5 : 4;
+
+    auto dist01 = (neigh0Pos - neigh1Pos).getNorm2<int64_t>();
+    auto dist02 = (neigh0Pos - neigh2Pos).getNorm2<int64_t>();
+    auto& dist10 = dist01;
+    auto dist12 = (neigh1Pos - neigh2Pos).getNorm2<int64_t>();
+    auto& dist20 = dist02;
+    auto& dist21 = dist12;
+
+    auto b1 = dist01 <= dist02 ? bb : cc;
+    auto b2 = dist10 <= dist12 ? cc : bb;
+    auto b3 = dist20 <= dist21 ? bb : cc;
+
+    Vec3<int> w;
+    w[0] = (w0 * d + w1 * (16 - d - b2) + w2 * b3) >> 4;
+    w[1] = (w0 * b1 + w1 * d + w2 * (16 - d - b3)) >> 4;
+    w[2] = 256 - w[0] - w[1];
+
+    for (int i = 0; i < 3; i++)
+      neighbors[i].weight = w[i];
+
+    return w;
+  }
+
   void pruneDistanceGt(uint64_t maxDistance)
   {
     for (int i = 1; i < neighborCount; i++) {
