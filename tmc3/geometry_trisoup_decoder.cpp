@@ -115,11 +115,12 @@ decodeGeometryTrisoup(
     numVertices += c;
   }
 
-  AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
   std::vector<uint8_t> vertices;
   vertices.reserve(numVertices);
   for (int i = 0; i < numVertices; i++) {
-    const uint8_t c = arithmeticDecoder->decode(multiSymbolVerticesModel0);
+    uint8_t c = 0;
+    for (int b = gbh.trisoupNodeSizeLog2(gps); b > 0; b--)
+      c = (c << 1) | arithmeticDecoder->decode();
     vertices.push_back(c);
   }
 

@@ -101,11 +101,11 @@ encodeGeometryTrisoup(
   }
 
   // Encode vertices to bitstream.
-  AdaptiveMAryModel multiSymbolVerticesModel0(blockWidth);
   assert(numVertices == vertices.size());
   for (int i = 0; i < numVertices; i++) {
-    uint8_t c = vertices[i];
-    arithmeticEncoder->encode(uint32_t(c), multiSymbolVerticesModel0);
+    auto vertex = vertices[i];
+    for (int b = gbh.trisoupNodeSizeLog2(gps) - 1; b >= 0; b--)
+      arithmeticEncoder->encode((vertex >> b) & 1);
   }
 }
 
