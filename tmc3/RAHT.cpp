@@ -791,8 +791,7 @@ uraht_process(
         if (isEncoder) {
           FixedPoint rsqrtWeight;
           uint64_t w = weights[childIdx];
-          int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
-            + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+          int shift = w > 1024 ? ilog2(w - 1) >> 1 : 0;
           rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
           for (int k = 0; k < numAttrs; k++) {
             transformBuf[k][childIdx].val >>= shift;
@@ -884,8 +883,7 @@ uraht_process(
         if (weights[nodeIdx] > 1) {
           FixedPoint rsqrtWeight;
           uint64_t w = weights[nodeIdx];
-          int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
-            + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+          int shift = w > 1024 ? ilog2(w - 1) >> 1 : 0;
           rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
           for (int k = 0; k < numAttrs; k++) {
             transformPredBuf[k][nodeIdx].val >>= shift;
@@ -935,8 +933,7 @@ uraht_process(
     FixedPoint rsqrtWeight;
     for (int w = weight - 1; w > 0; w--) {
       RahtKernel kernel(w, 1);
-      int shift = (w > 1024 ? 5 : 0) + (w > 16384 ? 2 : 0)
-        + (w > 262144 ? 2 : 0) + (w > 4194304 ? 2 : 0);
+      int shift = w > 1024 ? ilog2(uint32_t(w - 1)) >> 1 : 0;
       if (isEncoder)
         rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
 
