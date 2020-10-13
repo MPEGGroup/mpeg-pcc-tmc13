@@ -846,9 +846,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       if (!aps.num_detail_levels_minus1)
         bs.write(aps.canonical_point_order_flag);
       else {
-        bs.write(aps.lod_decimation_enabled_flag);
+        bs.writeUe(aps.lod_decimation_type);
 
-        if (aps.lod_decimation_enabled_flag) {
+        if (aps.lod_decimation_type != LodDecimationMethod::kNone) {
           for (int idx = 0; idx < aps.num_detail_levels_minus1; idx++) {
             auto lod_sampling_period_minus2 = aps.lodSamplingPeriod[idx] - 2;
             bs.writeUe(lod_sampling_period_minus2);
@@ -939,9 +939,9 @@ parseAps(const PayloadBuffer& buf)
       if (!aps.num_detail_levels_minus1)
         bs.read(&aps.canonical_point_order_flag);
       else {
-        bs.read(&aps.lod_decimation_enabled_flag);
+        bs.readUe(&aps.lod_decimation_type);
 
-        if (aps.lod_decimation_enabled_flag) {
+        if (aps.lod_decimation_type != LodDecimationMethod::kNone) {
           aps.lodSamplingPeriod.resize(aps.num_detail_levels_minus1);
           for (int idx = 0; idx < aps.num_detail_levels_minus1; idx++) {
             int lod_sampling_period_minus2;

@@ -652,13 +652,14 @@ detail.
 Maximum number of nearest neighbour candidates used in direct
 attribute prediction.
 
-### `--lodDecimation=0|1`
+### `--lodDecimator=0|1|2`
 Controls the level-of-detail generation method:
 
-  | Value | Description                             |
-  |:-----:| --------------------------------------- |
-  | 0     | Euclidean distance thresholding (dist2) |
-  | 1     | Decimation by lodSubsamplingPeriod      |
+  | Value | Description                                             |
+  |:-----:| ------------------------------------------------------- |
+  | 0     | No decimation is performed                              |
+  | 1     | Decimation by periodic lodSubsamplingPeriod             |
+  | 1     | Decimation by distance to lodSubsamplingPeriod centroid |
 
 ### `--intraLodPredictionSkipLayers=INT-VALUE`
 The number of detail levels where intra prediction is disabled, starting
@@ -672,7 +673,7 @@ from the finest detail level.  Applies to `transformType=0` only.
 
 ### `--aps_scalable_enabled_flag=0|1`
 Enable spatially scalable attribute encoding.
-The option is only valid when `transformType=2`, `lodDecimation=0`,
+The option is only valid when `transformType=2`, `lodDecimator=0`,
 and `trisoupNodeSizeLog2=0`.
 
 ### `--max_neigh_range=INT-VALUE`

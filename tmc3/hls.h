@@ -135,6 +135,15 @@ enum class AttributeEncoding
 
 //============================================================================
 
+enum class LodDecimationMethod
+{
+  kNone = 0,
+  kPeriodic = 1,
+  kCentroid = 2,
+};
+
+//============================================================================
+
 enum class AxisOrder
 {
   kZYX = 0,
@@ -572,7 +581,7 @@ struct AttributeParameterSet {
 
   //--- lifting/predicting transform parameters
 
-  bool lod_decimation_enabled_flag;
+  LodDecimationMethod lod_decimation_type;
   bool canonical_point_order_flag;
   int num_pred_nearest_neighbours_minus1;
   int max_num_direct_predictors;

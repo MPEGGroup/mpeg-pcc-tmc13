@@ -254,6 +254,14 @@ operator>>(std::istream& in, AttributeEncoding& val)
 
 namespace pcc {
 static std::istream&
+operator>>(std::istream& in, LodDecimationMethod& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::istream&
 operator>>(std::istream& in, PartitionMethod& val)
 {
   return readUInt(in, val);
@@ -327,6 +335,19 @@ operator<<(std::ostream& out, const AttributeEncoding& val)
   case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
   case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const LodDecimationMethod& val)
+{
+  switch (val) {
+  case LodDecimationMethod::kNone: out << "0 (None)"; break;
+  case LodDecimationMethod::kPeriodic: out << "1 (Periodic)"; break;
+  case LodDecimationMethod::kCentroid: out << "2 (Centroid)"; break;
   }
   return out;
 }
@@ -874,11 +895,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.lodNeighBias, {1, 1, 1},
     "Attribute's (x, y, z) component intra prediction weights")
 
-  ("lodDecimation",
-    params_attr.aps.lod_decimation_enabled_flag, false,
-    "Controls LoD generation method:\n"
-    " 0: distance based subsampling\n"
-    " 1: periodic subsampling using lodSamplingPeriod")
+  ("lodDecimator",
+    params_attr.aps.lod_decimation_type, LodDecimationMethod::kNone,
+    "LoD decimation method:\n"
+    " 0: none\n"
+    " 1: periodic subsampling using lodSamplingPeriod\n"
+    " 2: centroid subsampling using lodSamplingPeriod")
 
   ("max_num_direct_predictors",
     params_attr.aps.max_num_direct_predictors, 3,
@@ -1213,7 +1235,7 @@ sanitizeEncoderOpts(
     // derive samplingPeriod values based on initial value
     if (
       !attr_aps.lodParametersPresent()
-      || !attr_aps.lod_decimation_enabled_flag) {
+      || (attr_aps.lod_decimation_type == LodDecimationMethod::kNone)) {
       attr_aps.lodSamplingPeriod.clear();
     } else if (!attr_aps.lodSamplingPeriod.empty()) {
       auto i = attr_aps.lodSamplingPeriod.size();
@@ -1221,6 +1243,10 @@ sanitizeEncoderOpts(
       // add any extra values as required
       for (; i < attr_aps.num_detail_levels_minus1; i++)
         attr_aps.lodSamplingPeriod[i] = attr_aps.lodSamplingPeriod[i - 1];
+
+      for (auto period : attr_aps.lodSamplingPeriod)
+        if (period > 8)
+          err.error() << it.first << ".lodSamplingPeriod must be <= 8\n";
     }
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
@@ -1370,7 +1396,7 @@ sanitizeEncoderOpts(
       }
 
       if (
-        attr_aps.lod_decimation_enabled_flag
+        (attr_aps.lod_decimation_type != LodDecimationMethod::kNone)
         && attr_aps.lodSamplingPeriod.empty()) {
         err.error() << it.first
                     << ".lodSamplingPeriod must contain at least one entry\n";
@@ -1395,9 +1421,8 @@ sanitizeEncoderOpts(
       }
 
       if (attr_aps.scalable_lifting_enabled_flag) {
-        if (attr_aps.lod_decimation_enabled_flag) {
-          err.error() << it.first
-                      << ".lod_decimation_enabled_flag must be = 0 \n";
+        if (attr_aps.lod_decimation_type != LodDecimationMethod::kNone) {
+          err.error() << it.first << ".lod_decimation_type must be 0\n";
         }
 
         if (params.encoder.gps.trisoup_enabled_flag) {

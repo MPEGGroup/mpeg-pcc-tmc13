@@ -108,7 +108,7 @@ AttributeLods::isReusable(
   if (_aps.scalable_lifting_enabled_flag || aps.scalable_lifting_enabled_flag)
     return false;
 
-  if (_aps.lod_decimation_enabled_flag != aps.lod_decimation_enabled_flag)
+  if (_aps.lod_decimation_type != aps.lod_decimation_type)
     return false;
 
   if (_aps.dist2 + _abh.attr_dist2_delta != aps.dist2 + abh.attr_dist2_delta)

@@ -1548,7 +1548,9 @@ subsampleByOctree(
   const std::vector<uint32_t>& input,
   int32_t octreeNodeSizeLog2,
   std::vector<uint32_t>& retained,
-  std::vector<uint32_t>& indexes)
+  std::vector<uint32_t>& indexes,
+  bool direction,
+  int lodSamplingPeriod = 0)
 {
   const int indexCount = int(input.size());
   if (indexCount == 1) {
@@ -1556,7 +1558,6 @@ subsampleByOctree(
     return;
   }
 
-  bool direction = octreeNodeSizeLog2 & 1;
   uint64_t lodUniformQuant = 3 * (octreeNodeSizeLog2 + 1);
   uint64_t currVoxelPos;
 
@@ -1573,6 +1574,9 @@ subsampleByOctree(
     voxels.push_back(input[i]);
 
     if (i == (indexCount - 1) || currVoxelPos < nextVoxelPos) {
+      if ((voxels.size() < lodSamplingPeriod) && (i != (indexCount - 1)))
+        continue;
+
       uint32_t picked = subsampleByOctreeWithCentroid(
         pointCloud, packedVoxel, octreeNodeSizeLog2, direction, voxels);
 
@@ -1623,11 +1627,19 @@ subsample(
 {
   if (aps.scalable_lifting_enabled_flag) {
     int32_t octreeNodeSizeLog2 = lodIndex;
+    bool direction = octreeNodeSizeLog2 & 1;
     subsampleByOctree(
-      pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes);
-  } else if (aps.lod_decimation_enabled_flag) {
+      pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes,
+      direction);
+  } else if (aps.lod_decimation_type == LodDecimationMethod::kPeriodic) {
     auto samplingPeriod = aps.lodSamplingPeriod[lodIndex];
     subsampleByDecimation(input, samplingPeriod, retained, indexes);
+  } else if (aps.lod_decimation_type == LodDecimationMethod::kCentroid) {
+    auto samplingPeriod = aps.lodSamplingPeriod[lodIndex];
+    int32_t octreeNodeSizeLog2 = aps.dist2 + lodIndex;
+    subsampleByOctree(
+      pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes,
+      true, samplingPeriod);
   } else {
     const auto shiftBits = aps.dist2 + abh.attr_dist2_delta + lodIndex;
     subsampleByDistance(

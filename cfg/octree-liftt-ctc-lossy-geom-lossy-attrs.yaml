@@ -53,10 +53,10 @@ categories:
        - transformType: 2
        - numberOfNearestNeighborsInPrediction: 3
        - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
-       - lodDecimation: 0
+       - lodDecimator: 0
        -
          - !conditional '"${group}" =~ m{^cat3}'
-         - lodDecimation: 1
+         - lodDecimator: 1
          - lod_neigh_bias: ${seq_lod_bias}
        -
          - !conditional '${numLasers}'
