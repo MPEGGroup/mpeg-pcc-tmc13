@@ -616,6 +616,10 @@ than 8, the threshold is scaled by 2**(bitDepth - 8).
 
 Applies to `transformType=0` only.
 
+### `--direct_avg_predictor_disabled_flag=0|1`
+Controls the use of the neighbour average predictor when direct prediction
+is invoked.
+
 ### `--interComponentPredictionEnabled=0|1`
 Controls the use of an in-loop inter-component prediction of attribute
 residuals.  When enabled, the secondary attribute residuals (e.g. red/blue)

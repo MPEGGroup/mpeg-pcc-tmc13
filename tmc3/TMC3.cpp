@@ -885,6 +885,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Maximum number of nearest neighbour candidates used in direct"
     "attribute prediction")
 
+  ("direct_avg_predictor_disabled_flag",
+    params_attr.aps.direct_avg_predictor_disabled_flag, false,
+    "Disable average predictor")
+
   // NB: this parameter actually represents the number of refinement layers
   ("levelOfDetailCount",
     params_attr.aps.num_detail_levels_minus1, 1,

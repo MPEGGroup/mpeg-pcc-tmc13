@@ -64,6 +64,7 @@ categories:
          - !conditional '"${group}" =~ m{^cat3}'
          - levelOfDetailCount: 0
          - lod_neigh_bias: ${seq_lod_bias}
+         - direct_avg_predictor_disabled_flag: 1
        -
          - !conditional '${numLasers}'
          - lod_neigh_bias: '1,1,1'

@@ -99,4 +99,20 @@ private:
 
 //============================================================================
 
+bool predModeEligibleColor(
+  const AttributeDescription& desc,
+  const AttributeParameterSet& aps,
+  const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& indexes,
+  const PCCPredictor& predictor);
+
+bool predModeEligibleRefl(
+  const AttributeDescription& desc,
+  const AttributeParameterSet& aps,
+  const PCCPointSet3& pointCloud,
+  const std::vector<uint32_t>& indexes,
+  const PCCPredictor& predictor);
+
+//============================================================================
+
 }  // namespace pcc

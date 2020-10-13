@@ -290,34 +290,39 @@ AttributeDecoder::isReusable(
 
 void
 AttributeDecoder::decodePredModeRefl(
-  const AttributeDescription& desc,
-  const AttributeParameterSet& aps,
-  const PCCPointSet3& pointCloud,
-  const std::vector<uint32_t>& indexes,
-  PCCPredictor& predictor,
-  PCCResidualsDecoder& decoder)
+  const AttributeParameterSet& aps, int32_t& coeff, PCCPredictor& predictor)
 {
-  predictor.predMode = 0;
-  int64_t maxDiff = 0;
+  int coeffAbs = abs(coeff);
+  int coeffSign = coeff < 0 ? -1 : 1;
+  int mode;
 
-  if (predictor.neighborCount > 1 && aps.max_num_direct_predictors) {
-    int64_t minValue = 0;
-    int64_t maxValue = 0;
-    for (int i = 0; i < predictor.neighborCount; ++i) {
-      const attr_t reflectanceNeighbor = pointCloud.getReflectance(
-        indexes[predictor.neighbors[i].predictorIndex]);
-      if (i == 0 || reflectanceNeighbor < minValue) {
-        minValue = reflectanceNeighbor;
-      }
-      if (i == 0 || reflectanceNeighbor > maxValue) {
-        maxValue = reflectanceNeighbor;
-      }
+  int maxcand =
+    aps.max_num_direct_predictors + !aps.direct_avg_predictor_disabled_flag;
+  switch (maxcand) {
+  case 4:
+    mode = coeffAbs & 3;
+    coeff = coeffSign * (coeffAbs >> 2);
+    break;
+
+  case 3:
+    mode = coeffAbs & 1;
+    coeffAbs >>= 1;
+    if (mode > 0) {
+      mode += coeffAbs & 1;
+      coeffAbs >>= 1;
     }
-    maxDiff = maxValue - minValue;
+    coeff = coeffSign * coeffAbs;
+    break;
+
+  case 2:
+    mode = coeffAbs & 1;
+    coeff = coeffSign * (coeffAbs >> 1);
+    break;
+
+  default: mode = 0;
   }
 
-  if (maxDiff >= aps.adaptivePredictionThreshold(desc))
-    predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
+  predictor.predMode = mode + aps.direct_avg_predictor_disabled_flag;
 }
 
 //----------------------------------------------------------------------------
@@ -348,14 +353,14 @@ AttributeDecoder::decodeReflectancesPred(
     if (--zeroRunRem < 0)
       zeroRunRem = decoder.decodeRunLength();
 
-    decodePredModeRefl(
-      desc, aps, pointCloud, _lods.indexes, predictor, decoder);
-    attr_t& reflectance = pointCloud.getReflectance(pointIndex);
-
     int32_t attValue0 = 0;
     if (!zeroRunRem)
       attValue0 = decoder.decode();
 
+    if (predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor))
+      decodePredModeRefl(aps, attValue0, predictor);
+
+    attr_t& reflectance = pointCloud.getReflectance(pointIndex);
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, _lods.indexes);
     const int64_t delta =
@@ -370,37 +375,50 @@ AttributeDecoder::decodeReflectancesPred(
 
 void
 AttributeDecoder::decodePredModeColor(
-  const AttributeDescription& desc,
   const AttributeParameterSet& aps,
-  const PCCPointSet3& pointCloud,
-  const std::vector<uint32_t>& indexes,
-  PCCPredictor& predictor,
-  PCCResidualsDecoder& decoder)
+  Vec3<int32_t>& coeff,
+  PCCPredictor& predictor)
 {
-  int64_t maxDiff = 0;
+  int signk1 = coeff[1] < 0 ? -1 : 1;
+  int signk2 = coeff[2] < 0 ? -1 : 1;
+  int coeffAbsk1 = abs(coeff[1]);
+  int coeffAbsk2 = abs(coeff[2]);
 
-  if (predictor.neighborCount > 1 && aps.max_num_direct_predictors) {
-    int64_t minValue[3] = {0, 0, 0};
-    int64_t maxValue[3] = {0, 0, 0};
-    for (int i = 0; i < predictor.neighborCount; ++i) {
-      const Vec3<attr_t> colorNeighbor =
-        pointCloud.getColor(indexes[predictor.neighbors[i].predictorIndex]);
-      for (size_t k = 0; k < 3; ++k) {
-        if (i == 0 || colorNeighbor[k] < minValue[k]) {
-          minValue[k] = colorNeighbor[k];
-        }
-        if (i == 0 || colorNeighbor[k] > maxValue[k]) {
-          maxValue[k] = colorNeighbor[k];
-        }
-      }
+  int mode;
+  int maxcand =
+    aps.max_num_direct_predictors + !aps.direct_avg_predictor_disabled_flag;
+  switch (maxcand) {
+    int parityk1, parityk2;
+  case 4:
+    parityk1 = coeffAbsk1 & 1;
+    parityk2 = coeffAbsk2 & 1;
+    coeff[1] = signk1 * (coeffAbsk1 >> 1);
+    coeff[2] = signk2 * (coeffAbsk2 >> 1);
+
+    mode = (parityk1 << 1) + parityk2;
+    break;
+
+  case 3:
+    parityk1 = coeffAbsk1 & 1;
+    coeff[1] = signk1 * (coeffAbsk1 >> 1);
+    mode = parityk1;
+    if (parityk1) {
+      parityk2 = coeffAbsk2 & 1;
+      coeff[2] = signk2 * (coeffAbsk2 >> 1);
+      mode += parityk2;
     }
-    maxDiff = (std::max)(
-      maxValue[2] - minValue[2],
-      (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
+    break;
+
+  case 2:
+    parityk1 = coeffAbsk1 & 1;
+    coeff[1] = signk1 * (coeffAbsk1 >> 1);
+    mode = parityk1;
+    break;
+
+  default: assert(maxcand >= 2); mode = 0;
   }
 
-  if (maxDiff >= aps.adaptivePredictionThreshold(desc))
-    predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
+  predictor.predMode = mode + aps.direct_avg_predictor_disabled_flag;
 }
 
 //----------------------------------------------------------------------------
@@ -417,7 +435,7 @@ AttributeDecoder::decodeColorsPred(
   const size_t pointCount = pointCloud.getPointCount();
 
   int64_t clipMax = (1 << desc.bitdepth) - 1;
-  int32_t values[3];
+  Vec3<int32_t> values;
 
   bool icpPresent = abh.icpPresent(desc, aps);
   auto icpCoeff = icpPresent ? abh.icpCoeffs[0] : 0;
@@ -437,12 +455,13 @@ AttributeDecoder::decodeColorsPred(
     if (--zeroRunRem < 0)
       zeroRunRem = decoder.decodeRunLength();
 
-    decodePredModeColor(
-      desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     if (zeroRunRem)
       values[0] = values[1] = values[2] = 0;
     else
-      decoder.decode(values);
+      decoder.decode(&values[0]);
+
+    if (predModeEligibleColor(desc, aps, pointCloud, _lods.indexes, predictor))
+      decodePredModeColor(aps, values, predictor);
 
     Vec3<attr_t>& color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =

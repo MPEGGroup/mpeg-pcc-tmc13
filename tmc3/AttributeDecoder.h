@@ -124,20 +124,12 @@ protected:
     PCCPointSet3& pointCloud);
 
   static void decodePredModeColor(
-    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
-    const PCCPointSet3& pointCloud,
-    const std::vector<uint32_t>& indexes,
-    PCCPredictor& predictor,
-    PCCResidualsDecoder& decoder);
+    Vec3<int32_t>& coeff,
+    PCCPredictor& predictor);
 
   static void decodePredModeRefl(
-    const AttributeDescription& desc,
-    const AttributeParameterSet& aps,
-    const PCCPointSet3& pointCloud,
-    const std::vector<uint32_t>& indexes,
-    PCCPredictor& predictor,
-    PCCResidualsDecoder& decoder);
+    const AttributeParameterSet& aps, int32_t& coeff, PCCPredictor& predictor);
 
 private:
   AttributeLods _lods;

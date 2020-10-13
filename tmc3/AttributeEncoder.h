@@ -134,6 +134,9 @@ protected:
     const Vec3<int8_t>& icpCoeff,
     const Quantizers& quant);
 
+  static void encodePredModeColor(
+    const AttributeParameterSet& aps, int predMode, Vec3<int32_t>& coeff);
+
   static int64_t computeReflectanceResidual(
     const uint64_t reflectance,
     const uint64_t predictedReflectance,
@@ -149,6 +152,9 @@ protected:
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
     const Quantizer& quant);
+
+  static void encodePredModeRefl(
+    const AttributeParameterSet& aps, int predMode, int32_t& coeff);
 
 private:
   std::vector<int8_t> computeLastComponentPredictionCoeff(
