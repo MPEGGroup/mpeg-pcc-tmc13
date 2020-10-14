@@ -40,6 +40,7 @@
 
 #include "PCCMisc.h"
 #include "geometry_params.h"
+#include "quantization.h"
 #include "tables.h"
 
 namespace pcc {
@@ -622,19 +623,28 @@ determineContextAngleForPlanar(
   const AzimuthalPhiZi& phiZi,
   int* phiBuffer,
   int* contextAnglePhiX,
-  int* contextAnglePhiY)
+  int* contextAnglePhiY,
+  Vec3<uint32_t> quantMasks)
 {
-  Vec3<int64_t> nodePosLidar = (node.pos << nodeSizeLog2) - angularOrigin;
+  Vec3<int> nodePos = node.pos << nodeSizeLog2;
+  Vec3<int> midNode = (1 << nodeSizeLog2) >> 1;
+  Vec3<int> nodeSize = 1 << nodeSizeLog2;
+
+  if (node.qp) {
+    OctreeAngPosScaler quant(node.qp, quantMasks);
+    nodePos = quant.scaleNs(nodePos);
+    midNode = quant.scaleNs(midNode);
+    nodeSize = quant.scaleNs(nodeSize);
+  }
 
   // eligibility
-  Vec3<int64_t> midNode = (1 << nodeSizeLog2) >> 1;
-
+  auto nodePosLidar = nodePos - angularOrigin;
   uint64_t xLidar = std::abs(((nodePosLidar[0] + midNode[0]) << 8) - 128);
   uint64_t yLidar = std::abs(((nodePosLidar[1] + midNode[1]) << 8) - 128);
 
   uint64_t rL1 = (xLidar + yLidar) >> 1;
   uint64_t deltaAngleR = deltaAngle * rL1;
-  if (numLasers > 1 && deltaAngleR <= (midNode[2] << 26))
+  if (numLasers > 1 && deltaAngleR <= uint64_t(midNode[2]) << 26)
     return -1;
 
   // determine inverse of r  (1/sqrt(r2) = irsqrt(r2))
@@ -650,7 +660,7 @@ determineContextAngleForPlanar(
   int laserIndex = int(node.laserIndex);
   if (numLasers == 1)
     laserIndex = 0;
-  else if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
+  else if (laserIndex == 255 || deltaAngleR <= uint64_t(midNode[2]) << 28) {
     auto end = thetaLaser + numLasers - 1;
     auto it = std::upper_bound(thetaLaser + 1, end, theta32);
     if (theta32 - *std::prev(it) <= *it - theta32)
@@ -704,7 +714,7 @@ determineContextAngleForPlanar(
   int64_t hr = zLaser[laserIndex] * rInv;
   thetaLaserDelta += hr >= 0 ? -(hr >> 17) : ((-hr) >> 17);
 
-  int64_t zShift = (rInv << nodeSizeLog2[2]) >> 20;
+  int64_t zShift = (rInv * nodeSize[2]) >> 20;
   int thetaLaserDeltaBot = thetaLaserDelta + zShift;
   int thetaLaserDeltaTop = thetaLaserDelta - zShift;
   int contextAngle = thetaLaserDelta >= 0 ? 0 : 1;

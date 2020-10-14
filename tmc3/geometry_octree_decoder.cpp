@@ -169,10 +169,13 @@ public:
     Vec3<int32_t> deltaUnordered[2]);
 
   Vec3<int32_t> decodePointPositionAngular(
+    const OctreeAngPosScaler& quant,
     const Vec3<int>& nodeSizeLog2Rem,
+    const Vec3<int>& angularOrigin,
     const int* zLaser,
     const int* thetaLaser,
-    int laserNode,
+    int laserIdx,
+    const Vec3<int>& nodePos,
     Vec3<int> posXyz,
     Vec3<int> delta);
 
@@ -186,6 +189,7 @@ public:
     bool joint_2pt_idcm_enabled_flag,
     bool geom_angular_mode_enabled_flag,
     const Vec3<int>& nodeSizeLog2,
+    const Vec3<int>& posQuantBitMasks,
     const PCCOctree3Node& node,
     const OctreeNodePlanar& planar,
     const Vec3<int>& headPos,
@@ -936,10 +940,13 @@ GeometryOctreeDecoder::decodeOrdered2ptPrefix(
 
 Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPositionAngular(
+  const OctreeAngPosScaler& quant,
   const Vec3<int>& nodeSizeLog2Rem,
+  const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
   int laserIdx,
+  const Vec3<int>& nodePos,
   Vec3<int> posXyz,
   Vec3<int> delta)
 {
@@ -950,8 +957,11 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     delta[directAxis] <<= 1;
     delta[directAxis] |= _arithmeticDecoder->decode();
   }
-  posXyz[directAxis] += delta[directAxis];
-  posXyz[!directAxis] += delta[!directAxis] << nodeSizeLog2Rem[!directAxis];
+
+  posXyz += quant.scaleEns(delta << nodeSizeLog2Rem);
+  posXyz[directAxis] =
+    quant.scaleEns(directAxis, nodePos[directAxis] + delta[directAxis])
+    - angularOrigin[directAxis];
 
   // laser residual
   laserIdx += decodeThetaRes();
@@ -971,9 +981,10 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   const int phiAxis = !directAxis;
   for (int mask = (1 << nodeSizeLog2Rem[phiAxis]) >> 1; mask; mask >>= 1) {
     // angles left and right
+    int scaledMask = quant.scaleEns(phiAxis, mask);
     int phiL = phiNode;
-    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + mask)
-                          : iatan2(posXyz[1] + mask, posXyz[0]);
+    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + scaledMask)
+                          : iatan2(posXyz[1] + scaledMask, posXyz[0]);
 
     // ctx azimutal
     int angleL = phiL - predPhi;
@@ -995,7 +1006,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     delta[phiAxis] <<= 1;
     if (bit) {
       delta[phiAxis] |= 1;
-      posXyz[phiAxis] += mask;
+      posXyz[phiAxis] += scaledMask;
       phiNode = phiR;
       predPhi = _phiBuffer[laserIdx];
       if (predPhi == 0x80000000)
@@ -1028,14 +1039,12 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIdx] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int posz0 = posXyz[2];
-  posXyz[2] += delta[2] << nodeSizeLog2Rem[2];
-
-  int zShift = (rInv << nodeSizeLog2Rem[2]) >> 18;
+  int zShift = (rInv * quant.scaleEns(2, 1 << nodeSizeLog2Rem[2])) >> 18;
   for (int bitIdxZ = nodeSizeLog2Rem[2]; bitIdxZ > 0;
        bitIdxZ--, maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
-    int64_t zLidar = ((posXyz[2] + maskz) << 1) - 1;
+    int scaledMaskZ = quant.scaleEns(2, maskz);
+    int64_t zLidar = ((posXyz[2] + scaledMaskZ) << 1) - 1;
     int64_t theta = zLidar * rInv;
     int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
     int thetaLaserDelta = fixedThetaLaser - theta32;
@@ -1051,7 +1060,8 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     auto& ctx = _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle];
     delta[2] <<= 1;
     delta[2] |= _arithmeticDecoder->decode(ctx);
-    posXyz[2] = posz0 + (delta[2] << (bitIdxZ - 1));
+    if (delta[2] & 1)
+      posXyz[2] += scaledMaskZ;
   }
 
   return delta;
@@ -1077,6 +1087,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
   bool joint_2pt_idcm_enabled_flag,
   bool geom_angular_mode_enabled_flag,
   const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& posQuantBitMask,
   const PCCOctree3Node& node,
   const OctreeNodePlanar& planar,
   const Vec3<int>& angularOrigin,
@@ -1110,13 +1121,17 @@ GeometryOctreeDecoder::decodeDirectPosition(
       nodeSizeLog2Rem[k]--;
     }
 
+  // quantised partial positions must be scaled for angular coding
+  // nb, the decoded position remains quantised.
+  OctreeAngPosScaler quant(node.qp, posQuantBitMask);
+
   // Indicates which components are directly coded
   Vec3<bool> directIdcm = true;
 
   // Position of the node relative to the angular origin
   point_t posNodeLidar;
   if (geom_angular_mode_enabled_flag) {
-    posNodeLidar = (node.pos << nodeSizeLog2) - angularOrigin;
+    posNodeLidar = quant.scaleEns(node.pos << nodeSizeLog2) - angularOrigin;
     bool directAxis = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
     directIdcm = false;
     directIdcm[directAxis] = true;
@@ -1131,6 +1146,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
   if (geom_angular_mode_enabled_flag) {
     auto delta = (deltaPos[0] << nodeSizeLog2Rem);
     delta += (1 << nodeSizeLog2Rem) >> 1;
+    delta = quant.scaleEns(delta);
     laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
   }
 
@@ -1138,8 +1154,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
   for (int i = 0; i < numPoints; i++) {
     if (geom_angular_mode_enabled_flag)
       *(outputPoints++) = pos = decodePointPositionAngular(
-        nodeSizeLog2Rem, zLaser, thetaLaser, laserIdx, posNodeLidar,
-        deltaPos[i]);
+        quant, nodeSizeLog2Rem, angularOrigin, zLaser, thetaLaser, laserIdx,
+        node.pos << nodeSizeLog2, posNodeLidar, deltaPos[i]);
     else
       *(outputPoints++) = pos =
         decodePointPosition(nodeSizeLog2Rem, deltaPos[i]);
@@ -1413,7 +1429,7 @@ decodeGeometryOctree(
         contextAngle = determineContextAngleForPlanar(
           node0, nodeSizeLog2, angularOrigin, zLaser, thetaLaser, numLasers,
           deltaAngle, decoder._phiZi, decoder._phiBuffer.data(),
-          &contextAnglePhiX, &contextAnglePhiY);
+          &contextAnglePhiX, &contextAnglePhiY, posQuantBitMasks);
       }
 
       if (gps.geom_planar_mode_enabled_flag) {
@@ -1466,8 +1482,8 @@ decodeGeometryOctree(
 
           int numPoints = decoder.decodeDirectPosition(
             gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
-            gps.geom_angular_mode_enabled_flag, idcmSize, node0, planar,
-            angularOrigin, zLaser, thetaLaser, numLasers,
+            gps.geom_angular_mode_enabled_flag, idcmSize, posQuantBitMasks,
+            node0, planar, angularOrigin, zLaser, thetaLaser, numLasers,
             &pointCloud[processedPointCount]);
 
           for (int j = 0; j < numPoints; j++) {

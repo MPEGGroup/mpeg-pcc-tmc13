@@ -184,7 +184,9 @@ public:
     const Vec3<int>& nodeSizeLog2AfterPlanar, const Vec3<int32_t>& pos);
 
   void encodePointPositionAngular(
-    Vec3<int> nodeSizeLog2Rem,
+    const OctreeAngPosScaler& quant,
+    const OctreeNodePlanar& planar,
+    const Vec3<int>& nodeSizeLog2Rem,
     Vec3<int> posXyz,
     const Vec3<int>& pos,
     int nodeLaserIdx,
@@ -202,6 +204,7 @@ public:
     bool joint_2pt_idcm_enabled_flag,
     bool geom_angular_mode_enabled_flag,
     DirectMode mode,
+    const Vec3<uint32_t>& quantMasks,
     const Vec3<int>& nodeSizeLog2,
     int shiftBits,
     const PCCOctree3Node& node,
@@ -909,7 +912,9 @@ GeometryOctreeEncoder::encodePointPosition(
 
 void
 GeometryOctreeEncoder::encodePointPositionAngular(
-  Vec3<int> nodeSizeLog2Rem,
+  const OctreeAngPosScaler& quant,
+  const OctreeNodePlanar& planar,
+  const Vec3<int>& nodeSizeLog2Rem,
   Vec3<int> posXyz,
   const Vec3<int>& pos,
   int nodeLaserIdx,
@@ -924,13 +929,19 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 
   for (int mask = (1 << nodeSizeLog2Rem[directAxis]) >> 1; mask; mask >>= 1)
     _arithmeticEncoder->encode(!!(pos[directAxis] & mask));
-  nodeSizeLog2Rem[directAxis] = 0;
 
   // update the known position to take into account all coded bits
-  posXyz = ((pos >> nodeSizeLog2Rem) << nodeSizeLog2Rem) - angularOrigin;
+  for (int k = 0; k < 3; k++)
+    if (k != directAxis)
+      if (planar.planePosBits & (1 << k))
+        posXyz[k] += quant.scaleEns(k, 1 << nodeSizeLog2Rem[k]);
+
+  posXyz[directAxis] =
+    quant.scaleEns(directAxis, pos[directAxis]) - angularOrigin[directAxis];
 
   // Laser
-  int laserIdx = findLaser(pos - angularOrigin, thetaLaser, numLasers);
+  int laserIdx =
+    findLaser(quant.scaleEns(pos) - angularOrigin, thetaLaser, numLasers);
   encodeThetaRes(laserIdx - nodeLaserIdx);
 
   // find predictor
@@ -948,9 +959,10 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   const int phiAxis = !directAxis;
   for (int mask = (1 << nodeSizeLog2Rem[phiAxis]) >> 1; mask; mask >>= 1) {
     // angles left and right
+    int scaledMask = quant.scaleEns(phiAxis, mask);
     int phiL = phiNode;
-    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + mask)
-                          : iatan2(posXyz[1] + mask, posXyz[0]);
+    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + scaledMask)
+                          : iatan2(posXyz[1] + scaledMask, posXyz[0]);
 
     // ctx azimutal
     int angleL = phiL - predPhi;
@@ -971,7 +983,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     auto& ctx = _ctxPlanarPlaneLastIndexAngularPhiIDCM[contextAnglePhi];
     _arithmeticEncoder->encode(bit, ctx);
     if (bit) {
-      posXyz[phiAxis] += mask;
+      posXyz[phiAxis] += scaledMask;
       phiNode = phiR;
       predPhi = _phiBuffer[laserIdx];
       if (predPhi == 0x80000000)
@@ -1003,10 +1015,11 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIdx] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int zShift = (rInv << nodeSizeLog2Rem[2]) >> 18;
+  int zShift = rInv * quant.scaleEns(2, 1 << nodeSizeLog2Rem[2]) >> 18;
   for (; maskz; maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
-    int64_t zLidar = ((posXyz[2] + maskz) << 1) - 1;
+    int scaledMaskZ = quant.scaleEns(2, maskz);
+    int64_t zLidar = ((posXyz[2] + scaledMaskZ) << 1) - 1;
     int64_t theta = zLidar * rInv;
     int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
     int thetaLaserDelta = fixedThetaLaser - theta32;
@@ -1023,7 +1036,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     auto& ctx = _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle];
     _arithmeticEncoder->encode(bit, ctx);
     if (bit)
-      posXyz[2] += maskz;
+      posXyz[2] += scaledMaskZ;
   }
 }
 
@@ -1276,6 +1289,7 @@ GeometryOctreeEncoder::encodeDirectPosition(
   bool joint_2pt_idcm_enabled_flag,
   bool geom_angular_mode_enabled_flag,
   DirectMode mode,
+  const Vec3<uint32_t>& quantMasks,
   const Vec3<int>& effectiveNodeSizeLog2,
   int shiftBits,
   const PCCOctree3Node& node,
@@ -1331,6 +1345,8 @@ GeometryOctreeEncoder::encodeDirectPosition(
   for (int i = 0; i < numPoints; i++)
     points[i] = pointCloud[node.start + i] >> shiftBits;
 
+  OctreeAngPosScaler quant(node.qp, quantMasks);
+
   // update node size after planar
   Vec3<int> nodeSizeLog2Rem = effectiveNodeSizeLog2;
   for (int k = 0; k < 3; k++)
@@ -1344,10 +1360,8 @@ GeometryOctreeEncoder::encodeDirectPosition(
   // Position of the node relative to the angular origin
   point_t posNodeLidar;
   if (geom_angular_mode_enabled_flag) {
-    posNodeLidar = (node.pos << effectiveNodeSizeLog2) - angularOrigin;
-    // todo(df): this should be fixed to take quantisation into account
-    // inorder to compare with angularOrigin, shift by shiftBits and changed
-    // in the decoder too.
+    posNodeLidar = quant.scaleEns(node.pos << effectiveNodeSizeLog2);
+    posNodeLidar -= angularOrigin;
 
     bool directAxis = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
     directIdcm = false;
@@ -1368,17 +1382,19 @@ GeometryOctreeEncoder::encodeDirectPosition(
 
   int laserIdx;
   if (geom_angular_mode_enabled_flag) {
-    auto posNodeBis = (points[0] >> nodeSizeLog2Rem) << nodeSizeLog2Rem;
-    posNodeBis += (1 << nodeSizeLog2Rem) >> 1;
-    laserIdx = findLaser(posNodeBis - angularOrigin, thetaLaser, numLasers);
+    auto delta = points[0] - (node.pos << effectiveNodeSizeLog2);
+    delta = (delta >> nodeSizeLog2Rem) << nodeSizeLog2Rem;
+    delta += (1 << nodeSizeLog2Rem) >> 1;
+    delta = quant.scaleEns(delta);
+    laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
   }
 
   // code points after planar
   for (auto idx = 0; idx < numPoints; idx++) {
     if (geom_angular_mode_enabled_flag)
       encodePointPositionAngular(
-        nodeSizeLog2Rem, posNodeLidar, points[idx], laserIdx, angularOrigin,
-        zLaser, thetaLaser, numLasers);
+        quant, planar, nodeSizeLog2Rem, posNodeLidar, points[idx], laserIdx,
+        angularOrigin, zLaser, thetaLaser, numLasers);
     else
       encodePointPosition(nodeSizeLog2Rem, points[idx]);
   }
@@ -1518,6 +1534,7 @@ encodeGeometryOctree(
 
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
+  Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int idcmQp = 0;
   int sliceQp = gbh.sliceQp(gps);
   int numLvlsUntilQuantization = 0;
@@ -1570,6 +1587,8 @@ encodeGeometryOctree(
       idcmQp = gps.geom_base_qp + gps.geom_idcm_qp_offset;
       idcmQp <<= gps.geom_qp_multiplier_log2;
       idcmQp = std::min(idcmQp, minNs * 8);
+      for (int k = 0; k < 3; k++)
+        posQuantBitMasks[k] = (1 << quantNodeSizeLog2[k]) - 1;
     }
 
     // determing a per node QP at the appropriate level
@@ -1577,6 +1596,8 @@ encodeGeometryOctree(
       // idcm qps are no longer independent
       idcmQp = 0;
       quantNodeSizeLog2 = nodeSizeLog2;
+      for (int k = 0; k < 3; k++)
+        posQuantBitMasks[k] = (1 << quantNodeSizeLog2[k]) - 1;
       calculateNodeQps(
         params.qpMethod, nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2,
         fifo.begin(), fifoCurrLvlEnd);
@@ -1682,7 +1703,7 @@ encodeGeometryOctree(
         contextAngle = determineContextAngleForPlanar(
           node0, nodeSizeLog2, angularOrigin, zLaser, thetaLaser, numLasers,
           deltaAngle, encoder._phiZi, encoder._phiBuffer.data(),
-          &contextAnglePhiX, &contextAnglePhiY);
+          &contextAnglePhiX, &contextAnglePhiY, posQuantBitMasks);
       }
 
       if (gps.geom_planar_mode_enabled_flag) {
@@ -1751,9 +1772,9 @@ encodeGeometryOctree(
 
           encoder.encodeDirectPosition(
             gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
-            gps.geom_angular_mode_enabled_flag, mode, idcmSize, idcmShiftBits,
-            node0, planar, pointCloud, angularOrigin, zLaser, thetaLaser,
-            numLasers);
+            gps.geom_angular_mode_enabled_flag, mode, posQuantBitMasks,
+            idcmSize, idcmShiftBits, node0, planar, pointCloud, angularOrigin,
+            zLaser, thetaLaser, numLasers);
 
           // inverse quantise any quantised positions
           geometryScale(pointCloud, node0, quantNodeSizeLog2);

@@ -43,6 +43,7 @@
 #include "entropy.h"
 #include "geometry_params.h"
 #include "hls.h"
+#include "quantization.h"
 #include "ringbuf.h"
 #include "tables.h"
 
@@ -256,6 +257,79 @@ nonSplitQtBtAxes(const Vec3<int>& nodeSizeLog2, const Vec3<int>& childSizeLog2)
 }
 
 //============================================================================
+// Scales quantized positions used internally in angular coding.
+//
+// NB: this is not used to scale output positions since generated positions
+//     are not clipped to node boundaries.
+//
+// NB: there are two different position representations used in the codec:
+//        ppppppssssss = original position
+//        ppppppqqqq00 = pos, (quantisation) node size aligned -> use scaleNs()
+//        00ppppppqqqq = pos, effective node size aligned -> use scaleEns()
+//     where p are unquantised bits, q are quantised bits, and 0 are zero bits.
+
+class OctreeAngPosScaler {
+  QuantizerGeom _quant;
+  Vec3<uint32_t> _mask;
+  int _qp;
+
+public:
+  OctreeAngPosScaler(int qp, const Vec3<uint32_t>& quantMaskBits)
+    : _quant(qp), _qp(qp), _mask(quantMaskBits)
+  {}
+
+  // Scale an effectiveNodeSize aligned position as the k-th position component.
+  int scaleEns(int k, int pos) const;
+
+  // Scale an effectiveNodeSize aligned position.
+  Vec3<int> scaleEns(Vec3<int> pos) const;
+
+  // Scale a NodeSize aligned position.
+  Vec3<int> scaleNs(Vec3<int> pos) const;
+};
+
+//----------------------------------------------------------------------------
+
+inline int
+OctreeAngPosScaler::scaleEns(int k, int pos) const
+{
+  if (!_qp)
+    return pos;
+
+  int shiftBits = QuantizerGeom::qpShift(_qp);
+  int lowPart = pos & (_mask[k] >> shiftBits);
+  int highPart = pos ^ lowPart;
+  int lowPartScaled = _quant.scale(lowPart);
+
+  return (highPart << shiftBits) + lowPartScaled;
+}
+
+//----------------------------------------------------------------------------
+
+inline Vec3<int32_t>
+OctreeAngPosScaler::scaleEns(Vec3<int32_t> pos) const
+{
+  if (!_qp)
+    return pos;
+
+  for (int k = 0; k < 3; k++)
+    pos[k] = scaleEns(k, pos[k]);
+
+  return pos;
+}
+//----------------------------------------------------------------------------
+
+inline Vec3<int32_t>
+OctreeAngPosScaler::scaleNs(Vec3<int32_t> pos) const
+{
+  if (!_qp)
+    return pos;
+
+  // convert pos to effectiveNodeSize form
+  return scaleEns(pos >> QuantizerGeom::qpShift(_qp));
+}
+
+//============================================================================
 
 class AzimuthalPhiZi {
 public:
@@ -369,8 +443,8 @@ int determineContextAngleForPlanar(
   const AzimuthalPhiZi& phiZi,
   int* phiBuffer,
   int* contextAnglePhiX,
-  int* contextAnglePhiY);
-;
+  int* contextAnglePhiY,
+  Vec3<uint32_t> quantMasks);
 
 //----------------------------------------------------------------------------
 
