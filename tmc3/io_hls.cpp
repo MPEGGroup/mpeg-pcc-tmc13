@@ -1316,6 +1316,19 @@ write(
     }
   }
 
+  if (abh.icpPresent(sps.attributeSets[abh.attr_sps_attr_idx], aps)) {
+    assert(abh.icpCoeffs.size() == aps.maxNumDetailLevels());
+    Vec3<int8_t> pred = {0, 4, 4};
+
+    for (int i = 0; i < abh.icpCoeffs.size(); i++) {
+      auto icp_coeff_diff = abh.icpCoeffs[i] - pred;
+      pred = abh.icpCoeffs[i];
+      // NB: only k > 1 is coded
+      for (int k = 1; k < 3; k++)
+        bs.writeSe(icp_coeff_diff[k]);
+    }
+  }
+
   if (aps.aps_slice_qp_deltas_present_flag) {
     bs.writeSe(abh.attr_qp_delta_luma);
     bs.writeSe(abh.attr_qp_delta_chroma);
@@ -1417,6 +1430,21 @@ parseAbh(
 
       if (lcp_coeff_sign)
         abh.attrLcpCoeffs[i] = -abh.attrLcpCoeffs[i];
+    }
+  }
+
+  if (abh.icpPresent(sps.attributeSets[abh.attr_sps_attr_idx], aps)) {
+    abh.icpCoeffs.resize(aps.maxNumDetailLevels(), 0);
+    Vec3<int8_t> pred{0, 4, 4};
+
+    for (int i = 0; i < abh.icpCoeffs.size(); i++) {
+      auto& icp_coeff_diff = abh.icpCoeffs[i];
+      for (int k = 1; k < 3; k++)
+        bs.readSe(&icp_coeff_diff[k]);
+
+      // NB: pred[0] is always 0.
+      abh.icpCoeffs[i] += pred;
+      pred = abh.icpCoeffs[i];
     }
   }
 

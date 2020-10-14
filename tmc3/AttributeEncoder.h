@@ -119,6 +119,7 @@ protected:
     const AttributeParameterSet& aps,
     const Vec3<attr_t> color,
     const Vec3<attr_t> predictedColor,
+    const Vec3<int8_t> icpCoeff,
     const Quantizers& quant);
 
   static void decidePredModeColor(
@@ -130,6 +131,7 @@ protected:
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
+    const Vec3<int8_t>& icpCoeff,
     const Quantizers& quant);
 
   static int64_t computeReflectanceResidual(
@@ -152,6 +154,9 @@ private:
   std::vector<int8_t> computeLastComponentPredictionCoeff(
     const AttributeParameterSet& aps,
     const std::vector<Vec3<int64_t>>& coeffs);
+
+  std::vector<Vec3<int8_t>> computeInterComponentPredictionCoeffs(
+    const AttributeParameterSet& aps, const PCCPointSet3& pointCloud);
 
 private:
   // The current attribute slice header

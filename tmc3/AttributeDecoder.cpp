@@ -239,7 +239,8 @@ AttributeDecoder::decode(
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeReflectancesPred(attr_desc, attr_aps, qpSet, decoder, pointCloud);
+      decodeReflectancesPred(
+        attr_desc, attr_aps, abh, qpSet, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
@@ -255,7 +256,7 @@ AttributeDecoder::decode(
       break;
 
     case AttributeEncoding::kPredictingTransform:
-      decodeColorsPred(attr_desc, attr_aps, qpSet, decoder, pointCloud);
+      decodeColorsPred(attr_desc, attr_aps, abh, qpSet, decoder, pointCloud);
       break;
 
     case AttributeEncoding::kLiftingTransform:
@@ -325,6 +326,7 @@ void
 AttributeDecoder::decodeReflectancesPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const QpSet& qpSet,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
@@ -407,6 +409,7 @@ void
 AttributeDecoder::decodeColorsPred(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const QpSet& qpSet,
   PCCResidualsDecoder& decoder,
   PCCPointSet3& pointCloud)
@@ -415,6 +418,11 @@ AttributeDecoder::decodeColorsPred(
 
   int64_t clipMax = (1 << desc.bitdepth) - 1;
   int32_t values[3];
+
+  bool icpPresent = abh.icpPresent(desc, aps);
+  auto icpCoeff = icpPresent ? abh.icpCoeffs[0] : 0;
+
+  int lod = 0;
   int zeroRunRem = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -440,12 +448,17 @@ AttributeDecoder::decodeColorsPred(
     const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, _lods.indexes);
 
+    if (icpPresent && predictorIndex == _lods.numPointsInLod[lod])
+      icpCoeff = abh.icpCoeffs[++lod];
+
     int64_t residual0 = 0;
     for (int k = 0; k < 3; ++k) {
       const auto& q = quant[std::min(k, 1)];
       const int64_t residual =
         divExp2RoundHalfUp(q.scale(values[k]), kFixedPointAttributeShift);
-      const int64_t recon = predictedColor[k] + residual + residual0;
+
+      const int64_t recon =
+        predictedColor[k] + residual + ((icpCoeff[k] * residual0 + 2) >> 2);
       color[k] = attr_t(PCCClip(recon, int64_t(0), clipMax));
 
       if (!k && aps.inter_component_prediction_enabled_flag)

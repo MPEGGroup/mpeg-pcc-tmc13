@@ -654,6 +654,22 @@ struct AttributeBrickHeader {
     return true;
   }
 
+  // Inter-component prediction coefficients.
+  std::vector<Vec3<int8_t>> icpCoeffs;
+
+  // indicates whether inter component prediction coefficients are present.
+  bool icpPresent(
+    const AttributeDescription& desc, const AttributeParameterSet& aps) const
+  {
+    if (aps.attr_encoding != AttributeEncoding::kPredictingTransform)
+      return false;
+    if (!aps.inter_component_prediction_enabled_flag)
+      return false;
+    if (desc.attr_num_dimensions_minus1 == 0)
+      return false;
+    return true;
+  }
+
   int attr_qp_delta_luma;
   int attr_qp_delta_chroma;
 

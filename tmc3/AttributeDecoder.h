@@ -96,6 +96,7 @@ protected:
   void decodeReflectancesPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
@@ -103,6 +104,7 @@ protected:
   void decodeColorsPred(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);

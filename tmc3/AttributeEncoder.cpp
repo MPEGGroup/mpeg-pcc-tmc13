@@ -609,6 +609,7 @@ AttributeEncoder::computeColorResiduals(
   const AttributeParameterSet& aps,
   const Vec3<attr_t> color,
   const Vec3<attr_t> predictedColor,
+  const Vec3<int8_t> icpCoeff,
   const Quantizers& quant)
 {
   Vec3<int64_t> residuals;
@@ -622,10 +623,12 @@ AttributeEncoder::computeColorResiduals(
   for (size_t k = 1; k < 3; ++k) {
     const int64_t quantAttValue = color[k];
     const int64_t quantPredAttValue = predictedColor[k];
+
     if (aps.inter_component_prediction_enabled_flag) {
-      const int64_t delta = quant[1].quantize(
-        (quantAttValue - quantPredAttValue - residual0)
-        << kFixedPointAttributeShift);
+      auto err = quantAttValue - quantPredAttValue
+        - ((icpCoeff[k] * residual0 + 2) >> 2);
+
+      auto delta = quant[1].quantize(err << kFixedPointAttributeShift);
       residuals[k] = IntToUInt(delta);
     } else {
       const int64_t delta = quant[1].quantize(
@@ -648,6 +651,7 @@ AttributeEncoder::decidePredModeColor(
   PCCPredictor& predictor,
   PCCResidualsEncoder& encoder,
   PCCResidualsEntropyEstimator& context,
+  const Vec3<int8_t>& icpCoeff,
   const Quantizers& quant)
 {
   predictor.maxDiff = 0;
@@ -678,7 +682,7 @@ AttributeEncoder::decidePredModeColor(
       predictor.predMode = 0;
       Vec3<attr_t> attrPred = predictor.predictColor(pointCloud, indexesLOD);
       Vec3<int64_t> attrResidualQuant =
-        computeColorResiduals(aps, attrValue, attrPred, quant);
+        computeColorResiduals(aps, attrValue, attrPred, icpCoeff, quant);
 
       double best_score = attrResidualQuant[0] + attrResidualQuant[1]
         + attrResidualQuant[2]
@@ -692,7 +696,7 @@ AttributeEncoder::decidePredModeColor(
         attrPred = pointCloud.getColor(
           indexesLOD[predictor.neighbors[i].predictorIndex]);
         attrResidualQuant =
-          computeColorResiduals(aps, attrValue, attrPred, quant);
+          computeColorResiduals(aps, attrValue, attrPred, icpCoeff, quant);
 
         double idxBits = i + (i == aps.max_num_direct_predictors - 1 ? 1 : 2);
         double score = attrResidualQuant[0] + attrResidualQuant[1]
@@ -709,6 +713,88 @@ AttributeEncoder::decidePredModeColor(
       }
     }
   }
+}
+
+//----------------------------------------------------------------------------
+
+std::vector<Vec3<int8_t>>
+AttributeEncoder::computeInterComponentPredictionCoeffs(
+  const AttributeParameterSet& aps, const PCCPointSet3& pointCloud)
+{
+  int maxNumDetailLevels = aps.maxNumDetailLevels();
+  assert(_lods.numPointsInLod.size() <= maxNumDetailLevels);
+
+  // Two secondary colour components (positive sign set)
+  // NB: k=0 is never used
+  std::vector<Vec3<int8_t>> signs(maxNumDetailLevels, {0, 1, 1});
+
+  // Estimate residual using original neighbour as predictor
+  const size_t pointCount = pointCloud.getPointCount();
+  std::vector<Vec3<int32_t>> residual(pointCount);
+
+  for (size_t predIdx = 0; predIdx < pointCount; ++predIdx) {
+    const auto pointIdx = _lods.indexes[predIdx];
+    auto& predictor = _lods.predictors[predIdx];
+
+    // taking first neighbor for simplicity
+    predictor.predMode = 1;
+    auto predAttr = predictor.predictColor(pointCloud, _lods.indexes);
+    auto srcAttr = pointCloud.getColor(pointIdx);
+    residual[predIdx] = Vec3<int>(srcAttr) - Vec3<int>(predAttr);
+
+    // reset is needed as RD would be done later.
+    predictor.predMode = 0;
+  }
+
+  const int nWeights = 8;
+  const int nShift = 2;  // from log2(nWeights >> 1)
+  std::vector<Vec3<int64_t>> sumPredCoeff(nWeights, 0);
+  Vec3<int64_t> sumOrigCoeff = 0;
+
+  int lod = 0;
+  for (size_t predIdx = 0; predIdx < pointCount; ++predIdx) {
+    Vec3<int32_t> resid = residual[predIdx];
+
+    for (int w = 0; w < nWeights; w++) {
+      for (int k = 1; k < 3; k++)
+        sumPredCoeff[w][k] +=
+          abs(resid[k] - signs[lod][k] * (((w + 1) * resid[0] + 2) >> nShift));
+    }
+
+    for (int k = 1; k < 3; k++)
+      sumOrigCoeff[k] += abs(resid[k]);
+
+    // at LoD transition, determine the sign coeff
+    if (predIdx != _lods.numPointsInLod[lod] - 1)
+      continue;
+
+    // find the best weight
+    for (int k = 1; k < 3; k++) {
+      auto best = std::min_element(
+        sumPredCoeff.begin(), sumPredCoeff.end(),
+        [=](Vec3<int64_t>& a, Vec3<int64_t>& b) { return a[k] < b[k]; });
+
+      int coeff = 1 + std::distance(sumPredCoeff.begin(), best);
+      signs[lod][k] *= coeff;
+
+      assert(signs[lod][k] < nWeights + 1 && signs[lod][k] > -(nWeights + 1));
+
+      if ((*best)[k] > sumOrigCoeff[k])
+        signs[lod][k] = 0;
+    }
+
+    for (int w = 0; w < nWeights; w++)
+      sumPredCoeff[w] = 0;
+    sumOrigCoeff = 0;
+    lod++;
+  }
+
+  // NB: there may be more coefficients than actual detail levels
+  // Set any unused detail level coefficients to 0
+  for (; lod < maxNumDetailLevels; lod++)
+    signs[lod] = 0;
+
+  return signs;
 }
 
 //----------------------------------------------------------------------------
@@ -732,19 +818,30 @@ AttributeEncoder::encodeColorsPred(
   for (int i = 0; i < 3; i++) {
     residual[i].resize(pointCount);
   }
+
+  bool icpPresent = _abh->icpPresent(desc, aps);
+  if (icpPresent)
+    _abh->icpCoeffs = computeInterComponentPredictionCoeffs(aps, pointCloud);
+  auto icpCoeff = icpPresent ? _abh->icpCoeffs[0] : 0;
+
+  int lod = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
       quantLayer = std::min(int(qpSet.layers.size()) - 1, quantLayer + 1);
     }
+
+    if (icpPresent && predictorIndex == _lods.numPointsInLod[lod])
+      icpCoeff = _abh->icpCoeffs[++lod];
+
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
     decidePredModeColor(
       desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
-      context, quant);
+      context, icpCoeff, quant);
     const Vec3<attr_t> color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, _lods.indexes);
@@ -760,9 +857,9 @@ AttributeEncoder::encodeColorsPred(
         divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
 
       if (aps.inter_component_prediction_enabled_flag && k > 0) {
-        residual = residual - residual0;
+        residual = residual - ((icpCoeff[k] * residual0 + 2) >> 2);
         residualQ = q.quantize(residual << kFixedPointAttributeShift);
-        residualR = residual0
+        residualR = ((icpCoeff[k] * residual0 + 2) >> 2)
           + divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
       }
 
