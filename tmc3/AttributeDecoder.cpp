@@ -622,7 +622,7 @@ AttributeDecoder::decodeColorsLift(
   colors.resize(pointCount);
 
   // decompress
-  // Per level-of-detail coefficients {-1,0,1} for last component prediction
+  // Per level-of-detail coefficients for last component prediction
   int lod = 0;
   int8_t lastCompPredCoeff = 0;
   if (aps.last_component_prediction_enabled_flag)
@@ -662,6 +662,8 @@ AttributeDecoder::decodeColorsLift(
     color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
 
     scaled *= lastCompPredCoeff;
+    scaled >>= 2;
+
     scaled += quant[1].scale(values[2]);
     color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
   }

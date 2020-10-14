@@ -1093,7 +1093,7 @@ AttributeEncoder::encodeColorsLift(
       _lods.predictors, weights, startIndex, endIndex, true, colors);
   }
 
-  // Per level-of-detail coefficients {-1,0,1} for last component prediction
+  // Per level-of-detail coefficients for last component prediction
   int8_t lastCompPredCoeff = 0;
   if (aps.last_component_prediction_enabled_flag) {
     _abh->attrLcpCoeffs = computeLastComponentPredictionCoeff(aps, colors);
@@ -1132,8 +1132,9 @@ AttributeEncoder::encodeColorsLift(
     scaled = quant[1].scale(values[1]);
     color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
 
-    color[2] -= lastCompPredCoeff * color[1];
+    color[2] -= (lastCompPredCoeff * color[1]) >> 2;
     scaled *= lastCompPredCoeff;
+    scaled >>= 2;
 
     values[2] = quant[1].quantize(color[2] * quantWeight);
     scaled += quant[1].scale(values[2]);
@@ -1181,60 +1182,37 @@ AttributeEncoder::computeLastComponentPredictionCoeff(
   assert(_lods.numPointsInLod.size() <= maxNumDetailLevels);
   std::vector<int8_t> signs(maxNumDetailLevels, 0);
 
-  int numGt0 = 0;
-  int numLt0 = 0;
+  int64_t sumk1k2 = 0;
+  int64_t sumk1k1 = 0;
   int lod = 0;
-  int lodPointIdx = 0;
   for (size_t coeffIdx = 0; coeffIdx < coeffs.size(); ++coeffIdx) {
-    auto& color = coeffs[coeffIdx];
-    lodPointIdx++;
+    auto& attr = coeffs[coeffIdx];
+    int mult = attr[1] * attr[2];
+    int mult2 = attr[1] * attr[1];
+    sumk1k2 += mult;
+    sumk1k1 += mult2;
 
-    int mult = color[1] * color[2];
-    if (mult > 0)
-      numGt0++;
-    else if (mult < 0)
-      numLt0++;
+    // compute prediction coefficient at end of detail level
+    if (coeffIdx != _lods.numPointsInLod[lod] - 1)
+      continue;
 
-    if (coeffIdx == _lods.numPointsInLod[lod] - 1) {
-      constexpr double threshold = 0.7;
-      if (numGt0 > threshold * lodPointIdx)
-        signs[lod] = 1;
-      else if (numLt0 > threshold * lodPointIdx)
-        signs[lod] = -1;
-      else
-        signs[lod] = 0;
-
-      lodPointIdx = 0;
-      numGt0 = 0;
-      numLt0 = 0;
-      lod++;
+    int scale = 0;
+    if (sumk1k2 && sumk1k1) {
+      // sign(sumk1k2) * sign(sumk1k1)
+      int sign = (sumk1k2 < 0) ^ (sumk1k1 < 0) ? -1 : 1;
+      scale = ((sumk1k2 << 2) + sign * (sumk1k1 >> 1)) / sumk1k1;
     }
+    sumk1k2 = sumk1k1 = 0;
+
+    // NB: coding range is limited to +-8
+    signs[lod] = PCCClip(scale, -8, 8);
+    lod++;
   }
 
-  // check if residual prediction is effective
-  lod = 0;
-  int64_t sumPredCoeff = 0;
-  int64_t sumOrigCoeff = 0;
-  for (size_t coeffIdx = 0; coeffIdx < coeffs.size(); ++coeffIdx) {
-    auto& coeff = coeffs[coeffIdx];
-    if (signs[lod] == 1) {
-      sumPredCoeff += abs(coeff[2] - coeff[1]);
-      sumOrigCoeff += abs(coeff[2]);
-    } else if (signs[lod] == -1) {
-      sumPredCoeff += abs(coeff[2] + coeff[1]);
-      sumOrigCoeff += abs(coeff[2]);
-    }
-
-    if (coeffIdx == _lods.numPointsInLod[lod] - 1) {
-      constexpr double threshold2 = 0.9;
-      if (signs[lod] != 0 && sumPredCoeff > threshold2 * sumOrigCoeff)
-        signs[lod] = 0;
-
-      sumPredCoeff = 0;
-      sumOrigCoeff = 0;
-      lod++;
-    }
-  }
+  // NB: there may be more coefficients than actual detail levels
+  // Propagate the last value to all unused levels to minimise useless cost
+  for (; lod < maxNumDetailLevels; lod++)
+    signs[lod] = signs[lod - 1];
 
   return signs;
 }

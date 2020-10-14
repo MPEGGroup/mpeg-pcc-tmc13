@@ -1307,12 +1307,12 @@ write(
   assert(abh.attr_sps_attr_idx < sps.attributeSets.size());
   if (abh.lcpPresent(sps.attributeSets[abh.attr_sps_attr_idx], aps)) {
     assert(abh.attrLcpCoeffs.size() == aps.maxNumDetailLevels());
+    int pred = 4;
+
     for (int i = 0; i < abh.attrLcpCoeffs.size(); i++) {
-      int lcp_coeff_sign = abh.attrLcpCoeffs[i] < 0;
-      int lcp_coeff_abs_gt0 = abh.attrLcpCoeffs[i] != 0;
-      bs.write(lcp_coeff_abs_gt0);
-      if (lcp_coeff_abs_gt0)
-        bs.write(lcp_coeff_sign);
+      int lcp_coeff_diff = abh.attrLcpCoeffs[i] - pred;
+      pred = abh.attrLcpCoeffs[i];
+      bs.writeSe(lcp_coeff_diff);
     }
   }
 
@@ -1421,15 +1421,13 @@ parseAbh(
   assert(abh.attr_sps_attr_idx < sps.attributeSets.size());
   if (abh.lcpPresent(sps.attributeSets[abh.attr_sps_attr_idx], aps)) {
     abh.attrLcpCoeffs.resize(aps.maxNumDetailLevels(), 0);
-    for (int i = 0; i < abh.attrLcpCoeffs.size(); i++) {
-      int lcp_coeff_sign = 0;
-      auto& lcp_coeff_abs_gt0 = abh.attrLcpCoeffs[i];
-      bs.read(&lcp_coeff_abs_gt0);
-      if (lcp_coeff_abs_gt0)
-        bs.read(&lcp_coeff_sign);
+    int pred = 4;
 
-      if (lcp_coeff_sign)
-        abh.attrLcpCoeffs[i] = -abh.attrLcpCoeffs[i];
+    for (int i = 0; i < abh.attrLcpCoeffs.size(); i++) {
+      auto& lcp_coeff_diff = abh.attrLcpCoeffs[i];
+      bs.readSe(&lcp_coeff_diff);
+      abh.attrLcpCoeffs[i] += pred;
+      pred = abh.attrLcpCoeffs[i];
     }
   }
 
