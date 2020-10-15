@@ -186,15 +186,7 @@ PredGeomDecoder::decodeResidual2()
       continue;
     }
 
-    AdaptiveBitModel* ctxs = _ctxResidual2[k] - 1;
-    int32_t value = 1;
-    for (int n = 4; n > 0; n--)
-      value = (value << 1) | _aed->decode(ctxs[value]);
-    value ^= 1 << 4;
-
-    if (value == 15)
-      value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
-
+    int32_t value = _aed->decodeExpGolomb(0, _ctxEG2[k]);
     residual[k] = sign ? (value + 2) : -(value + 2);
   }
   return residual;
