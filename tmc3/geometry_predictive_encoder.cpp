@@ -109,13 +109,14 @@ public:
   void encodeNumDuplicatePoints(int numDupPoints);
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
-  void encodeResidual(const Vec3<int32_t>& residual);
+  void encodeResidual(const Vec3<int32_t>& residual, int iMode);
   void encodeResidual2(const Vec3<int32_t>& residual);
   void encodePhiMultiplier(const int32_t multiplier);
   void encodeQpOffset(int dqp);
   void encodeEndOfTreesFlag(int endFlag);
 
-  float estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual);
+  float
+  estimateBits(GPredicter::Mode mode, const Vec3<int32_t>& residual, int qphi);
 
   const PredGeomContexts& getCtx() const { return *this; }
 
@@ -210,7 +211,7 @@ PredGeomEncoder::encodePredMode(GPredicter::Mode mode)
 //----------------------------------------------------------------------------
 
 void
-PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
+PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
 {
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
     const auto res = residual[k];
@@ -219,7 +220,8 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual)
     if (isZero)
       continue;
 
-    _aec->encode(res > 0, _ctxSign[k]);
+    if (iMode || k)
+      _aec->encode(res > 0, _ctxSign[k]);
 
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
@@ -318,12 +320,36 @@ PredGeomEncoder::encodeEndOfTreesFlag(int end_of_trees_flag)
 
 float
 PredGeomEncoder::estimateBits(
-  GPredicter::Mode mode, const Vec3<int32_t>& residual)
+  GPredicter::Mode mode, const Vec3<int32_t>& residual, int multiplier)
 {
   int iMode = int(mode);
   float bits = 0.;
   bits += estimate((iMode >> 1) & 1, _ctxPredMode[0]);
   bits += estimate(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
+
+  if (_geom_angular_mode_enabled_flag) {
+    bool isZero = multiplier == 0;
+    bits += estimate(isZero, _ctxIsZeroPhi);
+
+    if (!isZero) {
+      int32_t value = abs(multiplier) - 1;
+      bool isOne = !value;
+      bits += estimate(isOne, _ctxIsOnePhi);
+      bits += estimate(multiplier > 0, _ctxSignPhi);
+      if (!isOne) {
+        value--;
+
+        int valueMinus7 = value - 7;
+        value = std::min(value, 7);
+        bits += estimate((value >> 2) & 1, _ctxResidualPhi[0]);
+        bits += estimate((value >> 1) & 1, _ctxResidualPhi[1 + (value >> 2)]);
+        bits += estimate((value >> 0) & 1, _ctxResidualPhi[3 + (value >> 1)]);
+
+        if (valueMinus7 >= 0)
+          bits += (1 + 2.0 * log2(valueMinus7 + 1));
+      }
+    }
+  }
 
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
     const auto res = residual[k];
@@ -332,9 +358,8 @@ PredGeomEncoder::estimateBits(
     if (isZero)
       continue;
 
-    if (iMode > 0) {
+    if (iMode > 0 || k)
       bits += estimate(res > 0, _ctxSign[k]);
-    }
 
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
@@ -383,6 +408,7 @@ PredGeomEncoder::encodeTree(
       GPredicter::Mode mode;
       Vec3<int32_t> residual;
       Vec3<int32_t> prediction;
+      int qphi;
     } best;
 
     if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
@@ -393,7 +419,7 @@ PredGeomEncoder::encodeTree(
     }
 
     // mode decision to pick best prediction from available set
-    int qphi;
+    int qphi = 0;
     for (int iMode = 0; iMode < 4; iMode++) {
       GPredicter::Mode mode = GPredicter::Mode(iMode);
       GPredicter predicter = makePredicter(
@@ -402,18 +428,17 @@ PredGeomEncoder::encodeTree(
       if (!predicter.isValid(mode))
         continue;
 
-      auto pred = predicter.predict(&srcPts[0], mode);
+      auto pred =
+        predicter.predict(&srcPts[0], mode, _geom_angular_mode_enabled_flag);
       if (_geom_angular_mode_enabled_flag) {
-        if (iMode == GPredicter::Mode::Delta) {
-          int32_t phi0 = srcPts[predicter.index[0]][1];
-          int32_t phi1 = point[1];
-          int32_t deltaPhi = phi1 - phi0;
-          qphi = deltaPhi >= 0 ? (deltaPhi + (_geomAngularAzimuthSpeed >> 1))
-              / _geomAngularAzimuthSpeed
-                               : -(-deltaPhi + (_geomAngularAzimuthSpeed >> 1))
-              / _geomAngularAzimuthSpeed;
-          pred[1] += qphi * _geomAngularAzimuthSpeed;
-        }
+        int32_t phi0 = pred[1];
+        int32_t phi1 = point[1];
+        int32_t deltaPhi = phi1 - phi0;
+        qphi = deltaPhi >= 0 ? (deltaPhi + (_geomAngularAzimuthSpeed >> 1))
+            / _geomAngularAzimuthSpeed
+                             : -(-deltaPhi + (_geomAngularAzimuthSpeed >> 1))
+            / _geomAngularAzimuthSpeed;
+        pred[1] += qphi * _geomAngularAzimuthSpeed;
       }
 
       // The residual in the spherical domain is loesslessly coded
@@ -433,13 +458,13 @@ PredGeomEncoder::encodeTree(
       if (isOverflow)
         continue;
 
-      auto bits = estimateBits(mode, residual);
-
+      auto bits = estimateBits(mode, residual, qphi);
       if (iMode == 0 || bits < best.bits) {
         best.prediction = pred;
         best.residual = residual;
         best.mode = mode;
         best.bits = bits;
+        best.qphi = qphi;
       }
     }
 
@@ -449,11 +474,10 @@ PredGeomEncoder::encodeTree(
     encodeNumChildren(node.childrenCount);
     encodePredMode(best.mode);
 
-    if (
-      _geom_angular_mode_enabled_flag && best.mode == GPredicter::Mode::Delta)
-      encodePhiMultiplier(qphi);
+    if (_geom_angular_mode_enabled_flag)
+      encodePhiMultiplier(best.qphi);
 
-    encodeResidual(best.residual);
+    encodeResidual(best.residual, best.mode);
 
     // convert spherical prediction to cartesian and re-calculate residual
     if (_geom_angular_mode_enabled_flag) {
@@ -604,7 +628,7 @@ generateGeomPredictionTree(
       if (!predicter.isValid(mode))
         continue;
 
-      auto prediction = predicter.predict(begin, mode);
+      auto prediction = predicter.predict(begin, mode, false);
       predictedPointIdxToNodeIdx.push_back(nodeIdx);
       predictedPoints.pts.push_back(prediction);
     }
@@ -754,7 +778,8 @@ encodePredictiveGeometry(
 
     Vec3<int> residualBits;
     residualBits[0] = ceillog2(divExp2RoundHalfUp(int64_t(r), rDivLog2));
-    residualBits[1] = gps.geom_angular_azimuth_scale_log2;
+    residualBits[1] =
+      ceillog2((gps.geom_angular_azimuth_speed_minus1 + 1) >> 1);
     residualBits[2] = ceillog2(gps.geom_angular_num_lidar_lasers() - 1);
 
     // the number of prefix bits required

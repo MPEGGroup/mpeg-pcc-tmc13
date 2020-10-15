@@ -58,7 +58,8 @@ struct GPredicter {
   int32_t index[3];
 
   bool isValid(Mode mode);
-  Vec3<int32_t> predict(const Vec3<int32_t>* points, Mode mode);
+
+  Vec3<int32_t> predict(const Vec3<int32_t>* points, Mode mode, bool angular);
 };
 
 //============================================================================
@@ -121,6 +122,9 @@ GPredicter
 makePredicter(
   int32_t curNodeIdx, GPredicter::Mode mode, LookupFn nodeIdxToParentIdx)
 {
+  if (mode == GPredicter::None)
+    mode = GPredicter::Delta;
+
   GPredicter predIdx;
   switch (mode) {
   default:
@@ -154,11 +158,20 @@ GPredicter::isValid(GPredicter::Mode mode)
 //============================================================================
 
 inline Vec3<int32_t>
-GPredicter::predict(const Vec3<int32_t>* points, GPredicter::Mode mode)
+GPredicter::predict(
+  const Vec3<int32_t>* points, GPredicter::Mode mode, bool angular)
 {
   Vec3<int32_t> pred;
   switch (mode) {
-  case GPredicter::None: pred = 0; break;
+  case GPredicter::None: {
+    pred = 0;
+    if (this->index[0] >= 0 && angular) {
+      const auto& p0 = points[this->index[0]];
+      pred[1] = p0[1];
+      pred[2] = p0[2];
+    }
+    break;
+  }
 
   case GPredicter::Delta: {
     pred = points[this->index[0]];

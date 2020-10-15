@@ -74,7 +74,7 @@ private:
   int decodeNumDuplicatePoints();
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
-  Vec3<int32_t> decodeResidual();
+  Vec3<int32_t> decodeResidual(int mode);
   Vec3<int32_t> decodeResidual2();
   int32_t decodePhiMultiplier(GPredicter::Mode mode);
   int32_t decodeQpOffset();
@@ -198,7 +198,7 @@ PredGeomDecoder::decodeResidual2()
 int32_t
 PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
 {
-  if (!_geom_angular_mode_enabled_flag || mode != GPredicter::Mode::Delta)
+  if (!_geom_angular_mode_enabled_flag)
     return 0;
 
   if (_aed->decode(_ctxIsZeroPhi))
@@ -245,7 +245,7 @@ PredGeomDecoder::decodeEndOfTreesFlag()
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual()
+PredGeomDecoder::decodeResidual(int mode)
 {
   Vec3<int32_t> residual;
   for (int k = 0, ctxIdx = 0; k < 3; ++k) {
@@ -254,7 +254,7 @@ PredGeomDecoder::decodeResidual()
       continue;
     }
 
-    auto sign = _aed->decode(_ctxSign[k]);
+    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 1;
 
     AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
     int32_t numBits = 1;
@@ -313,7 +313,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     auto mode = decodePredMode();
     int qphi = decodePhiMultiplier(mode);
 
-    auto residual = decodeResidual();
+    auto residual = decodeResidual(mode);
     if (!_geom_angular_mode_enabled_flag)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
@@ -321,9 +321,9 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     auto predicter = makePredicter(
       curNodeIdx, mode, [&](int idx) { return _nodeIdxToParentIdx[idx]; });
 
-    auto pred = predicter.predict(outA, mode);
+    auto pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
     if (_geom_angular_mode_enabled_flag)
-      if (mode == GPredicter::Mode::Delta)
+      if (mode >= 0)
         pred[1] += qphi * _geomAngularAzimuthSpeed;
 
     auto pos = pred + residual;
