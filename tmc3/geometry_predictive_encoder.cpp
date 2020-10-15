@@ -282,15 +282,14 @@ PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
     return;
 
   value--;
-  int valueMinus15 = value - 15;
-  value = std::min(value, 15);
-  _aec->encode((value >> 3) & 1, _ctxResidualPhi[0]);
-  _aec->encode((value >> 2) & 1, _ctxResidualPhi[1 + (value >> 3)]);
-  _aec->encode((value >> 1) & 1, _ctxResidualPhi[3 + (value >> 2)]);
-  _aec->encode((value >> 0) & 1, _ctxResidualPhi[7 + (value >> 1)]);
+  int valueMinus7 = value - 7;
+  value = std::min(value, 7);
+  _aec->encode((value >> 2) & 1, _ctxResidualPhi[0]);
+  _aec->encode((value >> 1) & 1, _ctxResidualPhi[1 + (value >> 2)]);
+  _aec->encode((value >> 0) & 1, _ctxResidualPhi[3 + (value >> 1)]);
 
-  if (valueMinus15 >= 0)
-    _aec->encodeExpGolomb(valueMinus15, 0, _ctxEGPhi);
+  if (valueMinus7 >= 0)
+    _aec->encodeExpGolomb(valueMinus7, 0, _ctxEGPhi);
 }
 
 //----------------------------------------------------------------------------

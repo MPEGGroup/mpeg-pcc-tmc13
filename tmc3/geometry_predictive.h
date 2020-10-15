@@ -100,7 +100,7 @@ protected:
   AdaptiveBitModel _ctxIsOnePhi;
   AdaptiveBitModel _ctxSignPhi;
   AdaptiveBitModel _ctxEGPhi;
-  AdaptiveBitModel _ctxResidualPhi[15];
+  AdaptiveBitModel _ctxResidualPhi[7];
 };
 
 //----------------------------------------------------------------------------

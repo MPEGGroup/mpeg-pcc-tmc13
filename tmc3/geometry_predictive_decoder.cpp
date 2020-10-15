@@ -209,11 +209,11 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
 
   auto* ctxs = _ctxResidualPhi - 1;
   int32_t value = 1;
-  for (int n = 4; n > 0; n--)
+  for (int n = 3; n > 0; n--)
     value = (value << 1) | _aed->decode(ctxs[value]);
-  value ^= 1 << 4;
+  value ^= 1 << 3;
 
-  if (value == 15)
+  if (value == 7)
     value += _aed->decodeExpGolomb(0, _ctxEGPhi);
 
   return sign ? (value + 2) : -(value + 2);
