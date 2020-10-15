@@ -363,6 +363,7 @@ GeometryOctreeEncoder::determinePlanarMode(
   int rowLen = OctreePlanarBuffer::rowSize;
   int closestPlanarFlag;
   int closestDist;
+  int maxCoord;
 
   if (!planeBuffer) {
     // angular: buffer disabled
@@ -377,28 +378,14 @@ GeometryOctreeEncoder::determinePlanarMode(
 
     row = planeBuffer[coord3];
 
-    int minDist = std::abs(coord1 - int(row[rowLen - 1].a))
-      + std::abs(coord2 - int(row[rowLen - 1].b));
+    maxCoord = std::max(coord1, coord2);
+    closestDist = std::abs(maxCoord - int(row[rowLen - 1].pos));
     int idxMinDist = rowLen - 1;
-
-    for (int idxP = 0; idxP < rowLen - 1; idxP++) {
-      int dist0 = std::abs(coord1 - int(row[idxP].a))
-        + std::abs(coord2 - int(row[idxP].b));
-      if (dist0 < minDist) {
-        idxMinDist = idxP;
-        minDist = dist0;
-      }
-    }
 
     // push closest point front
     row[rowLen - 1] = row[idxMinDist];
 
     closestPlanarFlag = row[idxMinDist].planeIdx;
-    closestDist = minDist;
-
-    for (int idxP = 0; idxP < rowLen - 1; idxP++) {
-      row[idxP] = row[idxP + 1];
-    }
   }
 
   // The relative plane position (0|1) along the planeId axis.
@@ -424,9 +411,8 @@ GeometryOctreeEncoder::determinePlanarMode(
   planarRate[planeId] =
     (255 * planarRate[planeId] + (isPlanar ? 256 * 8 : 0) + 128) >> 8;
 
-  if (planeBuffer) {
-    row[rowLen - 1] = {unsigned(coord1), planeBit, unsigned(coord2)};
-  }
+  if (planeBuffer)
+    row[rowLen - 1] = {unsigned(maxCoord), planeBit};
 }
 
 //============================================================================

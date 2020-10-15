@@ -294,14 +294,11 @@ struct OctreePlanarBuffer {
 #pragma pack(push)
 #pragma pack(1)
   struct Elmt {
-    // (a, b) are (s, t) for planar v,
-    //            (s, v) for planar t, and
-    //            (t, v) for planar s
-    unsigned int a : numBitsAb;
+    // maximum of two position components
+    unsigned int pos : numBitsAb;
 
     // -2: not used, -1: not planar, 0: plane 0, 1: plane 1
     int planeIdx : 2;
-    unsigned int b : numBitsAb;
   };
 #pragma pack(pop)
 

@@ -406,12 +406,12 @@ OctreePlanarBuffer::resize(Vec3<int> numBufferRows)
   if (maskC < numBufferRows[2])
     numBufferRows[2] = maskC + 1;
 
-  // NB: based upon the expected max buffer size of 32k, just allocate the
+  // NB: based upon the expected max buffer size of 3*14k, just allocate the
   //     maximum buffer size.
   int size = numBufferRows[0] + numBufferRows[1] + numBufferRows[2];
   _buf.clear();
   _buf.reserve(rowSize * 3 * (maskC + 1));
-  _buf.resize(rowSize * size, Elmt{0, -2, 0});
+  _buf.resize(rowSize * size, Elmt{0, -2});
 
   // NB: the flat backing buffer is cast with a row stride for access
   _col[0] = reinterpret_cast<Row*>(&_buf.front());
