@@ -282,12 +282,12 @@ private:
 
 struct OctreePlanarBuffer {
   static constexpr unsigned numBitsC = 14;
-  static constexpr unsigned numBitsAb = 7;
+  static constexpr unsigned numBitsAb = 5;
   static constexpr unsigned rowSize = 1;
   static_assert(numBitsC >= 0 && numBitsC <= 32, "0 <= numBitsC <= 32");
   static_assert(numBitsAb >= 0 && numBitsAb <= 32, "0 <= numBitsAb <= 32");
   static_assert(rowSize > 0, "rowSize must be greater than 0");
-  static constexpr unsigned shiftAb = 1;
+  static constexpr unsigned shiftAb = 3;
   static constexpr int maskAb = ((1 << numBitsAb) - 1) << shiftAb;
   static constexpr int maskC = (1 << numBitsC) - 1;
 
