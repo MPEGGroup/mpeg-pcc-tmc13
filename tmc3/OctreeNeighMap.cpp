@@ -164,6 +164,8 @@ updatePatternFromNeighOccupancy(
 
   if (gnp.neighPattern & patternBit) {
     uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
+    gnp.adjNeighOcc[neighIdx] = child_occ;
+
     uint8_t child_unocc = ~child_occ;
     child_occ &= childMask;
     if (!child_occ) {

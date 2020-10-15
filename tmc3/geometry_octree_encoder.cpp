@@ -80,27 +80,32 @@ public:
     OctreeNodePlanar& planar,
     int plane,
     int dist,
-    int neighb,
+    int adjPlanes,
     int planeId,
     int contextAngle);
 
   void determinePlanarMode(
+    const bool& adjacent_child_contextualization_enabled_flag,
     int planeId,
     OctreeNodePlanar& planar,
     OctreePlanarBuffer::Row* planeBuffer,
     int coord1,
     int coord2,
     int coord3,
-    uint8_t neighPattern,
+    int posInParent,
+    const GeometryNeighPattern& gnp,
+    uint8_t siblingOccupancy,
     int planarRate[3],
     int contextAngle);
 
   void determinePlanarMode(
+    bool adjacent_child_contextualization_enabled_flag,
     int occupancy,
     const bool planarEligible[3],
+    int posInParent,
+    const GeometryNeighPattern& gnp,
     PCCOctree3Node& child,
     OctreeNodePlanar& planar,
-    uint8_t neighPattern,
     int contextAngle,
     int contextAnglePhiX,
     int contextAnglePhiY);
@@ -287,7 +292,7 @@ GeometryOctreeEncoder::encodePlanarMode(
   OctreeNodePlanar& node,
   int plane,
   int dist,
-  int neighb,
+  int adjPlanes,
   int planeId,
   int contextAngle)
 {
@@ -307,13 +312,17 @@ GeometryOctreeEncoder::encodePlanarMode(
 
   // encode the plane index
   if (contextAngle == -1) {  // angular mode off
+    static const int kAdjPlaneCtx[4] = {0, 1, 2, 0};
+    int planePosCtx = kAdjPlaneCtx[adjPlanes];
     if (plane < 0) {
-      _arithmeticEncoder->encode(planeBit, _ctxPlanarPlaneLastIndexZ[planeId]);
+      _arithmeticEncoder->encode(
+        planeBit, _ctxPlanarPlaneLastIndexZ[planePosCtx]);
     } else {
       discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
       int lastIndexPlane2d = plane + (discreteDist << 1);
       _arithmeticEncoder->encode(
-        planeBit, _ctxPlanarPlaneLastIndex[planeId][neighb][lastIndexPlane2d]);
+        planeBit,
+        _ctxPlanarPlaneLastIndex[planeId][planePosCtx][lastIndexPlane2d]);
     }
   } else {               // angular mode on
     if (planeId == 2) {  // angular
@@ -332,20 +341,24 @@ GeometryOctreeEncoder::encodePlanarMode(
 
 void
 GeometryOctreeEncoder::determinePlanarMode(
+  const bool& adjacent_child_contextualization_enabled_flag,
   int planeId,
   OctreeNodePlanar& planar,
   OctreePlanarBuffer::Row* planeBuffer,
   int coord1,
   int coord2,
   int coord3,
-  uint8_t neighPattern,
+  int posInParent,
+  const GeometryNeighPattern& gnp,
+  uint8_t siblingOccupancy,
   int planarRate[3],
   int contextAngle)
 {
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
   const int planeSelector = 1 << planeId;
-
+  static const uint8_t KAdjNeighIdxMask[3][2] = {0x0f, 0xf0, 0x33,
+                                                 0xcc, 0x55, 0xaa};
   OctreePlanarBuffer::Elmt* row;
   int rowLen = OctreePlanarBuffer::rowSize;
   int closestPlanarFlag;
@@ -353,7 +366,7 @@ GeometryOctreeEncoder::determinePlanarMode(
 
   if (!planeBuffer) {
     // angular: buffer disabled
-    closestPlanarFlag = 0;
+    closestPlanarFlag = -1;
     closestDist = 0;
   } else {
     coord1 =
@@ -387,10 +400,24 @@ GeometryOctreeEncoder::determinePlanarMode(
       row[idxP] = row[idxP + 1];
     }
   }
-  const int kAdjNeighIdxFromPlaneMask[3] = {0, 2, 4};
-  int adjNeigh = (neighPattern >> kAdjNeighIdxFromPlaneMask[planeId]) & 3;
+
+  // The relative plane position (0|1) along the planeId axis.
+  int pos = !(KAdjNeighIdxMask[planeId][0] & (1 << posInParent));
+
+  // Determine which adjacent planes are occupied
+  // The low plane is at position axis - 1
+  bool lowAdjPlaneOccupied = adjacent_child_contextualization_enabled_flag
+    ? KAdjNeighIdxMask[planeId][1] & gnp.adjNeighOcc[planeId]
+    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+
+  // The high adjacent plane is at position axis + 1
+  bool highAdjPlaneOccupied = !pos
+    ? KAdjNeighIdxMask[planeId][1] & siblingOccupancy
+    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+
+  int adjPlanes = (highAdjPlaneOccupied << 1) | lowAdjPlaneOccupied;
   int planeBit = encodePlanarMode(
-    planar, closestPlanarFlag, closestDist, adjNeigh, planeId, contextAngle);
+    planar, closestPlanarFlag, closestDist, adjPlanes, planeId, contextAngle);
 
   bool isPlanar = (planar.planarMode & planeSelector);
 
@@ -407,11 +434,13 @@ GeometryOctreeEncoder::determinePlanarMode(
 
 void
 GeometryOctreeEncoder::determinePlanarMode(
+  bool adjacent_child_contextualization_enabled_flag,
   int occupancy,
   const bool planarEligible[3],
+  int posInParent,
+  const GeometryNeighPattern& gnp,
   PCCOctree3Node& node,
   OctreeNodePlanar& planar,
-  uint8_t neighPattern,
   int contextAngle,
   int contextAnglePhiX,
   int contextAnglePhiY)
@@ -435,20 +464,23 @@ GeometryOctreeEncoder::determinePlanarMode(
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
-      0, planar, planeBuffer.getBuffer(0), yy, zz, xx, neighPattern,
-      _planar._rate.data(), contextAnglePhiX);
+      adjacent_child_contextualization_enabled_flag, 0, planar,
+      planeBuffer.getBuffer(0), yy, zz, xx, posInParent, gnp,
+      node.siblingOccupancy, _planar._rate.data(), contextAnglePhiX);
   }
   // planar y
   if (planarEligible[1]) {
     determinePlanarMode(
-      1, planar, planeBuffer.getBuffer(1), xx, zz, yy, neighPattern,
-      _planar._rate.data(), contextAnglePhiY);
+      adjacent_child_contextualization_enabled_flag, 1, planar,
+      planeBuffer.getBuffer(1), xx, zz, yy, posInParent, gnp,
+      node.siblingOccupancy, _planar._rate.data(), contextAnglePhiY);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
-      2, planar, planeBuffer.getBuffer(2), xx, yy, zz, neighPattern,
-      _planar._rate.data(), contextAngle);
+      adjacent_child_contextualization_enabled_flag, 2, planar,
+      planeBuffer.getBuffer(2), xx, yy, zz, posInParent, gnp,
+      node.siblingOccupancy, _planar._rate.data(), contextAngle);
   }
 }
 
@@ -1667,6 +1699,13 @@ encodeGeometryOctree(
       }
 
       GeometryNeighPattern gnp{};
+      // The position of the node in the parent's occupancy map
+      int posInParent = 0;
+      posInParent |= (node0.pos[0] & 1) << 2;
+      posInParent |= (node0.pos[1] & 1) << 1;
+      posInParent |= (node0.pos[2] & 1) << 0;
+      posInParent &= codedAxesPrevLvl;
+
       if (gps.neighbour_avail_boundary_log2_minus1) {
         updateGeometryOccupancyAtlas(
           node0.pos, codedAxesPrevLvl, fifo, fifoCurrLvlEnd, &occupancyAtlas,
@@ -1676,13 +1715,6 @@ encodeGeometryOctree(
           gps.adjacent_child_contextualization_enabled_flag, node0.pos,
           codedAxesPrevLvl, codedAxesCurLvl, occupancyAtlas);
       } else {
-        // The position of the node in the parent's occupancy map
-        int posInParent = 0;
-        posInParent |= (node0.pos[0] & 1) << 2;
-        posInParent |= (node0.pos[1] & 1) << 1;
-        posInParent |= (node0.pos[2] & 1) << 0;
-        posInParent &= codedAxesPrevLvl;
-
         gnp.neighPattern =
           neighPatternFromOccupancy(posInParent, node0.siblingOccupancy);
       }
@@ -1752,8 +1784,9 @@ encodeGeometryOctree(
         // determine planarity if eligible
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
           encoder.determinePlanarMode(
-            occupancy, planarEligible, node0, planar, gnp.neighPattern,
-            contextAngle, contextAnglePhiX, contextAnglePhiY);
+            gps.adjacent_child_contextualization_enabled_flag, occupancy,
+            planarEligible, posInParent, gnp, node0, planar, contextAngle,
+            contextAnglePhiX, contextAnglePhiY);
       }
 
       // At the scaling depth, it is possible for a node that has previously

@@ -197,6 +197,9 @@ struct GeometryNeighPattern {
 
   // mask indicating unoccupied external child neighbours
   uint8_t adjacencyUnocc;
+
+  // occupancy map of {x-1, y-1, z-1} neighbours.
+  uint8_t adjNeighOcc[3];
 };
 
 //============================================================================
