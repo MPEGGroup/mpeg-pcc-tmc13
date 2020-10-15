@@ -300,8 +300,7 @@ GeometryOctreeDecoder::decodePlanarMode(
       planeBit =
         _arithmeticDecoder->decode(_ctxPlanarPlaneLastIndexZ[planePosCtx]);
     } else {
-      int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
-      discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
+      int discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
       int lastIndexPlane2d = planeZ + (discreteDist << 1);
 
       planeBit = _arithmeticDecoder->decode(

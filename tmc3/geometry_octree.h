@@ -415,7 +415,7 @@ protected:
 
   // for planar mode xyz
   AdaptiveBitModel _ctxPlanarMode[3];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][3][6];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][3][4];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexZ[3];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngular[4];
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];

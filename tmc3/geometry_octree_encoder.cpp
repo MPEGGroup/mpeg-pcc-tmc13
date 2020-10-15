@@ -301,8 +301,6 @@ GeometryOctreeEncoder::encodePlanarMode(
 
   bool isPlanar = node.planarMode & mask0;
   int planeBit = (node.planePosBits & mask0) == 0 ? 0 : 1;
-
-  int discreteDist = (dist <= (2 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
   _arithmeticEncoder->encode(isPlanar, _ctxPlanarMode[planeId]);
 
   if (!isPlanar) {
@@ -318,7 +316,7 @@ GeometryOctreeEncoder::encodePlanarMode(
       _arithmeticEncoder->encode(
         planeBit, _ctxPlanarPlaneLastIndexZ[planePosCtx]);
     } else {
-      discreteDist += (dist <= (16 >> OctreePlanarBuffer::shiftAb) ? 0 : 1);
+      int discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
       int lastIndexPlane2d = plane + (discreteDist << 1);
       _arithmeticEncoder->encode(
         planeBit,
