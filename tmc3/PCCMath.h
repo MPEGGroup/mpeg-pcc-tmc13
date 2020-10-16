@@ -431,6 +431,21 @@ struct Box3 {
 
   Box3(const Vec3<T>& min, const Vec3<T>& max) : min(min), max(max) {}
 
+  template<typename ForwardIt>
+  Box3(ForwardIt begin, ForwardIt end)
+    : Box3(std::numeric_limits<T>::max(), std::numeric_limits<T>::lowest())
+  {
+    for (auto it = begin; it != end; ++it) {
+      auto& pt = *it;
+      for (int k = 0; k < 3; ++k) {
+        if (pt[k] > max[k])
+          max[k] = pt[k];
+        if (pt[k] < min[k])
+          min[k] = pt[k];
+      }
+    }
+  }
+
   bool contains(const Vec3<T> point) const
   {
     return !(

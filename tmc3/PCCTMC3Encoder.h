@@ -160,6 +160,9 @@ private:
 private:
   PCCPointSet3 pointCloud;
 
+  // Point positions in spherical coordinates of the current slice
+  std::vector<point_t> _posSph;
+
   // Scale factor used to quantise geometry during pre-processing
   float _geomPreScale;
 

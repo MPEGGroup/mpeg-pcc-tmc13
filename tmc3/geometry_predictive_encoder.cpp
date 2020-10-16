@@ -690,6 +690,10 @@ generateGeomPredictionTreeAngular(
     auto& sphPos = beginSph[nodeIdx] = cartToSpherical(carPos);
     auto thetaIdx = sphPos[2];
 
+    // propagate converted coordinates over duplicate points
+    for (int i = nodeIdx + 1; i < nodeIdxN; i++)
+      beginSph[i] = sphPos;
+
     node.parent = prevNodes[thetaIdx];
     if (node.parent != -1) {
       auto& pnode = nodes[prevNodes[thetaIdx]];
@@ -743,6 +747,7 @@ encodePredictiveGeometry(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& cloud,
+  std::vector<point_t>* reconPosSph,
   PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder)
 {
@@ -758,8 +763,13 @@ encodePredictiveGeometry(
 
   // storage for spherical point co-ordinates determined in angular mode
   std::vector<Vec3<int32_t>> sphericalPos;
-  if (gps.geom_angular_mode_enabled_flag)
+  if (!gps.geom_angular_mode_enabled_flag)
+    reconPosSph = nullptr;
+  else {
     sphericalPos.resize(numPoints);
+    if (reconPosSph)
+      reconPosSph->resize(numPoints);
+  }
 
   // src indexes in coded order
   std::vector<int32_t> codedOrder(numPoints, -1);
@@ -852,6 +862,8 @@ encodePredictiveGeometry(
       auto srcIdx = iBegin + codedOrder[i];
       assert(srcIdx >= 0);
       outCloud[i] = cloud[srcIdx];
+      if (reconPosSph)
+        (*reconPosSph)[i] = sphericalPos[srcIdx];
       if (cloud.hasColors())
         outCloud.setColor(i, cloud.getColor(srcIdx));
       if (cloud.hasReflectances())

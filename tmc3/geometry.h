@@ -100,6 +100,7 @@ void encodePredictiveGeometry(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder);
 
@@ -107,6 +108,7 @@ void decodePredictiveGeometry(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomContexts& ctxtMem,
   EntropyDecoder* arithmeticDecoder);
 

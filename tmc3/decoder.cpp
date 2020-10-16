@@ -365,7 +365,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, *_ctxtMemPredGeom,
+      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom,
       arithmeticDecoders[0].get());
   else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
@@ -447,14 +447,22 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   // NB: this retains the original cartesian positions to restore afterwards
   std::vector<pcc::point_t> altPositions;
   if (attr_aps.spherical_coord_flag) {
-    altPositions.resize(_currentPointCloud.getPointCount());
+    // If predgeom was used, re-use the internal positions rather than
+    // calculating afresh.
+    Box3<int> bboxRpl;
+    if (_gps->predgeom_enabled_flag) {
+      altPositions = _posSph;
+      bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
+    } else {
+      altPositions.resize(_currentPointCloud.getPointCount());
 
-    auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
-    auto bboxRpl = convertXyzToRpl(
-      laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
-      &_currentPointCloud[0],
-      &_currentPointCloud[0] + _currentPointCloud.getPointCount(),
-      altPositions.data());
+      auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
+      bboxRpl = convertXyzToRpl(
+        laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
+        &_currentPointCloud[0],
+        &_currentPointCloud[0] + _currentPointCloud.getPointCount(),
+        altPositions.data());
+    }
 
     offsetAndScale(
       bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),

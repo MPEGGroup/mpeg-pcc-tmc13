@@ -60,7 +60,10 @@ public:
    * decodes a sequence of decoded geometry trees.
    * @returns the number of points decoded.
    */
-  int decode(int numPoints, Vec3<int32_t>* outputPoints);
+  int decode(
+    int numPoints,
+    Vec3<int32_t>* outputPoints,
+    std::vector<Vec3<int32_t>>* reconSphPos);
 
   /**
    * decodes a single predictive geometry tree.
@@ -377,7 +380,10 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
 //----------------------------------------------------------------------------
 
 int
-PredGeomDecoder::decode(int numPoints, Vec3<int32_t>* outputPoints)
+PredGeomDecoder::decode(
+  int numPoints,
+  Vec3<int32_t>* outputPoints,
+  std::vector<Vec3<int32_t>>* reconPosSph)
 {
   _nodeIdxToParentIdx.resize(numPoints);
 
@@ -386,6 +392,8 @@ PredGeomDecoder::decode(int numPoints, Vec3<int32_t>* outputPoints)
   auto* reconA = outputPoints;
   std::vector<Vec3<int32_t>> sphericalPos;
   if (_geom_angular_mode_enabled_flag) {
+    if (reconPosSph)
+      std::swap(*reconPosSph, sphericalPos);
     sphericalPos.resize(numPoints);
     reconA = sphericalPos.data();
   }
@@ -398,6 +406,9 @@ PredGeomDecoder::decode(int numPoints, Vec3<int32_t>* outputPoints)
     pointCount += numSubtreePoints;
   } while (!decodeEndOfTreesFlag());
 
+  if (reconPosSph)
+    std::swap(*reconPosSph, sphericalPos);
+
   return pointCount;
 }
 
@@ -408,11 +419,13 @@ decodePredictiveGeometry(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomContexts& ctxtMem,
   EntropyDecoder* aed)
 {
   PredGeomDecoder dec(gps, gbh, ctxtMem, aed);
-  dec.decode(gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0]);
+  dec.decode(
+    gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph);
   ctxtMem = dec.getCtx();
 }
 

@@ -142,7 +142,7 @@ PCCTMC3Encoder3::compress(
       int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
       int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
       int r = std::max(rx, ry);
-      int twoPi = 25735;
+      int twoPi = params->gps.predgeom_enabled_flag ? 1 << 17 : 25735;
       int maxLaserIdx = params->gps.geom_angular_num_lidar_lasers() - 1;
 
       // todo(df): handle the single laser case better
@@ -582,13 +582,21 @@ PCCTMC3Encoder3::compressPartition(
     // NB: this retains the original cartesian positions to restore afterwards
     std::vector<pcc::point_t> altPositions;
     if (attr_aps.spherical_coord_flag) {
-      altPositions.resize(pointCloud.getPointCount());
+      // If predgeom was used, re-use the internal positions rather than
+      // calculating afresh.
+      Box3<int> bboxRpl;
+      if (_gps->predgeom_enabled_flag) {
+        altPositions = _posSph;
+        bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
+      } else {
+        altPositions.resize(pointCloud.getPointCount());
 
-      auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
-      auto bboxRpl = convertXyzToRpl(
-        laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
-        &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
-        altPositions.data());
+        auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
+        bboxRpl = convertXyzToRpl(
+          laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
+          &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
+          altPositions.data());
+      }
 
       offsetAndScale(
         bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
@@ -714,7 +722,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   if (_gps->predgeom_enabled_flag)
     encodePredictiveGeometry(
-      params->predGeom, *_gps, gbh, pointCloud, *_ctxtMemPredGeom,
+      params->predGeom, *_gps, gbh, pointCloud, &_posSph, *_ctxtMemPredGeom,
       arithmeticEncoders[0].get());
   else if (!_gps->trisoup_enabled_flag)
     encodeGeometryOctree(
