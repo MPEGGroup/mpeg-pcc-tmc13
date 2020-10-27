@@ -122,6 +122,12 @@ protected:
     const Vec3<int8_t> icpCoeff,
     const Quantizers& quant);
 
+  static int computeColorDistortions(
+    const AttributeDescription& desc,
+    const Vec3<attr_t> color,
+    const Vec3<attr_t> predictedColor,
+    const Quantizers& quant);
+
   static void decidePredModeColor(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,

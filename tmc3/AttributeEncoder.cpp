@@ -48,7 +48,7 @@
 
 // todo(df): promote to per-attribute encoder parameter
 static const double kAttrPredLambdaR = 0.01;
-static const double kAttrPredLambdaC = 0.01;
+static const double kAttrPredLambdaC = 0.14;
 
 namespace pcc {
 //============================================================================
@@ -795,8 +795,14 @@ AttributeEncoder::decidePredModeColor(
   Vec3<attr_t> attrPred = predictor.predictColor(pointCloud, indexesLOD);
   Vec3<int64_t> attrResidualQuant =
     computeColorResiduals(aps, attrValue, attrPred, icpCoeff, quant);
+  auto attrDistortion =
+    computeColorDistortions(desc, attrValue, attrPred, quant);
 
-  double best_score = encoder.bitsPtColor(attrResidualQuant, 0);
+  double rate = encoder.bitsPtColor(attrResidualQuant, 0);
+  double best_score = attrDistortion
+    + rate * kAttrPredLambdaC
+      * (quant[0].stepSize() >> kFixedPointAttributeShift);
+
   for (int i = startpredIndex; i < predictor.neighborCount; i++) {
     if (i == aps.max_num_direct_predictors)
       break;
@@ -805,9 +811,13 @@ AttributeEncoder::decidePredModeColor(
       pointCloud.getColor(indexesLOD[predictor.neighbors[i].predictorIndex]);
     attrResidualQuant =
       computeColorResiduals(aps, attrValue, attrPred, icpCoeff, quant);
+    attrDistortion = computeColorDistortions(desc, attrValue, attrPred, quant);
 
     int sigIdx = i + !aps.direct_avg_predictor_disabled_flag;
-    double score = encoder.bitsPtColor(attrResidualQuant, sigIdx);
+    double rate = encoder.bitsPtColor(attrResidualQuant, sigIdx);
+    double score = attrDistortion
+      + rate * kAttrPredLambdaC
+        * (quant[0].stepSize() >> kFixedPointAttributeShift);
 
     if (score < best_score) {
       best_score = score;
@@ -1451,6 +1461,37 @@ AttributeEncoder::encodeReflectancesLift(
     pointCloud.setReflectance(
       _lods.indexes[f], attr_t(PCCClip(refl, int64_t(0), maxReflectance)));
   }
+}
+
+//============================================================================
+
+int
+AttributeEncoder::computeColorDistortions(
+  const AttributeDescription& desc,
+  const Vec3<attr_t> color,
+  const Vec3<attr_t> predictedColor,
+  const Quantizers& quant)
+{
+  int64_t clipMax = (1 << desc.bitdepth) - 1;
+
+  Vec3<attr_t> reconstructedColor;
+  for (int k = 0; k < 3; ++k) {
+    const auto& q = quant[std::min(k, 1)];
+    int64_t residual = color[k] - predictedColor[k];
+
+    int64_t residualQ = q.quantize(residual << kFixedPointAttributeShift);
+    int64_t residualR =
+      divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+
+    int64_t recon = predictedColor[k] + residualR;
+    reconstructedColor[k] = attr_t(PCCClip(recon, int64_t(0), clipMax));
+  }
+
+  int distortion = 0;
+  for (int k = 0; k < 3; ++k)
+    distortion += std::abs(color[k] - reconstructedColor[k]);
+
+  return distortion;
 }
 
 //============================================================================
