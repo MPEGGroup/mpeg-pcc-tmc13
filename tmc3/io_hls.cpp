@@ -213,7 +213,7 @@ writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
 {
   bs.writeUn(param.bitdepth, param.attr_default_value[0]);
   for (int k = 1; k <= param.attr_num_dimensions_minus1; k++)
-    bs.writeUn(param.bitdepthSecondary, param.attr_default_value[k]);
+    bs.writeUn(param.bitdepth, param.attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -227,7 +227,7 @@ parseAttrParamDefaultValue(Bs& bs, AttributeDescription* param)
 
   bs.readUn(param->bitdepth, &param->attr_default_value[0]);
   for (int k = 1; k <= param->attr_num_dimensions_minus1; k++)
-    bs.readUn(param->bitdepthSecondary, &param->attr_default_value[k]);
+    bs.readUn(param->bitdepth, &param->attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -339,11 +339,6 @@ write(const SequenceParameterSet& sps)
 
     int attr_bitdepth_minus1 = attr.bitdepth - 1;
     bs.writeUe(attr_bitdepth_minus1);
-
-    if (attr.attr_num_dimensions_minus1) {
-      int attr_bitdepth_secondary_minus1 = attr.bitdepthSecondary - 1;
-      bs.writeUe(attr_bitdepth_secondary_minus1);
-    }
 
     const auto& label = attr.attributeLabel;
     bs.write(label.known_attribute_label_flag());
@@ -475,14 +470,7 @@ parseSps(const PayloadBuffer& buf)
     bs.readUe(&attr_bitdepth_minus1);
     attr.bitdepth = attr_bitdepth_minus1 + 1;
 
-    if (attr.attr_num_dimensions_minus1) {
-      int attr_bitdepth_secondary_minus1 = 0;
-      bs.readUe(&attr_bitdepth_secondary_minus1);
-      attr.bitdepthSecondary = attr_bitdepth_secondary_minus1 + 1;
-    }
-
     auto& label = attr.attributeLabel;
-
     bool known_attribute_label_flag = bs.read();
     if (known_attribute_label_flag)
       bs.readUe(&label.known_attribute_label);
@@ -1482,7 +1470,7 @@ parseConstantAttribute(
   cadu.constattr_default_value.resize(attrDesc.attr_num_dimensions_minus1 + 1);
   bs.readUn(attrDesc.bitdepth, &cadu.constattr_default_value[0]);
   for (int k = 1; k <= attrDesc.attr_num_dimensions_minus1; k++)
-    bs.readUn(attrDesc.bitdepthSecondary, &cadu.constattr_default_value[k]);
+    bs.readUn(attrDesc.bitdepth, &cadu.constattr_default_value[k]);
 
   return cadu;
 }

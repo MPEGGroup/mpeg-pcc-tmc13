@@ -122,8 +122,7 @@ typedef std::vector<QpRegionOffset> QpRegionList;
 struct QpSet {
   QpLayers layers;
   QpRegionList regions;
-  int maxQpPrimary;
-  int maxQpSecondary;
+  int maxQp;
   int fixedPointQpOffset;
 
   // Derive the quantizers at a given layer after applying qpOffset
@@ -133,9 +132,6 @@ struct QpSet {
   Quantizers quantizers(const Vec3<int32_t>& point, int qpLayer) const;
 
   Qps regionQpOffset(const Vec3<int32_t>& point) const;
-
-  int clipQpP(int qp) const;
-  int clipQpS(int qp) const;
 };
 
 //============================================================================

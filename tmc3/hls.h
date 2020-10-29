@@ -241,7 +241,6 @@ struct AttributeDescription {
   int attr_instance_id;
 
   int bitdepth;
-  int bitdepthSecondary;
 
   AttributeLabel attributeLabel;
 

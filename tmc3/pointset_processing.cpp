@@ -255,9 +255,7 @@ recolourColour(
   std::vector<Vec3<attr_t>> refinedColors1;
   refinedColors1.resize(pointCountTarget);
 
-  Vec3<double> clipMax{double((1 << attrDesc.bitdepth) - 1),
-                       double((1 << attrDesc.bitdepthSecondary) - 1),
-                       double((1 << attrDesc.bitdepthSecondary) - 1)};
+  Vec3<double> clipMax = double((1 << attrDesc.bitdepth) - 1);
 
   double maxGeometryDist2Fwd = params.maxGeometryDist2Fwd < 512
     ? params.maxGeometryDist2Fwd

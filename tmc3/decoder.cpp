@@ -304,9 +304,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
       [](const AttributeDescription& desc) {
         return desc.attributeLabel == KnownAttributeLabel::kColour;
       });
-    Vec3<attr_t> defAttrVal =
-      Vec3<int>{1 << (it->bitdepth - 1), 1 << (it->bitdepthSecondary - 1),
-                1 << (it->bitdepthSecondary - 1)};
+
+    Vec3<attr_t> defAttrVal = 1 << (it->bitdepth - 1);
     if (!it->attr_default_value.empty())
       for (int k = 0; k < 3; k++)
         defAttrVal[k] = it->attr_default_value[k];

@@ -131,8 +131,7 @@ deriveQpSet(
 
   // The mimimum Qp = 4 is always lossless; the maximum varies according to
   // bitdepth.
-  qpset.maxQpPrimary = 51 + 6 * (attrDesc.bitdepth - 8);
-  qpset.maxQpSecondary = 51 + 6 * (attrDesc.bitdepthSecondary - 8);
+  qpset.maxQp = 51 + 6 * (attrDesc.bitdepth - 8);
 
   // the lifting transform has extra fractional bits that equate to
   // increasing the QP.
@@ -144,28 +143,12 @@ deriveQpSet(
 }
 
 //============================================================================
-
-int
-QpSet::clipQpP(int qp) const
-{
-  return PCCClip(qp, 4, maxQpPrimary);
-}
-
-//----------------------------------------------------------------------------
-
-int
-QpSet::clipQpS(int qp) const
-{
-  return PCCClip(qp, 4, maxQpSecondary);
-}
-
-//============================================================================
 // Determines the quantizers at a given layer
 Quantizers
 QpSet::quantizers(int qpLayer, Qps qpOffset) const
 {
-  int qp0 = clipQpP(layers[qpLayer][0] + qpOffset[0]);
-  int qp1 = clipQpS(layers[qpLayer][1] + qpOffset[1] + qp0);
+  int qp0 = PCCClip(layers[qpLayer][0] + qpOffset[0], 4, maxQp);
+  int qp1 = PCCClip(layers[qpLayer][1] + qpOffset[1] + qp0, 4, maxQp);
   qp0 = qp0 + fixedPointQpOffset;
   qp1 = qp1 + fixedPointQpOffset;
 

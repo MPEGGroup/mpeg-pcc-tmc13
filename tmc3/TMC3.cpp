@@ -1178,14 +1178,11 @@ sanitizeEncoderOpts(
       attr_sps.cicpParametersPresent = true;
     }
 
-    // Derive the secondary bitdepth
-    // todo(df): this needs to be a command line argument
-    //  -- but there are a few edge cases to handle
-    attr_sps.bitdepthSecondary = attr_sps.bitdepth;
-
     // Assume that YCgCo is actually YCgCoR for now
+    // This requires an extra bit to represent chroma (luma will have a
+    // reduced range)
     if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
-      attr_sps.bitdepthSecondary++;
+      attr_sps.bitdepth++;
 
     // Extend the default attribute value to the correct width if present
     if (!attr_sps.attr_default_value.empty())
@@ -1335,9 +1332,6 @@ sanitizeEncoderOpts(
 
     if (attr_sps.bitdepth > 16)
       err.error() << it.first << ".bitdepth must be less than 17\n";
-
-    if (attr_sps.bitdepthSecondary > 16)
-      err.error() << it.first << ".bitdepth_secondary must be less than 17\n";
 
     if (attr_aps.lodParametersPresent()) {
       int lod = attr_aps.num_detail_levels_minus1;
@@ -1732,7 +1726,8 @@ convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 
   case ColourMatrix::kYCgCo:
     // todo(df): select YCgCoR vs YCgCo
-    convertYCgCoRToGbr(attrDesc->bitdepth, cloud);
+    // NB: bitdepth is the transformed bitdepth, not the source
+    convertYCgCoRToGbr(attrDesc->bitdepth - 1, cloud);
     break;
 
   default: break;
@@ -1753,7 +1748,8 @@ convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 
   case ColourMatrix::kYCgCo:
     // todo(df): select YCgCoR vs YCgCo
-    convertGbrToYCgCoR(attrDesc->bitdepth, cloud);
+    // NB: bitdepth is the transformed bitdepth, not the source
+    convertGbrToYCgCoR(attrDesc->bitdepth - 1, cloud);
     break;
 
   default: break;
