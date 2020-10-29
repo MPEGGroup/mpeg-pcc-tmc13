@@ -885,8 +885,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Maximum number of nearest neighbour candidates used in direct"
     "attribute prediction")
 
+  // NB: this parameter actually represents the number of refinement layers
   ("levelOfDetailCount",
-    params_attr.aps.num_detail_levels, 1,
+    params_attr.aps.num_detail_levels_minus1, 1,
     "Attribute's number of levels of detail")
 
   ("dist2",
@@ -1209,9 +1210,9 @@ sanitizeEncoderOpts(
       attr_aps.lodSamplingPeriod.clear();
     } else if (!attr_aps.lodSamplingPeriod.empty()) {
       auto i = attr_aps.lodSamplingPeriod.size();
-      attr_aps.lodSamplingPeriod.resize(attr_aps.num_detail_levels);
+      attr_aps.lodSamplingPeriod.resize(attr_aps.num_detail_levels_minus1);
       // add any extra values as required
-      for (; i < attr_aps.num_detail_levels; i++)
+      for (; i < attr_aps.num_detail_levels_minus1; i++)
         attr_aps.lodSamplingPeriod[i] = attr_aps.lodSamplingPeriod[i - 1];
     }
 
@@ -1222,7 +1223,7 @@ sanitizeEncoderOpts(
 
     // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-      attr_aps.num_detail_levels = 0;
+      attr_aps.num_detail_levels_minus1 = 0;
       attr_aps.adaptive_prediction_threshold = 0;
     }
 
@@ -1339,7 +1340,7 @@ sanitizeEncoderOpts(
       err.error() << it.first << ".bitdepth_secondary must be less than 17\n";
 
     if (attr_aps.lodParametersPresent()) {
-      int lod = attr_aps.num_detail_levels;
+      int lod = attr_aps.num_detail_levels_minus1;
       if (lod > 255 || lod < 0) {
         err.error() << it.first
                     << ".levelOfDetailCount must be in the range [0,255]\n";

@@ -593,8 +593,8 @@ struct AttributeParameterSet {
   bool inter_component_prediction_enabled_flag;
   bool last_component_prediction_enabled_flag;
 
-  // NB: derived from num_detail_levels_minus1
-  int num_detail_levels;
+  // The number of refinement layers
+  int num_detail_levels_minus1;
   std::vector<int> lodSamplingPeriod;
 
   int dist2;

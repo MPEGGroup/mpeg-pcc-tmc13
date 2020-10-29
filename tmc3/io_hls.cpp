@@ -854,14 +854,14 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUe(aps.max_neigh_range);
 
     if (!aps.scalable_lifting_enabled_flag) {
-      bs.writeUe(aps.num_detail_levels);
-      if (!aps.num_detail_levels)
+      bs.writeUe(aps.num_detail_levels_minus1);
+      if (!aps.num_detail_levels_minus1)
         bs.write(aps.canonical_point_order_flag);
       else {
         bs.write(aps.lod_decimation_enabled_flag);
 
         if (aps.lod_decimation_enabled_flag) {
-          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+          for (int idx = 0; idx < aps.num_detail_levels_minus1; idx++) {
             auto lod_sampling_period_minus2 = aps.lodSamplingPeriod[idx] - 2;
             bs.writeUe(lod_sampling_period_minus2);
           }
@@ -944,15 +944,15 @@ parseAps(const PayloadBuffer& buf)
 
     aps.canonical_point_order_flag = false;
     if (!aps.scalable_lifting_enabled_flag) {
-      bs.readUe(&aps.num_detail_levels);
-      if (!aps.num_detail_levels)
+      bs.readUe(&aps.num_detail_levels_minus1);
+      if (!aps.num_detail_levels_minus1)
         bs.read(&aps.canonical_point_order_flag);
       else {
         bs.read(&aps.lod_decimation_enabled_flag);
 
         if (aps.lod_decimation_enabled_flag) {
-          aps.lodSamplingPeriod.resize(aps.num_detail_levels);
-          for (int idx = 0; idx < aps.num_detail_levels; idx++) {
+          aps.lodSamplingPeriod.resize(aps.num_detail_levels_minus1);
+          for (int idx = 0; idx < aps.num_detail_levels_minus1; idx++) {
             int lod_sampling_period_minus2;
             bs.readUe(&lod_sampling_period_minus2);
             aps.lodSamplingPeriod[idx] = lod_sampling_period_minus2 + 2;
