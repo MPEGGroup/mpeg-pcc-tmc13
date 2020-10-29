@@ -354,7 +354,8 @@ AttributeDecoder::decodeReflectancesPred(
 {
   const size_t pointCount = pointCloud.getPointCount();
   const int64_t maxReflectance = (1ll << desc.bitdepth) - 1;
-  int zero_cnt = decoder.decodeRunLength();
+
+  int zeroRunRem = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -365,16 +366,17 @@ AttributeDecoder::decodeReflectancesPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
     decodePredModeRefl(
       desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     attr_t& reflectance = pointCloud.getReflectance(pointIndex);
+
     int32_t attValue0 = 0;
-    if (zero_cnt > 0) {
-      zero_cnt--;
-    } else {
+    if (!zeroRunRem)
       attValue0 = decoder.decode();
-      zero_cnt = decoder.decodeRunLength();
-    }
+
     const int64_t quantPredAttValue =
       predictor.predictReflectance(pointCloud, _lods.indexes);
     const int64_t delta =
@@ -439,7 +441,7 @@ AttributeDecoder::decodeColorsPred(
                         (1 << desc.bitdepthSecondary) - 1};
 
   int32_t values[3];
-  int zero_cnt = decoder.decodeRunLength();
+  int zeroRunRem = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -450,15 +452,16 @@ AttributeDecoder::decodeColorsPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
     decodePredModeColor(
       desc, aps, pointCloud, _lods.indexes, predictor, decoder);
-    if (zero_cnt > 0) {
+    if (zeroRunRem)
       values[0] = values[1] = values[2] = 0;
-      zero_cnt--;
-    } else {
+    else
       decoder.decode(values);
-      zero_cnt = decoder.decodeRunLength();
-    }
+
     Vec3<attr_t>& color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =
       predictor.predictColor(pointCloud, _lods.indexes);
@@ -505,15 +508,15 @@ AttributeDecoder::decodeReflectancesRaht(
   const int attribCount = 1;
   std::vector<int> coefficients(attribCount * voxelCount);
   std::vector<Qps> pointQpOffsets(voxelCount);
-  int zero_cnt = decoder.decodeRunLength();
+  int zeroRunRem = 0;
   for (int n = 0; n < voxelCount; ++n) {
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
     uint32_t value = 0;
-    if (zero_cnt > 0) {
-      zero_cnt--;
-    } else {
+    if (!zeroRunRem)
       value = decoder.decode();
-      zero_cnt = decoder.decodeRunLength();
-    }
+
     coefficients[n] = value;
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
@@ -563,19 +566,18 @@ AttributeDecoder::decodeColorsRaht(
 
   // Entropy decode
   const int attribCount = 3;
-  int zero_cnt = decoder.decodeRunLength();
   std::vector<int> coefficients(attribCount * voxelCount);
   std::vector<Qps> pointQpOffsets(voxelCount);
 
+  int zeroRunRem = 0;
   for (int n = 0; n < voxelCount; ++n) {
-    int32_t values[3];
-    if (zero_cnt > 0) {
-      values[0] = values[1] = values[2] = 0;
-      zero_cnt--;
-    } else {
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
+    int32_t values[3] = {};
+    if (!zeroRunRem)
       decoder.decode(values);
-      zero_cnt = decoder.decodeRunLength();
-    }
+
     for (int d = 0; d < attribCount; ++d) {
       coefficients[voxelCount * d + n] = values[d];
     }
@@ -644,7 +646,7 @@ AttributeDecoder::decodeColorsLift(
     lastCompPredCoeff = lastCompPredCoeffs[0];
   }
 
-  int zero_cnt = decoder.decodeRunLength();
+  int zeroRunRem = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -661,14 +663,12 @@ AttributeDecoder::decodeColorsLift(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
-    int32_t values[3];
-    if (zero_cnt > 0) {
-      values[0] = values[1] = values[2] = 0;
-      zero_cnt--;
-    } else {
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
+    int32_t values[3] = {};
+    if (!zeroRunRem)
       decoder.decode(values);
-      zero_cnt = decoder.decodeRunLength();
-    }
 
     const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     auto& color = colors[predictorIndex];
@@ -736,7 +736,7 @@ AttributeDecoder::decodeReflectancesLift(
   reflectances.resize(pointCount);
 
   // decompress
-  int zero_cnt = decoder.decodeRunLength();
+  int zeroRunRem = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -746,13 +746,13 @@ AttributeDecoder::decodeReflectancesLift(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
+    if (--zeroRunRem < 0)
+      zeroRunRem = decoder.decodeRunLength();
+
     int64_t detail = 0;
-    if (zero_cnt > 0) {
-      zero_cnt--;
-    } else {
+    if (!zeroRunRem)
       detail = decoder.decode();
-      zero_cnt = decoder.decodeRunLength();
-    }
+
     const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
     auto& reflectance = reflectances[predictorIndex];
     const int64_t delta = detail;

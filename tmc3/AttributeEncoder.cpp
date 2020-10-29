@@ -547,7 +547,7 @@ AttributeEncoder::encodeReflectancesPred(
   const uint32_t pointCount = pointCloud.getPointCount();
   const int64_t clipMax = (1ll << desc.bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
-  int zero_cnt = 0;
+  int zeroRunAcc = 0;
   std::vector<int> zerorun;
   zerorun.reserve(pointCount);
   std::vector<uint32_t> residual;
@@ -583,34 +583,34 @@ AttributeEncoder::encodeReflectancesPred(
       attr_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
 
     if (!attValue0)
-      ++zero_cnt;
+      ++zeroRunAcc;
     else {
-      zerorun.push_back(zero_cnt);
-      zero_cnt = 0;
+      zerorun.push_back(zeroRunAcc);
+      zeroRunAcc = 0;
     }
     residual[predictorIndex] = attValue0;
     pointCloud.setReflectance(pointIndex, reconstructedReflectance);
   }
+  if (zeroRunAcc)
+    zerorun.push_back(zeroRunAcc);
 
-  zerorun.push_back(zero_cnt);
-  int run_index = 0;
-  encoder.encodeRunLength(zerorun[run_index]);
-  zero_cnt = zerorun[run_index++];
-
+  int runIdx = 0;
+  int zeroRunRem = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (--zeroRunRem < 0) {
+      zeroRunRem = zerorun[runIdx++];
+      encoder.encodeRunLength(zeroRunRem);
+    }
+
     auto& predictor = _lods.predictors[predictorIndex];
     if (predictor.maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }
-    if (zero_cnt > 0)
-      zero_cnt--;
-    else {
+
+    if (!zeroRunRem)
       encoder.encode(residual[predictorIndex]);
-      encoder.encodeRunLength(zerorun[run_index]);
-      zero_cnt = zerorun[run_index++];
-    }
   }
 }
 
@@ -741,7 +741,7 @@ AttributeEncoder::encodeColorsPred(
 
   int32_t values[3];
   PCCResidualsEntropyEstimator context;
-  int zero_cnt = 0;
+  int zeroRunAcc = 0;
   std::vector<int> zerorun;
   std::vector<int32_t> residual[3];
   for (int i = 0; i < 3; i++) {
@@ -792,37 +792,39 @@ AttributeEncoder::encodeColorsPred(
     pointCloud.setColor(pointIndex, reconstructedColor);
 
     if (!values[0] && !values[1] && !values[2]) {
-      ++zero_cnt;
+      ++zeroRunAcc;
     } else {
-      zerorun.push_back(zero_cnt);
-      zero_cnt = 0;
+      zerorun.push_back(zeroRunAcc);
+      zeroRunAcc = 0;
     }
 
     for (int i = 0; i < 3; i++) {
       residual[i][predictorIndex] = values[i];
     }
   }
+  if (zeroRunAcc)
+    zerorun.push_back(zeroRunAcc);
 
-  zerorun.push_back(zero_cnt);
-  int run_index = 0;
-  encoder.encodeRunLength(zerorun[run_index]);
-  zero_cnt = zerorun[run_index++];
+  int runIdx = 0;
+  int zeroRunRem = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
+    if (--zeroRunRem < 0) {
+      zeroRunRem = zerorun[runIdx++];
+      encoder.encodeRunLength(zeroRunRem);
+    }
+
     auto& predictor = _lods.predictors[predictorIndex];
     if (predictor.maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }
-    if (zero_cnt > 0)
-      zero_cnt--;
-    else {
+
+    if (!zeroRunRem) {
       for (size_t k = 0; k < 3; k++)
         values[k] = residual[k][predictorIndex];
 
       encoder.encode(values[0], values[1], values[2]);
-      encoder.encodeRunLength(zerorun[run_index]);
-      zero_cnt = zerorun[run_index++];
     }
   }
 }
@@ -870,18 +872,19 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     voxelCount, coefficients.data());
 
   // Entropy encode.
-  int zero_cnt = 0;
+  int zeroRun = 0;
   for (int n = 0; n < voxelCount; ++n) {
     auto value = coefficients[n];
     if (!value)
-      ++zero_cnt;
+      ++zeroRun;
     else {
-      encoder.encodeRunLength(zero_cnt);
+      encoder.encodeRunLength(zeroRun);
       encoder.encode(value);
-      zero_cnt = 0;
+      zeroRun = 0;
     }
   }
-  encoder.encodeRunLength(zero_cnt);
+  if (zeroRun)
+    encoder.encodeRunLength(zeroRun);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -939,20 +942,21 @@ AttributeEncoder::encodeColorsTransformRaht(
 
   // Entropy encode.
   int values[attribCount];
-  int zero_cnt = 0;
+  int zeroRun = 0;
   for (int n = 0; n < voxelCount; ++n) {
     for (int d = 0; d < attribCount; ++d) {
       values[d] = coefficients[voxelCount * d + n];
     }
     if (!values[0] && !values[1] && !values[2])
-      ++zero_cnt;
+      ++zeroRun;
     else {
-      encoder.encodeRunLength(zero_cnt);
+      encoder.encodeRunLength(zeroRun);
       encoder.encode(values[0], values[1], values[2]);
-      zero_cnt = 0;
+      zeroRun = 0;
     }
   }
-  encoder.encodeRunLength(zero_cnt);
+  if (zeroRun)
+    encoder.encodeRunLength(zeroRun);
 
   Vec3<int> clipMax{(1 << desc.bitdepth) - 1,
                     (1 << desc.bitdepthSecondary) - 1,
@@ -1019,7 +1023,7 @@ AttributeEncoder::encodeColorsLift(
     lastCompPredCoeff = lastCompPredCoeffs[0];
   }
 
-  int zero_cnt = 0;
+  int zeroRun = 0;
   int quantLayer = 0;
   int lod = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -1059,14 +1063,15 @@ AttributeEncoder::encodeColorsLift(
     color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
 
     if (!values[0] && !values[1] && !values[2])
-      ++zero_cnt;
+      ++zeroRun;
     else {
-      encoder.encodeRunLength(zero_cnt);
+      encoder.encodeRunLength(zeroRun);
       encoder.encode(values[0], values[1], values[2]);
-      zero_cnt = 0;
+      zeroRun = 0;
     }
   }
-  encoder.encodeRunLength(zero_cnt);
+  if (zeroRun)
+    encoder.encodeRunLength(zeroRun);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
@@ -1200,7 +1205,7 @@ AttributeEncoder::encodeReflectancesLift(
   }
 
   // compress
-  int zero_cnt = 0;
+  int zeroRun = 0;
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -1220,14 +1225,15 @@ AttributeEncoder::encodeReflectancesLift(
     const int64_t reconstructedDelta = quant[0].scale(delta);
     reflectance = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
     if (!detail)
-      ++zero_cnt;
+      ++zeroRun;
     else {
-      encoder.encodeRunLength(zero_cnt);
+      encoder.encodeRunLength(zeroRun);
       encoder.encode(detail);
-      zero_cnt = 0;
+      zeroRun = 0;
     }
   }
-  encoder.encodeRunLength(zero_cnt);
+  if (zeroRun)
+    encoder.encodeRunLength(zeroRun);
 
   // reconstruct
   for (size_t lodIndex = 1; lodIndex < lodCount; ++lodIndex) {
