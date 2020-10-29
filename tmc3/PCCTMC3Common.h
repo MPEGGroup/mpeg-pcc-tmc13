@@ -224,11 +224,10 @@ struct MortonCodeWithIndex {
 struct PCCNeighborInfo {
   uint64_t weight;
   uint32_t predictorIndex;
-  uint32_t insertIndex;
+
   bool operator<(const PCCNeighborInfo& rhs) const
   {
-    return (weight == rhs.weight) ? insertIndex < rhs.insertIndex
-                                  : weight < rhs.weight;
+    return weight < rhs.weight;
   }
 };
 
@@ -971,7 +970,6 @@ insertNeighbour(
   const uint32_t reference,
   const uint64_t weight,
   const uint32_t maxNeighborCountMinus1,
-  const uint32_t insertIndex,
   uint32_t& neighborCount,
   PCCNeighborInfo* neighbors)
 {
@@ -983,18 +981,13 @@ insertNeighbour(
     PCCNeighborInfo& neighborInfo = neighbors[neighborCount];
     neighborInfo.weight = weight;
     neighborInfo.predictorIndex = reference;
-    neighborInfo.insertIndex = insertIndex;
     ++neighborCount;
     sort = true;
   } else {
     PCCNeighborInfo& neighborInfo = neighbors[maxNeighborCountMinus1];
-    if (
-      weight < neighborInfo.weight
-      || (weight == neighborInfo.weight
-          && insertIndex < neighborInfo.insertIndex)) {
+    if (weight < neighborInfo.weight) {
       neighborInfo.weight = weight;
       neighborInfo.predictorIndex = reference;
-      neighborInfo.insertIndex = insertIndex;
       sort = true;
     }
   }
@@ -1036,8 +1029,8 @@ updateNearestNeighbor(
   }
 
   insertNeighbour(
-    pointIndex1, norm1, aps.num_pred_nearest_neighbours_minus1, 0,
-    neighborCount, neighbors);
+    pointIndex1, norm1, aps.num_pred_nearest_neighbours_minus1, neighborCount,
+    neighbors);
 }
 
 //---------------------------------------------------------------------------
