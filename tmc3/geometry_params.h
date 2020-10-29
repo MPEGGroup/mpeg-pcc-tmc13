@@ -59,7 +59,8 @@ struct OctreeEncOpts {
   QtBtParameters qtbt;
 
   // Method used to derive in-tree quantisation parameters
-  enum class QpMethod {
+  enum class QpMethod
+  {
     kUniform = 0,
     kRandom = 1,
     kByDensity = 2,

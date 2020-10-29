@@ -1634,9 +1634,8 @@ encodeGeometryOctree(
       idcmQp = 0;
       quantNodeSizeLog2 = nodeSizeLog2;
       calculateNodeQps(
-        params.qpMethod,
-        nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2, fifo.begin(),
-        fifoCurrLvlEnd);
+        params.qpMethod, nodeSizeLog2, sliceQp, gps.geom_qp_multiplier_log2,
+        fifo.begin(), fifoCurrLvlEnd);
     }
 
     // save context state for parallel coding
