@@ -472,7 +472,7 @@ AttributeEncoder::computeReflectanceResidual(
 //----------------------------------------------------------------------------
 
 void
-AttributeEncoder::computeReflectancePredictionWeights(
+AttributeEncoder::decidePredModeRefl(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
@@ -563,7 +563,7 @@ AttributeEncoder::encodeReflectancesPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
-    computeReflectancePredictionWeights(
+    decidePredModeRefl(
       desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
       context, quant[0]);
 
@@ -651,7 +651,7 @@ AttributeEncoder::computeColorResiduals(
 //----------------------------------------------------------------------------
 
 void
-AttributeEncoder::computeColorPredictionWeights(
+AttributeEncoder::decidePredModeColor(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
@@ -757,7 +757,7 @@ AttributeEncoder::encodeColorsPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
-    computeColorPredictionWeights(
+    decidePredModeColor(
       desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
       context, quant);
     const Vec3<attr_t> color = pointCloud.getColor(pointIndex);

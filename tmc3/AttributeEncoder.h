@@ -120,7 +120,7 @@ protected:
     const Vec3<attr_t> predictedColor,
     const Quantizers& quant);
 
-  static void computeColorPredictionWeights(
+  static void decidePredModeColor(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
@@ -136,7 +136,7 @@ protected:
     const uint64_t predictedReflectance,
     const Quantizer& quant);
 
-  static void computeReflectancePredictionWeights(
+  static void decidePredModeRefl(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,

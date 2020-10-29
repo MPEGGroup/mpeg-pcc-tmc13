@@ -119,7 +119,7 @@ protected:
     PCCResidualsDecoder& decoder,
     PCCPointSet3& pointCloud);
 
-  static void computeColorPredictionWeights(
+  static void decodePredModeColor(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
@@ -127,7 +127,7 @@ protected:
     PCCPredictor& predictor,
     PCCResidualsDecoder& decoder);
 
-  static void computeReflectancePredictionWeights(
+  static void decodePredModeRefl(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,

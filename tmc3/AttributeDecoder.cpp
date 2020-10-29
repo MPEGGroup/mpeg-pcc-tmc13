@@ -306,7 +306,7 @@ AttributeDecoder::isReusable(
 //----------------------------------------------------------------------------
 
 void
-AttributeDecoder::computeReflectancePredictionWeights(
+AttributeDecoder::decodePredModeRefl(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
@@ -360,7 +360,7 @@ AttributeDecoder::decodeReflectancesPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
-    computeReflectancePredictionWeights(
+    decodePredModeRefl(
       desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     attr_t& reflectance = pointCloud.getReflectance(pointIndex);
     int32_t attValue0 = 0;
@@ -383,7 +383,7 @@ AttributeDecoder::decodeReflectancesPred(
 //----------------------------------------------------------------------------
 
 void
-AttributeDecoder::computeColorPredictionWeights(
+AttributeDecoder::decodePredModeColor(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
@@ -445,7 +445,7 @@ AttributeDecoder::decodeColorsPred(
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
 
-    computeColorPredictionWeights(
+    decodePredModeColor(
       desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     if (zero_cnt > 0) {
       values[0] = values[1] = values[2] = 0;
