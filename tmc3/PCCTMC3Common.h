@@ -1675,12 +1675,6 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.reserve(21);
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
-  auto numDetailLevelsMinus1 = aps.num_detail_levels_minus1;
-  if (aps.scalable_lifting_enabled_flag) {
-    // NB: when partial decoding is enabled, LoDs correspond to octree levels
-    numDetailLevelsMinus1 = std::numeric_limits<int>::max();
-  }
-
   bool concatenateLayers = aps.scalable_lifting_enabled_flag;
   std::vector<uint32_t> indexesOfSubsample;
   if (concatenateLayers)
@@ -1693,11 +1687,12 @@ buildPredictorsFast(
   atlas.resize(log2CubeSize);
   atlas.init();
 
+  auto maxNumDetailLevels = aps.maxNumDetailLevels();
   int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
-       !input.empty() && lodIndex <= numDetailLevelsMinus1; ++lodIndex) {
+       !input.empty() && lodIndex < maxNumDetailLevels; ++lodIndex) {
     const int32_t startIndex = indexes.size();
-    if (lodIndex == numDetailLevelsMinus1) {
+    if (lodIndex == maxNumDetailLevels - 1) {
       for (const auto index : input) {
         indexes.push_back(index);
       }

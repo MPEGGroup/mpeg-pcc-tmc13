@@ -595,6 +595,15 @@ struct AttributeParameterSet {
 
   // The number of refinement layers
   int num_detail_levels_minus1;
+
+  // The configured number of detail levels (there is always at least one).
+  // NB: the actual number of detail levels generated may be lower.
+  int maxNumDetailLevels() const
+  {
+    return scalable_lifting_enabled_flag ? 21 /* MaxRootNodeDimLog2 */
+                                         : num_detail_levels_minus1 + 1;
+  }
+
   std::vector<int> lodSamplingPeriod;
 
   int dist2;

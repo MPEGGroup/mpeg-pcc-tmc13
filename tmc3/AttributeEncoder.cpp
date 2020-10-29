@@ -1014,7 +1014,7 @@ AttributeEncoder::encodeColorsLift(
   int8_t lastCompPredCoeff = 0;
   std::vector<int8_t> lastCompPredCoeffs;
   if (aps.last_component_prediction_enabled_flag) {
-    lastCompPredCoeffs = computeLastComponentPredictionCoeff(colors);
+    lastCompPredCoeffs = computeLastComponentPredictionCoeff(aps, colors);
     encoder.encodeLastCompPredCoeffs(lastCompPredCoeffs);
     lastCompPredCoeff = lastCompPredCoeffs[0];
   }
@@ -1096,9 +1096,11 @@ AttributeEncoder::encodeColorsLift(
 
 std::vector<int8_t>
 AttributeEncoder::computeLastComponentPredictionCoeff(
-  const std::vector<Vec3<int64_t>>& coeffs)
+  const AttributeParameterSet& aps, const std::vector<Vec3<int64_t>>& coeffs)
 {
-  std::vector<int8_t> signs(_lods.numPointsInLod.size(), 0);
+  int maxNumDetailLevels = aps.maxNumDetailLevels();
+  assert(_lods.numPointsInLod.size() <= maxNumDetailLevels);
+  std::vector<int8_t> signs(maxNumDetailLevels, 0);
 
   int numGt0 = 0;
   int numLt0 = 0;

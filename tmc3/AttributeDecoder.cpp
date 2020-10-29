@@ -39,6 +39,7 @@
 #include "DualLutCoder.h"
 #include "constants.h"
 #include "entropy.h"
+#include "hls.h"
 #include "io_hls.h"
 #include "RAHT.h"
 #include "FixedPoint.h"
@@ -60,7 +61,9 @@ public:
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
 
-  std::vector<int8_t> decodeLastCompPredCoeffs(int numLods);
+  std::vector<int8_t>
+  decodeLastCompPredCoeffs(const AttributeParameterSet& aps);
+
   int decodePredMode(int max);
   int decodeRunLength();
   int decodeSymbol(int k1, int k2, int k3);
@@ -97,11 +100,13 @@ PCCResidualsDecoder::stop()
 //----------------------------------------------------------------------------
 
 std::vector<int8_t>
-PCCResidualsDecoder::decodeLastCompPredCoeffs(int numLods)
+PCCResidualsDecoder::decodeLastCompPredCoeffs(const AttributeParameterSet& aps)
 {
   // todo: should this be in the slice header?
-  std::vector<int8_t> coeffs(numLods, 0);
-  for (int lod = 0; lod < numLods; lod++) {
+  int numCoeffLvls = aps.maxNumDetailLevels();
+  std::vector<int8_t> coeffs(numCoeffLvls, 0);
+
+  for (int lod = 0; lod < numCoeffLvls; lod++) {
     bool last_comp_pred_coeff_ne0 = arithmeticDecoder.decode();
     if (last_comp_pred_coeff_ne0) {
       bool last_comp_pred_coeff_sign = arithmeticDecoder.decode();
@@ -635,7 +640,7 @@ AttributeDecoder::decodeColorsLift(
   int8_t lastCompPredCoeff = 0;
   std::vector<int8_t> lastCompPredCoeffs;
   if (aps.last_component_prediction_enabled_flag) {
-    lastCompPredCoeffs = decoder.decodeLastCompPredCoeffs(lodCount);
+    lastCompPredCoeffs = decoder.decodeLastCompPredCoeffs(aps);
     lastCompPredCoeff = lastCompPredCoeffs[0];
   }
 

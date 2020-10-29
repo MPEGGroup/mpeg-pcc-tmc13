@@ -149,6 +149,7 @@ protected:
 
 private:
   std::vector<int8_t> computeLastComponentPredictionCoeff(
+    const AttributeParameterSet& aps,
     const std::vector<Vec3<int64_t>>& coeffs);
 
 private:
