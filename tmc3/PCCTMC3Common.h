@@ -368,14 +368,6 @@ struct PCCPredictor {
     }
   }
 
-  void init(const uint32_t predictorIndex)
-  {
-    neighborCount = (predictorIndex != PCC_UNDEFINED_INDEX) ? 1 : 0;
-    neighbors[0].predictorIndex = predictorIndex;
-    neighbors[0].weight = 1;
-    predMode = 0;
-  }
-
   void init()
   {
     neighborCount = 0;
@@ -529,34 +521,6 @@ computeQuantizationWeightsScalable(
       }
     }
   }
-}
-
-//---------------------------------------------------------------------------
-
-inline uint32_t
-FindNeighborWithinDistance(
-  const PCCPointSet3& pointCloud,
-  const std::vector<MortonCodeWithIndex>& packedVoxel,
-  const int32_t index,
-  const double radius2,
-  const int32_t searchRange,
-  std::vector<uint32_t>& retained)
-{
-  const auto& point = pointCloud[packedVoxel[index].index];
-  const int32_t retainedSize = retained.size();
-  int32_t j = retainedSize - 2;
-  int32_t k = 0;
-  while (j >= 0 && ++k < searchRange) {
-    const int32_t index1 = retained[j];
-    const int32_t pointIndex1 = packedVoxel[index1].index;
-    const auto& point1 = pointCloud[pointIndex1];
-    const auto d2 = (point1 - point).getNorm2<double>();
-    if (d2 <= radius2) {
-      return index1;
-    }
-    --j;
-  }
-  return PCC_UNDEFINED_INDEX;
 }
 
 //---------------------------------------------------------------------------
