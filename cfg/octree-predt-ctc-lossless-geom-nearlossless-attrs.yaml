@@ -67,7 +67,7 @@ categories:
        - !conditional '${numLasers}'
        - lod_neigh_bias: '1,1,1'
        - spherical_coord_flag: 1
-     - intraLodPredictionEnabled: 1
+     - intraLodPredictionSkipLayers: 0
      - interComponentPredictionEnabled: 1
      -
        - !conditional '${has_colour}'

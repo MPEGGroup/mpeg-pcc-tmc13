@@ -714,7 +714,7 @@ computeNearestNeighbors(
   hBBoxes.update();
 
   BoxHierarchy<bucketSizeLog2, levelCount> hIntraBBoxes;
-  if (aps.intra_lod_prediction_enabled_flag) {
+  if (lodIndex >= aps.intra_lod_prediction_skip_layers) {
     hIntraBBoxes.resize(indexesSize);
     for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
       hIntraBBoxes.insert(packedVoxel[indexes[i]].bposition, i - startIndex);
@@ -913,7 +913,7 @@ computeNearestNeighbors(
         localIndexes[h] = retained[localIndexes[h]];
     }
 
-    if (aps.intra_lod_prediction_enabled_flag) {
+    if (lodIndex >= aps.intra_lod_prediction_skip_layers) {
       const int32_t k00 = i + 1;
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
       for (int32_t k = k00; k <= k01; ++k) {
@@ -1155,7 +1155,7 @@ computeNearestNeighborsScalable(
 
   std::vector<Box3<int32_t>> bBoxesI;
   const int32_t indexesSize = endIndex - startIndex;
-  if (aps.intra_lod_prediction_enabled_flag) {
+  if (nodeSizeLog2 >= aps.intra_lod_prediction_skip_layers) {
     bBoxesI.resize((indexesSize + bucketSize - 1) / bucketSize);
     for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
       auto& bBox = bBoxesI[b];
@@ -1302,7 +1302,7 @@ computeNearestNeighborsScalable(
         }
       }
     }
-    if (aps.intra_lod_prediction_enabled_flag) {
+    if (nodeSizeLog2 >= aps.intra_lod_prediction_skip_layers) {
       const int32_t k00 = i + 1;
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
       for (int32_t k = k00; k <= k01; ++k) {

@@ -589,7 +589,14 @@ struct AttributeParameterSet {
   // NB: in stv order
   Vec3<int32_t> lodNeighBias;
 
-  bool intra_lod_prediction_enabled_flag;
+  // The number of detail levels, starting from the finest, to skip intra
+  // prediction.
+  int intra_lod_prediction_skip_layers;
+
+  // A large value for intra_lod_prediction_skip_layers that causes all layers
+  // to be skipped.
+  static const int kSkipAllLayers = 0x7fffffff;
+
   bool inter_component_prediction_enabled_flag;
   bool last_component_prediction_enabled_flag;
 

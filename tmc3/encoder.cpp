@@ -426,6 +426,17 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_aps = params->aps[it.second];
     auto& attr_enc = params->attr[it.second];
 
+    // sanitise any intra prediction skipping
+    if (attr_aps.attr_encoding != AttributeEncoding::kPredictingTransform)
+      attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
+    if (attr_aps.intra_lod_prediction_skip_layers < 0)
+      attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
+
+    // avoid signalling overly large values
+    attr_aps.intra_lod_prediction_skip_layers = std::min(
+      attr_aps.intra_lod_prediction_skip_layers,
+      attr_aps.maxNumDetailLevels() + 1);
+
     // dist2 is refined in the slice header
     attr_aps.aps_slice_dist2_deltas_present_flag =
       attr_aps.lodParametersPresent();

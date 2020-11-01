@@ -118,8 +118,8 @@ AttributeLods::isReusable(
     return false;
 
   if (
-    _aps.intra_lod_prediction_enabled_flag
-    != aps.intra_lod_prediction_enabled_flag)
+    _aps.intra_lod_prediction_skip_layers
+    != aps.intra_lod_prediction_skip_layers)
     return false;
 
   if (_aps.canonical_point_order_flag != aps.canonical_point_order_flag)

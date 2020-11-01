@@ -660,9 +660,15 @@ Controls the level-of-detail generation method:
   | 0     | Euclidean distance thresholding (dist2) |
   | 1     | Decimation by lodSubsamplingPeriod      |
 
-### `--intraLodPredictionEnabled=0|1`
-Part of LoD attribute coding.  Permits (1) points to be predicted from
-previously reconstructed points within the same LoD.
+### `--intraLodPredictionSkipLayers=INT-VALUE`
+The number of detail levels where intra prediction is disabled, starting
+from the finest detail level.  Applies to `transformType=0` only.
+
+  | Value | Description                             |
+  |:-----:| --------------------------------------- |
+  | -1    | Disabled in all detail levels           |
+  |  0    | Enabled in all detail levels            |
+  |  n    | Disabled in n finest detail levels      |
 
 ### `--aps_scalable_enabled_flag=0|1`
 Enable spatially scalable attribute encoding.

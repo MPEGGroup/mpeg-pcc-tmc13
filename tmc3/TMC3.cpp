@@ -911,9 +911,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.lodSamplingPeriod, {4},
     "List of per LoD sampling periods used in LoD generation.\n")
 
-  ("intraLodPredictionEnabled",
-    params_attr.aps.intra_lod_prediction_enabled_flag, false,
-    "Permits referring to points in same LoD")
+  ("intraLodPredictionSkipLayers",
+    params_attr.aps.intra_lod_prediction_skip_layers, -1,
+    "Number of finest detail levels that skip intra prediction.\n"
+    " -1: skip all (disables intra pred)")
 
   ("interComponentPredictionEnabled",
     params_attr.aps.inter_component_prediction_enabled_flag, false,
@@ -1224,7 +1225,7 @@ sanitizeEncoderOpts(
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       attr_aps.adaptive_prediction_threshold = 0;
-      attr_aps.intra_lod_prediction_enabled_flag = false;
+      attr_aps.intra_lod_prediction_skip_layers = -1;
     }
 
     // For RAHT, ensure that the unused lod count = 0 (prevents mishaps)
@@ -1362,10 +1363,10 @@ sanitizeEncoderOpts(
 
       if (
         attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
-        && lod == 0 && attr_aps.intra_lod_prediction_enabled_flag == 0) {
+        && lod == 0 && attr_aps.intra_lod_prediction_skip_layers != 0) {
         err.error()
           << "when transformType == 0 (Pred) and levelOfDetailCount == 0, "
-             "intraLodPredictionEnabled must be 1\n";
+             "intraLodPredictionSkipLayers must be 0\n";
       }
 
       if (
