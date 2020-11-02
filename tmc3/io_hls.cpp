@@ -1098,6 +1098,9 @@ write(
   if (gps.predgeom_enabled_flag) {
     for (int k = 0; k < 3; k++)
       bs.writeUn(3, gbh.pgeom_resid_abs_log2_bits[k]);
+
+    if (gps.geom_angular_mode_enabled_flag)
+      bs.writeUe(gbh.pgeom_min_radius);
   }
 
   bs.byteAlign();
@@ -1195,9 +1198,13 @@ parseGbh(
     bs.readUn(segmentBits, &gbh.num_unique_segments_minus1);
   }
 
+  gbh.pgeom_min_radius = 0;
   if (gps.predgeom_enabled_flag) {
     for (int k = 0; k < 3; k++)
       bs.readUn(3, &gbh.pgeom_resid_abs_log2_bits[k]);
+
+    if (gps.geom_angular_mode_enabled_flag)
+      bs.readUe(&gbh.pgeom_min_radius);
   }
 
   bs.byteAlign();

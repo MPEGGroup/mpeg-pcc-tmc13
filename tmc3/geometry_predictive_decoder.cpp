@@ -98,6 +98,8 @@ private:
   int _qpOffsetInterval;
 
   Vec3<int> _pgeom_resid_abs_log2_bits;
+
+  int _minVal;
 };
 
 //============================================================================
@@ -119,6 +121,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
+  , _minVal(gbh.pgeom_min_radius)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -318,8 +321,9 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
 
-    auto predicter = makePredicter(
-      curNodeIdx, mode, [&](int idx) { return _nodeIdxToParentIdx[idx]; });
+    auto predicter = makePredicter(curNodeIdx, mode, _minVal, [&](int idx) {
+      return _nodeIdxToParentIdx[idx];
+    });
 
     auto pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
     if (_geom_angular_mode_enabled_flag)

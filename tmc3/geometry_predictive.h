@@ -56,6 +56,7 @@ struct GPredicter {
   };
 
   int32_t index[3];
+  int pgeom_min_radius;
 
   bool isValid(Mode mode);
 
@@ -120,12 +121,17 @@ PredGeomContexts::reset()
 template<typename LookupFn>
 GPredicter
 makePredicter(
-  int32_t curNodeIdx, GPredicter::Mode mode, LookupFn nodeIdxToParentIdx)
+  int32_t curNodeIdx,
+  GPredicter::Mode mode,
+  int minRadius,
+  LookupFn nodeIdxToParentIdx)
 {
   if (mode == GPredicter::None)
     mode = GPredicter::Delta;
 
   GPredicter predIdx;
+  predIdx.pgeom_min_radius = minRadius;
+
   switch (mode) {
   default:
   case GPredicter::None:
@@ -165,6 +171,10 @@ GPredicter::predict(
   switch (mode) {
   case GPredicter::None: {
     pred = 0;
+
+    if (angular)
+      pred[0] = pgeom_min_radius;
+
     if (this->index[0] >= 0 && angular) {
       const auto& p0 = points[this->index[0]];
       pred[1] = p0[1];

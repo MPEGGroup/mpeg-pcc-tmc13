@@ -552,6 +552,9 @@ struct GeometryBrickHeader {
 
   // The id of the previous slice in bitsream order
   int prev_slice_id;
+
+  // minimum radius for predictive geometry coding with angular mode
+  int pgeom_min_radius;
 };
 
 //============================================================================

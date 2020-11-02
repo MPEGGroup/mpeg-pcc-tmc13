@@ -41,6 +41,7 @@
 #include "PCCMisc.h"
 
 #include "nanoflann.hpp"
+#include <algorithm>
 
 namespace pcc {
 
@@ -120,6 +121,8 @@ public:
 
   const PredGeomContexts& getCtx() const { return *this; }
 
+  void setMinRadius(int value) { _pgeom_min_radius = value; }
+
 private:
   EntropyEncoder* _aec;
   std::vector<int32_t> _stack;
@@ -137,6 +140,9 @@ private:
 
   Vec3<int> _maxAbsResidualMinus1Log2;
   Vec3<int> _pgeom_resid_abs_log2_bits;
+
+  // Minimum radius used for prediction in angular coding
+  int _pgeom_min_radius;
 };
 
 //============================================================================
@@ -157,6 +163,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
+  , _pgeom_min_radius(gbh.pgeom_min_radius)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -422,8 +429,10 @@ PredGeomEncoder::encodeTree(
     int qphi = 0;
     for (int iMode = 0; iMode < 4; iMode++) {
       GPredicter::Mode mode = GPredicter::Mode(iMode);
-      GPredicter predicter = makePredicter(
-        nodeIdx, mode, [=](int idx) { return nodes[idx].parent; });
+      GPredicter predicter =
+        makePredicter(nodeIdx, mode, _pgeom_min_radius, [=](int idx) {
+          return nodes[idx].parent;
+        });
 
       if (!predicter.isValid(mode))
         continue;
@@ -787,6 +796,9 @@ encodePredictiveGeometry(
       gbh.pgeom_resid_abs_log2_bits[k] = ilog2(uint32_t(residualBits[k])) + 1;
   }
 
+  // set the minimum value to zero, if encoder don't use this info.
+  gbh.pgeom_min_radius = 0;
+
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
   PredGeomEncoder enc(gps, gbh, ctxtMem, arithmeticEncoder);
@@ -811,6 +823,18 @@ encodePredictiveGeometry(
     auto nodes = gps.geom_angular_mode_enabled_flag
       ? generateGeomPredictionTreeAngular(gps, origin, begin, end, beginSph)
       : generateGeomPredictionTree(gps, begin, end);
+
+    // Determining minimum radius for prediction.
+    // NB: this value is per-slice, but if the slice generates multiple
+    // trees due to the maxPtsPerTree limit, the radius of all points in
+    // cthe slice is not known and the feature disabled.
+    if (gps.geom_angular_mode_enabled_flag && numPoints <= maxPtsPerTree) {
+      int min = beginSph[i][0];
+      for (int j = i + 1; j < iEnd; j++)
+        min = std::min(min, beginSph[j][0]);
+      gbh.pgeom_min_radius = min;
+      enc.setMinRadius(gbh.pgeom_min_radius);
+    }
 
     auto* a = gps.geom_angular_mode_enabled_flag ? beginSph : begin;
     auto* b = begin;
