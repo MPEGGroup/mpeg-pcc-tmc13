@@ -602,6 +602,9 @@ struct AttributeParameterSet {
   // indicates that attribute coding should be performed in
   // pseudo-spherical domain
   bool spherical_coord_flag;
+
+  // (r, phi, laserid) scale factors for domain conversion
+  Vec3<int> attr_coord_scale;
 };
 
 //============================================================================
@@ -643,9 +646,6 @@ struct AttributeBrickHeader {
   int attr_region_bits_minus1;
 
   int32_t attr_dist2_delta;
-
-  // (r, phi, laserid) scale factors for domain conversion
-  Vec3<int> attr_coord_scale;
 };
 
 //============================================================================

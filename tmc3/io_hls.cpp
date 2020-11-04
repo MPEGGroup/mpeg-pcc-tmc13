@@ -867,6 +867,13 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   }
 
   bs.write(aps.spherical_coord_flag);
+  if (aps.spherical_coord_flag) {
+    for (int k = 0; k < 3; k++) {
+      int attr_coord_scale_bits_minus1 = numBits(aps.attr_coord_scale[k]) - 1;
+      bs.writeUn(5, attr_coord_scale_bits_minus1);
+      bs.writeUn(attr_coord_scale_bits_minus1 + 1, aps.attr_coord_scale[k]);
+    }
+  }
 
   bool aps_extension_flag = false;
   bs.write(aps_extension_flag);
@@ -954,6 +961,13 @@ parseAps(const PayloadBuffer& buf)
   }
 
   bs.read(&aps.spherical_coord_flag);
+  if (aps.spherical_coord_flag) {
+    for (int k = 0; k < 3; k++) {
+      int attr_coord_scale_bits_minus1;
+      bs.readUn(5, &attr_coord_scale_bits_minus1);
+      bs.readUn(attr_coord_scale_bits_minus1 + 1, &aps.attr_coord_scale[k]);
+    }
+  }
 
   bool aps_extension_flag = bs.read();
   if (aps_extension_flag) {
@@ -1263,14 +1277,6 @@ write(
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
-  if (aps.spherical_coord_flag) {
-    for (int k = 0; k < 3; k++) {
-      int attr_coord_scale_bits_minus1 = numBits(abh.attr_coord_scale[k]) - 1;
-      bs.writeUn(5, attr_coord_scale_bits_minus1);
-      bs.writeUn(attr_coord_scale_bits_minus1 + 1, abh.attr_coord_scale[k]);
-    }
-  }
-
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.writeSe(abh.attr_dist2_delta);
 
@@ -1359,14 +1365,6 @@ parseAbh(
   bs.readUn(3, &abh_reserved_zero_3bits);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
-
-  if (aps.spherical_coord_flag) {
-    for (int k = 0; k < 3; k++) {
-      int attr_coord_scale_bits_minus1;
-      bs.readUn(5, &attr_coord_scale_bits_minus1);
-      bs.readUn(attr_coord_scale_bits_minus1 + 1, &abh.attr_coord_scale[k]);
-    }
-  }
 
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.readSe(&abh.attr_dist2_delta);

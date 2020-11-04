@@ -133,6 +133,26 @@ PCCTMC3Encoder3::compress(
     params->gps.geomAngularOrigin *= params->geomPreScale;
     params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
 
+    // determine the scale factors based on a characteristic of the
+    // acquisition system
+    if (params->gps.geom_angular_mode_enabled_flag) {
+      auto& origin = params->gps.geomAngularOrigin;
+      int maxX = params->sps.seqBoundingBoxSize[0] - 1;
+      int maxY = params->sps.seqBoundingBoxSize[1] - 1;
+      int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
+      int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
+      int r = std::max(rx, ry);
+      int twoPi = 25735;
+      int maxLaserIdx = params->gps.geom_angular_num_lidar_lasers() - 1;
+
+      // todo(df): handle the single laser case better
+      Box3<int> sphBox{0, {r, twoPi, maxLaserIdx}};
+      auto attr_coord_scale = normalisedAxesWeights(sphBox);
+      for (auto& aps : params->aps)
+        if (aps.spherical_coord_flag)
+          aps.attr_coord_scale = attr_coord_scale;
+    }
+
     // Allocate storage for attribute contexts
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
   }
@@ -568,24 +588,8 @@ PCCTMC3Encoder3::compressPartition(
         _gps->geom_angular_theta_laser.size(), &pointCloud[0],
         &pointCloud[0] + pointCloud.getPointCount(), altPositions.data());
 
-      // determine the scale factors based on a characteristic of the
-      // acquisition system
-      if (1) {
-        auto& origin = _gps->geomAngularOrigin;
-        int maxX = _sps->seqBoundingBoxSize[0] - 1;
-        int maxY = _sps->seqBoundingBoxSize[1] - 1;
-        int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
-        int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
-        int r = std::max(rx, ry);
-        int twoPi = 25735;
-        int maxLaserIdx = _gps->geom_angular_num_lidar_lasers() - 1;
-
-        bboxRpl.max = bboxRpl.min + Vec3<int>{r, twoPi, maxLaserIdx};
-      }
-
-      abh.attr_coord_scale = normalisedAxesWeights(bboxRpl);
       offsetAndScale(
-        bboxRpl.min, abh.attr_coord_scale, altPositions.data(),
+        bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
         altPositions.data() + altPositions.size());
 
       pointCloud.swapPoints(altPositions);
