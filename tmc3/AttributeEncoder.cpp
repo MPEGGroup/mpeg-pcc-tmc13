@@ -475,6 +475,7 @@ AttributeEncoder::computeReflectanceResidual(
 
 void
 AttributeEncoder::computeReflectancePredictionWeights(
+  const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<uint32_t>& indexesLOD,
@@ -501,7 +502,7 @@ AttributeEncoder::computeReflectancePredictionWeights(
     }
     const int64_t maxDiff = maxValue - minValue;
     predictor.maxDiff = maxDiff;
-    if (maxDiff >= aps.adaptive_prediction_threshold) {
+    if (maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       uint64_t attrValue =
         pointCloud.getReflectance(indexesLOD[predictorIndex]);
 
@@ -565,7 +566,7 @@ AttributeEncoder::encodeReflectancesPred(
     auto& predictor = _lods.predictors[predictorIndex];
 
     computeReflectancePredictionWeights(
-      aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
+      desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
       context, quant[0]);
 
     const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
@@ -601,7 +602,7 @@ AttributeEncoder::encodeReflectancesPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = _lods.predictors[predictorIndex];
-    if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
+    if (predictor.maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }
@@ -653,6 +654,7 @@ AttributeEncoder::computeColorResiduals(
 
 void
 AttributeEncoder::computeColorPredictionWeights(
+  const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<uint32_t>& indexesLOD,
@@ -683,7 +685,7 @@ AttributeEncoder::computeColorPredictionWeights(
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
     predictor.maxDiff = maxDiff;
 
-    if (maxDiff >= aps.adaptive_prediction_threshold) {
+    if (maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       Vec3<attr_t> attrValue = pointCloud.getColor(indexesLOD[predictorIndex]);
 
       // base case: weighted average of n neighbours
@@ -758,7 +760,7 @@ AttributeEncoder::encodeColorsPred(
     auto& predictor = _lods.predictors[predictorIndex];
 
     computeColorPredictionWeights(
-      aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
+      desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor, encoder,
       context, quant);
     const Vec3<attr_t> color = pointCloud.getColor(pointIndex);
     const Vec3<attr_t> predictedColor =
@@ -810,7 +812,7 @@ AttributeEncoder::encodeColorsPred(
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     auto& predictor = _lods.predictors[predictorIndex];
-    if (predictor.maxDiff >= aps.adaptive_prediction_threshold) {
+    if (predictor.maxDiff >= aps.adaptivePredictionThreshold(desc)) {
       encoder.encodePredMode(
         predictor.predMode, aps.max_num_direct_predictors);
     }

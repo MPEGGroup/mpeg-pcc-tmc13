@@ -610,9 +610,11 @@ Attribute's maximum number of nearest neighbours to be used for
 prediction.
 
 ### `--adaptivePredictionThreshold=INT-VALUE`
-Neighbouring attribute value difference that enables choice of
-single|multi predictors. Applies to transformType=2 only.
-A value of -1 is replaced by 2**(bitdepth-2).
+Neighbouring attribute value difference that enables the use of direct
+predictor selection over the weighted average.  If bitdepth is greater
+than 8, the threshold is scaled by 2**(bitDepth - 8).
+
+Applies to `transformType=0` only.
 
 ### `--interComponentPredictionEnabled=0|1`
 Controls the use of an in-loop inter-component prediction of attribute

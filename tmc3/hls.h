@@ -566,6 +566,11 @@ struct AttributeParameterSet {
   int intra_lod_search_range;
   int inter_lod_search_range;
 
+  int adaptivePredictionThreshold(const AttributeDescription& desc) const
+  {
+    return adaptive_prediction_threshold << std::max(0, desc.bitdepth - 8);
+  }
+
   // NB: in stv order
   Vec3<int32_t> lodNeighBias;
 

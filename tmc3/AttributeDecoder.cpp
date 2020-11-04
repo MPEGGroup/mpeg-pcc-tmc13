@@ -307,6 +307,7 @@ AttributeDecoder::isReusable(
 
 void
 AttributeDecoder::computeReflectancePredictionWeights(
+  const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<uint32_t>& indexes,
@@ -332,9 +333,8 @@ AttributeDecoder::computeReflectancePredictionWeights(
     maxDiff = maxValue - minValue;
   }
 
-  if (maxDiff >= aps.adaptive_prediction_threshold) {
+  if (maxDiff >= aps.adaptivePredictionThreshold(desc))
     predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -361,7 +361,7 @@ AttributeDecoder::decodeReflectancesPred(
     auto& predictor = _lods.predictors[predictorIndex];
 
     computeReflectancePredictionWeights(
-      aps, pointCloud, _lods.indexes, predictor, decoder);
+      desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     attr_t& reflectance = pointCloud.getReflectance(pointIndex);
     int32_t attValue0 = 0;
     if (zero_cnt > 0) {
@@ -384,6 +384,7 @@ AttributeDecoder::decodeReflectancesPred(
 
 void
 AttributeDecoder::computeColorPredictionWeights(
+  const AttributeDescription& desc,
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<uint32_t>& indexes,
@@ -412,9 +413,8 @@ AttributeDecoder::computeColorPredictionWeights(
       (std::max)(maxValue[0] - minValue[0], maxValue[1] - minValue[1]));
   }
 
-  if (maxDiff >= aps.adaptive_prediction_threshold) {
+  if (maxDiff >= aps.adaptivePredictionThreshold(desc))
     predictor.predMode = decoder.decodePredMode(aps.max_num_direct_predictors);
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -446,7 +446,7 @@ AttributeDecoder::decodeColorsPred(
     auto& predictor = _lods.predictors[predictorIndex];
 
     computeColorPredictionWeights(
-      aps, pointCloud, _lods.indexes, predictor, decoder);
+      desc, aps, pointCloud, _lods.indexes, predictor, decoder);
     if (zero_cnt > 0) {
       values[0] = values[1] = values[2] = 0;
       zero_cnt--;

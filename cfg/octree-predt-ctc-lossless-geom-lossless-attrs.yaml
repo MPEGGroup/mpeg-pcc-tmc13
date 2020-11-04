@@ -75,7 +75,7 @@ categories:
        # attribute coding -- reflectance
        -
          - !conditional '${has_refl}'
-         - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
+         - adaptivePredictionThreshold: 64
          - qp: 4
          - bitdepth: 8
          - attribute: reflectance
@@ -84,7 +84,7 @@ categories:
        # attribute coding -- colour
        -
          - !conditional '${has_colour}'
-         - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
+         - adaptivePredictionThreshold: 64
          - qp: 4
          - qpChromaOffset: 0
          - bitdepth: 8

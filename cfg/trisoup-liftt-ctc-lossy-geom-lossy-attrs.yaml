@@ -39,7 +39,7 @@ categories:
      # attribute coding -- colour
      -
        - !conditional '${has_colour}'
-       - adaptivePredictionThreshold: '$eval{ 1 << (8 - 2) }'
+       - adaptivePredictionThreshold: 64
        - qp:
            r01: 46
            r02: 40

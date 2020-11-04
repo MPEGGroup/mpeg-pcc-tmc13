@@ -852,10 +852,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Attribute's maximum number of nearest neighbors to be used for prediction")
 
   ("adaptivePredictionThreshold",
-    params_attr.aps.adaptive_prediction_threshold, -1,
-    "Neighbouring attribute value difference that enables choice of "
-    "single|multi predictors. Applies to transformType=2 only.\n"
-    "  -1: auto = 2**(bitdepth-2)")
+    params_attr.aps.adaptive_prediction_threshold, 1 << 6,
+    "Neighbouring attribute value difference that enables direct "
+    "prediction. 8-bit value scaled to attribute bitdeph. "
+    "Applies to transformType=0 only")
 
   ("intraLodSearchRange",
     params_attr.aps.intra_lod_search_range, 0,
@@ -1202,11 +1202,6 @@ sanitizeEncoderOpts(
       // add any extra values as required
       for (; i < attr_aps.num_detail_levels; i++)
         attr_aps.lodSamplingPeriod[i] = attr_aps.lodSamplingPeriod[i - 1];
-    }
-
-    // Set default threshold based on bitdepth
-    if (attr_aps.adaptive_prediction_threshold == -1) {
-      attr_aps.adaptive_prediction_threshold = 1 << (attr_sps.bitdepth - 2);
     }
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {

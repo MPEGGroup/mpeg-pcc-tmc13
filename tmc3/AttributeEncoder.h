@@ -121,6 +121,7 @@ protected:
     const Quantizers& quant);
 
   static void computeColorPredictionWeights(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
     const std::vector<uint32_t>& indexesLOD,
@@ -136,6 +137,7 @@ protected:
     const Quantizer& quant);
 
   static void computeReflectancePredictionWeights(
+    const AttributeDescription& desc,
     const AttributeParameterSet& aps,
     const PCCPointSet3& pointCloud,
     const std::vector<uint32_t>& indexesLOD,
