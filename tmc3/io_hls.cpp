@@ -299,7 +299,7 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(1, sps.profile.unique_point_positions_constraint_flag);
 
   bs.writeUn(8, sps.level);
-  bs.writeUe(sps.sps_seq_parameter_set_id);
+  bs.writeUn(4, sps.sps_seq_parameter_set_id);
 
   bool seq_bounding_box_present_flag = true;
   bs.write(seq_bounding_box_present_flag);
@@ -433,7 +433,7 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(1, &sps.profile.unique_point_positions_constraint_flag);
 
   bs.readUn(8, &sps.level);
-  bs.readUe(&sps.sps_seq_parameter_set_id);
+  bs.readUn(4, &sps.sps_seq_parameter_set_id);
 
   bool seq_bounding_box_present_flag = bs.read();
   if (seq_bounding_box_present_flag) {
@@ -556,8 +556,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   PayloadBuffer buf(PayloadType::kGeometryParameterSet);
   auto bs = makeBitWriter(std::back_inserter(buf));
 
-  bs.writeUe(gps.gps_geom_parameter_set_id);
-  bs.writeUe(gps.gps_seq_parameter_set_id);
+  bs.writeUn(4, gps.gps_geom_parameter_set_id);
+  bs.writeUn(4, gps.gps_seq_parameter_set_id);
   bs.write(gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.writeUe(gps.gps_geom_box_log2_scale);
@@ -662,8 +662,8 @@ parseGps(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryParameterSet);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&gps.gps_geom_parameter_set_id);
-  bs.readUe(&gps.gps_seq_parameter_set_id);
+  bs.readUn(4, &gps.gps_geom_parameter_set_id);
+  bs.readUn(4, &gps.gps_seq_parameter_set_id);
   bs.read(&gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.readUe(&gps.gps_geom_box_log2_scale);
@@ -804,8 +804,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   PayloadBuffer buf(PayloadType::kAttributeParameterSet);
   auto bs = makeBitWriter(std::back_inserter(buf));
 
-  bs.writeUe(aps.aps_attr_parameter_set_id);
-  bs.writeUe(aps.aps_seq_parameter_set_id);
+  bs.writeUn(4, aps.aps_attr_parameter_set_id);
+  bs.writeUn(4, aps.aps_seq_parameter_set_id);
   bs.writeUe(aps.attr_encoding);
 
   bs.writeUe(aps.init_qp_minus4);
@@ -884,8 +884,8 @@ parseAps(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kAttributeParameterSet);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&aps.aps_attr_parameter_set_id);
-  bs.readUe(&aps.aps_seq_parameter_set_id);
+  bs.readUn(4, &aps.aps_attr_parameter_set_id);
+  bs.readUn(4, &aps.aps_seq_parameter_set_id);
   bs.readUe(&aps.attr_encoding);
 
   bs.readUe(&aps.init_qp_minus4);
@@ -985,7 +985,7 @@ write(
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
-  bs.writeUe(gbh.geom_geom_parameter_set_id);
+  bs.writeUn(4, gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.slice_tag_bits, gbh.slice_tag);
   bs.writeUn(sps.frame_idx_bits, gbh.frame_idx);
@@ -1075,7 +1075,7 @@ parseGbh(
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&gbh.geom_geom_parameter_set_id);
+  bs.readUn(4, &gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.slice_tag_bits, &gbh.slice_tag);
   bs.readUn(sps.frame_idx_bits, &gbh.frame_idx);
@@ -1172,7 +1172,7 @@ parseGbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&gbh.geom_geom_parameter_set_id);
+  bs.readUn(4, &gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_slice_id);
   // NB: to decode slice_tag requires sps activation
 
@@ -1251,7 +1251,7 @@ write(
   assert(buf->type == PayloadType::kAttributeBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
-  bs.writeUe(abh.attr_attr_parameter_set_id);
+  bs.writeUn(4, abh.attr_attr_parameter_set_id);
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
@@ -1318,7 +1318,7 @@ parseAbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kAttributeBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&abh.attr_attr_parameter_set_id);
+  bs.readUn(4, &abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
@@ -1341,7 +1341,7 @@ parseAbh(
   assert(buf.type == PayloadType::kAttributeBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&abh.attr_attr_parameter_set_id);
+  bs.readUn(4, &abh.attr_attr_parameter_set_id);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
@@ -1420,7 +1420,7 @@ parseConstantAttribute(
   assert(buf.type == PayloadType::kConstantAttribute);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUe(&cadu.constattr_attr_parameter_set_id);
+  bs.readUn(4, &cadu.constattr_attr_parameter_set_id);
   bs.readUe(&cadu.constattr_sps_attr_idx);
   bs.readUe(&cadu.constattr_geom_slice_id);
 
@@ -1443,8 +1443,7 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   PayloadBuffer buf(PayloadType::kTileInventory);
   auto bs = makeBitWriter(std::back_inserter(buf));
 
-  // todo(df): 8 is possiblly excessive, but it was to maintain byte alignment
-  bs.writeUn(8, inventory.ti_seq_parameter_set_id);
+  bs.writeUn(4, inventory.ti_seq_parameter_set_id);
 
   bs.writeUn(5, inventory.ti_frame_idx_bits);
   bs.writeUn(inventory.ti_frame_idx_bits, inventory.ti_frame_idx);
@@ -1504,7 +1503,7 @@ parseTileInventory(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kTileInventory);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(8, &inventory.ti_seq_parameter_set_id);
+  bs.readUn(4, &inventory.ti_seq_parameter_set_id);
 
   bs.readUn(5, &inventory.ti_frame_idx_bits);
   bs.readUn(inventory.ti_frame_idx_bits, &inventory.ti_frame_idx);
