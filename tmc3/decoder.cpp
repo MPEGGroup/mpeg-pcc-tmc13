@@ -460,7 +460,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     // todo(df): this needs to be moved to a pre-processing step so that
     // the scale factor can be sent in the APS.
     offsetAndScale(
-      bboxRpl.min, abh.attr_coord_conv_scale, altPositions.data(),
+      bboxRpl.min, abh.attr_coord_scale, altPositions.data(),
       altPositions.data() + altPositions.size());
 
     _currentPointCloud.swapPoints(altPositions);

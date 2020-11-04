@@ -568,9 +568,9 @@ PCCTMC3Encoder3::compressPartition(
         _gps->geom_angular_theta_laser.size(), &pointCloud[0],
         &pointCloud[0] + pointCloud.getPointCount(), altPositions.data());
 
-      abh.attr_coord_conv_scale = normalisedAxesWeights(bboxRpl);
+      abh.attr_coord_scale = normalisedAxesWeights(bboxRpl);
       offsetAndScale(
-        bboxRpl.min, abh.attr_coord_conv_scale, altPositions.data(),
+        bboxRpl.min, abh.attr_coord_scale, altPositions.data(),
         altPositions.data() + altPositions.size());
 
       pointCloud.swapPoints(altPositions);

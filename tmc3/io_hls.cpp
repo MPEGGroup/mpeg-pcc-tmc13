@@ -1264,8 +1264,11 @@ write(
   bs.writeUe(abh.attr_geom_slice_id);
 
   if (aps.spherical_coord_flag) {
-    for (int k = 0; k < 3; k++)
-      bs.writeUe(abh.attr_coord_conv_scale[k]);
+    for (int k = 0; k < 3; k++) {
+      int attr_coord_scale_bits_minus1 = numBits(abh.attr_coord_scale[k]) - 1;
+      bs.writeUn(5, attr_coord_scale_bits_minus1);
+      bs.writeUn(attr_coord_scale_bits_minus1 + 1, abh.attr_coord_scale[k]);
+    }
   }
 
   if (aps.aps_slice_dist2_deltas_present_flag)
@@ -1358,8 +1361,11 @@ parseAbh(
   bs.readUe(&abh.attr_geom_slice_id);
 
   if (aps.spherical_coord_flag) {
-    for (int k = 0; k < 3; k++)
-      bs.readUe(&abh.attr_coord_conv_scale[k]);
+    for (int k = 0; k < 3; k++) {
+      int attr_coord_scale_bits_minus1;
+      bs.readUn(5, &attr_coord_scale_bits_minus1);
+      bs.readUn(attr_coord_scale_bits_minus1 + 1, &abh.attr_coord_scale[k]);
+    }
   }
 
   if (aps.aps_slice_dist2_deltas_present_flag)
