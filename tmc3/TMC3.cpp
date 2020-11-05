@@ -779,8 +779,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_azimuth_scale_log2, 17,
     "Scale factor applied to azimuth angle in predictive geometry coding")
 
+  // NB: this will be corrected to be minus 1 later
   ("positionAzimuthSpeed",
-    params.encoder.gps.geom_angular_azimuth_speed, 363,
+    params.encoder.gps.geom_angular_azimuth_speed_minus1, 363,
     "Scale factor applied to azimuth angle in predictive geometry coding")
 
   ("positionRadiusInvScaleLog2",
@@ -1078,6 +1079,7 @@ sanitizeEncoderOpts(
 {
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
+  params.encoder.gps.geom_angular_azimuth_speed_minus1--;
   params.encoder.gps.neighbour_avail_boundary_log2_minus1 =
     std::max(0, params.encoder.gps.neighbour_avail_boundary_log2_minus1 - 1);
   for (auto& attr_aps : params.encoder.aps) {

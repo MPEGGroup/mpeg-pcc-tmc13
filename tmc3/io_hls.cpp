@@ -612,7 +612,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
     if (gps.predgeom_enabled_flag) {
       bs.writeUe(gps.geom_angular_azimuth_scale_log2);
-      bs.writeUe(gps.geom_angular_azimuth_speed);
+      bs.writeUe(gps.geom_angular_azimuth_speed_minus1);
       bs.writeUe(gps.geom_angular_radius_inv_scale_log2);
     }
 
@@ -739,7 +739,7 @@ parseGps(const PayloadBuffer& buf)
 
     if (gps.predgeom_enabled_flag) {
       bs.readUe(&gps.geom_angular_azimuth_scale_log2);
-      bs.readUe(&gps.geom_angular_azimuth_speed);
+      bs.readUe(&gps.geom_angular_azimuth_speed_minus1);
       bs.readUe(&gps.geom_angular_radius_inv_scale_log2);
     }
 

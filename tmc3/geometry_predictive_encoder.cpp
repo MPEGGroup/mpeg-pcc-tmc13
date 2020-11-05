@@ -124,7 +124,7 @@ private:
   bool _geom_angular_mode_enabled_flag;
   Vec3<int32_t> origin;
   SphericalToCartesian _sphToCartesian;
-  int _geom_angular_azimuth_speed;
+  int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
@@ -147,7 +147,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
   , _sphToCartesian(gps)
-  , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
+  , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
@@ -408,12 +408,11 @@ PredGeomEncoder::encodeTree(
           int32_t phi0 = srcPts[predicter.index[0]][1];
           int32_t phi1 = point[1];
           int32_t deltaPhi = phi1 - phi0;
-          qphi = deltaPhi >= 0
-            ? (deltaPhi + (_geom_angular_azimuth_speed >> 1))
-              / _geom_angular_azimuth_speed
-            : -(-deltaPhi + (_geom_angular_azimuth_speed >> 1))
-              / _geom_angular_azimuth_speed;
-          pred[1] += qphi * _geom_angular_azimuth_speed;
+          qphi = deltaPhi >= 0 ? (deltaPhi + (_geomAngularAzimuthSpeed >> 1))
+              / _geomAngularAzimuthSpeed
+                               : -(-deltaPhi + (_geomAngularAzimuthSpeed >> 1))
+              / _geomAngularAzimuthSpeed;
+          pred[1] += qphi * _geomAngularAzimuthSpeed;
         }
       }
 

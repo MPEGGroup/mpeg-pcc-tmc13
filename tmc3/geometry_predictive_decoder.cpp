@@ -89,7 +89,7 @@ private:
   Vec3<int32_t> origin;
   int numLasers;
   SphericalToCartesian _sphToCartesian;
-  int _geom_angular_azimuth_speed;
+  int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
   int _sliceQp;
@@ -112,7 +112,7 @@ PredGeomDecoder::PredGeomDecoder(
   , origin()
   , numLasers(gps.geom_angular_num_lidar_lasers())
   , _sphToCartesian(gps)
-  , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
+  , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
@@ -315,7 +315,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     auto pred = predicter.predict(outA, mode);
     if (_geom_angular_mode_enabled_flag)
       if (mode == GPredicter::Mode::Delta)
-        pred[1] += qphi * _geom_angular_azimuth_speed;
+        pred[1] += qphi * _geomAngularAzimuthSpeed;
 
     auto pos = pred + residual;
     if (!_geom_angular_mode_enabled_flag)
