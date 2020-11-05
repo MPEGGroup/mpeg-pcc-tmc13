@@ -320,7 +320,7 @@ struct SequenceParameterSet {
   std::vector<AttributeDescription> attributeSets;
 
   // The number of bits to use for frame_idx
-  int log2_max_frame_idx;
+  int frame_idx_bits;
 
   // Defines the ordering of the position components (eg, xyz vs zyx)
   AxisOrder geometry_axis_order;

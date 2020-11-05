@@ -367,7 +367,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     params->sps.entropy_continuation_enabled_flag;
 
   // use one bit to indicate frame boundaries
-  params->sps.log2_max_frame_idx = 1;
+  params->sps.frame_idx_bits = 1;
 
   // slice origin parameters used by this encoder implementation
   params->gps.geom_box_log2_scale_present_flag = true;
@@ -622,7 +622,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_slice_id = _sliceId;
   gbh.prev_slice_id = _prevSliceId;
   gbh.geom_tile_id = std::max(0, _tileId);
-  gbh.frame_idx = _frameCounter & ((1 << _sps->log2_max_frame_idx) - 1);
+  gbh.frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;
   gbh.geom_box_log2_scale = 0;

@@ -405,7 +405,7 @@ write(const SequenceParameterSet& sps)
     }
   }
 
-  bs.writeUn(5, sps.log2_max_frame_idx);
+  bs.writeUn(5, sps.frame_idx_bits);
   bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
   bs.write(sps.entropy_continuation_enabled_flag);
@@ -514,7 +514,7 @@ parseSps(const PayloadBuffer& buf)
     }
   }
 
-  bs.readUn(5, &sps.log2_max_frame_idx);
+  bs.readUn(5, &sps.frame_idx_bits);
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
   bs.read(&sps.entropy_continuation_enabled_flag);
@@ -986,7 +986,7 @@ write(
   bs.writeUe(gbh.geom_geom_parameter_set_id);
   bs.writeUe(gbh.geom_tile_id);
   bs.writeUe(gbh.geom_slice_id);
-  bs.writeUn(sps.log2_max_frame_idx, gbh.frame_idx);
+  bs.writeUn(sps.frame_idx_bits, gbh.frame_idx);
 
   if (sps.entropy_continuation_enabled_flag) {
     bs.write(gbh.entropy_continuation_flag);
@@ -1076,7 +1076,7 @@ parseGbh(
   bs.readUe(&gbh.geom_geom_parameter_set_id);
   bs.readUe(&gbh.geom_tile_id);
   bs.readUe(&gbh.geom_slice_id);
-  bs.readUn(sps.log2_max_frame_idx, &gbh.frame_idx);
+  bs.readUn(sps.frame_idx_bits, &gbh.frame_idx);
 
   gbh.entropy_continuation_flag = false;
   if (sps.entropy_continuation_enabled_flag) {
