@@ -768,7 +768,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Vertical laser offset in angular mode")
 
   ("lasersNumPhiPerTurn",
-    params.encoder.gps.geom_angular_num_phi_per_turn, {},
+    params.encoder.gps.angularNumPhiPerTurn, {},
     "Number of sampling poisitions in a complete laser turn in angular mode")
 
   ("planarBufferDisabled",
@@ -1231,7 +1231,7 @@ sanitizeEncoderOpts(
   if (params.encoder.gps.geom_angular_mode_enabled_flag) {
     for (auto val : params.encoder.lasersTheta) {
       int one = 1 << 18;
-      params.encoder.gps.geom_angular_theta_laser.push_back(round(val * one));
+      params.encoder.gps.angularTheta.push_back(round(val * one));
     }
 
     for (auto val : params.encoder.lasersZ) {
@@ -1240,22 +1240,17 @@ sanitizeEncoderOpts(
       if (params.encoder.gps.predgeom_enabled_flag)
         scale = 1.;
 
-      params.encoder.gps.geom_angular_z_laser.push_back(
-        round(val * scale * one));
+      params.encoder.gps.angularZ.push_back(round(val * scale * one));
     }
 
-    if (
-      params.encoder.gps.geom_angular_theta_laser.size()
-      != params.encoder.numLasers)
+    if (params.encoder.gps.angularTheta.size() != params.encoder.numLasers)
       err.error() << "lasersZ.size() != numLasers\n";
 
-    if (
-      params.encoder.gps.geom_angular_z_laser.size()
-      != params.encoder.numLasers)
+    if (params.encoder.gps.angularZ.size() != params.encoder.numLasers)
       err.error() << "lasersTheta.size() != numLasers\n";
 
     if (
-      params.encoder.gps.geom_angular_num_phi_per_turn.size()
+      params.encoder.gps.angularNumPhiPerTurn.size()
       != params.encoder.numLasers)
       err.error() << "lasersNumPhiPerTurn.size() != numLasers\n";
 

@@ -229,8 +229,7 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   , _arithmeticDecoder(arithmeticDecoder)
   , _planar(gps)
   , _phiBuffer(gps.geom_angular_num_lidar_lasers(), 0x80000000)
-  , _phiZi(
-      gps.geom_angular_num_lidar_lasers(), gps.geom_angular_num_phi_per_turn)
+  , _phiZi(gps.geom_angular_num_lidar_lasers(), gps.angularNumPhiPerTurn)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -1286,9 +1285,8 @@ decodeGeometryOctree(
 
   // Lidar angles for planar prediction
   const int numLasers = gps.geom_angular_num_lidar_lasers();
-  const int* thetaLaser = gps.geom_angular_theta_laser.data();
-  const int* zLaser = gps.geom_angular_z_laser.data();
-  const int* numPhi = gps.geom_angular_num_phi_per_turn.data();
+  const int* thetaLaser = gps.angularTheta.data();
+  const int* zLaser = gps.angularZ.data();
 
   // Lidar position relative to slice origin
   auto headPos = gps.geomAngularOrigin - gbh.geomBoxOrigin;

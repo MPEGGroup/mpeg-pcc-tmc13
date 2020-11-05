@@ -587,9 +587,9 @@ PCCTMC3Encoder3::compressPartition(
 
       auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
       auto bboxRpl = convertXyzToRpl(
-        laserOrigin, _gps->geom_angular_theta_laser.data(),
-        _gps->geom_angular_theta_laser.size(), &pointCloud[0],
-        &pointCloud[0] + pointCloud.getPointCount(), altPositions.data());
+        laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
+        &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
+        altPositions.data());
 
       offsetAndScale(
         bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),

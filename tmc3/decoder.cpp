@@ -452,8 +452,8 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
     auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
     auto bboxRpl = convertXyzToRpl(
-      laserOrigin, _gps->geom_angular_theta_laser.data(),
-      _gps->geom_angular_theta_laser.size(), &_currentPointCloud[0],
+      laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
+      &_currentPointCloud[0],
       &_currentPointCloud[0] + _currentPointCloud.getPointCount(),
       altPositions.data());
 

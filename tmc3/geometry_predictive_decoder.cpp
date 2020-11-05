@@ -110,7 +110,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
-  , numLasers(gps.geom_angular_theta_laser.size())
+  , numLasers(gps.geom_angular_num_lidar_lasers())
   , _sphToCartesian(gps)
   , _geom_angular_azimuth_speed(gps.geom_angular_azimuth_speed)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)

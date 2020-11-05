@@ -609,22 +609,24 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     bs.writeUe(gps.geom_angular_num_lidar_lasers());
 
     if (gps.geom_angular_num_lidar_lasers()) {
-      bs.writeSe(gps.geom_angular_theta_laser[0]);
-      bs.writeSe(gps.geom_angular_z_laser[0]);
-      if (!gps.predgeom_enabled_flag)
-        bs.writeUe(gps.geom_angular_num_phi_per_turn[0]);
+      int geom_angular_theta0 = gps.angularTheta[0];
+      int geom_angular_z0 = gps.angularZ[0];
+      bs.writeSe(geom_angular_theta0);
+      bs.writeSe(geom_angular_z0);
+      if (!gps.predgeom_enabled_flag) {
+        int geom_angular_num_phi_per_turn0 = gps.angularNumPhiPerTurn[0];
+        bs.writeUe(geom_angular_num_phi_per_turn0);
+      }
     }
 
     for (int i = 1; i < gps.geom_angular_num_lidar_lasers(); i++) {
       int geom_angular_theta_laser_diff =
-        gps.geom_angular_theta_laser[i] - gps.geomAngularThetaPred(i);
+        gps.angularTheta[i] - gps.geomAngularThetaPred(i);
 
-      int geom_angular_z_laser_diff =
-        gps.geom_angular_z_laser[i] - gps.geom_angular_z_laser[i - 1];
+      int geom_angular_z_laser_diff = gps.angularZ[i] - gps.angularZ[i - 1];
 
       int geom_angular_num_phi_laser_diff =
-        gps.geom_angular_num_phi_per_turn[i]
-        - gps.geom_angular_num_phi_per_turn[i - 1];
+        gps.angularNumPhiPerTurn[i] - gps.angularNumPhiPerTurn[i - 1];
 
       bs.writeSe(geom_angular_theta_laser_diff);
       bs.writeSe(geom_angular_z_laser_diff);
@@ -728,15 +730,19 @@ parseGps(const PayloadBuffer& buf)
 
     int geom_angular_num_lidar_lasers;
     bs.readUe(&geom_angular_num_lidar_lasers);
-    gps.geom_angular_theta_laser.resize(geom_angular_num_lidar_lasers);
-    gps.geom_angular_z_laser.resize(geom_angular_num_lidar_lasers);
-    gps.geom_angular_num_phi_per_turn.resize(geom_angular_num_lidar_lasers);
+    gps.angularTheta.resize(geom_angular_num_lidar_lasers);
+    gps.angularZ.resize(geom_angular_num_lidar_lasers);
+    gps.angularNumPhiPerTurn.resize(geom_angular_num_lidar_lasers);
 
     if (geom_angular_num_lidar_lasers) {
-      bs.readSe(&gps.geom_angular_theta_laser[0]);
-      bs.readSe(&gps.geom_angular_z_laser[0]);
-      if (!gps.predgeom_enabled_flag)
-        bs.readUe(&gps.geom_angular_num_phi_per_turn[0]);
+      int& geom_angular_theta0 = gps.angularTheta[0];
+      int& geom_angular_z0 = gps.angularZ[0];
+      bs.readSe(&geom_angular_theta0);
+      bs.readSe(&geom_angular_z0);
+      if (!gps.predgeom_enabled_flag) {
+        int& geom_angular_num_phi_per_turn0 = gps.angularNumPhiPerTurn[0];
+        bs.readUe(&geom_angular_num_phi_per_turn0);
+      }
     }
 
     for (int i = 1; i < geom_angular_num_lidar_lasers; i++) {
@@ -745,19 +751,16 @@ parseGps(const PayloadBuffer& buf)
       bs.readSe(&geom_angular_theta_laser_diff);
       bs.readSe(&geom_angular_z_laser_diff);
 
-      gps.geom_angular_theta_laser[i] =
+      gps.angularZ[i] = gps.angularZ[i - 1] + geom_angular_z_laser_diff;
+      gps.angularTheta[i] =
         gps.geomAngularThetaPred(i) + geom_angular_theta_laser_diff;
-
-      gps.geom_angular_z_laser[i] =
-        gps.geom_angular_z_laser[i - 1] + geom_angular_z_laser_diff;
 
       if (!gps.predgeom_enabled_flag) {
         int geom_angular_num_phi_laser_diff;
         bs.readSe(&geom_angular_num_phi_laser_diff);
 
-        gps.geom_angular_num_phi_per_turn[i] =
-          gps.geom_angular_num_phi_per_turn[i - 1]
-          + geom_angular_num_phi_laser_diff;
+        gps.angularNumPhiPerTurn[i] =
+          gps.angularNumPhiPerTurn[i - 1] + geom_angular_num_phi_laser_diff;
       }
     }
 

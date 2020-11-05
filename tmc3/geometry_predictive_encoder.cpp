@@ -749,7 +749,7 @@ encodePredictiveGeometry(
     Vec3<int> residualBits;
     residualBits[0] = ceillog2(divExp2RoundHalfUp(int64_t(r), rDivLog2));
     residualBits[1] = gps.geom_angular_azimuth_scale_log2;
-    residualBits[2] = ceillog2(gps.geom_angular_theta_laser.size() - 1);
+    residualBits[2] = ceillog2(gps.geom_angular_num_lidar_lasers() - 1);
 
     // the number of prefix bits required
     for (int k = 0; k < 3; k++)

@@ -191,8 +191,8 @@ public:
   SphericalToCartesian(const GeometryParameterSet& gps)
     : log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
     , log2ScalePhi(gps.geom_angular_azimuth_scale_log2)
-    , tanThetaLaser(gps.geom_angular_theta_laser.data())
-    , zLaser(gps.geom_angular_z_laser.data())
+    , tanThetaLaser(gps.angularTheta.data())
+    , zLaser(gps.angularZ.data())
   {}
 
   Vec3<int32_t> operator()(Vec3<int32_t> sph)
@@ -224,9 +224,9 @@ public:
     : sphToCartesian(gps)
     , log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
     , scalePhi(1 << gps.geom_angular_azimuth_scale_log2)
-    , numLasers(gps.geom_angular_theta_laser.size())
-    , tanThetaLaser(gps.geom_angular_theta_laser.data())
-    , zLaser(gps.geom_angular_z_laser.data())
+    , numLasers(gps.angularTheta.size())
+    , tanThetaLaser(gps.angularTheta.data())
+    , zLaser(gps.angularZ.data())
   {}
 
   Vec3<int32_t> operator()(Vec3<int32_t> xyz)

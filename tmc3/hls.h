@@ -416,20 +416,17 @@ struct GeometryParameterSet {
   // (in stv axis order).
   Vec3<int> geomAngularOrigin;
 
-  int geom_angular_num_lidar_lasers() const
-  {
-    return geom_angular_theta_laser.size();
-  }
+  int geom_angular_num_lidar_lasers() const { return angularTheta.size(); }
 
-  std::vector<int> geom_angular_theta_laser;
-  std::vector<int> geom_angular_z_laser;
-  std::vector<int> geom_angular_num_phi_per_turn;
+  std::vector<int> angularTheta;
+  std::vector<int> angularZ;
+  std::vector<int> angularNumPhiPerTurn;
 
   int geomAngularThetaPred(int i) const
   {
     if (!--i)
-      return geom_angular_theta_laser[i];
-    return 2 * geom_angular_theta_laser[i] - geom_angular_theta_laser[i - 1];
+      return angularTheta[i];
+    return 2 * angularTheta[i] - angularTheta[i - 1];
   }
 
   // disable the use of planar buffer when angular mode is enabled
