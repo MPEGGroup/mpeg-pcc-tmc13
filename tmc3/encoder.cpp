@@ -418,6 +418,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     params->gps.intra_pred_max_node_size_log2 = 0;
   }
 
+  if (params->gps.predgeom_enabled_flag)
+    params->gps.geom_planar_mode_enabled_flag = false;
+
   // fixup attribute parameters
   for (auto it : params->attributeIdxMap) {
     auto& attr_sps = params->sps.attributeSets[it.second];

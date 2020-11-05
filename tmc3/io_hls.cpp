@@ -632,7 +632,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
         bs.writeSe(geom_angular_num_phi_laser_diff);
     }
 
-    if (!gps.predgeom_enabled_flag)
+    if (gps.geom_planar_mode_enabled_flag)
       bs.write(gps.planar_buffer_disabled_flag);
   }
 
@@ -672,6 +672,7 @@ parseGps(const PayloadBuffer& buf)
   if (gps.predgeom_enabled_flag)
     bs.read(&gps.geom_unique_points_flag);
 
+  gps.geom_planar_mode_enabled_flag = false;
   gps.trisoup_enabled_flag = false;
   gps.octree_point_count_list_present_flag = false;
   if (!gps.predgeom_enabled_flag) {
@@ -760,7 +761,7 @@ parseGps(const PayloadBuffer& buf)
       }
     }
 
-    if (!gps.predgeom_enabled_flag)
+    if (gps.geom_planar_mode_enabled_flag)
       bs.read(&gps.planar_buffer_disabled_flag);
   }
 
