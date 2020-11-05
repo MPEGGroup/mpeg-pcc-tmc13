@@ -87,6 +87,8 @@ public:
     const PredGeomContexts& ctxtMem,
     EntropyEncoder* aec);
 
+  // NB: The following constraint must be honoured:
+  //      qp % (1 << geom_qp_multiplier_log2) == 0
   int qpSelector(const GNode& node) const { return _sliceQp; }
 
   void encode(
@@ -127,6 +129,7 @@ private:
   int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
+  int _geom_qp_multiplier_log2;
   int _sliceQp;
   int _qpOffsetInterval;
 
@@ -149,6 +152,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _sphToCartesian(gps)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
+  , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
 {
@@ -388,7 +392,7 @@ PredGeomEncoder::encodeTree(
     if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
       int qp = qpSelector(node);
       quantizer = QuantizerGeom(qp);
-      encodeQpOffset(qp - _sliceQp);
+      encodeQpOffset((qp - _sliceQp) >> _geom_qp_multiplier_log2);
       nodesUntilQpOffset = _qpOffsetInterval;
     }
 

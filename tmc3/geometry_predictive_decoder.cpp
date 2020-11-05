@@ -92,6 +92,7 @@ private:
   int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
+  int _geom_qp_multiplier_log2;
   int _sliceQp;
   int _qpOffsetInterval;
 
@@ -114,6 +115,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _sphToCartesian(gps)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
+  , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
 {
@@ -287,7 +289,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     _stack.pop_back();
 
     if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
-      int qpOffset = decodeQpOffset();
+      int qpOffset = decodeQpOffset() << _geom_qp_multiplier_log2;
       int qp = _sliceQp + qpOffset;
       quantizer = QuantizerGeom(qp);
       nodesUntilQpOffset = _qpOffsetInterval;
