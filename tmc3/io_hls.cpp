@@ -1446,6 +1446,9 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
   // todo(df): 8 is possiblly excessive, but it was to maintain byte alignment
   bs.writeUn(8, inventory.ti_seq_parameter_set_id);
 
+  bs.writeUn(5, inventory.ti_frame_idx_bits);
+  bs.writeUn(inventory.ti_frame_idx_bits, inventory.ti_frame_idx);
+
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
   if (!num_tiles) {
@@ -1502,6 +1505,9 @@ parseTileInventory(const PayloadBuffer& buf)
   auto bs = makeBitReader(buf.begin(), buf.end());
 
   bs.readUn(8, &inventory.ti_seq_parameter_set_id);
+
+  bs.readUn(5, &inventory.ti_frame_idx_bits);
+  bs.readUn(inventory.ti_frame_idx_bits, &inventory.ti_frame_idx);
 
   int num_tiles;
   bs.readUn(16, &num_tiles);

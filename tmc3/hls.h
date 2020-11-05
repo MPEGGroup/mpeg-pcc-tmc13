@@ -669,6 +669,12 @@ struct TileInventory {
   // id of an applicable sequence parameter set
   int ti_seq_parameter_set_id;
 
+  // Number of bits for frame idx
+  int ti_frame_idx_bits;
+
+  // Frame idx when tile inventory comes into force
+  int ti_frame_idx;
+
   // Number of bits, if any, used to signal tile_id
   int tile_id_bits;
 

@@ -212,6 +212,10 @@ PCCTMC3Encoder3::compress(
     inventory.ti_origin_bits_minus1 =
       numBits(inventory.origin.abs().max()) - 1;
 
+    // The inventory comes into force on the first frame
+    inventory.ti_frame_idx_bits = _sps->frame_idx_bits;
+    inventory.ti_frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
+
     // Determine the number of bits for encoding tile sizes
     int maxValOrigin = 1;
     int maxValSize = 1;
