@@ -322,6 +322,9 @@ struct SequenceParameterSet {
   // The number of bits to use for frame_idx
   int frame_idx_bits;
 
+  // The number of bits to use for slice_tag
+  int slice_tag_bits;
+
   // Defines the ordering of the position components (eg, xyz vs zyx)
   AxisOrder geometry_axis_order;
 
@@ -460,7 +463,7 @@ struct GeometryBrickFooter {
 
 struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
-  int geom_tile_id;
+  int slice_tag;
   int geom_slice_id;
   int frame_idx;
 

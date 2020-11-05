@@ -174,6 +174,10 @@ PCCTMC3Encoder3::compress(
   if (params->partition.tileSize) {
     tileMaps = tilePartition(params->partition, quantizedInput.cloud);
 
+    // To tag the slice with the tile id there must be sufficient bits.
+    // todo(df): determine sps parameter from the paritioning?
+    assert(numBits(tileMaps.size() - 1) <= _sps->slice_tag_bits);
+
     // Default is to use implicit tile ids (ie list index)
     partitions.tileInventory.tile_id_bits = 0;
 
@@ -368,6 +372,10 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
 
   // use one bit to indicate frame boundaries
   params->sps.frame_idx_bits = 1;
+
+  // number of bits for slice tag (tileid) if tiles partitioning enabled
+  // NB: the limit of 64 tiles is arbritrary
+  params->sps.slice_tag_bits = params->partition.tileSize > 0 ? 6 : 0;
 
   // slice origin parameters used by this encoder implementation
   params->gps.geom_box_log2_scale_present_flag = true;
@@ -621,7 +629,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_geom_parameter_set_id = _gps->gps_geom_parameter_set_id;
   gbh.geom_slice_id = _sliceId;
   gbh.prev_slice_id = _prevSliceId;
-  gbh.geom_tile_id = std::max(0, _tileId);
+  // NB: slice_tag could be set to some other (external) meaningful value
+  gbh.slice_tag = std::max(0, _tileId);
   gbh.frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;

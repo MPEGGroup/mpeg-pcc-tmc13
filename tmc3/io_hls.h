@@ -109,7 +109,7 @@ GeometryBrickFooter parseGbf(
   int* bytesRead);
 
 /**
- * Parse @buf, decoding only the parameter set, slice, tile.
+ * Parse @buf, decoding only the parameter set, slice, tag.
  * NB: the returned header is intentionally incomplete.
  */
 GeometryBrickHeader parseGbhIds(const PayloadBuffer& buf);
