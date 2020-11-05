@@ -667,7 +667,7 @@ struct TileInventory {
   int ti_seq_parameter_set_id;
 
   // Number of bits, if any, used to signal tile_id
-  bool tile_id_bits;
+  int tile_id_bits;
 
   // the origin of the tiles (in stv axis order).  Likely the sps origin
   Vec3<int> origin;
