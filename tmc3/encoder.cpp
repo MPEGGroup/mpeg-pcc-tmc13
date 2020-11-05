@@ -413,7 +413,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     params->gps.geom_planar_idcm_threshold = 127;
 
   // Feature dependencies
-  if (!params->gps.neighbour_avail_boundary_log2) {
+  if (!params->gps.neighbour_avail_boundary_log2_minus1) {
     params->gps.adjacent_child_contextualization_enabled_flag = 0;
     params->gps.intra_pred_max_node_size_log2 = 0;
   }

@@ -360,7 +360,7 @@ struct GeometryParameterSet {
   // Defines the size of the neighbour availiability volume (aka
   // look-ahead cube size) for occupancy searches.  A value of 0
   // indicates that only neighbours that are direct siblings are available.
-  int neighbour_avail_boundary_log2;
+  int neighbour_avail_boundary_log2_minus1;
 
   // Controls the use of early termination of the geometry tree
   // by directly coding the position of isolated points.

@@ -640,9 +640,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: bitwise")
 
   ("neighbourAvailBoundaryLog2",
-    params.encoder.gps.neighbour_avail_boundary_log2, 0,
+    // NB: this is adjusted by minus 1 after the arguments are parsed
+    params.encoder.gps.neighbour_avail_boundary_log2_minus1, 0,
     "Defines the avaliability volume for neighbour occupancy lookups:\n"
-    " 0: Limited to sibling nodes only")
+    "<2: Limited to sibling nodes only")
 
   ("inferredDirectCodingMode",
     params.encoder.gps.inferred_direct_coding_mode, 1,
@@ -1077,6 +1078,8 @@ sanitizeEncoderOpts(
 {
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
+  params.encoder.gps.neighbour_avail_boundary_log2_minus1 =
+    std::max(0, params.encoder.gps.neighbour_avail_boundary_log2_minus1 - 1);
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
@@ -1287,7 +1290,7 @@ sanitizeEncoderOpts(
   }
 
   // The following featues depend upon the occupancy atlas
-  if (!params.encoder.gps.neighbour_avail_boundary_log2) {
+  if (!params.encoder.gps.neighbour_avail_boundary_log2_minus1) {
     if (params.encoder.gps.adjacent_child_contextualization_enabled_flag)
       err.warn() << "ignoring adjacentChildContextualization when"
                     " neighbourAvailBoundaryLog2=0\n";

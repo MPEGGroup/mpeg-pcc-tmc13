@@ -1302,10 +1302,10 @@ decodeGeometryOctree(
   }
 
   MortonMap3D occupancyAtlas;
-  if (gps.neighbour_avail_boundary_log2) {
+  if (gps.neighbour_avail_boundary_log2_minus1) {
     occupancyAtlas.resize(
       gps.adjacent_child_contextualization_enabled_flag,
-      gps.neighbour_avail_boundary_log2);
+      gps.neighbour_avail_boundary_log2_minus1 + 1);
     occupancyAtlas.clear();
   }
 
@@ -1432,7 +1432,7 @@ decodeGeometryOctree(
       }
 
       GeometryNeighPattern gnp{};
-      if (gps.neighbour_avail_boundary_log2) {
+      if (gps.neighbour_avail_boundary_log2_minus1) {
         updateGeometryOccupancyAtlas(
           node0.pos, codedAxesPrevLvl, fifo, fifoCurrLvlEnd, &occupancyAtlas,
           &occupancyAtlasOrigin);
@@ -1547,7 +1547,7 @@ decodeGeometryOctree(
       // generate intra prediction
       if (
         nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
-        && gps.neighbour_avail_boundary_log2 > 0) {
+        && gps.neighbour_avail_boundary_log2_minus1 > 0) {
         predictGeometryOccupancyIntra(
           occupancyAtlas, node0.pos, codedAxesPrevLvl, &occupancyIsPredicted,
           &occupancyPrediction);

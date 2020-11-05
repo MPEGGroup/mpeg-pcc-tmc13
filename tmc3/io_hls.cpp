@@ -577,8 +577,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     }
 
     bs.write(gps.qtbt_enabled_flag);
-    bs.writeUe(gps.neighbour_avail_boundary_log2);
-    if (gps.neighbour_avail_boundary_log2 > 0) {
+    bs.writeUn(3, gps.neighbour_avail_boundary_log2_minus1);
+    if (gps.neighbour_avail_boundary_log2_minus1 > 0) {
       bs.write(gps.adjacent_child_contextualization_enabled_flag);
       bs.writeUe(gps.intra_pred_max_node_size_log2);
     }
@@ -687,11 +687,11 @@ parseGps(const PayloadBuffer& buf)
         bs.read(&gps.joint_2pt_idcm_enabled_flag);
     }
     bs.read(&gps.qtbt_enabled_flag);
-    bs.readUe(&gps.neighbour_avail_boundary_log2);
+    bs.readUn(3, &gps.neighbour_avail_boundary_log2_minus1);
 
     gps.adjacent_child_contextualization_enabled_flag = 0;
     gps.intra_pred_max_node_size_log2 = 0;
-    if (gps.neighbour_avail_boundary_log2 > 0) {
+    if (gps.neighbour_avail_boundary_log2_minus1 > 0) {
       bs.read(&gps.adjacent_child_contextualization_enabled_flag);
       bs.readUe(&gps.intra_pred_max_node_size_log2);
     }

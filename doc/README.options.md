@@ -350,7 +350,8 @@ encode the occupancy data.  This option selects between the two methods.
 Defines the volume within which octree nodes are considered available
 for use in occupancy contextualisation and intra occupancy prediction.
 
-A value of 0 limits the use of neighbouring nodes to direct octree siblings.
+A value less than 2 limits the use of neighbouring nodes to direct octree
+siblings.
 
 The software currently supports a maximum value of 8 or 9 when
 intra occupancy prediction is enabled or disabled respectively.
