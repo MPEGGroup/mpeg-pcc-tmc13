@@ -985,7 +985,9 @@ write(
   assert(buf->type == PayloadType::kGeometryBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
+  int gbh_reserved_zero_3bits = 0;
   bs.writeUn(4, gbh.geom_geom_parameter_set_id);
+  bs.writeUn(3, gbh_reserved_zero_3bits);
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.slice_tag_bits, gbh.slice_tag);
   bs.writeUn(sps.frame_idx_bits, gbh.frame_idx);
@@ -1075,7 +1077,9 @@ parseGbh(
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  int gbh_reserved_zero_3bits;
   bs.readUn(4, &gbh.geom_geom_parameter_set_id);
+  bs.readUn(3, &gbh_reserved_zero_3bits);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.slice_tag_bits, &gbh.slice_tag);
   bs.readUn(sps.frame_idx_bits, &gbh.frame_idx);
@@ -1172,7 +1176,9 @@ parseGbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kGeometryBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  int gbh_reserved_zero_3bits;
   bs.readUn(4, &gbh.geom_geom_parameter_set_id);
+  bs.readUn(3, &gbh_reserved_zero_3bits);
   bs.readUe(&gbh.geom_slice_id);
   // NB: to decode slice_tag requires sps activation
 
@@ -1251,7 +1257,9 @@ write(
   assert(buf->type == PayloadType::kAttributeBrick);
   auto bs = makeBitWriter(std::back_inserter(*buf));
 
+  int abh_reserved_zero_3bits = 0;
   bs.writeUn(4, abh.attr_attr_parameter_set_id);
+  bs.writeUn(3, abh_reserved_zero_3bits);
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
@@ -1318,7 +1326,9 @@ parseAbhIds(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kAttributeBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  int abh_reserved_zero_3bits;
   bs.readUn(4, &abh.attr_attr_parameter_set_id);
+  bs.readUn(3, &abh_reserved_zero_3bits);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
@@ -1341,7 +1351,9 @@ parseAbh(
   assert(buf.type == PayloadType::kAttributeBrick);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
+  int abh_reserved_zero_3bits;
   bs.readUn(4, &abh.attr_attr_parameter_set_id);
+  bs.readUn(3, &abh_reserved_zero_3bits);
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
