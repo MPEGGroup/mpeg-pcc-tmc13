@@ -623,8 +623,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeSe(geom_angular_theta0);
       bs.writeSe(geom_angular_z0);
       if (!gps.predgeom_enabled_flag) {
-        int geom_angular_num_phi_per_turn0 = gps.angularNumPhiPerTurn[0];
-        bs.writeUe(geom_angular_num_phi_per_turn0);
+        int geom_angular_num_phi_per_turn0_minus1 =
+          gps.angularNumPhiPerTurn[0] - 1;
+        bs.writeUe(geom_angular_num_phi_per_turn0_minus1);
       }
     }
 
@@ -754,8 +755,10 @@ parseGps(const PayloadBuffer& buf)
       bs.readSe(&geom_angular_theta0);
       bs.readSe(&geom_angular_z0);
       if (!gps.predgeom_enabled_flag) {
-        int& geom_angular_num_phi_per_turn0 = gps.angularNumPhiPerTurn[0];
-        bs.readUe(&geom_angular_num_phi_per_turn0);
+        int geom_angular_num_phi_per_turn0_minus1;
+        bs.readUe(&geom_angular_num_phi_per_turn0_minus1);
+        gps.angularNumPhiPerTurn[0] =
+          geom_angular_num_phi_per_turn0_minus1 + 1;
       }
     }
 
