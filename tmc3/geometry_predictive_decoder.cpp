@@ -88,7 +88,7 @@ private:
 
   bool _geom_angular_mode_enabled_flag;
   Vec3<int32_t> origin;
-  int numLasers;
+  int _numLasers;
   SphericalToCartesian _sphToCartesian;
   int _geomAngularAzimuthSpeed;
 
@@ -114,7 +114,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
-  , numLasers(gps.geom_angular_num_lidar_lasers())
+  , _numLasers(gps.geom_angular_num_lidar_lasers())
   , _sphToCartesian(gps)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
@@ -251,7 +251,14 @@ Vec3<int32_t>
 PredGeomDecoder::decodeResidual(int mode)
 {
   Vec3<int32_t> residual;
+
   for (int k = 0, ctxIdx = 0; k < 3; ++k) {
+    // The last component (delta laseridx) isn't coded if there is one laser
+    if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2) {
+      residual[k] = 0;
+      continue;
+    }
+
     if (_aed->decode(_ctxIsZero[k])) {
       residual[k] = 0;
       continue;
@@ -342,7 +349,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
 
-      assert(pos[2] < numLasers && pos[2] >= 0);
+      assert(pos[2] < _numLasers && pos[2] >= 0);
       pred = origin + _sphToCartesian(pos);
       outB[curNodeIdx] = pred + residual;
       for (int k = 0; k < 3; k++)

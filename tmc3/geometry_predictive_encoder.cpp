@@ -130,6 +130,7 @@ private:
 
   bool _geom_angular_mode_enabled_flag;
   Vec3<int32_t> origin;
+  int _numLasers;
   SphericalToCartesian _sphToCartesian;
   int _geomAngularAzimuthSpeed;
 
@@ -157,6 +158,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
+  , _numLasers(gps.geom_angular_num_lidar_lasers())
   , _sphToCartesian(gps)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
@@ -221,6 +223,10 @@ void
 PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
 {
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
+    // The last component (delta laseridx) isn't coded if there is one laser
+    if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2)
+      continue;
+
     const auto res = residual[k];
     const bool isZero = res == 0;
     _aec->encode(isZero, _ctxIsZero[k]);
@@ -359,6 +365,10 @@ PredGeomEncoder::estimateBits(
   }
 
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
+    // The last component (delta laseridx) isn't coded if there is one laser
+    if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2)
+      continue;
+
     const auto res = residual[k];
     const bool isZero = res == 0;
     bits += estimate(isZero, _ctxIsZero[k]);
