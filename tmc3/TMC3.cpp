@@ -752,7 +752,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
   ("lidarHeadPosition",
-    params.encoder.gps.geomAngularOrigin, {0, 0, 0},
+    params.encoder.gps.gpsAngularOrigin, {0, 0, 0},
     "laser head position (x, y, z) in angular mode")
 
   ("numLasers",
@@ -1407,7 +1407,7 @@ SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
     axisOrderToPropertyNames(params->encoder.sps.geometry_axis_order);
 
   // NB: this is the raw origin before the encoder tweaks it
-  _angularOrigin = params->encoder.gps.geomAngularOrigin;
+  _angularOrigin = params->encoder.gps.gpsAngularOrigin;
 }
 
 //----------------------------------------------------------------------------

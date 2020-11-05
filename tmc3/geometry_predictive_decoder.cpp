@@ -125,7 +125,7 @@ PredGeomDecoder::PredGeomDecoder(
   }
 
   if (gps.geom_angular_mode_enabled_flag)
-    origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
+    origin = gbh.geomAngularOrigin(gps);
 
   _stack.reserve(1024);
 }

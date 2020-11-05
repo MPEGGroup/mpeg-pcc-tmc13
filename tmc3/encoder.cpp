@@ -130,13 +130,13 @@ PCCTMC3Encoder3::compress(
       numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
 
     // Determine the lidar head position relative to the sequence bounding box
-    params->gps.geomAngularOrigin *= params->geomPreScale;
-    params->gps.geomAngularOrigin -= params->sps.seqBoundingBoxOrigin;
+    params->gps.gpsAngularOrigin *= params->geomPreScale;
+    params->gps.gpsAngularOrigin -= params->sps.seqBoundingBoxOrigin;
 
     // determine the scale factors based on a characteristic of the
     // acquisition system
     if (params->gps.geom_angular_mode_enabled_flag) {
-      auto& origin = params->gps.geomAngularOrigin;
+      auto& origin = params->gps.gpsAngularOrigin;
       int maxX = params->sps.seqBoundingBoxSize[0] - 1;
       int maxY = params->sps.seqBoundingBoxSize[1] - 1;
       int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
@@ -405,6 +405,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   params->gps.geom_box_log2_scale_present_flag = true;
   params->gps.gps_geom_box_log2_scale = 0;
 
+  // don't code per-slice angular origin
+  params->gps.geom_slice_angular_origin_present_flag = false;
+
   // derive the idcm qp offset from cli
   params->gps.geom_idcm_qp_offset = params->idcmQp - params->gps.geom_base_qp;
 
@@ -585,7 +588,7 @@ PCCTMC3Encoder3::compressPartition(
     if (attr_aps.spherical_coord_flag) {
       altPositions.resize(pointCloud.getPointCount());
 
-      auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
+      auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
       auto bboxRpl = convertXyzToRpl(
         laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
         &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
@@ -659,6 +662,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.slice_tag = std::max(0, _tileId);
   gbh.frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
+  gbh.gbhAngularOrigin = _gps->gpsAngularOrigin - _sliceOrigin;
   gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;

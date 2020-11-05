@@ -596,23 +596,27 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
   bs.write(gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
+    bs.write(gps.geom_slice_angular_origin_present_flag);
+    if (!gps.geom_slice_angular_origin_present_flag) {
+      auto gps_angular_origin =
+        toXyz(sps.geometry_axis_order, gps.gpsAngularOrigin);
+
+      int gps_angular_origin_bits_minus1 =
+        numBits(gps_angular_origin.abs().max()) - 1;
+
+      bs.writeUe(gps_angular_origin_bits_minus1);
+      bs.writeSn(gps_angular_origin_bits_minus1 + 1, gps_angular_origin.x());
+      bs.writeSn(gps_angular_origin_bits_minus1 + 1, gps_angular_origin.y());
+      bs.writeSn(gps_angular_origin_bits_minus1 + 1, gps_angular_origin.z());
+    }
+
     if (gps.predgeom_enabled_flag) {
       bs.writeUe(gps.geom_angular_azimuth_scale_log2);
       bs.writeUe(gps.geom_angular_azimuth_speed);
       bs.writeUe(gps.geom_angular_radius_inv_scale_log2);
     }
-    auto geom_angular_origin =
-      toXyz(sps.geometry_axis_order, gps.geomAngularOrigin);
 
-    int geom_angular_origin_bits_minus1 =
-      numBits(geom_angular_origin.abs().max()) - 1;
-
-    bs.writeUe(geom_angular_origin_bits_minus1);
-    bs.writeSn(geom_angular_origin_bits_minus1 + 1, geom_angular_origin.x());
-    bs.writeSn(geom_angular_origin_bits_minus1 + 1, geom_angular_origin.y());
-    bs.writeSn(geom_angular_origin_bits_minus1 + 1, geom_angular_origin.z());
     bs.writeUe(gps.geom_angular_num_lidar_lasers());
-
     if (gps.geom_angular_num_lidar_lasers()) {
       int geom_angular_theta0 = gps.angularTheta[0];
       int geom_angular_z0 = gps.angularZ[0];
@@ -717,23 +721,26 @@ parseGps(const PayloadBuffer& buf)
   }
 
   gps.planar_buffer_disabled_flag = false;
+  gps.geom_slice_angular_origin_present_flag = false;
   bs.read(&gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
+    bs.read(&gps.geom_slice_angular_origin_present_flag);
+    if (!gps.geom_slice_angular_origin_present_flag) {
+      int gps_angular_origin_bits_minus1;
+      bs.readUe(&gps_angular_origin_bits_minus1);
+
+      // NB: this is in XYZ axis order until the GPS is converted to STV
+      Vec3<int>& gps_angular_origin = gps.gpsAngularOrigin;
+      bs.readSn(gps_angular_origin_bits_minus1 + 1, &gps_angular_origin.x());
+      bs.readSn(gps_angular_origin_bits_minus1 + 1, &gps_angular_origin.y());
+      bs.readSn(gps_angular_origin_bits_minus1 + 1, &gps_angular_origin.z());
+    }
+
     if (gps.predgeom_enabled_flag) {
       bs.readUe(&gps.geom_angular_azimuth_scale_log2);
       bs.readUe(&gps.geom_angular_azimuth_speed);
       bs.readUe(&gps.geom_angular_radius_inv_scale_log2);
     }
-
-    Vec3<int> geom_angular_origin;
-    int geom_angular_origin_bits_minus1;
-    bs.readUe(&geom_angular_origin_bits_minus1);
-    bs.readSn(geom_angular_origin_bits_minus1 + 1, &geom_angular_origin.x());
-    bs.readSn(geom_angular_origin_bits_minus1 + 1, &geom_angular_origin.y());
-    bs.readSn(geom_angular_origin_bits_minus1 + 1, &geom_angular_origin.z());
-
-    // NB: this is in XYZ axis order until the GPS is converted to STV
-    gps.geomAngularOrigin = geom_angular_origin;
 
     int geom_angular_num_lidar_lasers;
     bs.readUe(&geom_angular_num_lidar_lasers);
@@ -803,8 +810,8 @@ parseGps(const PayloadBuffer& buf)
 void
 convertXyzToStv(const SequenceParameterSet& sps, GeometryParameterSet* gps)
 {
-  gps->geomAngularOrigin =
-    fromXyz(sps.geometry_axis_order, gps->geomAngularOrigin);
+  gps->gpsAngularOrigin =
+    fromXyz(sps.geometry_axis_order, gps->gpsAngularOrigin);
 }
 
 //============================================================================
@@ -1039,6 +1046,19 @@ write(
     bs.writeUn(originBits, geom_box_origin.z());
   }
 
+  if (gps.geom_slice_angular_origin_present_flag) {
+    auto gbh_angular_origin =
+      toXyz(sps.geometry_axis_order, gbh.gbhAngularOrigin);
+
+    int gbh_angular_origin_bits_minus1 =
+      numBits(gbh_angular_origin.abs().max()) - 1;
+
+    bs.writeUe(gbh_angular_origin_bits_minus1);
+    bs.writeSn(gbh_angular_origin_bits_minus1 + 1, gbh_angular_origin.x());
+    bs.writeSn(gbh_angular_origin_bits_minus1 + 1, gbh_angular_origin.y());
+    bs.writeSn(gbh_angular_origin_bits_minus1 + 1, gbh_angular_origin.z());
+  }
+
   if (!gps.predgeom_enabled_flag) {
     int tree_depth_minus1 = gbh.tree_depth_minus1();
     bs.writeUe(tree_depth_minus1);
@@ -1128,6 +1148,19 @@ parseGbh(
   }
   gbh.geomBoxOrigin = fromXyz(sps.geometry_axis_order, geom_box_origin);
   gbh.geomBoxOrigin *= 1 << gbh.geomBoxLog2Scale(gps);
+
+  if (gps.geom_slice_angular_origin_present_flag) {
+    int gbh_angular_origin_bits_minus1;
+    bs.readUe(&gbh_angular_origin_bits_minus1);
+
+    Vec3<int> gbh_angular_origin;
+    bs.readSn(gbh_angular_origin_bits_minus1 + 1, &gbh_angular_origin.x());
+    bs.readSn(gbh_angular_origin_bits_minus1 + 1, &gbh_angular_origin.y());
+    bs.readSn(gbh_angular_origin_bits_minus1 + 1, &gbh_angular_origin.z());
+
+    gbh.gbhAngularOrigin =
+      fromXyz(sps.geometry_axis_order, gbh_angular_origin);
+  }
 
   gbh.geom_stream_cnt_minus1 = 0;
   if (!gps.predgeom_enabled_flag) {

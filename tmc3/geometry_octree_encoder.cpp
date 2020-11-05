@@ -1508,7 +1508,7 @@ encodeGeometryOctree(
   const int* zLaser = gps.angularZ.data();
 
   // Lidar position relative to slice origin
-  auto headPos = gps.geomAngularOrigin - gbh.geomBoxOrigin;
+  auto headPos = gbh.geomAngularOrigin(gps);
 
   int deltaAngle = 128 << 18;
   for (int i = 0; i < numLasers - 1; i++) {

@@ -409,12 +409,15 @@ struct GeometryParameterSet {
   int geom_planar_threshold2;
   int geom_planar_idcm_threshold;
 
-  // Controls the use of xyz-planar mode
+  // Enables angular coding in octree/predgeom
   bool geom_angular_mode_enabled_flag;
 
-  // Sequence bounding box relative origin for angular mode computations
+  // Indicates whether the angualed origin is signalled in the gps or slice
+  bool geom_slice_angular_origin_present_flag;
+
+  // Origin for angular mode computations relative to sequence bounding box
   // (in stv axis order).
-  Vec3<int> geomAngularOrigin;
+  Vec3<int> gpsAngularOrigin;
 
   int geom_angular_num_lidar_lasers() const { return angularTheta.size(); }
 
@@ -472,6 +475,18 @@ struct GeometryBrickHeader {
 
   // Number of bits to represent geomBoxOrigin >> geom_box_log2_scale
   int geom_box_origin_bits_minus1;
+
+  // Per-slice version of gpsAngularOrigin, but relative to slice bounding box
+  // (in stv axis order).
+  Vec3<int> gbhAngularOrigin;
+
+  // Origin for angular mode computations relative to slice bounding box
+  Vec3<int> geomAngularOrigin(const GeometryParameterSet& gps) const
+  {
+    if (gps.geom_slice_angular_origin_present_flag)
+      return gbhAngularOrigin;
+    return gps.gpsAngularOrigin - geomBoxOrigin;
+  }
 
   // the size of the root geometry node
   // NB: this is only needed for the initial node size determination at

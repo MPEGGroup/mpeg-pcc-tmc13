@@ -160,7 +160,8 @@ PredGeomEncoder::PredGeomEncoder(
   }
 
   if (gps.geom_angular_mode_enabled_flag)
-    origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
+    origin = gbh.geomAngularOrigin(gps);
+  ;
 
   _stack.reserve(1024);
 
@@ -710,7 +711,7 @@ encodePredictiveGeometry(
   auto numPoints = cloud.getPointCount();
 
   // Origin relative to slice origin
-  auto origin = gps.geomAngularOrigin - gbh.geomBoxOrigin;
+  auto origin = gbh.geomAngularOrigin(gps);
 
   // storage for reordering the output point cloud
   PCCPointSet3 outCloud;

@@ -450,7 +450,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   if (attr_aps.spherical_coord_flag) {
     altPositions.resize(_currentPointCloud.getPointCount());
 
-    auto laserOrigin = _gps->geomAngularOrigin - _sliceOrigin;
+    auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
     auto bboxRpl = convertXyzToRpl(
       laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
       &_currentPointCloud[0],
