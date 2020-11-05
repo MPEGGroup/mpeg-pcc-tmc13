@@ -613,7 +613,7 @@ determineContextAngleForPlanar(
 
   uint64_t rL1 = (xLidar + yLidar) >> 1;
   uint64_t deltaAngleR = deltaAngle * rL1;
-  if (deltaAngleR <= (midNode[2] << 26))
+  if (numLasers > 1 && deltaAngleR <= (midNode[2] << 26))
     return -1;
 
   // determine inverse of r  (1/sqrt(r2) = irsqrt(r2))
@@ -627,7 +627,9 @@ determineContextAngleForPlanar(
 
   // determine laser
   int laserIndex = int(child.laserIndex);
-  if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
+  if (numLasers == 1)
+    laserIndex = 0;
+  else if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
     auto end = thetaLaser + numLasers - 1;
     auto it = std::upper_bound(thetaLaser + 1, end, theta32);
     if (theta32 - *std::prev(it) <= *it - theta32)
@@ -700,6 +702,9 @@ determineContextAngleForPlanar(
 int
 findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
 {
+  if (numTheta == 1)
+    return 0;
+
   int64_t xLidar = int64_t(point[0]) << 8;
   int64_t yLidar = int64_t(point[1]) << 8;
   int64_t rInv = irsqrt(xLidar * xLidar + yLidar * yLidar);
