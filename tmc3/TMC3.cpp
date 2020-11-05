@@ -1262,6 +1262,12 @@ sanitizeEncoderOpts(
       params.encoder.geom.qtbt.angularMaxDiffToSplitZ =
         std::max<int>(0, 1 + log2(params.encoder.geomPreScale));
     }
+
+    if (params.encoder.gps.predgeom_enabled_flag) {
+      int maxSpeed = 1 << params.encoder.gps.geom_angular_azimuth_scale_log2;
+      if (params.encoder.gps.geom_angular_azimuth_speed_minus1 + 1 > maxSpeed)
+        err.error() << "positionAzimuthSpeed > max (" << maxSpeed << ")\n";
+    }
   }
 
   // tweak qtbt when angular is / isn't enabled
