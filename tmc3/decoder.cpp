@@ -179,6 +179,8 @@ PCCTMC3Decoder3::decompress(
     //     conversion if it is used (it currently isn't).
     storeTileInventory(parseTileInventory(*buf));
     return 0;
+
+  case PayloadType::kUserData: parseUserData(*buf); return 0;
   }
 
   // todo(df): error, unhandled payload type

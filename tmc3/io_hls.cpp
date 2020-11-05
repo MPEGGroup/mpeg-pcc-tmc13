@@ -1589,4 +1589,33 @@ convertXyzToStv(const SequenceParameterSet& sps, TileInventory* inventory)
 
 //============================================================================
 
+PayloadBuffer
+write(const UserData& ud)
+{
+  PayloadBuffer buf(PayloadType::kUserData);
+  auto bs = makeBitWriter(std::back_inserter(buf));
+
+  writeOid(bs, ud.user_data_oid);
+  // todo(df): write a blob of userdata
+
+  return buf;
+}
+
+//----------------------------------------------------------------------------
+
+UserData
+parseUserData(const PayloadBuffer& buf)
+{
+  UserData ud;
+  assert(buf.type == PayloadType::kUserData);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  readOid(bs, &ud.user_data_oid);
+  // todo(df): read the blob of userdata
+
+  return ud;
+}
+
+//============================================================================
+
 }  // namespace pcc

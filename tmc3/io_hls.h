@@ -53,6 +53,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps);
 PayloadBuffer
 write(const SequenceParameterSet& sps, const TileInventory& inventory);
 
+PayloadBuffer write(const UserData& ud);
+
 //----------------------------------------------------------------------------
 // NB: parseSps, parseGps, parseAps, and parseTileInventory return values
 //     using XYZ axes.
@@ -64,6 +66,7 @@ SequenceParameterSet parseSps(const PayloadBuffer& buf);
 GeometryParameterSet parseGps(const PayloadBuffer& buf);
 AttributeParameterSet parseAps(const PayloadBuffer& buf);
 TileInventory parseTileInventory(const PayloadBuffer& buf);
+UserData parseUserData(const PayloadBuffer& buf);
 
 //----------------------------------------------------------------------------
 

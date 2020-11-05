@@ -55,6 +55,7 @@ enum class PayloadType
   kTileInventory = 5,
   kFrameBoundaryMarker = 6,
   kConstantAttribute = 7,
+  kUserData = 9,
 };
 
 //============================================================================
@@ -691,6 +692,13 @@ struct TileInventory {
 
   // Number of bits to represent each tile's size
   int tile_size_bits_minus1;
+};
+
+//============================================================================
+
+struct UserData {
+  // Identifies the type of user data
+  Oid user_data_oid;
 };
 
 //============================================================================
