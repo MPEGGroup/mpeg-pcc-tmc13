@@ -20,7 +20,6 @@ categories:
          r02: 4
          r03: 3
          r04: 2
-         r05: 1
 
      ####
      # attribute coding (common options -- relies on option ordering)
@@ -33,11 +32,10 @@ categories:
      -
        - !conditional '${has_colour}'
        - qp:
-           r01: 46
-           r02: 40
-           r03: 34
-           r04: 28
-           r05: 22
+           r01: 40
+           r02: 34
+           r03: 28
+           r04: 22
        # NB: raht doesn't yet support quantizationStepChroma
        - qpChromaOffset: 0
        - bitdepth: 8

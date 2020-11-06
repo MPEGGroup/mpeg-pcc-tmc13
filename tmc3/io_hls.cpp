@@ -1083,7 +1083,7 @@ write(
   }
 
   if (gps.trisoup_enabled_flag) {
-    bs.writeUe(gbh.trisoup_node_size_log2);
+    bs.writeUe(gbh.trisoup_node_size_log2_minus2);
     bs.writeUe(gbh.trisoup_sampling_value_minus1);
     bs.writeUe(gbh.num_unique_segments_bits_minus1);
     auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;
@@ -1184,9 +1184,8 @@ parseGbh(
       bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
-  gbh.trisoup_node_size_log2 = 0;
   if (gps.trisoup_enabled_flag) {
-    bs.readUe(&gbh.trisoup_node_size_log2);
+    bs.readUe(&gbh.trisoup_node_size_log2_minus2);
     bs.readUe(&gbh.trisoup_sampling_value_minus1);
     bs.readUe(&gbh.num_unique_segments_bits_minus1);
     auto segmentBits = gbh.num_unique_segments_bits_minus1 + 1;

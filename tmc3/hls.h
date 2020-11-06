@@ -542,7 +542,12 @@ struct GeometryBrickHeader {
   }
 
   // size of triangle nodes (reconstructed surface) in trisoup geometry.
-  int trisoup_node_size_log2;
+  int trisoup_node_size_log2_minus2;
+
+  int trisoupNodeSizeLog2(const GeometryParameterSet& gps) const
+  {
+    return gps.trisoup_enabled_flag ? trisoup_node_size_log2_minus2 + 2 : 0;
+  }
 
   // downsampling rate used in tringle voxelisation
   int trisoup_sampling_value_minus1;

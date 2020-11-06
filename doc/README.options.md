@@ -458,7 +458,7 @@ based surface reconstruction.  The trisoup method terminates the
 octree coding at the given node size and continues by encoding
 triangles which are subsequently voxelised to produce points.
 
-A value of 0 disables the use of trisoup.
+A value less than 2 disables the use of trisoup.
 
 When a list of values is used, the n-th entry in the list controls the
 configuration of the n-th slice.  The last entry is mapped to all remaining

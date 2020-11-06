@@ -498,10 +498,11 @@ PCCTMC3Encoder3::compressPartition(
   _sliceBoxWhd = maxBound + 1;
 
   // apply a custom trisoup node size
-  params->gbh.trisoup_node_size_log2 = 0;
+  params->gbh.trisoup_node_size_log2_minus2 = 0;
   if (_gps->trisoup_enabled_flag) {
     int idx = std::min(_sliceId, int(params->trisoupNodeSizesLog2.size()) - 1);
-    params->gbh.trisoup_node_size_log2 = params->trisoupNodeSizesLog2[idx];
+    params->gbh.trisoup_node_size_log2_minus2 =
+      params->trisoupNodeSizesLog2[idx] - 2;
   }
 
   // geometry encoding
@@ -683,7 +684,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
   gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
-  gbh.trisoup_node_size_log2 = params->gbh.trisoup_node_size_log2;
+  gbh.trisoup_node_size_log2_minus2 =
+    params->gbh.trisoup_node_size_log2_minus2;
 
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
@@ -703,7 +705,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     // NB: the following isn't strictly necessary, but avoids accidents
     // involving the qtbt derivation.
     gbh.rootNodeSizeLog2[k] =
-      std::max(gbh.trisoup_node_size_log2, gbh.rootNodeSizeLog2[k]);
+      std::max(gbh.trisoupNodeSizeLog2(*_gps), gbh.rootNodeSizeLog2[k]);
   }
   gbh.maxRootNodeDimLog2 = gbh.rootNodeSizeLog2.max();
 

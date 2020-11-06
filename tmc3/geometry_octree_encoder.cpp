@@ -1488,7 +1488,7 @@ encodeGeometryOctree(
 
   // the minimum node size is ordinarily 2**0, but may be larger due to
   // early termination for trisoup.
-  int minNodeSizeLog2 = gbh.trisoup_node_size_log2;
+  int minNodeSizeLog2 = gbh.trisoupNodeSizeLog2(gps);
 
   // prune anything smaller than the minimum node size (these won't be coded)
   // NB: this must result in a cubic node at the end of the list

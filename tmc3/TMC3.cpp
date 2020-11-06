@@ -714,7 +714,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("trisoupNodeSizeLog2",
     params.encoder.trisoupNodeSizesLog2, {0},
     "Node size for surface triangulation.\n"
-    "  0: disabled")
+    " <2: disabled")
 
   ("trisoup_sampling_value",
     params.encoder.gps.trisoup_sampling_value, 0,
@@ -1140,8 +1140,12 @@ sanitizeEncoderOpts(
   // sanity: don't enable if only node size is 0.
   // todo(df): this needs to take into account slices where it is disabled
   if (params.encoder.trisoupNodeSizesLog2.size() == 1)
-    if (!params.encoder.trisoupNodeSizesLog2[0])
+    if (params.encoder.trisoupNodeSizesLog2[0] < 2)
       params.encoder.trisoupNodeSizesLog2.clear();
+
+  for (auto trisoupNodeSizeLog2 : params.encoder.trisoupNodeSizesLog2)
+    if (trisoupNodeSizeLog2 < 2)
+      err.error() << "Trisoup node size must be greater than 1\n";
 
   params.encoder.gps.trisoup_enabled_flag =
     !params.encoder.trisoupNodeSizesLog2.empty();

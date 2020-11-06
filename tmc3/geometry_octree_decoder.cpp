@@ -1230,7 +1230,7 @@ decodeGeometryOctree(
   //     the ringbuffer size is problematic.
   // todo(df): derive buffer size from level limit
   size_t ringBufferSize = gbh.footer.geom_num_points_minus1 + 1;
-  if (gbh.trisoup_node_size_log2)
+  if (gbh.trisoupNodeSizeLog2(gps))
     ringBufferSize = 1100000;
   pcc::ringbuf<PCCOctree3Node> fifo(ringBufferSize + 1);
 
@@ -1284,7 +1284,7 @@ decodeGeometryOctree(
 
   // generate the list of the node size for each level in the tree
   //  - starts with the smallest node and works up
-  std::vector<Vec3<int>> lvlNodeSizeLog2{gbh.trisoup_node_size_log2};
+  std::vector<Vec3<int>> lvlNodeSizeLog2{gbh.trisoupNodeSizeLog2(gps)};
   for (auto split : inReverse(gbh.tree_lvl_coded_axis_list)) {
     Vec3<int> splitStv = {!!(split & 4), !!(split & 2), !!(split & 1)};
     lvlNodeSizeLog2.push_back(lvlNodeSizeLog2.back() + splitStv);
