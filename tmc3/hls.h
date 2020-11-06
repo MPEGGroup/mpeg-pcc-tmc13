@@ -289,6 +289,13 @@ struct ProfileCompatibility {
 
   // indicates that there are no duplicate points in the reconstructed frames
   bool unique_point_positions_constraint_flag;
+
+  // during development, no profile bits are set
+  bool isDraftProfile() const
+  {
+    return main_profile_compatibility_flag == 0
+      && reserved_profile_compatibility_21bits == 0;
+  }
 };
 
 //============================================================================

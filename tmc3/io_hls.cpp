@@ -556,13 +556,11 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.octree_point_count_list_present_flag);
-    bs.write(gps.trisoup_enabled_flag);
-    if (!gps.trisoup_enabled_flag) {
-      bs.write(gps.geom_unique_points_flag);
-      bs.writeUn(2, gps.inferred_direct_coding_mode);
-      if (gps.inferred_direct_coding_mode)
-        bs.write(gps.joint_2pt_idcm_enabled_flag);
-    }
+    bs.write(gps.geom_unique_points_flag);
+
+    bs.writeUn(2, gps.inferred_direct_coding_mode);
+    if (gps.inferred_direct_coding_mode)
+      bs.write(gps.joint_2pt_idcm_enabled_flag);
 
     bs.write(gps.qtbt_enabled_flag);
     bs.writeUn(3, gps.neighbour_avail_boundary_log2_minus1);
@@ -646,8 +644,13 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.writeSe(gps.geom_idcm_qp_offset);
   }
 
-  bool gps_extension_flag = false;
+  // NB: bitstreams conforming to the first edition must set
+  // gps_extension_flag equal to 0.
+  bool gps_extension_flag = sps.profile.isDraftProfile();
   bs.write(gps_extension_flag);
+  if (gps_extension_flag) {
+    bs.write(gps.trisoup_enabled_flag);
+  }
   bs.byteAlign();
 
   return buf;
@@ -673,20 +676,15 @@ parseGps(const PayloadBuffer& buf)
     bs.read(&gps.geom_unique_points_flag);
 
   gps.geom_planar_mode_enabled_flag = false;
-  gps.trisoup_enabled_flag = false;
   gps.octree_point_count_list_present_flag = false;
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.octree_point_count_list_present_flag);
-    bs.read(&gps.trisoup_enabled_flag);
+    bs.read(&gps.geom_unique_points_flag);
 
-    gps.geom_unique_points_flag = true;
-    gps.inferred_direct_coding_mode = 0;
-    if (!gps.trisoup_enabled_flag) {
-      bs.read(&gps.geom_unique_points_flag);
-      bs.readUn(2, &gps.inferred_direct_coding_mode);
-      if (gps.inferred_direct_coding_mode)
-        bs.read(&gps.joint_2pt_idcm_enabled_flag);
-    }
+    bs.readUn(2, &gps.inferred_direct_coding_mode);
+    if (gps.inferred_direct_coding_mode)
+      bs.read(&gps.joint_2pt_idcm_enabled_flag);
+
     bs.read(&gps.qtbt_enabled_flag);
     bs.readUn(3, &gps.neighbour_avail_boundary_log2_minus1);
 
@@ -785,10 +783,10 @@ parseGps(const PayloadBuffer& buf)
       bs.readSe(&gps.geom_idcm_qp_offset);
   }
 
+  gps.trisoup_enabled_flag = false;
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
-    // todo(df): gps_extension_data;
-    assert(!gps_extension_flag);
+    bs.read(&gps.trisoup_enabled_flag);
   }
   bs.byteAlign();
 
