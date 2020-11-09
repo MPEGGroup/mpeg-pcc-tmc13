@@ -53,7 +53,7 @@ public:
 protected:
   AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxRunLen[5];
-  AdaptiveBitModel ctxCoeffEqN[2][7];
+  AdaptiveBitModel ctxCoeffGtN[2][7];
   AdaptiveBitModel ctxCoeffRemPrefix[2][3];
   AdaptiveBitModel ctxCoeffRemSuffix[2][3];
 };

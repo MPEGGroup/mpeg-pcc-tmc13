@@ -164,10 +164,10 @@ PCCResidualsDecoder::decodeRunLength()
 int
 PCCResidualsDecoder::decodeSymbol(int k1, int k2, int k3)
 {
-  if (arithmeticDecoder.decode(ctxCoeffEqN[0][k1]))
+  if (!arithmeticDecoder.decode(ctxCoeffGtN[0][k1]))
     return 0;
 
-  if (arithmeticDecoder.decode(ctxCoeffEqN[1][k2]))
+  if (!arithmeticDecoder.decode(ctxCoeffGtN[1][k2]))
     return 1;
 
   int coeff_abs_minus2 = arithmeticDecoder.decodeExpGolomb(

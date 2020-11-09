@@ -171,18 +171,16 @@ PCCResidualsEncoder::encodeRunLength(int runLength)
 void
 PCCResidualsEncoder::encodeSymbol(uint32_t value, int k1, int k2, int k3)
 {
-  bool isZero = value == 0;
-  arithmeticEncoder.encode(isZero, ctxCoeffEqN[0][k1]);
-  if (isZero)
+  arithmeticEncoder.encode(value > 0, ctxCoeffGtN[0][k1]);
+  if (!value)
     return;
 
-  bool is1 = value == 1;
-  arithmeticEncoder.encode(is1, ctxCoeffEqN[1][k2]);
-  if (is1)
+  arithmeticEncoder.encode(--value > 0, ctxCoeffGtN[1][k2]);
+  if (!value)
     return;
 
   arithmeticEncoder.encodeExpGolomb(
-    value - 2, 1, ctxCoeffRemPrefix[k3], ctxCoeffRemSuffix[k3]);
+    --value, 1, ctxCoeffRemPrefix[k3], ctxCoeffRemSuffix[k3]);
 }
 
 //----------------------------------------------------------------------------
