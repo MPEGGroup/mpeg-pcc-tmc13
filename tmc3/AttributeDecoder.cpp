@@ -61,9 +61,6 @@ public:
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
 
-  std::vector<int8_t>
-  decodeLastCompPredCoeffs(const AttributeParameterSet& aps);
-
   int decodePredMode(int max);
   int decodeRunLength();
   int decodeSymbol(int k1, int k2, int k3);
@@ -95,26 +92,6 @@ void
 PCCResidualsDecoder::stop()
 {
   arithmeticDecoder.stop();
-}
-
-//----------------------------------------------------------------------------
-
-std::vector<int8_t>
-PCCResidualsDecoder::decodeLastCompPredCoeffs(const AttributeParameterSet& aps)
-{
-  // todo: should this be in the slice header?
-  int numCoeffLvls = aps.maxNumDetailLevels();
-  std::vector<int8_t> coeffs(numCoeffLvls, 0);
-
-  for (int lod = 0; lod < numCoeffLvls; lod++) {
-    bool last_comp_pred_coeff_ne0 = arithmeticDecoder.decode();
-    if (last_comp_pred_coeff_ne0) {
-      bool last_comp_pred_coeff_sign = arithmeticDecoder.decode();
-      coeffs[lod] = 1 - 2 * last_comp_pred_coeff_sign;
-    }
-  }
-
-  return coeffs;
 }
 
 //----------------------------------------------------------------------------
@@ -267,7 +244,7 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kLiftingTransform:
       decodeReflectancesLift(
-        attr_desc, attr_aps, qpSet, geom_num_points_minus1,
+        attr_desc, attr_aps, abh, qpSet, geom_num_points_minus1,
         minGeomNodeSizeLog2, decoder, pointCloud);
       break;
     }
@@ -283,7 +260,7 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kLiftingTransform:
       decodeColorsLift(
-        attr_desc, attr_aps, qpSet, geom_num_points_minus1,
+        attr_desc, attr_aps, abh, qpSet, geom_num_points_minus1,
         minGeomNodeSizeLog2, decoder, pointCloud);
       break;
     }
@@ -609,6 +586,7 @@ void
 AttributeDecoder::decodeColorsLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const QpSet& qpSet,
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
@@ -634,11 +612,8 @@ AttributeDecoder::decodeColorsLift(
   // Per level-of-detail coefficients {-1,0,1} for last component prediction
   int lod = 0;
   int8_t lastCompPredCoeff = 0;
-  std::vector<int8_t> lastCompPredCoeffs;
-  if (aps.last_component_prediction_enabled_flag) {
-    lastCompPredCoeffs = decoder.decodeLastCompPredCoeffs(aps);
-    lastCompPredCoeff = lastCompPredCoeffs[0];
-  }
+  if (aps.last_component_prediction_enabled_flag)
+    lastCompPredCoeff = abh.attrLcpCoeffs[0];
 
   int zeroRunRem = 0;
   int quantLayer = 0;
@@ -651,7 +626,7 @@ AttributeDecoder::decodeColorsLift(
     if (predictorIndex == _lods.numPointsInLod[lod]) {
       lod++;
       if (aps.last_component_prediction_enabled_flag)
-        lastCompPredCoeff = lastCompPredCoeffs[lod];
+        lastCompPredCoeff = abh.attrLcpCoeffs[lod];
     }
 
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
@@ -705,6 +680,7 @@ void
 AttributeDecoder::decodeReflectancesLift(
   const AttributeDescription& desc,
   const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
   const QpSet& qpSet,
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,

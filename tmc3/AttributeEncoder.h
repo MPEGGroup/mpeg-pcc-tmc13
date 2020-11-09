@@ -42,6 +42,7 @@
 #include "AttributeCommon.h"
 #include "PayloadBuffer.h"
 #include "PCCTMC3Common.h"
+#include "hls.h"
 #include "quantization.h"
 
 namespace pcc {
@@ -153,6 +154,9 @@ private:
     const std::vector<Vec3<int64_t>>& coeffs);
 
 private:
+  // The current attribute slice header
+  AttributeBrickHeader* _abh;
+
   AttributeLods _lods;
 };
 

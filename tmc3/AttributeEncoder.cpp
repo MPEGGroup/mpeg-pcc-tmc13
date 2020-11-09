@@ -66,7 +66,6 @@ public:
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
 
-  void encodeLastCompPredCoeffs(const std::vector<int8_t>& coeffs);
   void encodePredMode(int value, int max);
   void encodeRunLength(int runLength);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
@@ -99,22 +98,6 @@ int
 PCCResidualsEncoder::stop()
 {
   return arithmeticEncoder.stop();
-}
-
-//----------------------------------------------------------------------------
-
-void
-PCCResidualsEncoder::encodeLastCompPredCoeffs(
-  const std::vector<int8_t>& coeffs)
-{
-  for (auto coeff : coeffs) {
-    bool last_comp_pred_coeff_ne0 = coeff != 0;
-    arithmeticEncoder.encode(last_comp_pred_coeff_ne0);
-    if (last_comp_pred_coeff_ne0) {
-      bool last_comp_pred_coeff_sign = coeff == -1;
-      arithmeticEncoder.encode(last_comp_pred_coeff_sign);
-    }
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -387,15 +370,15 @@ AttributeEncoder::encode(
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
+  // Encoders are able to modify the slice header:
+  _abh = &abh;
+
   QpSet qpSet = deriveQpSet(desc, attr_aps, abh);
 
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(
       attr_aps, abh, pointCloud.getPointCount() - 1, 0, pointCloud);
-
-  // write abh
-  write(sps, attr_aps, abh, payload);
 
   PCCResidualsEncoder encoder(abh, ctxtMem);
   encoder.start(sps, int(pointCloud.getPointCount()));
@@ -436,6 +419,11 @@ AttributeEncoder::encode(
   }
 
   uint32_t acDataLen = encoder.stop();
+
+  // write abh
+  write(sps, attr_aps, abh, payload);
+  _abh = nullptr;
+
   std::copy_n(
     encoder.arithmeticEncoder.buffer(), acDataLen,
     std::back_inserter(*payload));
@@ -1010,11 +998,9 @@ AttributeEncoder::encodeColorsLift(
 
   // Per level-of-detail coefficients {-1,0,1} for last component prediction
   int8_t lastCompPredCoeff = 0;
-  std::vector<int8_t> lastCompPredCoeffs;
   if (aps.last_component_prediction_enabled_flag) {
-    lastCompPredCoeffs = computeLastComponentPredictionCoeff(aps, colors);
-    encoder.encodeLastCompPredCoeffs(lastCompPredCoeffs);
-    lastCompPredCoeff = lastCompPredCoeffs[0];
+    _abh->attrLcpCoeffs = computeLastComponentPredictionCoeff(aps, colors);
+    lastCompPredCoeff = _abh->attrLcpCoeffs[0];
   }
 
   int zeroRun = 0;
@@ -1029,7 +1015,7 @@ AttributeEncoder::encodeColorsLift(
     if (predictorIndex == _lods.numPointsInLod[lod]) {
       lod++;
       if (aps.last_component_prediction_enabled_flag)
-        lastCompPredCoeff = lastCompPredCoeffs[lod];
+        lastCompPredCoeff = _abh->attrLcpCoeffs[lod];
     }
 
     const auto pointIndex = _lods.indexes[predictorIndex];

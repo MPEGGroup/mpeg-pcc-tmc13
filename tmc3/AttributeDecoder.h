@@ -76,6 +76,7 @@ protected:
   void decodeReflectancesLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     const QpSet& qpSet,
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
@@ -85,6 +86,7 @@ protected:
   void decodeColorsLift(
     const AttributeDescription& desc,
     const AttributeParameterSet& aps,
+    const AttributeBrickHeader& abh,
     const QpSet& qpSet,
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,

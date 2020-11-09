@@ -637,6 +637,23 @@ struct AttributeBrickHeader {
   int attr_attr_parameter_set_id;
   int attr_geom_slice_id;
 
+  // Last component prediction coefficients.  Only present for lifting
+  // transform with three components.
+  std::vector<int8_t> attrLcpCoeffs;
+
+  // indicates whether last component prediction coefficients are present.
+  bool lcpPresent(
+    const AttributeDescription& desc, const AttributeParameterSet& aps) const
+  {
+    if (aps.attr_encoding != AttributeEncoding::kLiftingTransform)
+      return false;
+    if (!aps.last_component_prediction_enabled_flag)
+      return false;
+    if (desc.attr_num_dimensions_minus1 != 2)
+      return false;
+    return true;
+  }
+
   int attr_qp_delta_luma;
   int attr_qp_delta_chroma;
 
