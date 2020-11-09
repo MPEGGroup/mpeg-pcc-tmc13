@@ -262,7 +262,7 @@ PredGeomDecoder::decodeResidual(int mode)
       continue;
     }
 
-    if (_aed->decode(_ctxIsZero[k])) {
+    if (!_aed->decode(_ctxResGt0[k])) {
       residual[k] = 0;
       continue;
     }

@@ -83,7 +83,7 @@ public:
 protected:
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
-  AdaptiveBitModel _ctxIsZero[3];
+  AdaptiveBitModel _ctxResGt0[3];
   AdaptiveBitModel _ctxSign[3];
   AdaptiveBitModel _ctxNumBits[5][3][31];
   AdaptiveBitModel _ctxNumDupPointsGt0;

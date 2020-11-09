@@ -226,9 +226,8 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
       continue;
 
     const auto res = residual[k];
-    const bool isZero = res == 0;
-    _aec->encode(isZero, _ctxIsZero[k]);
-    if (isZero)
+    _aec->encode(res != 0, _ctxResGt0[k]);
+    if (!res)
       continue;
 
     if (iMode || k)
@@ -364,9 +363,8 @@ PredGeomEncoder::estimateBits(
       continue;
 
     const auto res = residual[k];
-    const bool isZero = res == 0;
-    bits += estimate(isZero, _ctxIsZero[k]);
-    if (isZero)
+    bits += estimate(res != 0, _ctxResGt0[k]);
+    if (res == 0)
       continue;
 
     if (iMode > 0 || k)
