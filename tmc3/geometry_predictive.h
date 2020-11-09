@@ -89,8 +89,7 @@ protected:
   AdaptiveBitModel _ctxNumDupPointsGt0;
   AdaptiveBitModel _ctxNumDupPoints;
 
-  AdaptiveBitModel _ctxIsZero2[3];
-  AdaptiveBitModel _ctxIsOne2[3];
+  AdaptiveBitModel _ctxResidual2GtN[2][3];
   AdaptiveBitModel _ctxSign2[3];
   AdaptiveBitModel _ctxEG2[3];
 

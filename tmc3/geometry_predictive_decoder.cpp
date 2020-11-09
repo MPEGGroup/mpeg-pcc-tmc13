@@ -178,20 +178,22 @@ PredGeomDecoder::decodeResidual2()
 {
   Vec3<int32_t> residual;
   for (int k = 0; k < 3; ++k) {
-    if (_aed->decode(_ctxIsZero2[k])) {
+    int value = _aed->decode(_ctxResidual2GtN[0][k]);
+    if (!value) {
       residual[k] = 0;
       continue;
     }
 
     auto sign = _aed->decode(_ctxSign2[k]);
 
-    if (_aed->decode(_ctxIsOne2[k])) {
+    value += _aed->decode(_ctxResidual2GtN[1][k]);
+    if (value == 1) {
       residual[k] = sign ? 1 : -1;
       continue;
     }
 
-    int32_t value = _aed->decodeExpGolomb(0, _ctxEG2[k]);
-    residual[k] = sign ? (value + 2) : -(value + 2);
+    value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
+    residual[k] = sign ? value : -value;
   }
   return residual;
 }

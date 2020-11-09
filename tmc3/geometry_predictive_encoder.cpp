@@ -259,20 +259,18 @@ PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
 {
   for (int k = 0; k < 3; k++) {
     const auto res = residual[k];
-    const bool isZero = res == 0;
-    _aec->encode(isZero, _ctxIsZero2[k]);
-    if (isZero)
+    _aec->encode(res != 0, _ctxResidual2GtN[0][k]);
+    if (!res)
       continue;
 
     _aec->encode(res > 0, _ctxSign2[k]);
 
-    const bool isOne = res == 1 || res == -1;
-    _aec->encode(isOne, _ctxIsOne2[k]);
-    if (isOne)
+    int value = abs(res) - 1;
+    _aec->encode(value > 0, _ctxResidual2GtN[1][k]);
+    if (!value)
       continue;
 
-    int32_t value = abs(res) - 2;
-    _aec->encodeExpGolomb(value, 0, _ctxEG2[k]);
+    _aec->encodeExpGolomb(value - 1, 0, _ctxEG2[k]);
   }
 }
 
