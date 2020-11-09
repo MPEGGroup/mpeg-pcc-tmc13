@@ -477,12 +477,6 @@ protected:
   AdaptiveBitModel _ctxThetaResSign;
   AdaptiveBitModel _ctxThetaResExp;
 
-  AdaptiveBitModel _ctxPhiResIsZero;
-  AdaptiveBitModel _ctxPhiSign;
-  AdaptiveBitModel _ctxPhiResIsOne;
-  AdaptiveBitModel _ctxPhiResIsTwo;
-  AdaptiveBitModel _ctxPhiResExp;
-
   AdaptiveBitModel _ctxQpOffsetAbsGt0;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
