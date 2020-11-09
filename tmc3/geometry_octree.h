@@ -483,7 +483,7 @@ protected:
   AdaptiveBitModel _ctxPhiResIsTwo;
   AdaptiveBitModel _ctxPhiResExp;
 
-  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetAbsGt0;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 

@@ -229,7 +229,7 @@ int32_t
 PredGeomDecoder::decodeQpOffset()
 {
   int dqp = 0;
-  if (!_aed->decode(_ctxQpOffsetIsZero)) {
+  if (_aed->decode(_ctxQpOffsetAbsGt0)) {
     int dqp_sign = _aed->decode(_ctxQpOffsetSign);
     dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
     dqp = dqp_sign ? dqp : -dqp;

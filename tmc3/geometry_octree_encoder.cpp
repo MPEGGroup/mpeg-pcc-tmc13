@@ -1045,10 +1045,10 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 void
 GeometryOctreeEncoder::encodeQpOffset(int dqp)
 {
-  _arithmeticEncoder->encode(dqp == 0, _ctxQpOffsetIsZero);
-  if (dqp == 0) {
+  _arithmeticEncoder->encode(dqp != 0, _ctxQpOffsetAbsGt0);
+  if (dqp == 0)
     return;
-  }
+
   _arithmeticEncoder->encode(dqp > 0, _ctxQpOffsetSign);
   _arithmeticEncoder->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
 }

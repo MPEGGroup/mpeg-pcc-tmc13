@@ -94,7 +94,7 @@ protected:
   AdaptiveBitModel _ctxSign2[3];
   AdaptiveBitModel _ctxEG2[3];
 
-  AdaptiveBitModel _ctxQpOffsetIsZero;
+  AdaptiveBitModel _ctxQpOffsetAbsGt0;
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 

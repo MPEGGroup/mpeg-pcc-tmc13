@@ -859,7 +859,7 @@ int
 GeometryOctreeDecoder::decodeQpOffset()
 {
   int dqp = 0;
-  if (!_arithmeticDecoder->decode(_ctxQpOffsetIsZero)) {
+  if (_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0)) {
     int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
     dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
     dqp = dqp_sign ? dqp : -dqp;
