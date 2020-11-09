@@ -1172,16 +1172,19 @@ GeometryOctreeDecoder::decodeDirectPosition(
 int
 GeometryOctreeDecoder::decodeThetaRes()
 {
-  if (_arithmeticDecoder->decode(_ctxThetaResIsZero))
+  if (!_arithmeticDecoder->decode(_ctxThetaRes[0]))
     return 0;
 
   bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
-  int thetaRes = _arithmeticDecoder->decode(_ctxThetaResIsOne) ? 1 : 2;
-  if (thetaRes == 2)
-    thetaRes += _arithmeticDecoder->decode(_ctxThetaResIsTwo) ? 0 : 1;
-  if (thetaRes == 3)
-    thetaRes += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
-  return sign ? thetaRes : -thetaRes;
+
+  int absVal = 1;
+  absVal += _arithmeticDecoder->decode(_ctxThetaRes[1]);
+  if (absVal > 1)
+    absVal += _arithmeticDecoder->decode(_ctxThetaRes[2]);
+  if (absVal == 3)
+    absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
+
+  return sign ? absVal : -absVal;
 }
 
 //-------------------------------------------------------------------------

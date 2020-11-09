@@ -471,10 +471,8 @@ protected:
   AdaptiveBitModel _ctxSameBitHighz[5];
 
   // residual laser index
-  AdaptiveBitModel _ctxThetaResIsZero;
+  AdaptiveBitModel _ctxThetaRes[3];
   AdaptiveBitModel _ctxThetaResSign;
-  AdaptiveBitModel _ctxThetaResIsOne;
-  AdaptiveBitModel _ctxThetaResIsTwo;
   AdaptiveBitModel _ctxThetaResExp;
 
   AdaptiveBitModel _ctxPhiResIsZero;

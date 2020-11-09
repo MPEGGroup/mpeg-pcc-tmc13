@@ -1405,17 +1405,18 @@ GeometryOctreeEncoder::encodeDirectPosition(
 void
 GeometryOctreeEncoder::encodeThetaRes(int thetaRes)
 {
-  _arithmeticEncoder->encode(thetaRes == 0 ? 1 : 0, _ctxThetaResIsZero);
+  _arithmeticEncoder->encode(thetaRes != 0, _ctxThetaRes[0]);
+  if (!thetaRes)
+    return;
 
-  if (thetaRes) {
-    _arithmeticEncoder->encode(thetaRes > 0 ? 1 : 0, _ctxThetaResSign);
-    int absThetaRes = std::abs(thetaRes);
-    _arithmeticEncoder->encode(absThetaRes == 1 ? 1 : 0, _ctxThetaResIsOne);
-    if (absThetaRes >= 2)
-      _arithmeticEncoder->encode(absThetaRes == 2 ? 1 : 0, _ctxThetaResIsTwo);
-    if (absThetaRes >= 3)
-      _arithmeticEncoder->encodeExpGolomb(absThetaRes - 3, 1, _ctxThetaResExp);
-  }
+  _arithmeticEncoder->encode(thetaRes > 0, _ctxThetaResSign);
+
+  int absVal = std::abs(thetaRes);
+  _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[1]);
+  if (absVal)
+    _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[2]);
+  if (absVal)
+    _arithmeticEncoder->encodeExpGolomb(--absVal, 1, _ctxThetaResExp);
 }
 
 //-------------------------------------------------------------------------
