@@ -458,9 +458,11 @@ public:
 
 protected:
   AdaptiveBitModel _ctxSingleChild;
-  AdaptiveBitModel _ctxSinglePointPerBlock;
-  AdaptiveBitModel _ctxSingleIdcmDupPoint;
-  AdaptiveBitModel _ctxPointCountPerBlock;
+
+  AdaptiveBitModel _ctxDupPointCntGt0;
+  AdaptiveBitModel _ctxDupPointCntGt1;
+  AdaptiveBitModel _ctxDupPointCntEgl;
+
   AdaptiveBitModel _ctxBlockSkipTh;
   AdaptiveBitModel _ctxNumIdcmPointsGt1;
   AdaptiveBitModel _ctxSameZ;

@@ -258,16 +258,11 @@ GeometryOctreeDecoder::beginOctreeLevel(const Vec3<int>& planarDepth)
 int
 GeometryOctreeDecoder::decodePositionLeafNumPoints()
 {
-  const bool isSinglePoint =
-    _arithmeticDecoder->decode(_ctxSinglePointPerBlock) != 0;
+  int val = _arithmeticDecoder->decode(_ctxDupPointCntGt0);
+  if (val)
+    val += _arithmeticDecoder->decodeExpGolomb(0, _ctxDupPointCntEgl);
 
-  int count = 1;
-  if (!isSinglePoint) {
-    count++;
-    count += _arithmeticDecoder->decodeExpGolomb(0, _ctxPointCountPerBlock);
-  }
-
-  return count;
+  return val + 1;
 }
 
 //============================================================================
@@ -1102,12 +1097,12 @@ GeometryOctreeDecoder::decodeDirectPosition(
 
   int numDuplicatePoints = 0;
   if (!geom_unique_points_flag && !numPointsGt1) {
-    numDuplicatePoints = !_arithmeticDecoder->decode(_ctxSinglePointPerBlock);
+    numDuplicatePoints = _arithmeticDecoder->decode(_ctxDupPointCntGt0);
     if (numDuplicatePoints) {
-      bool singleDup = _arithmeticDecoder->decode(_ctxSingleIdcmDupPoint);
-      if (!singleDup)
+      numDuplicatePoints += _arithmeticDecoder->decode(_ctxDupPointCntGt1);
+      if (numDuplicatePoints == 2)
         numDuplicatePoints +=
-          1 + _arithmeticDecoder->decodeExpGolomb(0, _ctxPointCountPerBlock);
+          _arithmeticDecoder->decodeExpGolomb(0, _ctxDupPointCntEgl);
     }
   }
 

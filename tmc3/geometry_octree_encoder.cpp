@@ -74,7 +74,7 @@ public:
 
   void beginOctreeLevel(const Vec3<int>& planarDepth);
 
-  int encodePositionLeafNumPoints(int count);
+  void encodePositionLeafNumPoints(int count);
 
   int encodePlanarMode(
     OctreeNodePlanar& planar,
@@ -273,18 +273,16 @@ GeometryOctreeEncoder::beginOctreeLevel(const Vec3<int>& planarDepth)
 //============================================================================
 // Encode the number of points in a leaf node of the octree.
 
-int
+void
 GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
 {
-  if (count == 1) {
-    _arithmeticEncoder->encode(1, _ctxSinglePointPerBlock);
-  } else {
-    _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
-    _arithmeticEncoder->encodeExpGolomb(
-      uint32_t(count - 2), 0, _ctxPointCountPerBlock);
-  }
+  int dupPointCnt = count - 1;
+  _arithmeticEncoder->encode(dupPointCnt > 0, _ctxDupPointCntGt0);
+  if (dupPointCnt <= 0)
+    return;
 
-  return count;
+  _arithmeticEncoder->encodeExpGolomb(dupPointCnt - 1, 0, _ctxDupPointCntEgl);
+  return;
 }
 
 //============================================================================
@@ -1308,16 +1306,16 @@ GeometryOctreeEncoder::encodeDirectPosition(
   case DirectMode::kTwoPoints:
     _arithmeticEncoder->encode(numPoints > 1, _ctxNumIdcmPointsGt1);
     if (!geom_unique_points_flag && numPoints == 1)
-      _arithmeticEncoder->encode(numPoints == 1, _ctxSinglePointPerBlock);
+      _arithmeticEncoder->encode(0, _ctxDupPointCntGt0);
     break;
 
   case DirectMode::kAllPointSame:
     _arithmeticEncoder->encode(0, _ctxNumIdcmPointsGt1);
-    _arithmeticEncoder->encode(0, _ctxSinglePointPerBlock);
-    _arithmeticEncoder->encode(numPoints == 2, _ctxSingleIdcmDupPoint);
-    if (numPoints > 2)
+    _arithmeticEncoder->encode(1, _ctxDupPointCntGt0);
+    _arithmeticEncoder->encode(numPoints - 1 > 1, _ctxDupPointCntGt1);
+    if (numPoints - 1 > 1)
       _arithmeticEncoder->encodeExpGolomb(
-        numPoints - 3, 0, _ctxPointCountPerBlock);
+        numPoints - 3, 0, _ctxDupPointCntEgl);
 
     // only one actual psoition to code
     numPoints = 1;
