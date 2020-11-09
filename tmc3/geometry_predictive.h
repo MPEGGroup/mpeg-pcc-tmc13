@@ -98,8 +98,7 @@ protected:
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
-  AdaptiveBitModel _ctxIsZeroPhi;
-  AdaptiveBitModel _ctxIsOnePhi;
+  AdaptiveBitModel _ctxPhiGtN[2];
   AdaptiveBitModel _ctxSignPhi;
   AdaptiveBitModel _ctxEGPhi;
   AdaptiveBitModel _ctxResidualPhi[7];

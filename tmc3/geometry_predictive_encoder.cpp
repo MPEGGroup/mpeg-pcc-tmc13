@@ -282,17 +282,15 @@ PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
 void
 PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
 {
-  bool isZero = multiplier == 0;
-  _aec->encode(isZero, _ctxIsZeroPhi);
-  if (isZero)
+  _aec->encode(multiplier != 0, _ctxPhiGtN[0]);
+  if (!multiplier)
     return;
 
   _aec->encode(multiplier > 0, _ctxSignPhi);
 
   int32_t value = abs(multiplier) - 1;
-  bool isOne = !value;
-  _aec->encode(isOne, _ctxIsOnePhi);
-  if (isOne)
+  _aec->encode(value > 0, _ctxPhiGtN[1]);
+  if (!value)
     return;
 
   value--;
@@ -339,15 +337,13 @@ PredGeomEncoder::estimateBits(
   bits += estimate(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
 
   if (_geom_angular_mode_enabled_flag) {
-    bool isZero = multiplier == 0;
-    bits += estimate(isZero, _ctxIsZeroPhi);
+    bits += estimate(multiplier != 0, _ctxPhiGtN[0]);
 
-    if (!isZero) {
+    if (multiplier) {
       int32_t value = abs(multiplier) - 1;
-      bool isOne = !value;
-      bits += estimate(isOne, _ctxIsOnePhi);
+      bits += estimate(value > 0, _ctxPhiGtN[1]);
       bits += estimate(multiplier > 0, _ctxSignPhi);
-      if (!isOne) {
+      if (value) {
         value--;
 
         int valueMinus7 = value - 7;

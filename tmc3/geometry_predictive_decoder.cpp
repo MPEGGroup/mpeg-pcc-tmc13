@@ -204,15 +204,18 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (!_geom_angular_mode_enabled_flag)
     return 0;
 
-  if (_aed->decode(_ctxIsZeroPhi))
+  if (!_aed->decode(_ctxPhiGtN[0]))
     return 0;
 
   const auto sign = _aed->decode(_ctxSignPhi);
-  if (_aed->decode(_ctxIsOnePhi))
+
+  int value = 1;
+  value += _aed->decode(_ctxPhiGtN[1]);
+  if (value == 1)
     return sign ? 1 : -1;
 
   auto* ctxs = _ctxResidualPhi - 1;
-  int32_t value = 1;
+  value = 1;
   for (int n = 3; n > 0; n--)
     value = (value << 1) | _aed->decode(ctxs[value]);
   value ^= 1 << 3;
