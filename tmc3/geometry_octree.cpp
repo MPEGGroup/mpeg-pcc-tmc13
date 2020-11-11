@@ -624,14 +624,11 @@ determineContextAngleForPlanar(
   int* contextAnglePhiX,
   int* contextAnglePhiY)
 {
-  Vec3<int64_t> absPos = {child.pos[0] << childSizeLog2[0],
-                          child.pos[1] << childSizeLog2[1],
-                          child.pos[2] << childSizeLog2[2]};
+  Vec3<int64_t> absPos = child.pos << childSizeLog2;
 
   // eligibility
-  Vec3<int64_t> midNode = {1 << (childSizeLog2[0] ? childSizeLog2[0] - 1 : 0),
-                           1 << (childSizeLog2[1] ? childSizeLog2[1] - 1 : 0),
-                           1 << (childSizeLog2[2] ? childSizeLog2[2] - 1 : 0)};
+  Vec3<int64_t> midNode = (1 << childSizeLog2) >> 1;
+
   uint64_t xLidar =
     std::abs(((absPos[0] - headPos[0] + midNode[0]) << 8) - 128);
   uint64_t yLidar =

@@ -916,9 +916,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   const int* thetaLaser,
   int numLasers)
 {
-  Vec3<int> posXyz = {(child.pos[0] << nodeSizeLog2[0]) - headPos[0],
-                      (child.pos[1] << nodeSizeLog2[1]) - headPos[1],
-                      (child.pos[2] << nodeSizeLog2[2]) - headPos[2]};
+  Vec3<int> posXyz = (child.pos << nodeSizeLog2) - headPos;
 
   // -- PHI --
   // code x or y directly and compute phi of node
@@ -1387,12 +1385,10 @@ GeometryOctreeEncoder::encodeDirectPosition(
   point_t posNodeLidar;
 
   if (angularIdcm) {
-    posNodeLidar = node.pos;
+    posNodeLidar = node.pos << effectiveNodeSizeLog2;
     // todo(df): this should be fixed to take quantisation into account
     // inorder to compare with headPos, shift by shiftBits and changed in
     // the decoder too.
-    for (int k = 0; k < 3; k++)
-      posNodeLidar[k] <<= effectiveNodeSizeLog2[k];
     posNodeLidar -= headPos;
 
     bool codeXorY = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
@@ -1968,8 +1964,7 @@ encodeGeometryOctree(
   if (nodesRemaining) {
     auto nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
-      for (int k = 0; k < 3; k++)
-        node.pos[k] <<= nodeSizeLog2[k];
+      node.pos <<= nodeSizeLog2;
       geometryScale(pointCloud, node, quantNodeSizeLog2);
     }
     *nodesRemaining = std::move(fifo);

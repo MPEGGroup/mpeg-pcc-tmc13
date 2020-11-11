@@ -164,11 +164,27 @@ public:
     return *this;
   }
 
+  Vec3& operator<<=(Vec3<int> val)
+  {
+    data[0] <<= val[0];
+    data[1] <<= val[1];
+    data[2] <<= val[2];
+    return *this;
+  }
+
   Vec3& operator>>=(int val)
   {
     data[0] >>= val;
     data[1] >>= val;
     data[2] >>= val;
+    return *this;
+  }
+
+  Vec3& operator>>=(Vec3<int> val)
+  {
+    data[0] >>= val[0];
+    data[1] >>= val[1];
+    data[2] >>= val[2];
     return *this;
   }
 
@@ -311,9 +327,19 @@ public:
     return Vec3<T>(lhs[0] << val, lhs[1] << val, lhs[2] << val);
   }
 
+  friend Vec3 operator<<(const Vec3& lhs, const Vec3<int>& val)
+  {
+    return Vec3<T>(lhs[0] << val[0], lhs[1] << val[1], lhs[2] << val[2]);
+  }
+
   friend Vec3 operator>>(const Vec3& lhs, int val)
   {
     return Vec3<T>(lhs[0] >> val, lhs[1] >> val, lhs[2] >> val);
+  }
+
+  friend Vec3 operator>>(const Vec3& lhs, const Vec3<int>& val)
+  {
+    return Vec3<T>(lhs[0] >> val[0], lhs[1] >> val[1], lhs[2] >> val[2]);
   }
 
   bool operator<(const Vec3& rhs) const

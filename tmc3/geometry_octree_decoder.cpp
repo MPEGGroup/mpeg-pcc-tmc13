@@ -1148,11 +1148,7 @@ GeometryOctreeDecoder::decodeDirectPosition(
   point_t posNodeLidar;
 
   if (angularIdcm) {
-    posNodeLidar =
-      point_t(
-        node.pos[0] << nodeSizeLog2[0], node.pos[1] << nodeSizeLog2[1],
-        node.pos[2] << nodeSizeLog2[2])
-      - headPos;
+    posNodeLidar = (node.pos << nodeSizeLog2) - headPos;
     bool codeXorY = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
     directIdcm.x() = !codeXorY;
     directIdcm.y() = codeXorY;
@@ -1378,8 +1374,7 @@ decodeGeometryOctree(
       idcmQp <<= gps.geom_qp_multiplier_log2;
       idcmQp = std::min(idcmQp, minNs * 8);
 
-      for (int k = 0; k < 3; k++)
-        posQuantBitMasks[k] = (1 << quantNodeSizeLog2[k]) - 1;
+      posQuantBitMasks = Vec3<uint32_t>((1 << quantNodeSizeLog2) - 1);
     }
 
     // record the node size when quantisation is signalled -- all subsequnt
@@ -1387,8 +1382,7 @@ decodeGeometryOctree(
     // after the qp offset, idcm nodes do not receive special treatment
     if (!numLvlsUntilQpOffset) {
       idcmQp = 0;
-      for (int k = 0; k < 3; k++)
-        posQuantBitMasks[k] = (1 << nodeSizeLog2[k]) - 1;
+      posQuantBitMasks = Vec3<uint32_t>((1 << nodeSizeLog2) - 1);
     }
 
     // save context state for parallel coding
@@ -1662,8 +1656,7 @@ decodeGeometryOctree(
   if (nodesRemaining) {
     auto nodeSizeLog2 = lvlNodeSizeLog2[maxDepth];
     for (auto& node : fifo) {
-      for (int k = 0; k < 3; k++)
-        node.pos[k] <<= nodeSizeLog2[k] - QuantizerGeom::qpShift(node.qp);
+      node.pos <<= nodeSizeLog2 - QuantizerGeom::qpShift(node.qp);
       node.pos = invQuantPosition(node.qp, posQuantBitMasks, node.pos);
     }
     *nodesRemaining = std::move(fifo);

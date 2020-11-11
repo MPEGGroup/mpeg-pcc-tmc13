@@ -164,6 +164,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
+  , _maxAbsResidualMinus1Log2((1 << gbh.pgeom_resid_abs_log2_bits) - 1)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
   , _pgeom_min_radius(gbh.pgeom_min_radius)
 {
@@ -179,9 +180,6 @@ PredGeomEncoder::PredGeomEncoder(
   ;
 
   _stack.reserve(1024);
-
-  for (int k = 0; k < 3; k++)
-    _maxAbsResidualMinus1Log2[k] = (1 << gbh.pgeom_resid_abs_log2_bits[k]) - 1;
 }
 
 //----------------------------------------------------------------------------
