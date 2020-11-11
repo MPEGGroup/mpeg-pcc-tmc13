@@ -1680,7 +1680,7 @@ encodeGeometryOctree(
       int contextAnglePhiY = -1;
       if (gps.geom_angular_mode_enabled_flag) {
         contextAngle = determineContextAngleForPlanar(
-          node0, angularOrigin, nodeSizeLog2, zLaser, thetaLaser, numLasers,
+          node0, nodeSizeLog2, angularOrigin, zLaser, thetaLaser, numLasers,
           deltaAngle, encoder._phiZi, encoder._phiBuffer.data(),
           &contextAnglePhiX, &contextAnglePhiY);
       }

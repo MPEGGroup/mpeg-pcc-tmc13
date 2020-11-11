@@ -359,9 +359,9 @@ int maskPlanarZ(const OctreeNodePlanar& planar);
 void maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes);
 
 int determineContextAngleForPlanar(
-  PCCOctree3Node& child,
-  const Vec3<int>& headPos,
-  Vec3<int> childSizeLog2,
+  PCCOctree3Node& node,
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
   const int numLasers,

@@ -612,9 +612,9 @@ maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes)
 
 int
 determineContextAngleForPlanar(
-  PCCOctree3Node& child,
-  const Vec3<int>& headPos,
-  Vec3<int> childSizeLog2,
+  PCCOctree3Node& node,
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
   const int numLasers,
@@ -624,15 +624,13 @@ determineContextAngleForPlanar(
   int* contextAnglePhiX,
   int* contextAnglePhiY)
 {
-  Vec3<int64_t> absPos = child.pos << childSizeLog2;
+  Vec3<int64_t> nodePosLidar = (node.pos << nodeSizeLog2) - angularOrigin;
 
   // eligibility
-  Vec3<int64_t> midNode = (1 << childSizeLog2) >> 1;
+  Vec3<int64_t> midNode = (1 << nodeSizeLog2) >> 1;
 
-  uint64_t xLidar =
-    std::abs(((absPos[0] - headPos[0] + midNode[0]) << 8) - 128);
-  uint64_t yLidar =
-    std::abs(((absPos[1] - headPos[1] + midNode[1]) << 8) - 128);
+  uint64_t xLidar = std::abs(((nodePosLidar[0] + midNode[0]) << 8) - 128);
+  uint64_t yLidar = std::abs(((nodePosLidar[1] + midNode[1]) << 8) - 128);
 
   uint64_t rL1 = (xLidar + yLidar) >> 1;
   uint64_t deltaAngleR = deltaAngle * rL1;
@@ -644,12 +642,12 @@ determineContextAngleForPlanar(
   uint64_t rInv = irsqrt(r2);
 
   // determine non-corrected theta
-  int64_t zLidar = ((absPos[2] - headPos[2] + midNode[2]) << 1) - 1;
+  int64_t zLidar = ((nodePosLidar[2] + midNode[2]) << 1) - 1;
   int64_t theta = zLidar * rInv;
   int theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
 
   // determine laser
-  int laserIndex = int(child.laserIndex);
+  int laserIndex = int(node.laserIndex);
   if (numLasers == 1)
     laserIndex = 0;
   else if (laserIndex == 255 || deltaAngleR <= (midNode[2] << (26 + 2))) {
@@ -659,13 +657,13 @@ determineContextAngleForPlanar(
       --it;
 
     laserIndex = std::distance(thetaLaser, it);
-    child.laserIndex = uint8_t(laserIndex);
+    node.laserIndex = uint8_t(laserIndex);
   }
 
   // -- PHI  --
   //angles
-  int posx = absPos[0] - headPos[0];
-  int posy = absPos[1] - headPos[1];
+  int posx = nodePosLidar[0];
+  int posy = nodePosLidar[1];
   int phiNode = iatan2(posy + midNode[1], posx + midNode[0]);
   int phiNode0 = iatan2(posy, posx);
 
@@ -678,7 +676,7 @@ determineContextAngleForPlanar(
   if (predPhi != 0x80000000) {
     // elementary shift predictor
     int Nshift =
-      ((predPhi - phiNode) * phiZi.invDelta(laserIndex) + 536870912) >> 30;
+      ((predPhi - phiNode) * phiZi.invDelta(laserIndex) + (1 << 29)) >> 30;
     predPhi -= phiZi.delta(laserIndex) * Nshift;
 
     // ctx azimutal x or y
@@ -690,9 +688,7 @@ determineContextAngleForPlanar(
     angleR = std::abs(angleR);
     if (angleL > angleR) {
       contextAnglePhi++;
-      int temp = angleL;
-      angleL = angleR;
-      angleR = temp;
+      std::swap(angleL, angleR);
     }
     if (angleR > (angleL << 2))
       contextAnglePhi += 4;
@@ -708,7 +704,7 @@ determineContextAngleForPlanar(
   int64_t hr = zLaser[laserIndex] * rInv;
   thetaLaserDelta += hr >= 0 ? -(hr >> 17) : ((-hr) >> 17);
 
-  int64_t zShift = (rInv << childSizeLog2[2]) >> 20;
+  int64_t zShift = (rInv << nodeSizeLog2[2]) >> 20;
   int thetaLaserDeltaBot = thetaLaserDelta + zShift;
   int thetaLaserDeltaTop = thetaLaserDelta - zShift;
   int contextAngle = thetaLaserDelta >= 0 ? 0 : 1;
