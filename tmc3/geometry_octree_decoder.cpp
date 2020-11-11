@@ -169,14 +169,12 @@ public:
     Vec3<int32_t> deltaUnordered[2]);
 
   Vec3<int32_t> decodePointPositionAngular(
-    const Vec3<int>& nodeSizeLog2,
-    const Vec3<int>& nodeSizeLog2AfterPlanar,
-    const PCCOctree3Node& node,
-    const OctreeNodePlanar& planar,
-    const Vec3<int>& headPos,
+    const Vec3<int>& nodeSizeLog2Rem,
     const int* zLaser,
     const int* thetaLaser,
-    Vec3<int32_t>& deltaPlanar);
+    int laserNode,
+    Vec3<int> posXyz,
+    Vec3<int> delta);
 
   int decodeQpOffset();
 
@@ -186,15 +184,15 @@ public:
   int decodeDirectPosition(
     bool geom_unique_points_flag,
     bool joint_2pt_idcm_enabled_flag,
+    bool geom_angular_mode_enabled_flag,
     const Vec3<int>& nodeSizeLog2,
-    PCCOctree3Node& node,
-    OctreeNodePlanar& planar,
-    OutputIt outputPoints,
-    bool angularIdcm,
+    const PCCOctree3Node& node,
+    const OctreeNodePlanar& planar,
     const Vec3<int>& headPos,
     const int* zLaser,
     const int* thetaLaser,
-    int numLasers);
+    int numLasers,
+    OutputIt outputPoints);
 
   int decodeThetaRes();
 
@@ -938,72 +936,44 @@ GeometryOctreeDecoder::decodeOrdered2ptPrefix(
 
 Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPositionAngular(
-  const Vec3<int>& nodeSizeLog2,
-  const Vec3<int>& nodeSizeLog2AfterPlanar,
-  const PCCOctree3Node& child,
-  const OctreeNodePlanar& planar,
-  const Vec3<int>& headPos,
+  const Vec3<int>& nodeSizeLog2Rem,
   const int* zLaser,
   const int* thetaLaser,
-  Vec3<int32_t>& deltaPlanar)
+  int laserIdx,
+  Vec3<int> posXyz,
+  Vec3<int> delta)
 {
-  Vec3<int32_t> delta = deltaPlanar;
-  Vec3<int> posXyz = {(child.pos[0] << nodeSizeLog2[0]) - headPos[0],
-                      (child.pos[1] << nodeSizeLog2[1]) - headPos[1],
-                      (child.pos[2] << nodeSizeLog2[2]) - headPos[2]};
-
   // -- PHI --
   // code x or y directly and compute phi of node
-  bool codeXorY = std::abs(posXyz[0]) <= std::abs(posXyz[1]);
-  if (codeXorY) {  // direct code y
-    if (nodeSizeLog2AfterPlanar[1])
-      for (int i = nodeSizeLog2AfterPlanar[1]; i > 0; i--) {
-        delta[1] <<= 1;
-        delta[1] |= _arithmeticDecoder->decode();
-      }
-    posXyz[1] += delta[1];
-    posXyz[0] += delta[0] << nodeSizeLog2AfterPlanar[0];
-  } else {  //direct code x
-    if (nodeSizeLog2AfterPlanar[0])
-      for (int i = nodeSizeLog2AfterPlanar[0]; i > 0; i--) {
-        delta[0] <<= 1;
-        delta[0] |= _arithmeticDecoder->decode();
-      }
-    posXyz[0] += delta[0];
-    posXyz[1] += delta[1] << nodeSizeLog2AfterPlanar[1];
+  bool directAxis = std::abs(posXyz[0]) <= std::abs(posXyz[1]);
+  for (int i = nodeSizeLog2Rem[directAxis]; i > 0; i--) {
+    delta[directAxis] <<= 1;
+    delta[directAxis] |= _arithmeticDecoder->decode();
   }
+  posXyz[directAxis] += delta[directAxis];
+  posXyz[!directAxis] += delta[!directAxis] << nodeSizeLog2Rem[!directAxis];
+
+  // laser residual
+  laserIdx += decodeThetaRes();
 
   // find predictor
   int phiNode = iatan2(posXyz[1], posXyz[0]);
-  int laserNode = int(child.laserIndex);
-
-  // laser residual
-  int laserIndex = laserNode + decodeThetaRes();
-
-  int predPhi = _phiBuffer[laserIndex];
+  int predPhi = _phiBuffer[laserIdx];
   if (predPhi == 0x80000000)
     predPhi = phiNode;
 
   // elementary shift predictor
   int nShift =
-    ((predPhi - phiNode) * _phiZi.invDelta(laserIndex) + 536870912) >> 30;
-  predPhi -= _phiZi.delta(laserIndex) * nShift;
-
-  // choose x or y
-  int* posXY = codeXorY ? &posXyz[0] : &posXyz[1];
-  int idx = codeXorY ? 0 : 1;
+    ((predPhi - phiNode) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
+  predPhi -= _phiZi.delta(laserIdx) * nShift;
 
   // azimuthal code x or y
-  int mask2 = codeXorY
-    ? (nodeSizeLog2AfterPlanar[0] > 0 ? 1 << (nodeSizeLog2AfterPlanar[0] - 1)
-                                      : 0)
-    : (nodeSizeLog2AfterPlanar[1] > 0 ? 1 << (nodeSizeLog2AfterPlanar[1] - 1)
-                                      : 0);
-  for (; mask2; mask2 >>= 1) {
+  const int phiAxis = !directAxis;
+  for (int mask = (1 << nodeSizeLog2Rem[phiAxis]) >> 1; mask; mask >>= 1) {
     // angles left and right
-    int phiR = codeXorY ? iatan2(posXyz[1], posXyz[0] + mask2)
-                        : iatan2(posXyz[1] + mask2, posXyz[0]);
     int phiL = phiNode;
+    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + mask)
+                          : iatan2(posXyz[1] + mask, posXyz[0]);
 
     // ctx azimutal
     int angleL = phiL - predPhi;
@@ -1014,43 +984,37 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     angleR = std::abs(angleR);
     if (angleL > angleR) {
       contextAnglePhi++;
-      int temp = angleL;
-      angleL = angleR;
-      angleR = temp;
+      std::swap(angleL, angleR);
     }
     if (angleR > (angleL << 1))
       contextAnglePhi += 4;
 
     // entropy coding
-    bool bit = _arithmeticDecoder->decode(
-      _ctxPlanarPlaneLastIndexAngularPhiIDCM[contextAnglePhi]);
-    delta[idx] <<= 1;
+    auto& ctx = _ctxPlanarPlaneLastIndexAngularPhiIDCM[contextAnglePhi];
+    bool bit = _arithmeticDecoder->decode(ctx);
+    delta[phiAxis] <<= 1;
     if (bit) {
-      delta[idx] |= 1;
-      *posXY += mask2;
+      delta[phiAxis] |= 1;
+      posXyz[phiAxis] += mask;
       phiNode = phiR;
-      predPhi = _phiBuffer[laserIndex];
+      predPhi = _phiBuffer[laserIdx];
       if (predPhi == 0x80000000)
         predPhi = phiNode;
 
       // elementary shift predictor
       int nShift =
-        ((predPhi - phiNode) * _phiZi.invDelta(laserIndex) + 536870912) >> 30;
-      predPhi -= _phiZi.delta(laserIndex) * nShift;
+        ((predPhi - phiNode) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
+      predPhi -= _phiZi.delta(laserIdx) * nShift;
     }
   }
 
   // update buffer phi
-  _phiBuffer[laserIndex] = phiNode;
+  _phiBuffer[laserIdx] = phiNode;
 
   // -- THETA --
-  int maskz =
-    nodeSizeLog2AfterPlanar[2] > 0 ? 1 << (nodeSizeLog2AfterPlanar[2] - 1) : 0;
+  int maskz = (1 << nodeSizeLog2Rem[2]) >> 1;
   if (!maskz)
     return delta;
-
-  int posz0 = posXyz[2];
-  posXyz[2] += delta[2] << nodeSizeLog2AfterPlanar[2];
 
   // Since x and y are known,
   // r is known too and does not depend on the bit for z
@@ -1060,12 +1024,15 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   int64_t rInv = irsqrt(r2);
 
   // code bits for z using angular. Eligility is implicit. Laser is known.
-  int64_t hr = zLaser[laserIndex] * rInv;
+  int64_t hr = zLaser[laserIdx] * rInv;
   int fixedThetaLaser =
-    thetaLaser[laserIndex] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
+    thetaLaser[laserIdx] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
-  int zShift = (rInv << nodeSizeLog2AfterPlanar[2]) >> 18;
-  for (int bitIdxZ = nodeSizeLog2AfterPlanar[2]; bitIdxZ > 0;
+  int posz0 = posXyz[2];
+  posXyz[2] += delta[2] << nodeSizeLog2Rem[2];
+
+  int zShift = (rInv << nodeSizeLog2Rem[2]) >> 18;
+  for (int bitIdxZ = nodeSizeLog2Rem[2]; bitIdxZ > 0;
        bitIdxZ--, maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
     int64_t zLidar = ((posXyz[2] + maskz) << 1) - 1;
@@ -1081,9 +1048,9 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     else if (thetaLaserDeltaBot < 0)
       contextAngle += 2;
 
+    auto& ctx = _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle];
     delta[2] <<= 1;
-    delta[2] |= _arithmeticDecoder->decode(
-      _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle]);
+    delta[2] |= _arithmeticDecoder->decode(ctx);
     posXyz[2] = posz0 + (delta[2] << (bitIdxZ - 1));
   }
 
@@ -1108,15 +1075,15 @@ int
 GeometryOctreeDecoder::decodeDirectPosition(
   bool geom_unique_points_flag,
   bool joint_2pt_idcm_enabled_flag,
+  bool geom_angular_mode_enabled_flag,
   const Vec3<int>& nodeSizeLog2,
-  PCCOctree3Node& node,
-  OctreeNodePlanar& planar,
-  OutputIt outputPoints,
-  bool angularIdcm,
-  const Vec3<int>& headPos,
+  const PCCOctree3Node& node,
+  const OctreeNodePlanar& planar,
+  const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
-  int numLasers)
+  int numLasers,
+  OutputIt outputPoints)
 {
   int numPoints = 1;
   bool numPointsGt1 = _arithmeticDecoder->decode(_ctxNumIdcmPointsGt1);
@@ -1133,7 +1100,8 @@ GeometryOctreeDecoder::decodeDirectPosition(
     }
   }
 
-  // update node size after planar and determine upper part of position from planar
+  // nodeSizeLog2Rem indicates the number of bits left to decode
+  // the first bit may be inferred from the planar information
   Vec3<int32_t> deltaPlanar{0, 0, 0};
   Vec3<int> nodeSizeLog2Rem = nodeSizeLog2;
   for (int k = 0; k < 3; k++)
@@ -1142,45 +1110,37 @@ GeometryOctreeDecoder::decodeDirectPosition(
       nodeSizeLog2Rem[k]--;
     }
 
-  // Indicates which components are directly coded, or coded using angular
-  // contextualisation.
-  Vec3<bool> directIdcm = !angularIdcm;
-  point_t posNodeLidar;
+  // Indicates which components are directly coded
+  Vec3<bool> directIdcm = true;
 
-  if (angularIdcm) {
-    posNodeLidar = (node.pos << nodeSizeLog2) - headPos;
-    bool codeXorY = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
-    directIdcm.x() = !codeXorY;
-    directIdcm.y() = codeXorY;
+  // Position of the node relative to the angular origin
+  point_t posNodeLidar;
+  if (geom_angular_mode_enabled_flag) {
+    posNodeLidar = (node.pos << nodeSizeLog2) - angularOrigin;
+    bool directAxis = std::abs(posNodeLidar[0]) <= std::abs(posNodeLidar[1]);
+    directIdcm = false;
+    directIdcm[directAxis] = true;
   }
 
-  // decode nonordred two points
-  Vec3<int32_t> deltaPos[2];
-  deltaPos[0] = deltaPlanar;
-  deltaPos[1] = deltaPlanar;
+  // decode (ordred) two points
+  Vec3<int32_t> deltaPos[2] = {deltaPlanar, deltaPlanar};
   if (numPoints == 2 && joint_2pt_idcm_enabled_flag)
     decodeOrdered2ptPrefix(directIdcm, nodeSizeLog2Rem, deltaPos);
 
-  if (angularIdcm) {
-    for (int idx = 0; idx < 3; ++idx) {
-      int N = nodeSizeLog2[idx] - nodeSizeLog2Rem[idx];
-      for (int mask = N ? 1 << (N - 1) : 0; mask; mask >>= 1) {
-        if (deltaPos[0][idx] & mask)
-          posNodeLidar[idx] += mask << nodeSizeLog2Rem[idx];
-      }
-      if (nodeSizeLog2Rem[idx])
-        posNodeLidar[idx] += 1 << (nodeSizeLog2Rem[idx] - 1);
-    }
-    node.laserIndex = findLaser(posNodeLidar, thetaLaser, numLasers);
+  int laserIdx;
+  if (geom_angular_mode_enabled_flag) {
+    auto delta = (deltaPos[0] << nodeSizeLog2Rem);
+    delta += (1 << nodeSizeLog2Rem) >> 1;
+    laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
   }
 
   Vec3<int32_t> pos;
   for (int i = 0; i < numPoints; i++) {
-    if (angularIdcm) {
+    if (geom_angular_mode_enabled_flag)
       *(outputPoints++) = pos = decodePointPositionAngular(
-        nodeSizeLog2, nodeSizeLog2Rem, node, planar, headPos, zLaser,
-        thetaLaser, deltaPos[i]);
-    } else
+        nodeSizeLog2Rem, zLaser, thetaLaser, laserIdx, posNodeLidar,
+        deltaPos[i]);
+    else
       *(outputPoints++) = pos =
         decodePointPosition(nodeSizeLog2Rem, deltaPos[i]);
   }
@@ -1283,7 +1243,7 @@ decodeGeometryOctree(
   const int* zLaser = gps.angularZ.data();
 
   // Lidar position relative to slice origin
-  auto headPos = gbh.geomAngularOrigin(gps);
+  auto angularOrigin = gbh.geomAngularOrigin(gps);
 
   int deltaAngle = 128 << 18;
   for (int i = 0; i < numLasers - 1; i++) {
@@ -1451,7 +1411,7 @@ decodeGeometryOctree(
       int contextAnglePhiY = -1;
       if (gps.geom_angular_mode_enabled_flag) {
         contextAngle = determineContextAngleForPlanar(
-          node0, headPos, nodeSizeLog2, zLaser, thetaLaser, numLasers,
+          node0, angularOrigin, nodeSizeLog2, zLaser, thetaLaser, numLasers,
           deltaAngle, decoder._phiZi, decoder._phiBuffer.data(),
           &contextAnglePhiX, &contextAnglePhiY);
       }
@@ -1506,9 +1466,9 @@ decodeGeometryOctree(
 
           int numPoints = decoder.decodeDirectPosition(
             gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
-            idcmSize, node0, planar, &pointCloud[processedPointCount],
-            gps.geom_angular_mode_enabled_flag, headPos, zLaser, thetaLaser,
-            numLasers);
+            gps.geom_angular_mode_enabled_flag, idcmSize, node0, planar,
+            angularOrigin, zLaser, thetaLaser, numLasers,
+            &pointCloud[processedPointCount]);
 
           for (int j = 0; j < numPoints; j++) {
             auto& point = pointCloud[processedPointCount++];
