@@ -398,7 +398,9 @@ recolourColour(
   for (size_t index = 0; index < pointCountTarget; ++index) {
     std::sort(
       refinedColorsDists2[index].begin(), refinedColorsDists2[index].end(),
-      [](DistColor& dc1, DistColor& dc2) { return dc1.dist < dc2.dist; });
+      [](const DistColor& dc1, const DistColor& dc2) {
+        return dc1.dist < dc2.dist;
+      });
   }
 
   for (size_t index = 0; index < pointCountTarget; ++index) {
@@ -751,7 +753,7 @@ recolourReflectance(
     std::sort(
       refinedReflectancesDists2[index].begin(),
       refinedReflectancesDists2[index].end(),
-      [](DistReflectance& dc1, DistReflectance& dc2) {
+      [](const DistReflectance& dc1, const DistReflectance& dc2) {
         return dc1.dist < dc2.dist;
       });
   }
