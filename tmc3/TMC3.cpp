@@ -1427,8 +1427,11 @@ sanitizeEncoderOpts(
 
         if (params.encoder.gps.trisoup_enabled_flag) {
           err.error() << it.first
-                      << "trisoup_enabled_flag must be disabled \n";
+                      << " trisoup_enabled_flag must be disabled\n";
         }
+
+        if (params.encoder.gps.geom_qp_multiplier_log2 != 3)
+          err.error() << it.first << " positionQpMultiplierLog2 must be 3\n";
       }
     }
 

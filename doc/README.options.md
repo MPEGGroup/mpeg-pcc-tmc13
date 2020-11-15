@@ -673,8 +673,8 @@ from the finest detail level.  Applies to `transformType=0` only.
 
 ### `--aps_scalable_enabled_flag=0|1`
 Enable spatially scalable attribute encoding.
-The option is only valid when `transformType=2`, `lodDecimator=0`,
-and `trisoupNodeSizeLog2=0`.
+The option is only valid when `transformType=2`, `positionQpMultiplierLog2=3`,
+`lodDecimator=0`, and `trisoupNodeSizeLog2=0`.
 
 ### `--max_neigh_range=INT-VALUE`
 Limits the distance between a point and the neighbours used for its
