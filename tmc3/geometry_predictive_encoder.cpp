@@ -270,7 +270,7 @@ PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
     if (!value)
       continue;
 
-    _aec->encodeExpGolomb(value - 1, 0, _ctxEG2[k]);
+    _aec->encodeExpGolomb(value - 1, 0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
   }
 }
 

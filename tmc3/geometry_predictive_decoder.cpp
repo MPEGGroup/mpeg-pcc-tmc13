@@ -195,7 +195,7 @@ PredGeomDecoder::decodeResidual2()
       continue;
     }
 
-    value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
+    value += _aed->decodeExpGolomb(0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
     residual[k] = sign ? value : -value;
   }
   return residual;
