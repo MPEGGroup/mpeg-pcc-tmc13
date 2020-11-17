@@ -142,8 +142,13 @@ PCCTMC3Encoder3::compress(
       int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
       int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
       int r = std::max(rx, ry);
-      int twoPi = params->gps.predgeom_enabled_flag ? 1 << 17 : 25735;
+      int twoPi = 25735;
       int maxLaserIdx = params->gps.geom_angular_num_lidar_lasers() - 1;
+
+      if (params->gps.predgeom_enabled_flag) {
+        twoPi = 1 << params->gps.geom_angular_azimuth_scale_log2;
+        r >>= params->gps.geom_angular_radius_inv_scale_log2;
+      }
 
       // todo(df): handle the single laser case better
       Box3<int> sphBox{0, {r, twoPi, maxLaserIdx}};
