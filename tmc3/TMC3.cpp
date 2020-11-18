@@ -1127,8 +1127,19 @@ sanitizeEncoderOpts(
     params.encoder.gps.geom_qp_offset_intvl_log2;
 
   // If idcm rate is configured as 0, disable idcm
-  if (params.encoder.gps.geom_idcm_rate_minus1 < 0)
-    params.encoder.gps.inferred_direct_coding_mode = 0;
+  // NB: if user has requested less contrained idcm, warn
+  if (params.encoder.gps.geom_idcm_rate_minus1 < 0) {
+    if (params.encoder.gps.inferred_direct_coding_mode == 1)
+      params.encoder.gps.inferred_direct_coding_mode = 0;
+  }
+
+  if (params.encoder.gps.geom_idcm_rate_minus1 < 31) {
+    if (params.encoder.gps.inferred_direct_coding_mode > 1) {
+      params.encoder.gps.geom_idcm_rate_minus1 = 31;
+      err.warn() << "ignoring planarModeIdcmUse < 32: "
+        "contradicts inferredDirectCodingMode > 1\n";
+    }
+  }
 
   // convert coordinate systems if the coding order is different from xyz
   convertXyzToStv(&params.encoder.sps);
