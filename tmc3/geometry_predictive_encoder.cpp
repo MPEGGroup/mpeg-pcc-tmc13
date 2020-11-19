@@ -236,7 +236,7 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
     for (int ctxIdx = 1, n = _pgeom_resid_abs_log2_bits[k] - 1; n >= 0; n--) {
       auto bin = (numBits >> n) & 1;
       _aec->encode(bin, ctxs[ctxIdx]);
@@ -371,7 +371,7 @@ PredGeomEncoder::estimateBits(
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
     for (int ctxIdx = 1, n = _pgeom_resid_abs_log2_bits[k] - 1; n >= 0; n--) {
       auto bin = (numBits >> n) & 1;
       bits += estimate(bin, ctxs[ctxIdx]);

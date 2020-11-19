@@ -219,7 +219,7 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (value == 1)
     return sign ? 1 : -1;
 
-  auto* ctxs = _ctxResidualPhi - 1;
+  auto* ctxs = &_ctxResidualPhi[0] - 1;
   value = 1;
   for (int n = 3; n > 0; n--)
     value = (value << 1) | _aed->decode(ctxs[value]);
@@ -274,7 +274,7 @@ PredGeomDecoder::decodeResidual(int mode)
 
     int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 1;
 
-    AdaptiveBitModel* ctxs = _ctxNumBits[ctxIdx][k] - 1;
+    AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
     int32_t numBits = 1;
     for (int n = 0; n < _pgeom_resid_abs_log2_bits[k]; n++)
       numBits = (numBits << 1) | _aed->decode(ctxs[numBits]);
