@@ -194,7 +194,7 @@ Pre-sort the input point cloud according to azimuth angle with the
 origin `lidarHeadPosition`.  Pre-sorting occurs prior to tile/slice
 partitioning.
 
-### `--partitionMethod=0|2|3|4`
+### `--partitionMethod=0|2|3|4|5`
 Selects the partitioning method to map points to tiles and slices:
 
   | Value | Description                             |
@@ -203,6 +203,7 @@ Selects the partitioning method to map points to tiles and slices:
   | 2     | uniform partitioning along longest edge |
   | 3     | uniform octree partitions               |
   | 4     | uniform square partitions               |
+  | 5     | n-point spans                           |
 
 Uniform longest edge partitioning slices the point cloud along the
 longest edge according to `partitionNumUniformGeom`.
@@ -213,6 +214,10 @@ based on an octree partitioning of the point cloud according to
 
 Uniform square partitioning generates cubic slices sized according
 to the shortest edge.
+
+N-point span partitioning divides the input point list (after input
+pre-sorting) into `sliceMaxPoints`-point sublists.  Input order (after
+pre-sorting) is maintained.
 
 In all cases, a refinement process may merge or split slices in
 order to satisfy maximum or minimum points per slice constraints.
