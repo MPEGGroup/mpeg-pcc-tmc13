@@ -79,7 +79,7 @@ sub readTmc3ResultsOneFrame {
 		split / /, readFileFirstLine("$base_path.bin.decoded.ply.md5") // "";
 
 	my $dec_enc_match = "mismatch";
-	if (!$enc_md5 || !$enc_md5) {
+	if (!$enc_md5 || !$dec_md5) {
 		$dec_enc_match = "missing";
 	}
 	elsif ($enc_md5 eq $dec_md5) {
