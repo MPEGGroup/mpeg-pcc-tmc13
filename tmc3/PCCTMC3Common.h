@@ -1393,7 +1393,7 @@ subsampleByDistance(
     return;
   }
 
-  const int64_t radius2 = 3 * (1 << (shiftBits0 << 1));
+  const int64_t radius2 = 3ll << (shiftBits0 << 1);
   const int32_t shiftBits = shiftBits0 + 1;
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize3 = 3 * atlas.cubeSizeLog2();
