@@ -332,7 +332,7 @@ struct PCCPredictor {
     }
   }
 
-  Vec3<int>
+  void
   blendWeights(const PCCPointSet3& cloud, const std::vector<uint32_t>& indexes)
   {
     int w0 = neighbors[0].weight;
@@ -340,7 +340,7 @@ struct PCCPredictor {
     int w2 = neighbors[2].weight;
 
     if (neighborCount != 3)
-      return Vec3<int>{16 * w0, 16 * w1, 16 * w2};
+      return;
 
     auto neigh0Pos = cloud[indexes[neighbors[0].predictorIndex]];
     auto neigh1Pos = cloud[indexes[neighbors[1].predictorIndex]];
@@ -369,8 +369,6 @@ struct PCCPredictor {
 
     for (int i = 0; i < 3; i++)
       neighbors[i].weight = w[i];
-
-    return w;
   }
 
   void pruneDistanceGt(uint64_t maxDistance)
