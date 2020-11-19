@@ -299,7 +299,6 @@ void
 intraDcPred(
   int numAttrs,
   const int neighIdx[19],
-  const int neighWeights[19],
   int occupancy,
   It first,
   FixedPoint predBuf[][8])
@@ -764,8 +763,8 @@ uraht_process(
             enablePrediction = false;
           } else
             intraDcPred(
-              numAttrs, parentNeighIdx, parentNeighWeights, occupancy,
-              attrRecParent.begin(), transformPredBuf);
+              numAttrs, parentNeighIdx, occupancy, attrRecParent.begin(),
+              transformPredBuf);
         }
 
         for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
