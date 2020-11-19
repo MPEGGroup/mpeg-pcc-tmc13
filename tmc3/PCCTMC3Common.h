@@ -657,8 +657,11 @@ computeNearestNeighbors(
   const int32_t shiftBits = 1 + aps.dist2 + abh.attr_dist2_delta + lodIndex;
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize = atlas.cubeSizeLog2();
-  const int32_t log2CubeSize3 = 3 * log2CubeSize;
-  const int32_t shift3 = shiftBits3 + log2CubeSize3;
+  const int32_t atlasBits = 3 * log2CubeSize;
+  // NB: when the atlas boundary is greater than 2^63, all points belong
+  //     to a single atlas.  The clipping is necessary to avoid undefined
+  //     behaviour of shifts greater than or equal to the word size.
+  const int32_t atlasBoundaryBit = std::min(63, shiftBits3 + atlasBits);
 
   const int32_t retainedSize = retained.size();
   const int32_t indexesSize = endIndex - startIndex;
@@ -730,7 +733,7 @@ computeNearestNeighbors(
   const auto bucketSize1Log2 = hBBoxes.bucketSizeLog2(1);
   const auto bucketSize2Log2 = hBBoxes.bucketSizeLog2(2);
 
-  int64_t atlasMortonCode = -1;
+  int64_t curAtlasId = -1;
   int64_t lastMortonCodeShift3 = -1;
   int64_t cubeIndex = 0;
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
@@ -742,7 +745,7 @@ computeNearestNeighbors(
     const int32_t index = indexes[i];
     const auto& pv = packedVoxel[index];
     const int64_t mortonCode = pv.mortonCode;
-    const int64_t mortonCodeShift3 = mortonCode >> shift3;
+    const int64_t pointAtlasId = mortonCode >> atlasBoundaryBit;
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const int32_t pointIndex = pv.index;
     const auto point = pv.position;
@@ -757,12 +760,13 @@ computeNearestNeighbors(
         ++j;
       }
 
-      if (atlasMortonCode != mortonCodeShift3) {
+      if (curAtlasId != pointAtlasId) {
         atlas.clearUpdates();
-        atlasMortonCode = mortonCodeShift3;
-        while (cubeIndex < retainedSize
-               && (packedVoxel[retained[cubeIndex]].mortonCode >> shift3)
-                 == atlasMortonCode) {
+        curAtlasId = pointAtlasId;
+        while (
+          cubeIndex < retainedSize
+          && (packedVoxel[retained[cubeIndex]].mortonCode >> atlasBoundaryBit)
+            == curAtlasId) {
           atlas.set(
             packedVoxel[retained[cubeIndex]].mortonCode >> shiftBits3,
             cubeIndex);
@@ -777,7 +781,7 @@ computeNearestNeighbors(
         for (int32_t n = 0; n < 27; ++n) {
           const auto neighbMortonCode =
             morton3dAdd(basePosition, kNeighOffset[n]);
-          if ((neighbMortonCode >> log2CubeSize3) != atlasMortonCode) {
+          if ((neighbMortonCode >> atlasBits) != curAtlasId) {
             continue;
           }
           const auto range = atlas.get(neighbMortonCode);
@@ -1094,8 +1098,11 @@ computeNearestNeighborsScalable(
   const int32_t shiftBits = nodeSizeLog2;
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize = atlas.cubeSizeLog2();
-  const int32_t log2CubeSize3 = 3 * log2CubeSize;
-  const int32_t shift3 = shiftBits3 + log2CubeSize3;
+  const int32_t atlasBits = 3 * log2CubeSize;
+  // NB: when the atlas boundary is greater than 2^63, all points belong
+  //     to a single atlas.  The clipping is necessary to avoid undefined
+  //     behaviour of shifts greater than or equal to the word size.
+  const int32_t atlasBoundaryBit = std::min(63, shiftBits3 + atlasBits);
   const int32_t retainedSize = retained.size();
 
   // these neighbour offsets are relative to basePosition
@@ -1173,14 +1180,14 @@ computeNearestNeighborsScalable(
 
   const int32_t index0 = aps.num_pred_nearest_neighbours_minus1;
 
-  int64_t atlasMortonCode = -1;
+  int64_t curAtlasId = -1;
   int64_t lastMortonCodeShift3 = -1;
   int64_t cubeIndex = 0;
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     const int32_t index = indexes[i];
     const int64_t mortonCode = packedVoxel[index].mortonCode;
     const int32_t pointIndex = packedVoxel[index].index;
-    const int64_t mortonCodeShift3 = mortonCode >> shift3;
+    const int64_t pointAtlasId = mortonCode >> atlasBoundaryBit;
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const auto point = clacIntermediatePosition(
       aps.scalable_lifting_enabled_flag, nodeSizeLog2, pointCloud[pointIndex]);
@@ -1199,12 +1206,13 @@ computeNearestNeighborsScalable(
     localNeighbors[2].predictorIndex = -1;
     uint32_t localNeighborCount = 0;
 
-    if (atlasMortonCode != mortonCodeShift3) {
+    if (curAtlasId != pointAtlasId) {
       atlas.clearUpdates();
-      atlasMortonCode = mortonCodeShift3;
-      while (cubeIndex < retainedSize
-             && (packedVoxel[retained[cubeIndex]].mortonCode >> shift3)
-               == atlasMortonCode) {
+      curAtlasId = pointAtlasId;
+      while (
+        cubeIndex < retainedSize
+        && (packedVoxel[retained[cubeIndex]].mortonCode >> atlasBoundaryBit)
+          == curAtlasId) {
         atlas.set(
           packedVoxel[retained[cubeIndex]].mortonCode >> shiftBits3,
           cubeIndex);
@@ -1219,7 +1227,7 @@ computeNearestNeighborsScalable(
       for (int32_t n = 0; n < 27; ++n) {
         const auto neighbMortonCode =
           morton3dAdd(basePosition, kNeighOffset[n]);
-        if ((neighbMortonCode >> log2CubeSize3) != atlasMortonCode) {
+        if ((neighbMortonCode >> atlasBits) != curAtlasId) {
           continue;
         }
         const auto range = atlas.get(neighbMortonCode);
@@ -1396,8 +1404,11 @@ subsampleByDistance(
   const int64_t radius2 = 3ll << (shiftBits0 << 1);
   const int32_t shiftBits = shiftBits0 + 1;
   const int32_t shiftBits3 = 3 * shiftBits;
-  const int32_t log2CubeSize3 = 3 * atlas.cubeSizeLog2();
-  const int32_t shift3 = shiftBits3 + log2CubeSize3;
+  const int32_t atlasBits = 3 * atlas.cubeSizeLog2();
+  // NB: when the atlas boundary is greater than 2^63, all points belong
+  //     to a single atlas.  The clipping is necessary to avoid undefined
+  //     behaviour of shifts greater than or equal to the word size.
+  const int32_t atlasBoundaryBit = std::min(63, shiftBits3 + atlasBits);
 
   // these neighbour offsets are relative to basePosition
   static const uint8_t kNeighOffset[20] = {
@@ -1424,18 +1435,18 @@ subsampleByDistance(
   };
 
   atlas.reserve(indexes.size() >> 1);
-  int64_t atlasMortonCode = -1;
+  int64_t curAtlasId = -1;
   int64_t lastRetainedMortonCode = -1;
 
   for (const auto index : input) {
     const auto& point = packedVoxel[index].position;
     const int64_t mortonCode = packedVoxel[index].mortonCode;
-    const int64_t mortonCodeShift3 = mortonCode >> shift3;
+    const int64_t pointAtlasId = mortonCode >> atlasBoundaryBit;
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
 
-    if (atlasMortonCode != mortonCodeShift3) {
+    if (curAtlasId != pointAtlasId) {
       atlas.clearUpdates();
-      atlasMortonCode = mortonCodeShift3;
+      curAtlasId = pointAtlasId;
     }
 
     if (retained.empty()) {
@@ -1455,7 +1466,7 @@ subsampleByDistance(
     bool found = false;
     for (int32_t n = 0; n < 20 && !found; ++n) {
       const auto neighbMortonCode = morton3dAdd(basePosition, kNeighOffset[n]);
-      if ((neighbMortonCode >> log2CubeSize3) != atlasMortonCode)
+      if ((neighbMortonCode >> atlasBits) != curAtlasId)
         continue;
 
       const auto unit = atlas.get(neighbMortonCode);
