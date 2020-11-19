@@ -821,7 +821,7 @@ encodePredictiveGeometry(
   for (int i = 0; i < numPoints;) {
     int iEnd = std::min(i + maxPtsPerTree, int(numPoints));
     auto* begin = &cloud[i];
-    auto* beginSph = &sphericalPos[i];
+    auto* beginSph = sphericalPos.data() + i;
     auto* end = &cloud[0] + iEnd;
 
     // first, put the points in this tree into a sorted order
