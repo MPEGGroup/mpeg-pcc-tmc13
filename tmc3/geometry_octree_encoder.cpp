@@ -393,12 +393,12 @@ GeometryOctreeEncoder::determinePlanarMode(
   // The low plane is at position axis - 1
   bool lowAdjPlaneOccupied = adjacent_child_contextualization_enabled_flag
     ? KAdjNeighIdxMask[planeId][1] & gnp.adjNeighOcc[planeId]
-    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][0]) & 1;
 
   // The high adjacent plane is at position axis + 1
   bool highAdjPlaneOccupied = !pos
     ? KAdjNeighIdxMask[planeId][1] & siblingOccupancy
-    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][pos]) & 1;
+    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][1]) & 1;
 
   int adjPlanes = (highAdjPlaneOccupied << 1) | lowAdjPlaneOccupied;
   int planeBit = encodePlanarMode(
