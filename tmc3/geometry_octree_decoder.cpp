@@ -1506,29 +1506,29 @@ decodeGeometryOctree(
         }
       }
 
-      int occupancyIsPredicted = 0;
-      int occupancyPrediction = 0;
-
-      // generate intra prediction
-      if (
-        nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
-        && gps.neighbour_avail_boundary_log2_minus1 > 0) {
-        predictGeometryOccupancyIntra(
-          occupancyAtlas, node0.pos, codedAxesPrevLvl, &occupancyIsPredicted,
-          &occupancyPrediction);
-      }
-
       uint8_t occupancy = 1;
       if (!isLeafNode(effectiveNodeSizeLog2)) {
         // planar mode for current node
         // mask to be used for the occupancy coding
         // (bit =1 => occupancy bit not coded due to not belonging to the plane)
-        int mask_planar[3] = {0, 0, 0};
-        maskPlanar(planar, mask_planar, codedAxesCurNode);
+        int planarMask[3] = {0, 0, 0};
+        maskPlanar(planar, planarMask, codedAxesCurNode);
+
+        // generate intra prediction
+        bool intraPredUsed = !(planarMask[0] | planarMask[1] | planarMask[2]);
+        int occupancyIsPredicted = 0;
+        int occupancyPrediction = 0;
+        if (
+          nodeMaxDimLog2 < gps.intra_pred_max_node_size_log2
+          && gps.neighbour_avail_boundary_log2_minus1 > 0 && intraPredUsed) {
+          predictGeometryOccupancyIntra(
+            occupancyAtlas, node0.pos, codedAxesPrevLvl, &occupancyIsPredicted,
+            &occupancyPrediction);
+        }
 
         occupancy = decoder.decodeOccupancy(
-          gnp, occupancyIsPredicted, occupancyPrediction, mask_planar[0],
-          mask_planar[1], mask_planar[2], planar.planarPossible & 1,
+          gnp, occupancyIsPredicted, occupancyPrediction, planarMask[0],
+          planarMask[1], planarMask[2], planar.planarPossible & 1,
           planar.planarPossible & 2, planar.planarPossible & 4);
       }
 
