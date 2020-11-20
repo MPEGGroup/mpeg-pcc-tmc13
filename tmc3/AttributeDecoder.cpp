@@ -61,7 +61,6 @@ public:
   void start(const SequenceParameterSet& sps, const char* buf, int buf_len);
   void stop();
 
-  int decodePredMode(int max);
   int decodeRunLength();
   int decodeSymbol(int k1, int k2, int k3);
   void decode(int32_t values[3]);
@@ -92,27 +91,6 @@ void
 PCCResidualsDecoder::stop()
 {
   arithmeticDecoder.stop();
-}
-
-//----------------------------------------------------------------------------
-
-int
-PCCResidualsDecoder::decodePredMode(int maxMode)
-{
-  int mode = 0;
-
-  if (maxMode == 0)
-    return mode;
-
-  int ctxIdx = 0;
-  while (arithmeticDecoder.decode(ctxPredMode[ctxIdx])) {
-    ctxIdx = 1;
-    mode++;
-    if (mode == maxMode)
-      break;
-  }
-
-  return mode;
 }
 
 //----------------------------------------------------------------------------

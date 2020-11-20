@@ -68,7 +68,6 @@ public:
   void start(const SequenceParameterSet& sps, int numPoints);
   int stop();
 
-  void encodePredMode(int value, int max);
   void encodeRunLength(int runLength);
   void encodeSymbol(uint32_t value, int k1, int k2, int k3);
   void encode(int32_t value0, int32_t value1, int32_t value2);
@@ -220,26 +219,6 @@ PCCResidualsEncoder::bitsPtRefl(int32_t value, int mode)
       bits += 2.0 * log2(mag - 1.0) + 1.0;  //EG0 approximation.
   }
   return bits;
-}
-
-//----------------------------------------------------------------------------
-
-void
-PCCResidualsEncoder::encodePredMode(int mode, int maxMode)
-{
-  // max = 0 => no direct predictors are used
-  if (maxMode == 0)
-    return;
-
-  int ctxIdx = 0;
-  for (int i = 0; i < mode; i++) {
-    arithmeticEncoder.encode(1, ctxPredMode[ctxIdx]);
-    ctxIdx = 1;
-  }
-
-  // Truncated unary
-  if (mode != maxMode)
-    arithmeticEncoder.encode(0, ctxPredMode[ctxIdx]);
 }
 
 //----------------------------------------------------------------------------

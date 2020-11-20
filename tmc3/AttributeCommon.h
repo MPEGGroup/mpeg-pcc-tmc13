@@ -51,7 +51,6 @@ public:
   void reset();
 
 protected:
-  AdaptiveBitModel ctxPredMode[2];
   AdaptiveBitModel ctxRunLen[5];
   AdaptiveBitModel ctxCoeffGtN[2][7];
   AdaptiveBitModel ctxCoeffRemPrefix[2][3];
