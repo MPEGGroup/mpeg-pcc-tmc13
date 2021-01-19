@@ -545,9 +545,9 @@ clacIntermediatePosition(
     return point;
 
   uint32_t mask = (uint32_t(-1)) << nodeSizeLog2;
-  int32_t centerX = (point.x() & mask) + (1 << (nodeSizeLog2 - 1));
-  int32_t centerY = (point.y() & mask) + (1 << (nodeSizeLog2 - 1));
-  int32_t centerZ = (point.z() & mask) + (1 << (nodeSizeLog2 - 1));
+  int32_t centerX = point.x() & mask;
+  int32_t centerY = point.y() & mask;
+  int32_t centerZ = point.z() & mask;
 
   point_t newPoint{centerX, centerY, centerZ};
 
