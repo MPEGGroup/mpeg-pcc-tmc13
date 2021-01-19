@@ -183,8 +183,6 @@ struct MortonCodeWithIndex {
   // The position used to generate the mortonCode
   Vec3<int32_t> position;
 
-  // The biased position (taking into account nieg)
-  Vec3<int32_t> bposition;
   int32_t index;
 
   bool operator<(const MortonCodeWithIndex& rhs) const
@@ -676,6 +674,13 @@ computeNearestNeighbors(
     0    // {-1, -1, -1} 26
   };
 
+  // The point positions biased by lodNieghBias
+  // todo(df): preserve this
+  std::vector<point_t> biasedPos;
+  biasedPos.reserve(packedVoxel.size());
+  for (const auto& src : packedVoxel)
+    biasedPos.push_back(times(src.position, aps.lodNeighBias));
+
   atlas.reserve(retainedSize);
   std::vector<int32_t> neighborIndexes;
   neighborIndexes.reserve(64);
@@ -683,10 +688,10 @@ computeNearestNeighbors(
   BoxHierarchy<bucketSizeLog2, levelCount> hBBoxes;
   hBBoxes.resize(retainedSize);
   for (int32_t i = 0, b = 0; i < retainedSize; ++b) {
-    hBBoxes.insert(packedVoxel[retained[i]].bposition, i);
+    hBBoxes.insert(biasedPos[retained[i]], i);
     ++i;
     for (int32_t k = 1; k < bucketSize && i < retainedSize; ++k, ++i) {
-      hBBoxes.insert(packedVoxel[retained[i]].bposition, i);
+      hBBoxes.insert(biasedPos[retained[i]], i);
     }
   }
   hBBoxes.update();
@@ -695,10 +700,10 @@ computeNearestNeighbors(
   if (lodIndex >= aps.intra_lod_prediction_skip_layers) {
     hIntraBBoxes.resize(indexesSize);
     for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
-      hIntraBBoxes.insert(packedVoxel[indexes[i]].bposition, i - startIndex);
+      hIntraBBoxes.insert(biasedPos[indexes[i]], i - startIndex);
       ++i;
       for (int32_t k = 1; k < bucketSize && i < endIndex; ++k, ++i) {
-        hIntraBBoxes.insert(packedVoxel[indexes[i]].bposition, i - startIndex);
+        hIntraBBoxes.insert(biasedPos[indexes[i]], i - startIndex);
       }
     }
     hIntraBBoxes.update();
@@ -724,7 +729,7 @@ computeNearestNeighbors(
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const int32_t pointIndex = pv.index;
     const auto point = pv.position;
-    const auto bpoint = pv.bposition;
+    const auto bpoint = biasedPos[index];
     indexes[i] = pointIndex;
     auto& predictor = predictors[--predIndex];
     pointIndexToPredictorIndex[pointIndex] = predIndex;
@@ -768,8 +773,7 @@ computeNearestNeighbors(
 
       for (const auto k : neighborIndexes) {
         updateNearestNeigh(
-          bpoint, packedVoxel[retained[k]].bposition, k, localIndexes,
-          minDistances);
+          bpoint, biasedPos[retained[k]], k, localIndexes, minDistances);
       }
 
       if (localIndexes[2] == -1) {
@@ -777,20 +781,18 @@ computeNearestNeighbors(
         const auto k0 = std::max(0, center - rangeInterLod);
         const auto k1 = std::min(retainedSize - 1, center + rangeInterLod);
         updateNearestNeighWithCheck(
-          bpoint, packedVoxel[retained[center]].bposition, center,
-          localIndexes, minDistances);
+          bpoint, biasedPos[retained[center]], center, localIndexes,
+          minDistances);
         for (int32_t n = 1; n <= searchRangeNear; ++n) {
           const int32_t kp = center + n;
           if (kp <= k1) {
             updateNearestNeighWithCheck(
-              bpoint, packedVoxel[retained[kp]].bposition, kp, localIndexes,
-              minDistances);
+              bpoint, biasedPos[retained[kp]], kp, localIndexes, minDistances);
           }
           const int32_t kn = center - n;
           if (kn >= k0) {
             updateNearestNeighWithCheck(
-              bpoint, packedVoxel[retained[kn]].bposition, kn, localIndexes,
-              minDistances);
+              bpoint, biasedPos[retained[kn]], kn, localIndexes, minDistances);
           }
         }
 
@@ -834,7 +836,7 @@ computeNearestNeighbors(
               const int32_t h1 = std::min(k1, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h0; k <= h1; ++k) {
                 updateNearestNeighWithCheck(
-                  bpoint, packedVoxel[retained[k]].bposition, k, localIndexes,
+                  bpoint, biasedPos[retained[k]], k, localIndexes,
                   minDistances);
               }
             }
@@ -877,7 +879,7 @@ computeNearestNeighbors(
               const int32_t h1 = std::min(p0, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h1; k >= h0; --k) {
                 updateNearestNeighWithCheck(
-                  bpoint, packedVoxel[retained[k]].bposition, k, localIndexes,
+                  bpoint, biasedPos[retained[k]], k, localIndexes,
                   minDistances);
               }
             }
@@ -897,7 +899,7 @@ computeNearestNeighbors(
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
       for (int32_t k = k00; k <= k01; ++k) {
         updateNearestNeigh(
-          bpoint, packedVoxel[indexes[k]].bposition, indexes[k], localIndexes,
+          bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
           minDistances);
       }
       const int32_t k0 = k01 + 1 - startIndex;
@@ -941,8 +943,8 @@ computeNearestNeighbors(
             for (int32_t h = h0; h <= h1; ++h) {
               const int32_t k = startIndex + h;
               updateNearestNeigh(
-                bpoint, packedVoxel[indexes[k]].bposition, indexes[k],
-                localIndexes, minDistances);
+                bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
+                minDistances);
             }
           }
         }
@@ -956,8 +958,7 @@ computeNearestNeighbors(
     for (int32_t h = 0; h < predictor.neighborCount; ++h) {
       auto& neigh = predictor.neighbors[h];
       neigh.predictorIndex = packedVoxel[localIndexes[h]].index;
-      neigh.weight =
-        (packedVoxel[localIndexes[h]].bposition - bpoint).getNorm2<int64_t>();
+      neigh.weight = (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
     }
 
     if (predictor.neighborCount > 1) {
@@ -1647,7 +1648,6 @@ computeMortonCodesUnsorted(
   for (int n = 0; n < pointCount; n++) {
     auto& pv = packedVoxel[n];
     pv.position = pointCloud[n];
-    pv.bposition = times(pv.position, lodNeighBias);
     pv.mortonCode = mortonAddr(pv.position);
     pv.index = n;
   }
