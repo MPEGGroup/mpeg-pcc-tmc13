@@ -1249,8 +1249,8 @@ computeNearestNeighborsScalable(
       const int32_t p1 = j + searchRangeNear + 1;
 
       // process p1..k1
-      const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
-      for (int32_t bucketIndex = p1 / bucketSize; bucketIndex < bucketIndex1;
+      const int32_t bucketIndex1 = k1 / bucketSize;
+      for (int32_t bucketIndex = p1 / bucketSize; bucketIndex <= bucketIndex1;
            ++bucketIndex) {
         if (
           localNeighborCount <= aps.num_pred_nearest_neighbours_minus1
@@ -1299,8 +1299,8 @@ computeNearestNeighborsScalable(
       const int32_t k1 =
         std::min(endIndex - 1, k00 + aps.intra_lod_search_range) - startIndex;
       const int32_t bucketIndex0 = k0 / bucketSize;
-      const int32_t bucketIndex1 = (k1 + bucketSize - 1) / bucketSize;
-      for (int32_t bucketIndex = bucketIndex0; bucketIndex < bucketIndex1;
+      const int32_t bucketIndex1 = k1 / bucketSize;
+      for (int32_t bucketIndex = bucketIndex0; bucketIndex <= bucketIndex1;
            ++bucketIndex) {
         if (
           localNeighborCount < aps.num_pred_nearest_neighbours_minus1
