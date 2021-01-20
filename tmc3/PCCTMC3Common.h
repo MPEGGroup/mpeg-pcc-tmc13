@@ -1227,7 +1227,7 @@ computeNearestNeighborsScalable(
     const int32_t k1 =
       std::min(retainedSize - 1, j + aps.inter_lod_search_range);
 
-    if (localNeighborCount < 3) {
+    if (neighborIndexes.size() < 3) {
       if (retainedSize) {
         updateNearestNeighbor(
           aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
