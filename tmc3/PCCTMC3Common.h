@@ -558,13 +558,21 @@ clacIntermediatePosition(
 
 inline void
 updateNearestNeigh(
+  bool scalable_lifting_enabled_flag,
+  bool nodeSizeLog2,
   const Vec3<int32_t>& point0,
   const Vec3<int32_t>& point1,
   int32_t index,
   int32_t (&localIndexes)[3],
   int64_t (&minDistances)[3])
 {
-  const auto d = (point0 - point1).getNorm1();
+  auto d = (point0 - point1).getNorm1();
+
+  if (scalable_lifting_enabled_flag)
+    if (nodeSizeLog2 > 0 && point0 == point1) {
+      d = 1 << (nodeSizeLog2 - 1);
+    }
+
   if (d >= minDistances[2]) {
     // do nothing
   } else if (d < minDistances[0]) {
@@ -590,6 +598,8 @@ updateNearestNeigh(
 
 inline void
 updateNearestNeighWithCheck(
+  bool scalable_lifting_enabled_flag,
+  bool nodeSizeLog2,
   const Vec3<int32_t>& point0,
   const Vec3<int32_t>& point1,
   const int32_t index,
@@ -601,7 +611,9 @@ updateNearestNeighWithCheck(
     || index == localIndexes[2])
     return;
 
-  updateNearestNeigh(point0, point1, index, localIndexes, minDistances);
+  updateNearestNeigh(
+    scalable_lifting_enabled_flag, nodeSizeLog2, point0, point1, index,
+    localIndexes, minDistances);
 }
 
 //---------------------------------------------------------------------------
@@ -627,7 +639,9 @@ computeNearestNeighbors(
   constexpr auto bucketSizeMinus1 = bucketSize - 1;
   constexpr auto levelCount = 3;
 
-  const int32_t shiftBits = 1 + aps.dist2 + abh.attr_dist2_delta + lodIndex;
+  const int32_t shiftBits = aps.scalable_lifting_enabled_flag
+    ? 1 + lodIndex
+    : 1 + aps.dist2 + abh.attr_dist2_delta + lodIndex;
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize = atlas.cubeSizeLog2();
   const int32_t atlasBits = 3 * log2CubeSize;
@@ -675,8 +689,11 @@ computeNearestNeighbors(
   // todo(df): preserve this
   std::vector<point_t> biasedPos;
   biasedPos.reserve(packedVoxel.size());
-  for (const auto& src : packedVoxel)
-    biasedPos.push_back(times(src.position, aps.lodNeighBias));
+  for (const auto& src : packedVoxel) {
+    auto point = clacIntermediatePosition(
+      aps.scalable_lifting_enabled_flag, lodIndex, src.position);
+    biasedPos.push_back(times(point, aps.lodNeighBias));
+  }
 
   atlas.reserve(retainedSize);
   std::vector<int32_t> neighborIndexes;
@@ -725,7 +742,6 @@ computeNearestNeighbors(
     const int64_t pointAtlasId = mortonCode >> atlasBoundaryBit;
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const int32_t pointIndex = pv.index;
-    const auto point = pv.position;
     const auto bpoint = biasedPos[index];
     indexes[i] = pointIndex;
     auto& predictor = predictors[--predIndex];
@@ -770,7 +786,8 @@ computeNearestNeighbors(
 
       for (const auto k : neighborIndexes) {
         updateNearestNeigh(
-          bpoint, biasedPos[retained[k]], k, localIndexes, minDistances);
+          aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+          biasedPos[retained[k]], k, localIndexes, minDistances);
       }
 
       if (localIndexes[2] == -1) {
@@ -778,18 +795,20 @@ computeNearestNeighbors(
         const auto k0 = std::max(0, center - rangeInterLod);
         const auto k1 = std::min(retainedSize - 1, center + rangeInterLod);
         updateNearestNeighWithCheck(
-          bpoint, biasedPos[retained[center]], center, localIndexes,
-          minDistances);
+          aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+          biasedPos[retained[center]], center, localIndexes, minDistances);
         for (int32_t n = 1; n <= searchRangeNear; ++n) {
           const int32_t kp = center + n;
           if (kp <= k1) {
             updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kp]], kp, localIndexes, minDistances);
+              aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+              biasedPos[retained[kp]], kp, localIndexes, minDistances);
           }
           const int32_t kn = center - n;
           if (kn >= k0) {
             updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kn]], kn, localIndexes, minDistances);
+              aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+              biasedPos[retained[kn]], kn, localIndexes, minDistances);
           }
         }
 
@@ -833,8 +852,8 @@ computeNearestNeighbors(
               const int32_t h1 = std::min(k1, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h0; k <= h1; ++k) {
                 updateNearestNeighWithCheck(
-                  bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances);
+                  aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+                  biasedPos[retained[k]], k, localIndexes, minDistances);
               }
             }
           }
@@ -876,8 +895,8 @@ computeNearestNeighbors(
               const int32_t h1 = std::min(p0, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h1; k >= h0; --k) {
                 updateNearestNeighWithCheck(
-                  bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances);
+                  aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+                  biasedPos[retained[k]], k, localIndexes, minDistances);
               }
             }
           }
@@ -896,8 +915,8 @@ computeNearestNeighbors(
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
       for (int32_t k = k00; k <= k01; ++k) {
         updateNearestNeigh(
-          bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-          minDistances);
+          aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+          biasedPos[indexes[k]], indexes[k], localIndexes, minDistances);
       }
       const int32_t k0 = k01 + 1 - startIndex;
       const int32_t k1 =
@@ -940,8 +959,8 @@ computeNearestNeighbors(
             for (int32_t h = h0; h <= h1; ++h) {
               const int32_t k = startIndex + h;
               updateNearestNeigh(
-                bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-                minDistances);
+                aps.scalable_lifting_enabled_flag, lodIndex, bpoint,
+                biasedPos[indexes[k]], indexes[k], localIndexes, minDistances);
             }
           }
         }
@@ -956,6 +975,35 @@ computeNearestNeighbors(
       auto& neigh = predictor.neighbors[h];
       neigh.predictorIndex = packedVoxel[localIndexes[h]].index;
       neigh.weight = (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
+
+      if (aps.scalable_lifting_enabled_flag)
+        if (biasedPos[localIndexes[h]] == bpoint)
+          neigh.weight = (1ull << (lodIndex << 1)) >> 2;
+    }
+
+    // Prune neighbours based upon max neigh range.
+    if (aps.scalable_lifting_enabled_flag) {
+      int64_t maxDistance = 3ll * aps.max_neigh_range << 2 * lodIndex;
+      if (aps.lodNeighBias == 1) {
+        predictor.pruneDistanceGt(maxDistance);
+      } else {
+        auto curPt = clacIntermediatePosition(true, lodIndex, pv.position);
+
+        for (int h = 1; h < predictor.neighborCount; h++) {
+          auto neighPt = clacIntermediatePosition(
+            true, lodIndex, packedVoxel[localIndexes[h]].position);
+
+          auto norm2 = (curPt - neighPt).getNorm2<int64_t>();
+          if (curPt == neighPt)
+            norm2 = (1ull << (lodIndex << 1)) >> 2;
+
+          // Discard this and subsequent points if distance limit exceeded
+          if (norm2 > maxDistance) {
+            predictor.neighborCount = h;
+            break;
+          }
+        }
+      }
     }
 
     if (predictor.neighborCount > 1) {
