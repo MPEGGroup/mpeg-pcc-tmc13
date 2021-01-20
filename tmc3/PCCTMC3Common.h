@@ -959,21 +959,13 @@ computeNearestNeighbors(
     }
 
     if (predictor.neighborCount > 1) {
-      auto predTmp = predictor.neighbors[1];
-      if (predictor.neighbors[0].weight > predictor.neighbors[1].weight) {
-        predictor.neighbors[1] = predictor.neighbors[0];
-        predictor.neighbors[0] = predTmp;
-      }
+      if (predictor.neighbors[0].weight > predictor.neighbors[1].weight)
+        std::swap(predictor.neighbors[1], predictor.neighbors[0]);
       if (predictor.neighborCount == 3) {
         if (predictor.neighbors[1].weight > predictor.neighbors[2].weight) {
-          predTmp = predictor.neighbors[2];
-          predictor.neighbors[2] = predictor.neighbors[1];
-          predictor.neighbors[1] = predTmp;
-          if (predictor.neighbors[0].weight > predictor.neighbors[1].weight) {
-            predTmp = predictor.neighbors[1];
-            predictor.neighbors[1] = predictor.neighbors[0];
-            predictor.neighbors[0] = predTmp;
-          }
+          std::swap(predictor.neighbors[2], predictor.neighbors[1]);
+          if (predictor.neighbors[0].weight > predictor.neighbors[1].weight)
+            std::swap(predictor.neighbors[1], predictor.neighbors[0]);
         }
       }
     }
@@ -1359,20 +1351,25 @@ computeNearestNeighborsScalable(
       }
       predictor.neighbors[i].weight = norm2;
     }
-  }
 
-  if (aps.scalable_lifting_enabled_flag) {
-    uint64_t maxDistance = 3ll * aps.max_neigh_range << 2 * nodeSizeLog2;
-    if (aps.lodNeighBias == 1) {
-      for (int32_t i = startIndex, j = 0; i < endIndex; ++i, ++j) {
-        auto& predictor = predictors[predIndex + j];
+    if (aps.scalable_lifting_enabled_flag) {
+      uint64_t maxDistance = 3ll * aps.max_neigh_range << 2 * nodeSizeLog2;
+      if (aps.lodNeighBias == 1)
         predictor.pruneDistanceGt(maxDistance);
-      }
-    } else {
-      for (int32_t i = endIndex - 1, j = 0; i >= startIndex; --i, ++j) {
-        auto& predictor = predictors[predIndex + j];
+      else
         predictor.pruneDistanceGt(
-          maxDistance, nodeSizeLog2, pointCloud, indexes[i]);
+          maxDistance, nodeSizeLog2, pointCloud, pointIndex);
+    }
+
+    if (predictor.neighborCount > 1) {
+      if (predictor.neighbors[0].weight > predictor.neighbors[1].weight)
+        std::swap(predictor.neighbors[1], predictor.neighbors[0]);
+      if (predictor.neighborCount == 3) {
+        if (predictor.neighbors[1].weight > predictor.neighbors[2].weight) {
+          std::swap(predictor.neighbors[2], predictor.neighbors[1]);
+          if (predictor.neighbors[0].weight > predictor.neighbors[1].weight)
+            std::swap(predictor.neighbors[1], predictor.neighbors[0]);
+        }
       }
     }
   }
