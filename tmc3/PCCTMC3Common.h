@@ -1223,25 +1223,42 @@ computeNearestNeighborsScalable(
         localNeighborCount, localNeighbors);
     }
 
-    const int32_t k0 = std::max(0, j - aps.inter_lod_search_range);
+    // If a neigbour was found, the search centre is around that neighbour
+    // NB: updateNearestNeighbour records the index in the unsorted point
+    //     cloud, not the index (k, above) in the parent LoD.  The following
+    //     performs the inverse mapping.
+    // NB: when implemented as per computeNearestNeighbors, this goes away.
+    int centre = j;
+    if (localNeighbors[0].predictorIndex != -1) {
+      for (const auto k : neighborIndexes) {
+        // NB: predictorIndex is actually a point index
+        auto pointIdxk = packedVoxel[retained[k]].index;
+        if (pointIdxk == localNeighbors[0].predictorIndex) {
+          centre = k;
+          break;
+        }
+      }
+    }
+
+    const int32_t k0 = std::max(0, centre - aps.inter_lod_search_range);
     const int32_t k1 =
-      std::min(retainedSize - 1, j + aps.inter_lod_search_range);
+      std::min(retainedSize - 1, centre + aps.inter_lod_search_range);
 
     if (neighborIndexes.size() < 3) {
       if (retainedSize) {
         updateNearestNeighbor(
-          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[j], point,
+          aps, pointCloud, packedVoxel, nodeSizeLog2, retained[centre], point,
           localNeighborCount, localNeighbors);
       }
 
       for (int32_t n = 1; n <= searchRangeNear; ++n) {
-        const int32_t kp = j + n;
+        const int32_t kp = centre + n;
         if (kp <= k1) {
           updateNearestNeighbor(
             aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kp], point,
             localNeighborCount, localNeighbors);
         }
-        const int32_t kn = j - n;
+        const int32_t kn = centre - n;
         if (kn >= k0) {
           updateNearestNeighbor(
             aps, pointCloud, packedVoxel, nodeSizeLog2, retained[kn], point,
@@ -1249,8 +1266,8 @@ computeNearestNeighborsScalable(
         }
       }
 
-      const int32_t p0 = j - searchRangeNear - 1;
-      const int32_t p1 = j + searchRangeNear + 1;
+      const int32_t p0 = centre - searchRangeNear - 1;
+      const int32_t p1 = centre + searchRangeNear + 1;
 
       // process p1..k1
       const int32_t bucketIndex1 = k1 / bucketSize;
