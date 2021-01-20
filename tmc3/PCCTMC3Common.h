@@ -638,11 +638,8 @@ computeNearestNeighbors(
 
   const int32_t retainedSize = retained.size();
   const int32_t indexesSize = endIndex - startIndex;
-  const auto rangeInterLod = aps.inter_lod_search_range == 0
-    ? retainedSize
-    : aps.inter_lod_search_range;
-  const auto rangeIntraLod =
-    aps.intra_lod_search_range == 0 ? indexesSize : aps.intra_lod_search_range;
+  const auto rangeInterLod = aps.inter_lod_search_range;
+  const auto rangeIntraLod = aps.intra_lod_search_range;
 
   static const uint8_t kNeighOffset[27] = {
     7,   // { 0,  0,  0} 0
