@@ -1142,10 +1142,14 @@ computeNearestNeighborsScalable(
     bBoxesI.resize((indexesSize + bucketSize - 1) / bucketSize);
     for (int32_t i = startIndex, b = 0; i < endIndex; ++b) {
       auto& bBox = bBoxesI[b];
-      bBox.min = bBox.max = pointCloud[packedVoxel[indexes[i++]].index];
+      bBox.min = bBox.max = clacIntermediatePosition(
+        aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+        pointCloud[packedVoxel[indexes[i++]].index]);
       for (int32_t k = 1; k < bucketSize && i < endIndex; ++k, ++i) {
         const int32_t pointIndex = packedVoxel[indexes[i]].index;
-        const auto& point = pointCloud[pointIndex];
+        const auto point = clacIntermediatePosition(
+          aps.scalable_lifting_enabled_flag, nodeSizeLog2,
+          pointCloud[pointIndex]);
         for (int32_t p = 0; p < 3; ++p) {
           bBox.min[p] = std::min(bBox.min[p], point[p]);
           bBox.max[p] = std::max(bBox.max[p], point[p]);
