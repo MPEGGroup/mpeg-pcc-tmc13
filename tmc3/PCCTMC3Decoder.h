@@ -42,8 +42,9 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
-#include "hls.h"
+#include "framectr.h"
 #include "geometry.h"
+#include "hls.h"
 
 namespace pcc {
 
@@ -98,6 +99,9 @@ private:
   // Decoder specific parameters
   DecoderParams _params;
 
+  // Indicates that pointcloud output should be suppressed at a frame boundary
+  bool _suppressOutput;
+
   // Indicates that this is the start of a new frame.
   // NB: this is set to false quiet early in the decoding process
   bool _firstSliceInFrame;
@@ -108,8 +112,8 @@ private:
   // Identifies the previous slice in bistream order
   int _prevSliceId;
 
-  // The last decoded frame_ctr
-  int _currentFrameCtr;
+  // Cumulative frame counter
+  FrameCtr _frameCtr;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;

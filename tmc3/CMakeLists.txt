@@ -84,6 +84,7 @@ file(GLOB PROJECT_INC_FILES
   "entropydirac.h"
   "entropyo3dgc.h"
   "entropyutils.h"
+  "framectr.h"
   "geometry.h"
   "geometry_intra_pred.h"
   "geometry_octree.h"

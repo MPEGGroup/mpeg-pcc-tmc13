@@ -67,7 +67,7 @@ void
 PCCTMC3Decoder3::init()
 {
   _firstSliceInFrame = true;
-  _currentFrameCtr = -1;
+  _suppressOutput = 1;
   _sps = nullptr;
   _gps = nullptr;
   _spss.clear();
@@ -146,27 +146,32 @@ PCCTMC3Decoder3::decompress(
   }
 
   // the frame boundary marker flushes the current frame.
-  // NB: frame counter is reset to avoid outputing a runt point cloud
-  //     on the next slice.
   case PayloadType::kFrameBoundaryMarker:
     // todo(df): if no sps is activated ...
     callback->onOutputCloud(*_sps, _accumCloud);
     _accumCloud.clear();
-    _currentFrameCtr = -1;
     _attrDecoder.reset();
+    _suppressOutput = 1;
     return 0;
 
-  case PayloadType::kGeometryBrick:
+  case PayloadType::kGeometryBrick: {
     activateParameterSets(parseGbhIds(*buf));
-    if (frameCtrChanged(parseGbh(*_sps, *_gps, *buf, nullptr, nullptr))) {
+    auto gbh = parseGbh(*_sps, *_gps, *buf, nullptr, nullptr);
+
+    _firstSliceInFrame |=
+      _frameCtr.isDifferentFrame(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
+    _frameCtr.update(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
+    if (_firstSliceInFrame && !_suppressOutput) {
       callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
-      _firstSliceInFrame = true;
     }
+
+    _suppressOutput = false;
 
     // avoid accidents with stale attribute decoder on next slice
     _attrDecoder.reset();
     return decodeGeometryBrick(*buf);
+  }
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
 
@@ -225,17 +230,6 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 
 //==========================================================================
 
-bool
-PCCTMC3Decoder3::frameCtrChanged(const GeometryBrickHeader& gbh) const
-{
-  // dont treat the first frame in the sequence as a frame boundary
-  if (_currentFrameCtr < 0)
-    return false;
-  return _currentFrameCtr != gbh.frame_ctr_lsb;
-}
-
-//==========================================================================
-
 void
 PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
 {
@@ -281,7 +275,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _prevSliceId = _sliceId;
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
-  _currentFrameCtr = _gbh.frame_ctr_lsb;
 
   // sanity check for loss detection
   if (_gbh.entropy_continuation_flag) {
