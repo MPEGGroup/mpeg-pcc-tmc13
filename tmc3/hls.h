@@ -264,8 +264,11 @@ struct AttributeDescription {
 
   // attribute scaling
   bool scalingParametersPresent;
-  int source_attr_scale_log2;
-  int source_attr_offset_log2;
+  int attr_scale_bits;
+  int attr_scale;
+  int attr_frac_bits;
+  int attr_offset_bits;
+  int attr_offset;
 
   // soft default attribute values.
   // If empty, use hard default values.

@@ -1205,8 +1205,11 @@ sanitizeEncoderOpts(
     attr_sps.cicp_transfer_characteristics_idx = 2;
     attr_sps.cicp_video_full_range_flag = true;
     attr_sps.cicpParametersPresent = false;
-    attr_sps.source_attr_offset_log2 = 0;
-    attr_sps.source_attr_scale_log2 = 0;
+    attr_sps.attr_offset = 0;
+    attr_sps.attr_offset_bits = 0;
+    attr_sps.attr_scale = 1;
+    attr_sps.attr_scale_bits = 1;
+    attr_sps.attr_frac_bits = 0;
     attr_sps.scalingParametersPresent = false;
 
     if (it.first == "reflectance") {

@@ -188,8 +188,11 @@ template<typename Bs>
 void
 writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
 {
-  bs.writeUe(param.source_attr_offset_log2);
-  bs.writeUe(param.source_attr_scale_log2);
+  bs.writeUe(param.attr_offset_bits);
+  bs.writeSn(param.attr_offset_bits, param.attr_offset);
+  bs.writeUe(param.attr_scale_bits);
+  bs.writeUn(param.attr_scale_bits, param.attr_scale);
+  bs.writeUe(param.attr_frac_bits);
   bs.byteAlign();
 }
 
@@ -199,8 +202,11 @@ template<typename Bs>
 void
 parseAttrParamScaling(Bs& bs, AttributeDescription* param)
 {
-  bs.readUe(&param->source_attr_offset_log2);
-  bs.readUe(&param->source_attr_scale_log2);
+  bs.readUe(&param->attr_offset_bits);
+  bs.readSn(param->attr_offset_bits, &param->attr_offset);
+  bs.readUe(&param->attr_scale_bits);
+  bs.readUn(param->attr_scale_bits, &param->attr_scale);
+  bs.readUe(&param->attr_frac_bits);
   param->scalingParametersPresent = 1;
   bs.byteAlign();
 }
