@@ -55,6 +55,7 @@ enum class PayloadType
   kTileInventory = 5,
   kFrameBoundaryMarker = 6,
   kConstantAttribute = 7,
+  kGeneralizedAttrParamInventory = 8,
   kUserData = 9,
 };
 
@@ -240,21 +241,7 @@ struct OpaqueAttributeParameter {
 
 //============================================================================
 
-// invariant properties
-struct AttributeDescription {
-  int attr_num_dimensions_minus1;
-
-  // NB: the instance id is not the attribute id / attrId used in the decoding
-  // process.  The instance id is used to distinguish between, in the decoded
-  // output, multiple attributes with the same label.  Eg, rgb0 and rgb1.
-  int attr_instance_id;
-
-  int bitdepth;
-
-  AttributeLabel attributeLabel;
-
-  // Known attribute parameters
-
+struct AttributeParameters {
   // indicates if the cicp attribute parameter is valid
   bool cicpParametersPresent;
   int cicp_colour_primaries_idx;
@@ -276,6 +263,56 @@ struct AttributeDescription {
 
   // Unknown attribute parameters
   std::vector<OpaqueAttributeParameter> opaqueParameters;
+
+  int numParams() const
+  {
+    int count = opaqueParameters.size() + cicpParametersPresent
+      + scalingParametersPresent + !attr_default_value.empty();
+    return count;
+  }
+
+  void clear()
+  {
+    cicpParametersPresent = false;
+    scalingParametersPresent = false;
+    attr_default_value.clear();
+    opaqueParameters.clear();
+  }
+};
+
+//============================================================================
+
+struct AttributeDescription {
+  int attr_num_dimensions_minus1;
+
+  // NB: the instance id is not the attribute id / attrId used in the decoding
+  // process.  The instance id is used to distinguish between, in the decoded
+  // output, multiple attributes with the same label.  Eg, rgb0 and rgb1.
+  int attr_instance_id;
+
+  int bitdepth;
+
+  AttributeLabel attributeLabel;
+
+  AttributeParameters params;
+};
+
+//============================================================================
+
+struct AttributeParamInventoryHdr {
+  int attr_param_seq_parameter_set_id;
+
+  // LSBs of FrameCtr used to identify the frame the parameters apply to
+  int attr_param_frame_ctr_lsb;
+
+  // The attribute index in the SPS.
+  int attr_param_sps_attr_idx;
+};
+
+//---------------------------------------------------------------------------
+
+struct AttributeParamInventory : public AttributeParamInventoryHdr {
+  AttributeParameters params;
 };
 
 //============================================================================

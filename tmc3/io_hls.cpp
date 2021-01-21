@@ -159,7 +159,7 @@ operator<<(std::ostream& os, const AttributeLabel& label)
 
 template<typename Bs>
 void
-writeAttrParamCicp(Bs& bs, const AttributeDescription& param)
+writeAttrParamCicp(Bs& bs, const AttributeParameters& param)
 {
   bs.writeUe(param.cicp_colour_primaries_idx);
   bs.writeUe(param.cicp_transfer_characteristics_idx);
@@ -172,7 +172,7 @@ writeAttrParamCicp(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamCicp(Bs& bs, AttributeDescription* param)
+parseAttrParamCicp(Bs& bs, AttributeParameters* param)
 {
   bs.readUe(&param->cicp_colour_primaries_idx);
   bs.readUe(&param->cicp_transfer_characteristics_idx);
@@ -186,7 +186,7 @@ parseAttrParamCicp(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
-writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
+writeAttrParamScaling(Bs& bs, const AttributeParameters& param)
 {
   bs.writeUe(param.attr_offset_bits);
   bs.writeSn(param.attr_offset_bits, param.attr_offset);
@@ -200,7 +200,7 @@ writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamScaling(Bs& bs, AttributeDescription* param)
+parseAttrParamScaling(Bs& bs, AttributeParameters* param)
 {
   bs.readUe(&param->attr_offset_bits);
   bs.readSn(param->attr_offset_bits, &param->attr_offset);
@@ -215,11 +215,12 @@ parseAttrParamScaling(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
-writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
+writeAttrParamDefaultValue(
+  const AttributeDescription& desc, Bs& bs, const AttributeParameters& param)
 {
-  bs.writeUn(param.bitdepth, param.attr_default_value[0]);
-  for (int k = 1; k <= param.attr_num_dimensions_minus1; k++)
-    bs.writeUn(param.bitdepth, param.attr_default_value[k]);
+  bs.writeUn(desc.bitdepth, param.attr_default_value[0]);
+  for (int k = 1; k <= desc.attr_num_dimensions_minus1; k++)
+    bs.writeUn(desc.bitdepth, param.attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -227,13 +228,14 @@ writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamDefaultValue(Bs& bs, AttributeDescription* param)
+parseAttrParamDefaultValue(
+  const AttributeDescription& desc, Bs& bs, AttributeParameters* param)
 {
-  param->attr_default_value.resize(param->attr_num_dimensions_minus1 + 1);
+  param->attr_default_value.resize(desc.attr_num_dimensions_minus1 + 1);
 
-  bs.readUn(param->bitdepth, &param->attr_default_value[0]);
-  for (int k = 1; k <= param->attr_num_dimensions_minus1; k++)
-    bs.readUn(param->bitdepth, &param->attr_default_value[k]);
+  bs.readUn(desc.bitdepth, &param->attr_default_value[0]);
+  for (int k = 1; k <= desc.attr_num_dimensions_minus1; k++)
+    bs.readUn(desc.bitdepth, &param->attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -287,6 +289,91 @@ parseAttrParamOpaque(
   }
 
   return param;
+}
+
+//============================================================================
+// NB: this writes all present parameters, whereas parse parses only one
+// The encoder works in a fixed order.  However, this is non-normative.
+
+template<typename T>
+void
+writeAttributeParameters(
+  const AttributeDescription& attr, T& bs, const AttributeParameters& params)
+{
+  // NB: annoyingly num_attribute_parameters is coded as u(5) in sps, and
+  // as ue(v) in the attribute parameter inventory.  Becareful that there
+  // isn't a mismatch between the two.
+
+  if (!params.attr_default_value.empty()) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamDefaultValue(attr, bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kDefaultValue;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamDefaultValue(attr, bs, params);
+  }
+
+  if (params.cicpParametersPresent) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamCicp(bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kCicp;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamCicp(bs, params);
+  }
+
+  if (params.scalingParametersPresent) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamScaling(bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kScaling;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamScaling(bs, params);
+  }
+
+  for (const auto& param : params.opaqueParameters) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamOpaque(bsCounter, param);
+
+    bs.writeUn(8, param.attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamOpaque(bs, param);
+  }
+}
+
+//----------------------------------------------------------------------------
+
+template<typename T>
+void
+parseAttributeParameter(
+  const AttributeDescription& attr, T& bs, AttributeParameters& params)
+{
+  AttributeParameterType attr_param_type;
+  int attr_param_len;
+  bs.readUn(8, &attr_param_type);
+  bs.readUn(8, &attr_param_len);
+  // todo(df): check that all attr_param_len bytes are consumed
+  switch (attr_param_type) {
+    using Type = AttributeParameterType;
+  case Type::kCicp: parseAttrParamCicp(bs, &params); break;
+  case Type::kScaling: parseAttrParamScaling(bs, &params); break;
+  case Type::kDefaultValue:
+    parseAttrParamDefaultValue(attr, bs, &params);
+    break;
+
+  case Type::kItuT35:
+  case Type::kOid:
+  default:
+    params.opaqueParameters.emplace_back(
+      parseAttrParamOpaque(bs, attr_param_type, attr_param_len));
+  }
 }
 
 //============================================================================
@@ -353,57 +440,10 @@ write(const SequenceParameterSet& sps)
     else
       writeOid(bs, label.oid);
 
-    // Encode all of the attribute parameters.  The encoder works
-    // in the fixed order descrbed here.  However this is non-normative.
-    int num_attribute_parameters = attr.opaqueParameters.size();
-    num_attribute_parameters += attr.cicpParametersPresent;
-    num_attribute_parameters += attr.scalingParametersPresent;
-    num_attribute_parameters += !attr.attr_default_value.empty();
+    int num_attribute_parameters = attr.params.numParams();
     bs.writeUn(5, num_attribute_parameters);
     bs.byteAlign();
-
-    if (!attr.attr_default_value.empty()) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamDefaultValue(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kDefaultValue;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamDefaultValue(bs, attr);
-    }
-
-    if (attr.cicpParametersPresent) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamCicp(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kCicp;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamCicp(bs, attr);
-    }
-
-    if (attr.scalingParametersPresent) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamScaling(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kScaling;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamScaling(bs, attr);
-    }
-
-    for (const auto& param : attr.opaqueParameters) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamOpaque(bsCounter, param);
-
-      bs.writeUn(8, param.attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamOpaque(bs, param);
-    }
+    writeAttributeParameters(attr, bs, attr.params);
   }
 
   bs.writeUn(5, sps.frame_ctr_bits);
@@ -488,25 +528,8 @@ parseSps(const PayloadBuffer& buf)
     int num_attribute_parameters;
     bs.readUn(5, &num_attribute_parameters);
     bs.byteAlign();
-    for (int i = 0; i < num_attribute_parameters; i++) {
-      AttributeParameterType attr_param_type;
-      int attr_param_len;
-      bs.readUn(8, &attr_param_type);
-      bs.readUn(8, &attr_param_len);
-      // todo(df): check that all attr_param_len bytes are consumed
-      switch (attr_param_type) {
-        using Type = AttributeParameterType;
-      case Type::kCicp: parseAttrParamCicp(bs, &attr); break;
-      case Type::kScaling: parseAttrParamScaling(bs, &attr); break;
-      case Type::kDefaultValue: parseAttrParamDefaultValue(bs, &attr); break;
-
-      case Type::kItuT35:
-      case Type::kOid:
-      default:
-        attr.opaqueParameters.emplace_back(
-          parseAttrParamOpaque(bs, attr_param_type, attr_param_len));
-      }
-    }
+    for (int i = 0; i < num_attribute_parameters; i++)
+      parseAttributeParameter(attr, bs, attr.params);
   }
 
   bs.readUn(5, &sps.frame_ctr_bits);
@@ -1677,6 +1700,79 @@ convertXyzToStv(const SequenceParameterSet& sps, TileInventory* inventory)
     tile.tileOrigin = fromXyz(sps.geometry_axis_order, tile.tileOrigin);
     tile.tileSize = fromXyz(sps.geometry_axis_order, tile.tileSize);
   }
+}
+
+//============================================================================
+
+PayloadBuffer
+write(
+  const SequenceParameterSet& sps,
+  const AttributeParamInventoryHdr& inv,
+  const AttributeParameters& params)
+{
+  PayloadBuffer buf(PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitWriter(std::back_inserter(buf));
+
+  assert(inv.attr_param_seq_parameter_set_id == sps.sps_seq_parameter_set_id);
+  bs.writeUn(4, inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits = sps.frame_ctr_bits;
+  bs.writeUn(5, attr_param_frame_ctr_lsb_bits);
+  bs.writeUn(attr_param_frame_ctr_lsb_bits, inv.attr_param_frame_ctr_lsb);
+  bs.writeUe(inv.attr_param_sps_attr_idx);
+
+  int num_attr_parameters = params.numParams();
+  bs.writeUe(num_attr_parameters);
+  bs.byteAlign();
+
+  assert(inv.attr_param_sps_attr_idx < sps.attributeSets.size());
+  auto& desc = sps.attributeSets[inv.attr_param_sps_attr_idx];
+  writeAttributeParameters(desc, bs, params);
+
+  return buf;
+}
+
+//----------------------------------------------------------------------------
+
+AttributeParamInventoryHdr
+parseAttrParamInventoryHdr(const PayloadBuffer& buf)
+{
+  AttributeParamInventoryHdr inv;
+  assert(buf.type == PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUn(4, &inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits;
+  bs.readUn(5, &attr_param_frame_ctr_lsb_bits);
+  bs.readUn(attr_param_frame_ctr_lsb_bits, &inv.attr_param_frame_ctr_lsb);
+  bs.readUe(&inv.attr_param_sps_attr_idx);
+
+  return inv;
+}
+
+//----------------------------------------------------------------------------
+
+AttributeParameters&
+parseAttrParamInventory(
+  const AttributeDescription& attr,
+  const PayloadBuffer& buf,
+  AttributeParameters& params)
+{
+  AttributeParamInventoryHdr inv;
+  assert(buf.type == PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUn(4, &inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits;
+  bs.readUn(5, &attr_param_frame_ctr_lsb_bits);
+  bs.readUn(attr_param_frame_ctr_lsb_bits, &inv.attr_param_frame_ctr_lsb);
+  bs.readUe(&inv.attr_param_sps_attr_idx);
+
+  int num_attr_parameters;
+  bs.readUe(&num_attr_parameters);
+  for (auto i = 0; i < num_attr_parameters; i++)
+    parseAttributeParameter(attr, bs, params);
+
+  return params;
 }
 
 //============================================================================

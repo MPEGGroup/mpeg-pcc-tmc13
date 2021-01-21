@@ -185,6 +185,11 @@ PCCTMC3Decoder3::decompress(
     storeTileInventory(parseTileInventory(*buf));
     return 0;
 
+  case PayloadType::kGeneralizedAttrParamInventory:
+    // todo(df): store and process the inventory
+    parseAttrParamInventoryHdr(*buf);
+    return 0;
+
   case PayloadType::kUserData: parseUserData(*buf); return 0;
   }
 
@@ -299,9 +304,9 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
       });
 
     Vec3<attr_t> defAttrVal = 1 << (it->bitdepth - 1);
-    if (!it->attr_default_value.empty())
+    if (!it->params.attr_default_value.empty())
       for (int k = 0; k < 3; k++)
-        defAttrVal[k] = it->attr_default_value[k];
+        defAttrVal[k] = it->params.attr_default_value[k];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setColor(i, defAttrVal);
   }
@@ -313,8 +318,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
         return desc.attributeLabel == KnownAttributeLabel::kReflectance;
       });
     attr_t defAttrVal = 1 << (it->bitdepth - 1);
-    if (!it->attr_default_value.empty())
-      defAttrVal = it->attr_default_value[0];
+    if (!it->params.attr_default_value.empty())
+      defAttrVal = it->params.attr_default_value[0];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setReflectance(i, defAttrVal);
   }
@@ -511,13 +516,13 @@ PCCTMC3Decoder3::decodeConstantAttribute(const PayloadBuffer& buf)
   if (label == KnownAttributeLabel::kColour) {
     Vec3<attr_t> defAttrVal;
     for (int k = 0; k < 3; k++)
-      defAttrVal[k] = attrDesc.attr_default_value[k];
+      defAttrVal[k] = attrDesc.params.attr_default_value[k];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setColor(i, defAttrVal);
   }
 
   if (label == KnownAttributeLabel::kReflectance) {
-    attr_t defAttrVal = attrDesc.attr_default_value[0];
+    attr_t defAttrVal = attrDesc.params.attr_default_value[0];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setReflectance(i, defAttrVal);
   }

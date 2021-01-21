@@ -841,12 +841,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Attribute bitdepth")
 
   ("defaultValue",
-    params_attr.desc.attr_default_value, {},
+    params_attr.desc.params.attr_default_value, {},
     "Default attribute component value(s) in case of data omission")
 
   // todo(df): this should be per-attribute
   ("colourMatrix",
-    params_attr.desc.cicp_matrix_coefficients_idx, ColourMatrix::kBt709,
+    params_attr.desc.params.cicp_matrix_coefficients_idx, ColourMatrix::kBt709,
     "Matrix used in colourspace conversion\n"
     "  0: none (identity)\n"
     "  1: ITU-T BT.709\n"
@@ -1201,16 +1201,17 @@ sanitizeEncoderOpts(
 
     // default values for attribute
     attr_sps.attr_instance_id = 0;
-    attr_sps.cicp_colour_primaries_idx = 2;
-    attr_sps.cicp_transfer_characteristics_idx = 2;
-    attr_sps.cicp_video_full_range_flag = true;
-    attr_sps.cicpParametersPresent = false;
-    attr_sps.attr_offset = 0;
-    attr_sps.attr_offset_bits = 0;
-    attr_sps.attr_scale = 1;
-    attr_sps.attr_scale_bits = 1;
-    attr_sps.attr_frac_bits = 0;
-    attr_sps.scalingParametersPresent = false;
+    auto& attrMeta = attr_sps.params;
+    attrMeta.cicp_colour_primaries_idx = 2;
+    attrMeta.cicp_transfer_characteristics_idx = 2;
+    attrMeta.cicp_video_full_range_flag = true;
+    attrMeta.cicpParametersPresent = false;
+    attrMeta.attr_offset = 0;
+    attrMeta.attr_offset_bits = 0;
+    attrMeta.attr_scale = 1;
+    attrMeta.attr_scale_bits = 1;
+    attrMeta.attr_frac_bits = 0;
+    attrMeta.scalingParametersPresent = false;
 
     if (it.first == "reflectance") {
       // Avoid wasting bits signalling chroma quant step size for reflectance
@@ -1218,7 +1219,7 @@ sanitizeEncoderOpts(
       attr_enc.abh.attr_layer_qp_delta_chroma.clear();
 
       // There is no matrix for reflectace
-      attr_sps.cicp_matrix_coefficients_idx = ColourMatrix::kUnspecified;
+      attrMeta.cicp_matrix_coefficients_idx = ColourMatrix::kUnspecified;
       attr_sps.attr_num_dimensions_minus1 = 0;
       attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
     }
@@ -1226,20 +1227,20 @@ sanitizeEncoderOpts(
     if (it.first == "color") {
       attr_sps.attr_num_dimensions_minus1 = 2;
       attr_sps.attributeLabel = KnownAttributeLabel::kColour;
-      attr_sps.cicpParametersPresent = true;
+      attrMeta.cicpParametersPresent = true;
     }
 
     // Assume that YCgCo is actually YCgCoR for now
     // This requires an extra bit to represent chroma (luma will have a
     // reduced range)
-    if (attr_sps.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
+    if (attrMeta.cicp_matrix_coefficients_idx == ColourMatrix::kYCgCo)
       attr_sps.bitdepth++;
 
     // Extend the default attribute value to the correct width if present
-    if (!attr_sps.attr_default_value.empty())
-      attr_sps.attr_default_value.resize(
+    if (!attrMeta.attr_default_value.empty())
+      attrMeta.attr_default_value.resize(
         attr_sps.attr_num_dimensions_minus1 + 1,
-        attr_sps.attr_default_value.back());
+        attrMeta.attr_default_value.back());
 
     // In order to simplify specification of dist2 values, which are
     // depending on the scale of the coded point cloud, the following
@@ -1778,7 +1779,7 @@ convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
   if (!attrDesc)
     return;
 
-  switch (attrDesc->cicp_matrix_coefficients_idx) {
+  switch (attrDesc->params.cicp_matrix_coefficients_idx) {
   case ColourMatrix::kBt709: convertYCbCrBt709ToGbr(cloud); break;
 
   case ColourMatrix::kYCgCo:
@@ -1800,7 +1801,7 @@ convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
   if (!attrDesc)
     return;
 
-  switch (attrDesc->cicp_matrix_coefficients_idx) {
+  switch (attrDesc->params.cicp_matrix_coefficients_idx) {
   case ColourMatrix::kBt709: convertGbrToYCbCrBt709(cloud); break;
 
   case ColourMatrix::kYCgCo:
