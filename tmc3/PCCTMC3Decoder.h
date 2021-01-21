@@ -90,7 +90,7 @@ private:
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
   void decodeConstantAttribute(const PayloadBuffer& buf);
-  bool frameIdxChanged(const GeometryBrickHeader& gbh) const;
+  bool frameCtrChanged(const GeometryBrickHeader& gbh) const;
 
   //==========================================================================
 
@@ -108,8 +108,8 @@ private:
   // Identifies the previous slice in bistream order
   int _prevSliceId;
 
-  // The last decoded frame_idx
-  int _currentFrameIdx;
+  // The last decoded frame_ctr
+  int _currentFrameCtr;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;

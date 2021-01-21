@@ -335,8 +335,8 @@ struct SequenceParameterSet {
   // NB: attributeSets.size() = num_attribute_sets
   std::vector<AttributeDescription> attributeSets;
 
-  // The number of bits to use for frame_idx
-  int frame_idx_bits;
+  // The number of bits to use for frame_ctr
+  int frame_ctr_bits;
 
   // The number of bits to use for slice_tag
   int slice_tag_bits;
@@ -481,7 +481,9 @@ struct GeometryBrickHeader {
   int geom_geom_parameter_set_id;
   int slice_tag;
   int geom_slice_id;
-  int frame_idx;
+
+  // The LSBs of the system frame counter
+  int frame_ctr_lsb;
 
   // Origin of the reconstructed geometry, relative to sequence bounding box
   // (in stv axis order).
@@ -764,10 +766,10 @@ struct TileInventory {
   int ti_seq_parameter_set_id;
 
   // Number of bits for frame idx
-  int ti_frame_idx_bits;
+  int ti_frame_ctr_bits;
 
   // Frame idx when tile inventory comes into force
-  int ti_frame_idx;
+  int ti_frame_ctr;
 
   // Number of bits, if any, used to signal tile_id
   int tile_id_bits;

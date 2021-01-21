@@ -193,7 +193,7 @@ private:
   int _tileId;
 
   // Current frame number.
-  // NB: only the log2_max_frame_idx LSBs are sampled for frame_idx
+  // NB: only the log2_max_frame_ctr LSBs are sampled for frame_ctr
   int _frameCounter;
 
   // Memorized context buffers

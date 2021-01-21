@@ -400,7 +400,7 @@ write(const SequenceParameterSet& sps)
     }
   }
 
-  bs.writeUn(5, sps.frame_idx_bits);
+  bs.writeUn(5, sps.frame_ctr_bits);
   bs.writeUn(5, sps.slice_tag_bits);
   bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
@@ -503,7 +503,7 @@ parseSps(const PayloadBuffer& buf)
     }
   }
 
-  bs.readUn(5, &sps.frame_idx_bits);
+  bs.readUn(5, &sps.frame_ctr_bits);
   bs.readUn(5, &sps.slice_tag_bits);
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
@@ -1018,7 +1018,7 @@ write(
   bs.writeUn(3, gbh_reserved_zero_3bits);
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.slice_tag_bits, gbh.slice_tag);
-  bs.writeUn(sps.frame_idx_bits, gbh.frame_idx);
+  bs.writeUn(sps.frame_ctr_bits, gbh.frame_ctr_lsb);
 
   if (sps.entropy_continuation_enabled_flag) {
     bs.write(gbh.entropy_continuation_flag);
@@ -1118,7 +1118,7 @@ parseGbh(
   bs.readUn(3, &gbh_reserved_zero_3bits);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.slice_tag_bits, &gbh.slice_tag);
-  bs.readUn(sps.frame_idx_bits, &gbh.frame_idx);
+  bs.readUn(sps.frame_ctr_bits, &gbh.frame_ctr_lsb);
 
   gbh.entropy_continuation_flag = false;
   if (sps.entropy_continuation_enabled_flag) {
@@ -1543,8 +1543,8 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
 
   bs.writeUn(4, inventory.ti_seq_parameter_set_id);
 
-  bs.writeUn(5, inventory.ti_frame_idx_bits);
-  bs.writeUn(inventory.ti_frame_idx_bits, inventory.ti_frame_idx);
+  bs.writeUn(5, inventory.ti_frame_ctr_bits);
+  bs.writeUn(inventory.ti_frame_ctr_bits, inventory.ti_frame_ctr);
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
@@ -1603,8 +1603,8 @@ parseTileInventory(const PayloadBuffer& buf)
 
   bs.readUn(4, &inventory.ti_seq_parameter_set_id);
 
-  bs.readUn(5, &inventory.ti_frame_idx_bits);
-  bs.readUn(inventory.ti_frame_idx_bits, &inventory.ti_frame_idx);
+  bs.readUn(5, &inventory.ti_frame_ctr_bits);
+  bs.readUn(inventory.ti_frame_ctr_bits, &inventory.ti_frame_ctr);
 
   int num_tiles;
   bs.readUn(16, &num_tiles);

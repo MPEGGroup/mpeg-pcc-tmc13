@@ -238,8 +238,8 @@ PCCTMC3Encoder3::compress(
       numBits(inventory.origin.abs().max()) - 1;
 
     // The inventory comes into force on the first frame
-    inventory.ti_frame_idx_bits = _sps->frame_idx_bits;
-    inventory.ti_frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
+    inventory.ti_frame_ctr_bits = _sps->frame_ctr_bits;
+    inventory.ti_frame_ctr = _frameCounter & ((1 << _sps->frame_ctr_bits) - 1);
 
     // Determine the number of bits for encoding tile sizes
     int maxValOrigin = 1;
@@ -400,7 +400,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     params->sps.entropy_continuation_enabled_flag;
 
   // use one bit to indicate frame boundaries
-  params->sps.frame_idx_bits = 1;
+  params->sps.frame_ctr_bits = 1;
 
   // number of bits for slice tag (tileid) if tiles partitioning enabled
   // NB: the limit of 64 tiles is arbritrary
@@ -681,7 +681,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.prev_slice_id = _prevSliceId;
   // NB: slice_tag could be set to some other (external) meaningful value
   gbh.slice_tag = std::max(0, _tileId);
-  gbh.frame_idx = _frameCounter & ((1 << _sps->frame_idx_bits) - 1);
+  gbh.frame_ctr_lsb = _frameCounter & ((1 << _sps->frame_ctr_bits) - 1);
   gbh.geomBoxOrigin = _sliceOrigin;
   gbh.gbhAngularOrigin = _gps->gpsAngularOrigin - _sliceOrigin;
   gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;

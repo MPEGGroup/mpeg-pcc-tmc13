@@ -67,7 +67,7 @@ void
 PCCTMC3Decoder3::init()
 {
   _firstSliceInFrame = true;
-  _currentFrameIdx = -1;
+  _currentFrameCtr = -1;
   _sps = nullptr;
   _gps = nullptr;
   _spss.clear();
@@ -152,13 +152,13 @@ PCCTMC3Decoder3::decompress(
     // todo(df): if no sps is activated ...
     callback->onOutputCloud(*_sps, _accumCloud);
     _accumCloud.clear();
-    _currentFrameIdx = -1;
+    _currentFrameCtr = -1;
     _attrDecoder.reset();
     return 0;
 
   case PayloadType::kGeometryBrick:
     activateParameterSets(parseGbhIds(*buf));
-    if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr, nullptr))) {
+    if (frameCtrChanged(parseGbh(*_sps, *_gps, *buf, nullptr, nullptr))) {
       callback->onOutputCloud(*_sps, _accumCloud);
       _accumCloud.clear();
       _firstSliceInFrame = true;
@@ -226,12 +226,12 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 //==========================================================================
 
 bool
-PCCTMC3Decoder3::frameIdxChanged(const GeometryBrickHeader& gbh) const
+PCCTMC3Decoder3::frameCtrChanged(const GeometryBrickHeader& gbh) const
 {
   // dont treat the first frame in the sequence as a frame boundary
-  if (_currentFrameIdx < 0)
+  if (_currentFrameCtr < 0)
     return false;
-  return _currentFrameIdx != gbh.frame_idx;
+  return _currentFrameCtr != gbh.frame_ctr_lsb;
 }
 
 //==========================================================================
@@ -281,7 +281,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _prevSliceId = _sliceId;
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
-  _currentFrameIdx = _gbh.frame_idx;
+  _currentFrameCtr = _gbh.frame_ctr_lsb;
 
   // sanity check for loss detection
   if (_gbh.entropy_continuation_flag) {
