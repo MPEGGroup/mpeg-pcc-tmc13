@@ -1060,7 +1060,7 @@ computeNearestNeighborsScalable(
   std::vector<Box3<int32_t>>& bBoxes,
   MortonIndexMap3d& atlas)
 {
-  const int32_t shiftBits = nodeSizeLog2;
+  const int32_t shiftBits = 1 + nodeSizeLog2;
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize = atlas.cubeSizeLog2();
   const int32_t atlasBits = 3 * log2CubeSize;
