@@ -692,10 +692,11 @@ Applies to `transformType=2` and `attribute=color` only.
 
 ### `--intraLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours within the same level of detail.
+The value -1 configures a full-range search.
 
 ### `--interLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours between different levels of
-detail.
+detail.  The value -1 configures a full-range search.
 
 ### `--max_num_direct_predictors=INT-VALUE`
 Maximum number of nearest neighbour candidates used in direct

@@ -499,6 +499,24 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     attr_aps.aps_slice_dist2_deltas_present_flag =
       attr_aps.lodParametersPresent();
 
+    // If the lod search ranges are negative, use a full-range search
+    // todo(df): lookup level limit
+    if (attr_aps.inter_lod_search_range < 0)
+      attr_aps.inter_lod_search_range = 1100000;
+
+    if (attr_aps.intra_lod_search_range < 0)
+      attr_aps.intra_lod_search_range = 1100000;
+
+    // If all intra prediction layers are skipped, don't signal a search range
+    if (
+      attr_aps.intra_lod_prediction_skip_layers
+      > attr_aps.maxNumDetailLevels())
+      attr_aps.intra_lod_search_range = 0;
+
+    // If there are no refinement layers, don't signal an inter search range
+    if (attr_aps.maxNumDetailLevels() == 1)
+      attr_aps.inter_lod_search_range = 0;
+
     // the encoder options may not specify sufficient offsets for the number
     // of layers used by the sytax: extend with last value as appropriate
     int numLayers = std::max(

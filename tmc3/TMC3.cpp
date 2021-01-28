@@ -964,12 +964,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Applies to transformType=0 only")
 
   ("intraLodSearchRange",
-    params_attr.aps.intra_lod_search_range, 0,
-    "Intra LoD nearest neighbor search range")
+    params_attr.aps.intra_lod_search_range, -1,
+    "Intra LoD nearest neighbor search range.\n"
+    " -1: Full-range")
 
   ("interLodSearchRange",
-    params_attr.aps.inter_lod_search_range, 0,
-    "Inter LoD nearest neighbor search range")
+    params_attr.aps.inter_lod_search_range, -1,
+    "Inter LoD nearest neighbor search range.\n"
+    " -1: Full-range")
 
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
