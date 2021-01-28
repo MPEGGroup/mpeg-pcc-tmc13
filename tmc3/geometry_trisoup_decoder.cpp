@@ -161,52 +161,29 @@ truncate(const Vec3<int64_t> in, const int32_t offset)
 }
 
 //---------------------------------------------------------------------------
-// An integer approximation of atan2().
-// x, y, and the returned result are fixed-point integers with
-// kTrisoupFpBits fractional bits
 
 int32_t
-trisoupAtan2(int32_t x, int32_t y)
+trisoupVertexArc(int32_t x, int32_t y, int32_t halfWidth)
 {
-  assert(x != 0 && y != 0);
-  if (y == 0) {
-    if (x < 0)
-      return 804;  // PI * (1<< kTrisoupFpBits)
-    else
-      return 0;
-  } else if (x == 0) {
-    if (y > 0)
-      return 402;  // (PI/2)   * (1<< kTrisoupFpBits)
-    else
-      return 1206;  // (PI*3/2) * (1<< kTrisoupFpBits)
-  } else {
-    int idx = 0;
-    int z = abs((y << 8) / x);  //rad is calc in (x>0 && y>0) domain
-    if (z <= 256) {             //1<<kTrisoupFpBits
-      idx = z / 12;             //0.05<<kTrisoupFpBits
-    } else {
-      idx = z > 40 ? 40 : z;
+  int32_t score;
+
+  if (x >= halfWidth) {
+    score = y;
+    if (y < 0) {
+      score += (halfWidth * 8);
     }
-
-    static const int kAtanLut[41] = {
-      0,   12,  25,  38,  50,  62,  74,  86,  97,  108, 118, 128, 138, 147,
-      156, 164, 172, 180, 187, 194, 201, 283, 319, 339, 351, 359, 365, 370,
-      373, 376, 378, 380, 382, 383, 385, 386, 387, 387, 388, 389, 389};
-    int atan = kAtanLut[idx];
-
-    //offset
-    if (x < 0 && y > 0)
-      atan += 402;  // + PI/2
-    else if (x < 0 && y < 0)
-      atan += 804;  // + PI
-    else if (x > 0 && y < 0)
-      atan += 1206;  // + PI*3/2
-    return atan;
+  } else if (y >= halfWidth) {
+    score = -x + (halfWidth * 2);
+  } else if (x <= -halfWidth) {
+    score = -y + (halfWidth * 4);
+  } else {
+    score = x + (halfWidth * 6);
   }
+
+  return score;
 }
 
 //---------------------------------------------------------------------------
-
 bool
 boundaryinsidecheck(const Vec3<int32_t> a, const int bbsize)
 {
@@ -456,20 +433,21 @@ decodeTrisoupCommon(
     Vec3<int32_t> blockCenter = {bc[0] << kTrisoupFpBits,
                                  bc[1] << kTrisoupFpBits,
                                  bc[2] << kTrisoupFpBits};
+    int32_t halfWidth = (blockWidth / 2) << kTrisoupFpBits;
     for (int j = 0; j < leafVertices.size(); j++) {
-      Vec3<int32_t> S = leafVertices[j].pos - blockCenter;
+      Vec3<int32_t> s = leafVertices[j].pos - blockCenter;
       switch (dominantAxis) {
       case 0:  // dominant axis is X so project into YZ plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[2], S[1]);
-        leafVertices[j].tiebreaker = S[0];
+        leafVertices[j].theta = trisoupVertexArc(s[2], s[1], halfWidth);
+        leafVertices[j].tiebreaker = s[0];
         break;
       case 1:  // dominant axis is Y so project into XZ plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[2], S[0]);
-        leafVertices[j].tiebreaker = S[1];
+        leafVertices[j].theta = trisoupVertexArc(s[2], s[0], halfWidth);
+        leafVertices[j].tiebreaker = s[1];
         break;
       case 2:  // dominant axis is Z so project into XY plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[1], S[0]);
-        leafVertices[j].tiebreaker = S[2];
+        leafVertices[j].theta = trisoupVertexArc(s[1], s[0], halfWidth);
+        leafVertices[j].tiebreaker = s[2];
         break;
       }
     }
