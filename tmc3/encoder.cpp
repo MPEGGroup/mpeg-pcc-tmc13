@@ -183,7 +183,10 @@ PCCTMC3Encoder3::compress(
 
       // todo(df): handle the single laser case better
       Box3<int> sphBox{0, {r, twoPi, maxLaserIdx}};
-      auto attr_coord_scale = normalisedAxesWeights(sphBox);
+      int refScale = params->gps.azimuth_scaling_enabled_flag
+        ? params->attrSphericalMaxLog2
+        : 0;
+      auto attr_coord_scale = normalisedAxesWeights(sphBox, refScale);
       for (auto& aps : params->aps)
         if (aps.spherical_coord_flag)
           aps.attr_coord_scale = attr_coord_scale;

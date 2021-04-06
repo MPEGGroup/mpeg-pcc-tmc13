@@ -71,14 +71,35 @@ convertXyzToRpl(
 //----------------------------------------------------------------------------
 
 Vec3<int>
-normalisedAxesWeights(Box3<int>& bbox)
+normalisedAxesWeights(Box3<int>& bbox, int forcedMaxLog2)
 {
   auto width = bbox.max - bbox.min + 1;
   auto maxWidth = width.max();
 
+  // Otherwise morton code would overflow
+  assert(maxWidth < 1 << (21 + 8));
+
+  bool underflow = false;
+  if (forcedMaxLog2 > 0) {
+    for (int k = 0; k < 3; k++)
+      if (width[k] > 1 << (forcedMaxLog2 + 8)) {
+        std::cerr << "Warning: normalizedAxesWeight[" << k << "] underflow\n";
+        underflow = true;
+      }
+
+    while (maxWidth > 1 << (forcedMaxLog2 + 8))
+      ++forcedMaxLog2;
+
+    if (underflow)
+      std::cerr << "Using " << forcedMaxLog2 << " scaling instead\n";
+    maxWidth = 1 << forcedMaxLog2;
+  }
+
+  maxWidth = std::min(1 << 21, maxWidth);
+
   Vec3<int> axesWeight;
   for (int k = 0; k < 3; k++)
-    axesWeight[k] = divApprox(maxWidth, width[k], 8);
+    axesWeight[k] = (maxWidth << 8) / width[k];
 
   return axesWeight;
 }

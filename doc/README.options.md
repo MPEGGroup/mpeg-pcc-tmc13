@@ -599,6 +599,11 @@ Step size used to linearly model progression of per-laser azimuthal angles
 during angular predictive geometry coding.
 Requires `angularEnabled=1`.
 
+### `--predGeomAzimuthQuantization=1|0`
+Controls the use of radius dependent azimuth quantization in predictive
+geometry coding.
+Requires `angularEnabled=1` and `geomTreeType=1`.
+
 ### `--pointCountMetadata=0|1`
 Controls the addition of per octree layer point count metadata to each
 geometry slice.
@@ -805,6 +810,18 @@ decoding order) is usable only with LoD attribute coding and
 ### `--spherical_coord_flag=0|1`
 Controls the conversion of point co-ordinates used in attribute coding from
 the Cartesian domain to a scaled spherical domain.
+
+### `--attrSphericalMaxLog2=INT-VALUE`
+Override spherical co-ordinate normalization factor.  This may be used to
+compensate any increased azimuth resolution when
+`predGeomAzimuthQuantization=1`.
+
+  | Value | Description                        |
+  |:-----:| ---------------------------------- |
+  | 0     | Automatic calculation              |
+  | 1     | Override max value                 |
+
+Applies when `angularEnabled=1` and `predGeomAzimuthQuantization=1`.
 
 ### `--lod_neigh_bias=INT-VALUE-LIST`
 A set of three bias factors corresponding to the first, second and third

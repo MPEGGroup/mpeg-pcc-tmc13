@@ -51,7 +51,8 @@ Box3<int> convertXyzToRpl(
   Vec3<int>* dst);
 
 // Determines axes weights to normalise the axes of a bounding box.
-Vec3<int> normalisedAxesWeights(Box3<int>& bbox);
+// forcedMaxLog2 > 0 allows a normalisation factor to be specified.
+Vec3<int> normalisedAxesWeights(Box3<int>& bbox, int forcedMaxLog2);
 
 // Offsets and weights points in the range [begin, end).
 void offsetAndScale(

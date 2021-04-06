@@ -614,6 +614,16 @@ PCCClip(const int64_t& n, const int64_t& lower, const int64_t& upper)
 }
 
 //---------------------------------------------------------------------------
+// Integer division of @x by 2^shift, truncating towards zero.
+
+template<typename T>
+inline T
+divExp2(T x, int shift)
+{
+  return x >= 0 ? x >> shift : -(-x >> shift);
+}
+
+//---------------------------------------------------------------------------
 // Integer division of @x by 2^shift, rounding intermediate half values
 // to +Inf.
 
@@ -700,6 +710,34 @@ divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
 
 //---------------------------------------------------------------------------
 
+template<unsigned NIter = 1>
+inline int64_t
+recipApprox(int64_t b, int32_t& log2Scale)
+{
+  int log2ScaleOffset = 0;
+  int32_t log2bPlusOne = ilog2(uint64_t(b)) + 1;
+
+  if (log2bPlusOne > 31) {
+    b >>= log2bPlusOne - 31;
+    log2ScaleOffset -= log2bPlusOne - 31;
+  }
+
+  if (log2bPlusOne < 31) {
+    b <<= 31 - log2bPlusOne;
+    log2ScaleOffset += 31 - log2bPlusOne;
+  }
+
+  // Initial approximation: 48/17 - 32/17 * b with 28 bits decimal prec
+  int64_t bRecip = ((0x2d2d2d2dLL << 31) - 0x1e1e1e1eLL * b) >> 28;
+  for (unsigned i = 0; i < NIter; ++i)
+    bRecip += bRecip * ((1LL << 31) - (b * bRecip >> 31)) >> 31;
+
+  log2Scale = (31 << 1) - log2ScaleOffset;
+  return bRecip;
+}
+
+//---------------------------------------------------------------------------
+
 inline Vec3<int64_t>
 divApprox(const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
 {
@@ -747,11 +785,9 @@ isin0(const int32_t x, const int32_t log2Scale)
   const auto b = (1 << ds);
   const auto i0 = (x >> ds);
   const auto x0 = i0 << ds;
-  const auto x1 = x0 + b;
-  const auto d0 = x1 - x;
   const auto d1 = x - x0;
   assert(i0 <= (1 << kLog2ISineAngleScale) >> 2);
-  return (d0 * kISine[i0] + d1 * kISine[i0 + 1] + (b >> 1)) >> ds;
+  return kISine[i0] + ((d1 * (kISine[i0 + 1] - kISine[i0]) + (b >> 1)) >> ds);
 }
 
 //---------------------------------------------------------------------------

@@ -135,6 +135,10 @@ struct EncoderParams {
 
   // Qp used for IDCM quantisation (used to derive HLS values)
   int idcmQp;
+
+  // precision expected for attributes after scaling with predgeom
+  // and spherical coordinates
+  int attrSphericalMaxLog2;
 };
 
 //============================================================================

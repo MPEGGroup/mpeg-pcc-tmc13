@@ -533,6 +533,9 @@ struct GeometryParameterSet {
   // Indicates that the geometry footer contains a count of point
   // in each octree level.
   bool octree_point_count_list_present_flag;
+
+  // Quantize azimuth residuals in algular predictive geometry coder.
+  bool azimuth_scaling_enabled_flag;
 };
 
 //============================================================================
