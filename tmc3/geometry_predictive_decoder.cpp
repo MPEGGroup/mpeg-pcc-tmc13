@@ -93,12 +93,15 @@ private:
   Vec3<int32_t> origin;
   int _numLasers;
   SphericalToCartesian _sphToCartesian;
+  bool _geomAdaptiveAzimuthalQuantization;
   int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
   int _geom_qp_multiplier_log2;
   int _sliceQp;
   int _qpOffsetInterval;
+
+  int _geom_angular_azimuth_scale_log2;
 
   Vec3<int> _pgeom_resid_abs_log2_bits;
 
@@ -119,11 +122,13 @@ PredGeomDecoder::PredGeomDecoder(
   , origin()
   , _numLasers(gps.geom_angular_num_lidar_lasers())
   , _sphToCartesian(gps)
+  , _geomAdaptiveAzimuthalQuantization(gps.predgeom_adaptive_azimuthal_quantization)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
+  , _geom_angular_azimuth_scale_log2(gps.geom_angular_azimuth_scale_log2)
   , _minVal(gbh.pgeom_min_radius)
 {
   if (gps.geom_scaling_enabled_flag) {
@@ -344,6 +349,15 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     if (_geom_angular_mode_enabled_flag)
       if (mode >= 0)
         pred[1] += qphi * _geomAngularAzimuthSpeed;
+
+    if (_geom_angular_mode_enabled_flag && _geomAdaptiveAzimuthalQuantization) {
+      auto rec_radius_scaling = pred[0] + residual[0] << 3; // ~r*2*pi
+      if (!rec_radius_scaling) rec_radius_scaling = 1;
+      int32_t inv_r_logScale;
+      int64_t inv_r = invApproxRefined(rec_radius_scaling, inv_r_logScale);
+      residual[1] = residual[1] >= 0 ? residual[1] * inv_r >> inv_r_logScale - _geom_angular_azimuth_scale_log2
+                                     : -(-residual[1] * inv_r >> inv_r_logScale - _geom_angular_azimuth_scale_log2);
+    }
 
     auto pos = pred + residual;
     if (!_geom_angular_mode_enabled_flag)

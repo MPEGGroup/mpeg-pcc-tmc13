@@ -798,6 +798,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.planar_buffer_disabled_flag, false,
     "Disable planar buffer (when angular mode is enabled)")
 
+  ("predgeomAttributesSphericalScalingLog2",
+    params.encoder.predgeomAttributesSphericalScalingLog2, 17,
+    "Scale to use for spherical coordinates in attribute coding when using"
+    " predictive geometry coding"
+  )
+
+  ("predgeomAdaptiveAzimuthalQuantization",
+    params.encoder.gps.predgeom_adaptive_azimuthal_quantization, true,
+    "Enable adaptive quantization of azimuthal angle in predictive geometry coding"
+  )
+
   ("positionAzimuthScaleLog2",
     params.encoder.gps.geom_angular_azimuth_scale_log2, 17,
     "Scale factor applied to azimuth angle in predictive geometry coding")

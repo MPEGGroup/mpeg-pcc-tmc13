@@ -670,6 +670,32 @@ divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
 
 //---------------------------------------------------------------------------
 
+template <uint NIter=1>
+inline int64_t
+invApproxRefined(const uint64_t b, int32_t& log2Scale)
+{
+  int log2ScaleOffset = 0;
+  int32_t log2bPlusOne = ilog2(b) + 1;
+  int64_t B = b;
+  if (log2bPlusOne > 31) {
+    B >>= log2bPlusOne - 31;
+    log2ScaleOffset -= log2bPlusOne - 31;
+    log2bPlusOne = 31;
+  }
+  if (log2bPlusOne < 31) {
+    B <<= 31 - log2bPlusOne;
+    log2ScaleOffset += 31 - log2bPlusOne;
+    log2bPlusOne = 31;
+  }
+  int64_t invB = (0x2d2d2d2dLL<<31) - 0x1e1e1e1eLL*B >> 28; // 48/17 - 32/17*B with 28 bits decimal prec
+  for(uint i = 0; i < NIter; ++i)
+    invB = invB + (invB * ((1LL<<31) - (B * invB>>31))>>31);
+  log2Scale = (31<<1) - log2ScaleOffset;
+  return invB;
+}
+
+//---------------------------------------------------------------------------
+
 inline Vec3<int64_t>
 divApprox(const Vec3<int64_t> a, const uint64_t b, const int32_t log2Scale)
 {
@@ -717,11 +743,9 @@ isin0(const int32_t x, const int32_t log2Scale)
   const auto b = (1 << ds);
   const auto i0 = (x >> ds);
   const auto x0 = i0 << ds;
-  const auto x1 = x0 + b;
-  const auto d0 = x1 - x;
   const auto d1 = x - x0;
   assert(i0 <= (1 << kLog2ISineAngleScale) >> 2);
-  return (d0 * kISine[i0] + d1 * kISine[i0 + 1] + (b >> 1)) >> ds;
+  return kISine[i0] + (d1 * (kISine[i0 + 1] - kISine[i0]) + (b >> 1) >> ds);
 }
 
 //---------------------------------------------------------------------------

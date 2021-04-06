@@ -152,7 +152,12 @@ PCCTMC3Encoder3::compress(
 
       // todo(df): handle the single laser case better
       Box3<int> sphBox{0, {r, twoPi, maxLaserIdx}};
-      auto attr_coord_scale = normalisedAxesWeights(sphBox);
+      pcc::point_t attr_coord_scale;
+      if (params->gps.predgeom_enabled_flag && params->gps.predgeom_adaptive_azimuthal_quantization) {
+        attr_coord_scale = normalisedAxesWeights(sphBox, params->predgeomAttributesSphericalScalingLog2);
+      }
+      else
+        attr_coord_scale = normalisedAxesWeights(sphBox);
       for (auto& aps : params->aps)
         if (aps.spherical_coord_flag)
           aps.attr_coord_scale = attr_coord_scale;
