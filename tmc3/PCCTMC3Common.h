@@ -507,6 +507,32 @@ computeQuantizationWeightsScalable(
 
 //---------------------------------------------------------------------------
 
+inline void
+computeQuantizationWeights(
+  const std::vector<PCCPredictor>& predictors,
+  std::vector<int64_t>& quantizationWeights,
+  Vec3<int32_t> neighWeight)
+{
+  const size_t pointCount = predictors.size();
+  quantizationWeights.resize(pointCount);
+  for (size_t i = 0; i < pointCount; ++i) {
+    quantizationWeights[i] = (1 << kFixedPointWeightShift);
+  }
+  for (size_t i = 0; i < pointCount; ++i) {
+    const size_t predictorIndex = pointCount - i - 1;
+    const auto& predictor = predictors[predictorIndex];
+    const auto currentQuantWeight = quantizationWeights[predictorIndex];
+    for (size_t j = 0; j < predictor.neighborCount; ++j) {
+      const size_t neighborPredIndex = predictor.neighbors[j].predictorIndex;
+      auto& neighborQuantWeight = quantizationWeights[neighborPredIndex];
+      neighborQuantWeight += divExp2RoundHalfInf(
+        neighWeight[j] * currentQuantWeight, kFixedPointWeightShift);
+    }
+  }
+}
+
+//---------------------------------------------------------------------------
+
 inline point_t
 clacIntermediatePosition(
   bool enabled, int32_t nodeSizeLog2, const point_t& point)

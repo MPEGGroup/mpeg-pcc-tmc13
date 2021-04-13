@@ -931,8 +931,15 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
-  bool aps_extension_flag = false;
+  // NB: bitstreams conforming to the first edition must set
+  // aps_extension_flag equal to 0.
+  bool aps_extension_flag = sps.profile.isDraftProfile();
   bs.write(aps_extension_flag);
+  if (aps_extension_flag) {
+    for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
+      bs.writeUe(aps.quant_neigh_weight[i]);
+  }
+
   bs.byteAlign();
 
   return buf;
@@ -1003,6 +1010,7 @@ parseAps(const PayloadBuffer& buf)
 
   aps.pred_weight_blending_enabled_flag = false;
   aps.intra_lod_prediction_skip_layers = aps.kSkipAllLayers;
+  aps.quant_neigh_weight = 0;
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.max_num_direct_predictors);
     aps.adaptive_prediction_threshold = 0;
@@ -1041,8 +1049,10 @@ parseAps(const PayloadBuffer& buf)
 
   bool aps_extension_flag = bs.read();
   if (aps_extension_flag) {
-    // todo(df): aps_extension_data;
-    assert(!aps_extension_flag);
+    if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+      for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
+        bs.readUe(&aps.quant_neigh_weight[i]);
+    }
   }
   bs.byteAlign();
 

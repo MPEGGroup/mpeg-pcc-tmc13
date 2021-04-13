@@ -36,7 +36,6 @@
 #pragma once
 
 #include "PCCMath.h"
-
 #include <cstdint>
 #include <ostream>
 #include <vector>
@@ -665,6 +664,9 @@ struct AttributeParameterSet {
   int adaptive_prediction_threshold;
   int intra_lod_search_range;
   int inter_lod_search_range;
+
+  // Neighbour contribution weights used to calculate quantization weights
+  Vec3<uint32_t> quant_neigh_weight;
 
   int adaptivePredictionThreshold(const AttributeDescription& desc) const
   {

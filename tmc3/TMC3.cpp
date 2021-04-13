@@ -1134,6 +1134,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
       params_attr.encoder.abh.attr_layer_qp_delta_chroma, {},
       "Attribute's per layer chroma QP offsets")
 
+  ("quantNeighWeight",
+    params_attr.aps.quant_neigh_weight, {16, 8, 4},
+    "Factors used to derive quantization weights (transformType=1)")
+
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.
   (po::Section("Recolouring"))

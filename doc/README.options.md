@@ -830,6 +830,12 @@ Attribute's per layer chroma QP offsets.  A layer is corresponds to a
 level-of-detail or RAHT transform block.
 Only applies when `attribute=colour`.
 
+### `--quantNeighWeight=INT-VALUE-LIST`
+Three factors used to derive quantization weights when `transformType=1`.
+The quantization weights are determined by recursively distributing each
+coefficient's weight to each of its neighbours, i, scaled by
+$\texttt{quantNeighWeight}[i] \div 256$.
+
 Attribute recolouring (encoder only)
 ------------------------------------
 
