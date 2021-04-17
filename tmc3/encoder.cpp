@@ -830,26 +830,29 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   // signal the actual number of points coded
   gbh.footer.geom_num_points_minus1 = pointCloud.getPointCount() - 1;
 
-  // determine the length of each sub-stream
-  for (auto& arithmeticEncoder : arithmeticEncoders) {
-    auto dataLen = arithmeticEncoder->stop();
-    gbh.geom_stream_len.push_back(dataLen);
-  }
-
-  // determine the number of bits to use for the offset fields
-  // NB: don't include the last offset since it isn't signalled
-  if (gbh.geom_stream_cnt_minus1) {
-    size_t maxOffset = *std::max_element(
-      gbh.geom_stream_len.begin(), std::prev(gbh.geom_stream_len.end()));
-    gbh.geom_stream_len_bits = ceillog2(maxOffset + 1);
-  }
-
   // assemble data unit
+  //  - record the position of each aec buffer for chunk concatenation
+  std::vector<std::pair<size_t, size_t>> aecStreams;
   write(*_sps, *_gps, gbh, buf);
-  for (int i = 0; i < 1 + gbh.geom_stream_cnt_minus1; i++) {
-    auto& aec = arithmeticEncoders[i];
-    auto dataLen = gbh.geom_stream_len[i];
-    std::copy_n(aec->buffer(), dataLen, std::back_inserter(*buf));
+  for (auto& arithmeticEncoder : arithmeticEncoders) {
+    auto aecLen = arithmeticEncoder->stop();
+    auto aecBuf = arithmeticEncoder->buffer();
+    aecStreams.emplace_back(buf->size(), aecLen);
+    buf->insert(buf->end(), aecBuf, aecBuf + aecLen);
+  }
+
+  // This process is performed here from the last chunk to the first.  It
+  // is also possible to implement this in a forwards direction too.
+  if (_sps->cabac_bypass_stream_enabled_flag) {
+    aecStreams.pop_back();
+    for (auto i = aecStreams.size() - 1; i + 1; i--) {
+      auto& stream = aecStreams[i];
+      auto* ptr = reinterpret_cast<uint8_t*>(buf->data());
+      auto* chunkA = ptr + stream.first + (stream.second & ~0xff);
+      auto* chunkB = ptr + stream.first + stream.second;
+      auto* end = ptr + buf->size();
+      ChunkStreamBuilder::spliceChunkStreams(chunkA, chunkB, end);
+    }
   }
 
   // append the footer

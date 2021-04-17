@@ -417,27 +417,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
       _currentPointCloud.setReflectance(i, defAttrVal);
   }
 
-  // add a dummy length value to simplify handling the last buffer
-  _gbh.geom_stream_len.push_back(buf.size());
-
-  std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
-  size_t bufRemaining = buf.size() - gbhSize - gbfSize;
-  const char* bufPtr = buf.data() + gbhSize;
-
-  for (int i = 0; i <= _gbh.geom_stream_cnt_minus1; i++) {
-    arithmeticDecoders.emplace_back(new EntropyDecoder);
-    auto& aec = arithmeticDecoders.back();
-
-    // NB: avoid reading beyond the end of the data unit
-    int bufLen = std::min(bufRemaining, _gbh.geom_stream_len[i]);
-
-    aec->setBuffer(bufLen, bufPtr);
-    aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
-    aec->start();
-    bufPtr += bufLen;
-    bufRemaining -= bufLen;
-  }
-
   // Calculate a tree level at which to stop
   // It should result in at most max points being decoded
   if (_params.decodeMaxPoints && _gps->octree_point_count_list_present_flag) {
@@ -454,24 +433,26 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     }
   }
 
+  EntropyDecoder aec;
+  aec.setBuffer(buf.size() - gbhSize - gbfSize, buf.data() + gbhSize);
+  aec.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+  aec.start();
+
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom,
-      arithmeticDecoders[0].get());
+      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom, aec);
   else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
-        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
-        arithmeticDecoders);
+        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
-        *_ctxtMemOctreeGeom, arithmeticDecoders);
+        *_ctxtMemOctreeGeom, aec);
     }
   } else {
     decodeGeometryTrisoup(
-      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
-      arithmeticDecoders);
+      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
   }
 
   // At least the first slice's geometry has been decoded

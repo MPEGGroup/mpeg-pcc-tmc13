@@ -93,16 +93,13 @@ decodeGeometryTrisoup(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMemOctree,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   // todo(df): pass trisoup node size rather than 0?
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, 0, pointCloud, ctxtMemOctree, arithmeticDecoders, &nodes);
-
-  // resume decoding with the last decoder
-  auto arithmeticDecoder = arithmeticDecoders.back().get();
+    gps, gbh, 0, pointCloud, ctxtMemOctree, arithmeticDecoder, &nodes);
 
   int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
 
@@ -110,7 +107,7 @@ decodeGeometryTrisoup(
   AdaptiveBitModel ctxTempSeg;
   std::vector<bool> segind;
   for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
-    bool c = !!(arithmeticDecoder->decode(ctxTempSeg));
+    bool c = !!(arithmeticDecoder.decode(ctxTempSeg));
     segind.push_back(c);
     numVertices += c;
   }
@@ -120,7 +117,7 @@ decodeGeometryTrisoup(
   for (int i = 0; i < numVertices; i++) {
     uint8_t c = 0;
     for (int b = gbh.trisoupNodeSizeLog2(gps); b > 0; b--)
-      c = (c << 1) | arithmeticDecoder->decode();
+      c = (c << 1) | arithmeticDecoder.decode();
     vertices.push_back(c);
   }
 

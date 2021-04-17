@@ -422,9 +422,9 @@ decodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomContexts& ctxtMem,
-  EntropyDecoder* aed)
+  EntropyDecoder& aed)
 {
-  PredGeomDecoder dec(gps, gbh, ctxtMem, aed);
+  PredGeomDecoder dec(gps, gbh, ctxtMem, &aed);
   dec.decode(
     gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph);
   ctxtMem = dec.getCtx();

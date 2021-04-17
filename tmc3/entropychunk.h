@@ -36,6 +36,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -63,6 +64,15 @@ public:
   void writeBypassBit(bool bit);
   void flush();
 
+  // Splice two chunk streams together.
+  // Chunks chunkA and chunkB must be adjacent in memory.
+  //
+  // \param chunkA  a pointer to the last chunk of the first stream
+  // \param chunkB  a pointer to the first chunk of the second stream
+  // \param end     pointer to one-past-the-end of the buffer containing A & B
+  static void
+  spliceChunkStreams(uint8_t* chunkA, uint8_t* chunkB, uint8_t* end);
+
 private:
   void reserveChunkByte();
   void finaliseChunk();
@@ -89,8 +99,6 @@ private:
 
   int _bypassBitIdx;
   int _bypassByteAllocCounter;
-
-  int _bypassBitCounterHack;
 };
 
 //=============================================================================
@@ -233,8 +241,6 @@ ChunkStreamBuilder::startNextChunk()
 
   _outputSizeRemaining -= kChunkSize;
   _outputLength += kChunkSize;
-
-  _bypassBitCounterHack = 0;
 }
 
 //=============================================================================
@@ -258,6 +264,9 @@ public:
   ChunkStreamReader(uint8_t* buf, size_t size) { reset(buf, size); }
 
   void reset(const uint8_t* buf, size_t len);
+
+  // Flush the current chunk and realign with the next stream in the input.
+  void nextStream();
 
   uint8_t readAecByte();
   bool readBypassBit();
@@ -288,8 +297,10 @@ ChunkStreamReader::reset(const uint8_t* buf, size_t size)
 {
   _end = buf + size;
   _aecBytesRemaining = 0;
+  _aecByte = nullptr;
   _aecNextChunk = buf;
   _bypassNextChunk = buf;
+  _bypassByte = nullptr;
   _bypassAccumBitsRemaining = 0;
   _bypassBitsRemaining = 0;
 }
@@ -361,6 +372,107 @@ ChunkStreamReader::readBypassBit()
   _bypassAccumBitsRemaining = std::min(_bypassBitsRemaining, 8);
 
   return readBypassBit();
+}
+
+//-----------------------------------------------------------------------------
+
+inline void
+ChunkStreamReader::nextStream()
+{
+  // In the current figure, stream A is being parsed:
+  //   <----Stream A---->|<-Stream B ...
+  //   |--------|yyybbbxx|bbbbb|-----
+  // Where, x is bypass data, y is aec data, and b is data from stream B.
+  //
+  // When switching to stream B, the the 'b' bytes from stream B that
+  // appear in the last chunk of A must be realigned to B (ie, xx is removed).
+
+  // The current chunk is the chunk containing the last AEC byte read
+  // NB: it is guaranteed that there is at least one AEC byte in the last
+  //     chunk of A (since the AEC data is flushed after the bypass).
+  assert(_bypassNextChunk <= _aecNextChunk);
+  auto chunk = const_cast<uint8_t*>(_aecNextChunk) - kChunkSize;
+  auto chunkAecLen = *chunk;
+
+  // If there is no bypass data in the final aec chunk of A, everything is
+  // already aligned:
+  //   |--------|yyybbbbb|bbbbb|-----
+  if (_bypassNextChunk < _aecNextChunk) {
+    auto next = chunk + 1 + chunkAecLen;
+    reset(next, _end - next);
+    return;
+  }
+
+  // Consume the end of the bypass stream.  The last byte contains syntax elmt
+  // chunk_bypass_num_flushed_bits.  If more than five bits of the last byte
+  // have been read, the last byte is the next byte.
+  if (_bypassAccumBitsRemaining < 3)
+    _bypassByte--;
+  _bypassAccumBitsRemaining = 0;
+
+  //             |yyybbbxx|
+  //       chunk ^   | |  |
+  //     chunkBp     ^ |  |
+  // _bypassByte       ^  |
+  //    chunkEnd          ^
+  auto chunkEnd = std::min(chunk + kChunkSize, const_cast<uint8_t*>(_end));
+  auto chunkBp = chunk + chunkAecLen + 1;
+  auto padLen = _bypassByte - chunkBp + 1;
+
+  std::move_backward(chunkBp, const_cast<uint8_t*>(_bypassByte) + 1, chunkEnd);
+
+  auto next = chunkEnd - padLen;
+  reset(next, _end - next);
+}
+
+//=============================================================================
+// Since the start of the bypass data in an entropy chunk is aligned to the
+// end of the chunk (its written backwards), when a truncated chunk stream (ie
+// not multiple of 256 bytes) is concatenated with another stream, the
+// position of the bypass data is unknowable without a pointer.  To avoid
+// this, the bypass data in the last chunk is moved to its expected location.
+//   <-Stream A---->|<-Stream B ...
+//   |--------|yyyxx|bbbbbbbb|-----
+//                     ^ expected end of A (xx)
+// Move xx to expected location:
+//   |--------|yyybbbxx|bbbbb|-----
+
+inline void
+ChunkStreamBuilder::spliceChunkStreams(
+  uint8_t* chunkA, uint8_t* chunkB, uint8_t* end)
+{
+  auto chunkLen = chunkB - chunkA;
+
+  // If the last chunk isn't truncated, there is nothing to do
+  if (chunkLen == kChunkSize)
+    return;
+
+  //    --------|yyyxx|bbbbbbbb|-----
+  //    chunkA  ^     |
+  //    chunkB        ^
+  //    chunkAbp    ^
+
+  // Save the bypass data in the last chunk of A
+  int chunkAecLen = uint8_t(*chunkA);
+  auto* chunkAbp = chunkA + 1 + chunkAecLen;
+  auto chunkAbpLen = chunkB - chunkAbp;
+
+  if (!chunkAbpLen)
+    return;
+
+  uint8_t tmpBuf[256];
+  std::copy_n(chunkAbp, chunkAbpLen, tmpBuf);
+
+  // the amount by which to pad A with data from B
+  // NB: this takes into account that B, at the end of the stream, is not
+  //     large enough to fill A.
+  auto expectedChunkLen = std::min(ptrdiff_t(256), end - chunkA);
+  auto padLen = expectedChunkLen - chunkLen;
+
+  // Move initial part of stream B backwards,
+  // Copy the saved bypass data to correct location
+  std::move(chunkB, chunkB + padLen, chunkAbp);
+  std::copy_n(tmpBuf, chunkAbpLen, chunkAbp + padLen);
 }
 
 //=============================================================================

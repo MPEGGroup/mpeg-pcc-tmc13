@@ -253,6 +253,21 @@ namespace dirac {
     void stop() { schro_arith_decode_flush(&impl); }
 
     //------------------------------------------------------------------------
+    // Terminate the arithmetic decoder, and reinitialise to start decoding
+    // the next entropy stream.
+
+    void flushAndRestart()
+    {
+      stop();
+      if (_cabac_bypass_stream_enabled_flag) {
+        _chunkReader.nextStream();
+        schro_arith_decode_init(&impl, &readChunkCallback, &_chunkReader);
+      } else {
+        schro_arith_decode_init(&impl, &readByteCallback, this);
+      }
+    }
+
+    //------------------------------------------------------------------------
 
     int decode(SchroContextFixed&) { return decode(); }
 

@@ -158,6 +158,15 @@ schro_arith_encode_init (SchroArith * arith, SchroWrFn write_fn, void * write_fn
 void
 schro_arith_decode_flush (SchroArith * arith)
 {
+  // perform an extra renormalisation to match encoding
+  while (arith->range[1] <= 0x40000000) {
+    if (!--arith->cntr) {
+      arith->read(arith->io_priv);
+      arith->cntr = 8;
+    }
+
+    arith->range[1] <<= 1;
+  }
 }
 
 void

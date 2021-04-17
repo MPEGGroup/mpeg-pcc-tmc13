@@ -1553,6 +1553,14 @@ encodeGeometryOctree(
     gbh.footer.octree_lvl_num_points_minus1.reserve(maxDepth);
 
   for (int depth = 0; depth < maxDepth; depth++) {
+    // The tree terminated early (eg, due to IDCM or quantisation)
+    // Delete any unused arithmetic coders
+    if (fifo.empty()) {
+      ++arithmeticEncoderIt;
+      arithmeticEncoders.erase(arithmeticEncoderIt, arithmeticEncoders.end());
+      break;
+    }
+
     // setyo at the start of each level
     auto fifoCurrLvlEnd = fifo.end();
     int numNodesNextLvl = 0;

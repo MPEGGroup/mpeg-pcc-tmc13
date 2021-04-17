@@ -609,12 +609,6 @@ struct GeometryBrickHeader {
   // number of entropy streams used to encode the octree
   int geom_stream_cnt_minus1;
 
-  // length of each entropy stream
-  std::vector<size_t> geom_stream_len;
-
-  // number of bits to signal entropy stream lengths
-  int geom_stream_len_bits;
-
   int geomBoxLog2Scale(const GeometryParameterSet& gps) const
   {
     if (!gps.geom_box_log2_scale_present_flag)

@@ -1219,7 +1219,7 @@ decodeGeometryOctree(
   int skipLastLayers,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
+  EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   // init main fifo
@@ -1303,8 +1303,7 @@ decodeGeometryOctree(
 
   // NB: this needs to be after the root node size is determined to
   //     allocate the planar buffer
-  auto arithmeticDecoderIt = arithmeticDecoders.begin();
-  GeometryOctreeDecoder decoder(gps, gbh, ctxtMem, arithmeticDecoderIt->get());
+  GeometryOctreeDecoder decoder(gps, gbh, ctxtMem, &arithmeticDecoder);
 
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
@@ -1364,10 +1363,11 @@ decodeGeometryOctree(
       if (gbh.geom_stream_cnt_minus1)
         savedState.reset(new GeometryOctreeDecoder(decoder));
 
-    // load context state for parallel coding starting one level later
+    // a new entropy stream starts one level after the context state is saved.
+    // restore the saved state and flush the arithmetic decoder
     if (depth > maxDepth - 1 - gbh.geom_stream_cnt_minus1) {
       decoder = *savedState;
-      decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
+      arithmeticDecoder.flushAndRestart();
     }
 
     // reset the idcm eligibility mask at the start of each level to
@@ -1646,10 +1646,10 @@ decodeGeometryOctree(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   decodeGeometryOctree(
-    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoders, nullptr);
+    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoder, nullptr);
 }
 
 //-------------------------------------------------------------------------
@@ -1661,11 +1661,11 @@ decodeGeometryOctreeScalable(
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoders,
+    gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoder,
     &nodes);
 
   if (minGeomNodeSizeLog2 > 0) {
