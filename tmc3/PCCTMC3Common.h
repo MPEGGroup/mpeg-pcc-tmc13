@@ -489,8 +489,8 @@ computeQuantizationWeightsScalable(
     const size_t startIndex =
       (lodIndex == 0) ? 0 : numberOfPointsPerLOD[lodIndex - 1];
     const size_t endIndex = numberOfPointsPerLOD[lodIndex];
-    const double currentQuantWeight =
-      numPoints / numberOfPointsPerLOD[lodIndex];
+    const uint64_t currentQuantWeight =
+      (numPoints / numberOfPointsPerLOD[lodIndex]) << kFixedPointWeightShift;
 
     const size_t predictorCount = endIndex - startIndex;
     for (size_t index = 0; index < predictorCount; ++index) {
@@ -499,8 +499,7 @@ computeQuantizationWeightsScalable(
       if (!minGeomNodeSizeLog2 && (lodIndex == lodCount - 1)) {
         quantizationWeights[predictorIndex] = (1 << kFixedPointWeightShift);
       } else {
-        quantizationWeights[predictorIndex] =
-          currentQuantWeight * (1 << kFixedPointWeightShift);
+        quantizationWeights[predictorIndex] = currentQuantWeight;
       }
     }
   }
