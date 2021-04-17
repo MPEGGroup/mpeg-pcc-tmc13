@@ -123,15 +123,13 @@ schro_arith_decode_init (SchroArith * arith, SchroRdFn read_fn, void * read_fn_p
   arith->range[1] = 0xffff0000;
   arith->range_size = arith->range[1] - arith->range[0];
   arith->code = 0;
-  arith->cntr = 16;
+  arith->cntr = 1;
 
   arith->read = read_fn;
   arith->io_priv = read_fn_priv;
 
   arith->code = arith->read(arith->io_priv) << 24;
   arith->code |= arith->read(arith->io_priv) << 16;
-  arith->code |= arith->read(arith->io_priv) << 8;
-  arith->code |= arith->read(arith->io_priv);
 
   memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
 }

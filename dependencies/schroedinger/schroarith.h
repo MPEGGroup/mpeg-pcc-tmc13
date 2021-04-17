@@ -52,15 +52,13 @@ _schro_arith_decode_bit (SchroArith *arith, uint16_t *probability)
   register unsigned int code_minus_low = arith->code;
 
   while (range <= 0x40000000) {
+    if (!--arith->cntr) {
+      code_minus_low |= arith->read(arith->io_priv) << 8;
+      arith->cntr = 8;
+    }
 
     range <<= 1;
     code_minus_low <<= 1;
-
-    if (!--arith->cntr) {
-      code_minus_low |= arith->read(arith->io_priv) << 8;
-      code_minus_low |= arith->read(arith->io_priv);
-      arith->cntr = 16;
-    }
   }
 
   range_x_prob = ((range >> 16) * (*probability)) & 0xFFFF0000;
