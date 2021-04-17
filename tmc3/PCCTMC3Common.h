@@ -177,29 +177,6 @@ private:
 
 //============================================================================
 
-// Structure for sorting weights.
-struct WeightWithIndex {
-  float weight;
-  int index;
-
-  WeightWithIndex() = default;
-
-  WeightWithIndex(const int index, const float weight)
-    : weight(weight), index(index)
-  {}
-
-  // NB: this definition ranks larger weights before smaller values.
-  bool operator<(const WeightWithIndex& rhs) const
-  {
-    // NB: index used to maintain stable sort
-    if (weight == rhs.weight)
-      return index < rhs.index;
-    return weight > rhs.weight;
-  }
-};
-
-//---------------------------------------------------------------------------
-
 struct MortonCodeWithIndex {
   int64_t mortonCode;
 
