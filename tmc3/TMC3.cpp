@@ -1362,10 +1362,6 @@ sanitizeEncoderOpts(
       // add any extra values as required
       for (; i < attr_aps.num_detail_levels_minus1; i++)
         attr_aps.lodSamplingPeriod[i] = attr_aps.lodSamplingPeriod[i - 1];
-
-      for (auto period : attr_aps.lodSamplingPeriod)
-        if (period > 8)
-          err.error() << it.first << ".lodSamplingPeriod must be <= 8\n";
     }
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {

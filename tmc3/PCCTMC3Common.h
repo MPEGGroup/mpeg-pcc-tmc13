@@ -1084,54 +1084,50 @@ subsampleByOctreeWithCentroid(
   const bool backward,
   const std::vector<uint32_t>& voxels)
 {
+  point_t centroid(0);
+  int count = 0;
+  for (const auto t : voxels) {
+    // forward direction
+    point_t pos = clacIntermediatePosition(
+      true, octreeNodeSizeLog2, pointCloud[packedVoxel[t].index]);
+
+    centroid += pos;
+    count++;
+  }
+
   int32_t nnIndex = backward ? voxels.size() - 1 : 0;
+  int64_t minNorm2 = std::numeric_limits<int64_t>::max();
 
-  if (2 < voxels.size() && voxels.size() < 8) {
-    const auto v = voxels.front();
-
-    point_t centroid(0);
-    int count = 0;
+  if (backward) {
+    int num = voxels.size() - 1;
+    for (auto t = voxels.rbegin(), e = voxels.rend(); t != e; t++) {
+      // backward direction
+      point_t pos = clacIntermediatePosition(
+        true, octreeNodeSizeLog2, pointCloud[packedVoxel[*t].index]);
+      pos *= count;
+      int64_t m = (pos - centroid).getNorm1();
+      if (minNorm2 > m) {
+        minNorm2 = m;
+        nnIndex = num;
+      }
+      num--;
+    }
+  } else {
+    int num = 0;
     for (const auto t : voxels) {
       // forward direction
       point_t pos = clacIntermediatePosition(
         true, octreeNodeSizeLog2, pointCloud[packedVoxel[t].index]);
-
-      centroid += pos;
-      count++;
-    }
-
-    int64_t minNorm2 = std::numeric_limits<int64_t>::max();
-
-    if (backward) {
-      int num = voxels.size() - 1;
-      for (auto t = voxels.rbegin(), e = voxels.rend(); t != e; t++) {
-        // backward direction
-        point_t pos = clacIntermediatePosition(
-          true, octreeNodeSizeLog2, pointCloud[packedVoxel[*t].index]);
-        pos *= count;
-        int64_t m = (pos - centroid).getNorm1();
-        if (minNorm2 > m) {
-          minNorm2 = m;
-          nnIndex = num;
-        }
-        num--;
+      pos *= count;
+      int64_t m = (pos - centroid).getNorm1();
+      if (minNorm2 > m) {
+        minNorm2 = m;
+        nnIndex = num;
       }
-    } else {
-      int num = 0;
-      for (const auto t : voxels) {
-        // forward direction
-        point_t pos = clacIntermediatePosition(
-          true, octreeNodeSizeLog2, pointCloud[packedVoxel[t].index]);
-        pos *= count;
-        int64_t m = (pos - centroid).getNorm1();
-        if (minNorm2 > m) {
-          minNorm2 = m;
-          nnIndex = num;
-        }
-        num++;
-      }
+      num++;
     }
   }
+
   return voxels[nnIndex];
 }
 
