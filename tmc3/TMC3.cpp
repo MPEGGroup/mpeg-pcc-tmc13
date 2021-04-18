@@ -837,7 +837,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "(-1 => disabled)")
 
   ("positionQuantisationOctreeDepth",
-    params.encoder.gbh.geom_octree_qp_offset_depth, -1,
+    params.encoder.geom.qpOffsetDepth, -1,
     "Octree depth used for signalling position QP offsets (-1 => disabled)")
 
   ("positionBaseQpFreqLog2",

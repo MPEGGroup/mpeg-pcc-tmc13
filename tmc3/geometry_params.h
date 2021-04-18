@@ -66,6 +66,9 @@ struct OctreeEncOpts {
     kByDensity = 2,
   } qpMethod;
 
+  // Tree depth at which to apply geometry quantisation
+  int qpOffsetDepth;
+
   // Node size (rather than depth) at which to apply geometry quantisation
   int qpOffsetNodeSizeLog2;
 };

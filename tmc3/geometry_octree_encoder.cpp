@@ -195,6 +195,7 @@ public:
     const int* thetaLaser,
     int numLasers);
 
+  void encodeNodeQpOffetsPresent(bool);
   void encodeQpOffset(int dqp);
 
   void encodeIsIdcm(DirectMode mode);
@@ -1039,7 +1040,15 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 }
 
 //-------------------------------------------------------------------------
-// Direct coding of position of points in node (early tree termination).
+
+void
+GeometryOctreeEncoder::encodeNodeQpOffetsPresent(bool flag)
+{
+  _arithmeticEncoder->encode(flag);
+}
+
+//-------------------------------------------------------------------------
+
 void
 GeometryOctreeEncoder::encodeQpOffset(int dqp)
 {
@@ -1244,6 +1253,7 @@ checkDuplicatePoints(
 }
 
 //-------------------------------------------------------------------------
+// Direct coding of position of points in node (early tree termination).
 
 DirectMode
 canEncodeDirectPosition(
@@ -1520,17 +1530,6 @@ encodeGeometryOctree(
     assert(gbh.tree_lvl_coded_axis_list.back() != 0);
   }
 
-  // Determine the desired quantisation depth after qtbt is determined
-  if (params.qpOffsetNodeSizeLog2 > 0) {
-    // find the first level that matches the scaling node size
-    for (int lvl = 0; lvl < maxDepth; lvl++) {
-      if (lvlNodeSizeLog2[lvl].min() > params.qpOffsetNodeSizeLog2)
-        continue;
-      gbh.geom_octree_qp_offset_depth = lvl;
-      break;
-    }
-  }
-
   // the node size where quantisation is performed
   Vec3<int> quantNodeSizeLog2 = 0;
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
@@ -1538,10 +1537,23 @@ encodeGeometryOctree(
   int sliceQp = gbh.sliceQp(gps);
   int numLvlsUntilQuantization = 0;
   if (gps.geom_scaling_enabled_flag) {
+    numLvlsUntilQuantization = params.qpOffsetDepth;
+
+    // Determine the desired quantisation depth after qtbt is determined
+    if (params.qpOffsetNodeSizeLog2 > 0) {
+      // find the first level that matches the scaling node size
+      for (int lvl = 0; lvl < maxDepth; lvl++) {
+        if (lvlNodeSizeLog2[lvl].min() > params.qpOffsetNodeSizeLog2)
+          continue;
+        numLvlsUntilQuantization = lvl;
+        break;
+      }
+    }
+
     // if an invalid depth is set, use tree height instead
-    if (gbh.geom_octree_qp_offset_depth < 0)
-      gbh.geom_octree_qp_offset_depth = maxDepth;
-    numLvlsUntilQuantization = gbh.geom_octree_qp_offset_depth + 1;
+    if (numLvlsUntilQuantization < 0)
+      numLvlsUntilQuantization = maxDepth;
+    numLvlsUntilQuantization++;
   }
 
   // The number of nodes to wait before updating the planar rate.
@@ -1580,6 +1592,9 @@ encodeGeometryOctree(
 
     // Idcm quantisation applies to child nodes before per node qps
     if (--numLvlsUntilQuantization > 0) {
+      // Indicate that the quantisation level has not been reached
+      encoder.encodeNodeQpOffetsPresent(false);
+
       // If planar is enabled, the planar bits are not quantised (since
       // the planar mode is determined before quantisation)
       quantNodeSizeLog2 = nodeSizeLog2;
@@ -1600,6 +1615,9 @@ encodeGeometryOctree(
 
     // determing a per node QP at the appropriate level
     if (!numLvlsUntilQuantization) {
+      // Indicate that this is the level where per-node QPs are signalled.
+      encoder.encodeNodeQpOffetsPresent(true);
+
       // idcm qps are no longer independent
       idcmQp = 0;
       quantNodeSizeLog2 = nodeSizeLog2;

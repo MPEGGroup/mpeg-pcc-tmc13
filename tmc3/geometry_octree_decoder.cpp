@@ -179,6 +179,7 @@ public:
     Vec3<int> posXyz,
     Vec3<int> delta);
 
+  bool decodeNodeQpOffsetsPresent();
   int decodeQpOffset();
 
   bool decodeIsIdcm();
@@ -831,6 +832,28 @@ GeometryOctreeDecoder::decodeOccupancy(
 }
 
 //-------------------------------------------------------------------------
+
+bool
+GeometryOctreeDecoder::decodeNodeQpOffsetsPresent()
+{
+  return _arithmeticDecoder->decode();
+}
+
+//-------------------------------------------------------------------------
+
+int
+GeometryOctreeDecoder::decodeQpOffset()
+{
+  int dqp = 0;
+  if (_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0)) {
+    int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
+    dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+    dqp = dqp_sign ? dqp : -dqp;
+  }
+  return dqp;
+}
+
+//-------------------------------------------------------------------------
 // Decode a position of a point in a given volume.
 Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPosition(
@@ -848,18 +871,6 @@ GeometryOctreeDecoder::decodePointPosition(
   }
 
   return delta;
-}
-
-int
-GeometryOctreeDecoder::decodeQpOffset()
-{
-  int dqp = 0;
-  if (_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0)) {
-    int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
-    dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
-    dqp = dqp_sign ? dqp : -dqp;
-  }
-  return dqp;
 }
 
 //-------------------------------------------------------------------------
@@ -1278,9 +1289,7 @@ decodeGeometryOctree(
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int idcmQp = 0;
   int sliceQp = gbh.sliceQp(gps);
-  int numLvlsUntilQpOffset = 0;
-  if (gps.geom_scaling_enabled_flag)
-    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
+  int nodeQpOffsetsSignalled = !gps.geom_scaling_enabled_flag;
 
   // generate the list of the node size for each level in the tree
   //  - starts with the smallest node and works up
@@ -1330,8 +1339,21 @@ decodeGeometryOctree(
     int codedAxesPrevLvl = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
     int codedAxesCurLvl = gbh.tree_lvl_coded_axis_list[depth];
 
+    // Determine if this is the level where node QPs are sent
+    bool nodeQpOffsetsPresent =
+      !nodeQpOffsetsSignalled && decoder.decodeNodeQpOffsetsPresent();
+
+    // record the node size when quantisation is signalled -- all subsequnt
+    // coded occupancy bits are quantised
+    // after the qp offset, idcm nodes do not receive special treatment
+    if (nodeQpOffsetsPresent) {
+      nodeQpOffsetsSignalled = true;
+      idcmQp = 0;
+      posQuantBitMasks = Vec3<uint32_t>((1 << nodeSizeLog2) - 1);
+    }
+
     // Idcm quantisation applies to child nodes before per node qps
-    if (--numLvlsUntilQpOffset > 0) {
+    if (!nodeQpOffsetsSignalled) {
       // If planar is enabled, the planar bits are not quantised (since
       // the planar mode is determined before quantisation)
       auto quantNodeSizeLog2 = nodeSizeLog2;
@@ -1348,14 +1370,6 @@ decodeGeometryOctree(
       idcmQp = std::min(idcmQp, minNs * 8);
 
       posQuantBitMasks = Vec3<uint32_t>((1 << quantNodeSizeLog2) - 1);
-    }
-
-    // record the node size when quantisation is signalled -- all subsequnt
-    // coded occupancy bits are quantised
-    // after the qp offset, idcm nodes do not receive special treatment
-    if (!numLvlsUntilQpOffset) {
-      idcmQp = 0;
-      posQuantBitMasks = Vec3<uint32_t>((1 << nodeSizeLog2) - 1);
     }
 
     // save context state for parallel coding
@@ -1381,7 +1395,7 @@ decodeGeometryOctree(
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
 
-      if (numLvlsUntilQpOffset == 0) {
+      if (nodeQpOffsetsPresent) {
         node0.qp = sliceQp;
         node0.qp += decoder.decodeQpOffset() << gps.geom_qp_multiplier_log2;
       }

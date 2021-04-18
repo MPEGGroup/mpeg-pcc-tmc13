@@ -1110,8 +1110,6 @@ write(
     bs.writeSe(gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
       bs.writeUe(gbh.geom_qp_offset_intvl_log2_delta);
-    else
-      bs.writeUe(gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.trisoup_enabled_flag) {
@@ -1205,8 +1203,6 @@ parseGbh(
     bs.readSe(&gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
       bs.readUe(&gbh.geom_qp_offset_intvl_log2_delta);
-    else
-      bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.trisoup_enabled_flag) {

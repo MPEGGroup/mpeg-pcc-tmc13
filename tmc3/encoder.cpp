@@ -759,7 +759,6 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_box_origin_bits_minus1 = numBits(gbh.geomBoxOrigin.max()) - 1;
   gbh.geom_box_log2_scale = 0;
   gbh.geom_slice_qp_offset = params->gbh.geom_slice_qp_offset;
-  gbh.geom_octree_qp_offset_depth = params->gbh.geom_octree_qp_offset_depth;
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
   gbh.trisoup_node_size_log2_minus2 =
     params->gbh.trisoup_node_size_log2_minus2;

@@ -600,9 +600,6 @@ struct GeometryBrickHeader {
       << gps.geom_qp_multiplier_log2;
   }
 
-  // octree depth at which qp offsets whould be signalled
-  int geom_octree_qp_offset_depth;
-
   // block size offset for predictive geometry coding (if enabled)
   int geom_qp_offset_intvl_log2_delta;
 
