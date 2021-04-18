@@ -1232,7 +1232,7 @@ subsample(
     subsampleByDecimation(input, samplingPeriod, retained, indexes);
   } else if (aps.lod_decimation_type == LodDecimationMethod::kCentroid) {
     auto samplingPeriod = aps.lodSamplingPeriod[lodIndex];
-    int32_t octreeNodeSizeLog2 = aps.dist2 + lodIndex;
+    int32_t octreeNodeSizeLog2 = aps.dist2 + abh.attr_dist2_delta + lodIndex;
     subsampleByOctree(
       pointCloud, packedVoxel, input, octreeNodeSizeLog2, retained, indexes,
       true, samplingPeriod);
