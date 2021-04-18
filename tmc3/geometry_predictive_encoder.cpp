@@ -233,9 +233,6 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
     if (!res)
       continue;
 
-    if (iMode || k)
-      _aec->encode(res > 0, _ctxSign[k]);
-
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
 
@@ -252,6 +249,9 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode)
     --numBits;
     for (int32_t i = 0; i < numBits; ++i)
       _aec->encode((value >> i) & 1);
+
+    if (iMode || k)
+      _aec->encode(res < 0, _ctxSign[k]);
   }
 }
 
@@ -266,14 +266,12 @@ PredGeomEncoder::encodeResidual2(const Vec3<int32_t>& residual)
     if (!res)
       continue;
 
-    _aec->encode(res > 0, _ctxSign2[k]);
-
     int value = abs(res) - 1;
     _aec->encode(value > 0, _ctxResidual2GtN[1][k]);
-    if (!value)
-      continue;
+    if (value)
+      _aec->encodeExpGolomb(value - 1, 0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
 
-    _aec->encodeExpGolomb(value - 1, 0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
+    _aec->encode(res < 0, _ctxSign2[k]);
   }
 }
 
@@ -286,12 +284,12 @@ PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
   if (!multiplier)
     return;
 
-  _aec->encode(multiplier > 0, _ctxSignPhi);
-
   int32_t value = abs(multiplier) - 1;
   _aec->encode(value > 0, _ctxPhiGtN[1]);
-  if (!value)
+  if (!value) {
+    _aec->encode(multiplier < 0, _ctxSignPhi);
     return;
+  }
 
   value--;
   int valueMinus7 = value - 7;
@@ -302,6 +300,8 @@ PredGeomEncoder::encodePhiMultiplier(int32_t multiplier)
 
   if (valueMinus7 >= 0)
     _aec->encodeExpGolomb(valueMinus7, 0, _ctxEGPhi);
+
+  _aec->encode(multiplier < 0, _ctxSignPhi);
 }
 
 //----------------------------------------------------------------------------
@@ -313,7 +313,7 @@ PredGeomEncoder::encodeQpOffset(int dqp)
   if (dqp == 0)
     return;
 
-  _aec->encode(dqp > 0, _ctxQpOffsetSign);
+  _aec->encode(dqp < 0, _ctxQpOffsetSign);
   _aec->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
 }
 
@@ -342,7 +342,7 @@ PredGeomEncoder::estimateBits(
     if (multiplier) {
       int32_t value = abs(multiplier) - 1;
       bits += estimate(value > 0, _ctxPhiGtN[1]);
-      bits += estimate(multiplier > 0, _ctxSignPhi);
+      bits += estimate(multiplier < 0, _ctxSignPhi);
       if (value) {
         value--;
 
@@ -369,7 +369,7 @@ PredGeomEncoder::estimateBits(
       continue;
 
     if (iMode > 0 || k)
-      bits += estimate(res > 0, _ctxSign[k]);
+      bits += estimate(res < 0, _ctxSign[k]);
 
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));

@@ -1056,8 +1056,8 @@ GeometryOctreeEncoder::encodeQpOffset(int dqp)
   if (dqp == 0)
     return;
 
-  _arithmeticEncoder->encode(dqp > 0, _ctxQpOffsetSign);
   _arithmeticEncoder->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
+  _arithmeticEncoder->encode(dqp < 0, _ctxQpOffsetSign);
 }
 
 //-------------------------------------------------------------------------
@@ -1417,14 +1417,14 @@ GeometryOctreeEncoder::encodeThetaRes(int thetaRes)
   if (!thetaRes)
     return;
 
-  _arithmeticEncoder->encode(thetaRes > 0, _ctxThetaResSign);
-
   int absVal = std::abs(thetaRes);
   _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[1]);
   if (absVal)
     _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[2]);
   if (absVal)
     _arithmeticEncoder->encodeExpGolomb(--absVal, 1, _ctxThetaResExp);
+
+  _arithmeticEncoder->encode(thetaRes < 0, _ctxThetaResSign);
 }
 
 //-------------------------------------------------------------------------

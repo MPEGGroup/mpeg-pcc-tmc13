@@ -188,16 +188,16 @@ PredGeomDecoder::decodeResidual2()
       continue;
     }
 
-    auto sign = _aed->decode(_ctxSign2[k]);
-
     value += _aed->decode(_ctxResidual2GtN[1][k]);
     if (value == 1) {
-      residual[k] = sign ? 1 : -1;
+      auto sign = _aed->decode(_ctxSign2[k]);
+      residual[k] = sign ? -1 : 1;
       continue;
     }
 
     value += _aed->decodeExpGolomb(0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
-    residual[k] = sign ? value : -value;
+    auto sign = _aed->decode(_ctxSign2[k]);
+    residual[k] = sign ? -value : value;
   }
   return residual;
 }
@@ -213,12 +213,12 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (!_aed->decode(_ctxPhiGtN[0]))
     return 0;
 
-  const auto sign = _aed->decode(_ctxSignPhi);
-
   int value = 1;
   value += _aed->decode(_ctxPhiGtN[1]);
-  if (value == 1)
-    return sign ? 1 : -1;
+  if (value == 1) {
+    const auto sign = _aed->decode(_ctxSignPhi);
+    return sign ? -1 : 1;
+  }
 
   auto* ctxs = &_ctxResidualPhi[0] - 1;
   value = 1;
@@ -229,7 +229,8 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (value == 7)
     value += _aed->decodeExpGolomb(0, _ctxEGPhi);
 
-  return sign ? (value + 2) : -(value + 2);
+  const auto sign = _aed->decode(_ctxSignPhi);
+  return sign ? -(value + 2) : (value + 2);
 }
 
 //----------------------------------------------------------------------------
@@ -238,12 +239,12 @@ int32_t
 PredGeomDecoder::decodeQpOffset()
 {
   int dqp = 0;
-  if (_aed->decode(_ctxQpOffsetAbsGt0)) {
-    int dqp_sign = _aed->decode(_ctxQpOffsetSign);
-    dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
-    dqp = dqp_sign ? dqp : -dqp;
-  }
-  return dqp;
+  if (!_aed->decode(_ctxQpOffsetAbsGt0))
+    return 0;
+
+  dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+  int dqp_sign = _aed->decode(_ctxQpOffsetSign);
+  return dqp_sign ? -dqp : dqp;
 }
 
 //----------------------------------------------------------------------------
@@ -273,8 +274,6 @@ PredGeomDecoder::decodeResidual(int mode)
       continue;
     }
 
-    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 1;
-
     AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
     int32_t numBits = 1;
     for (int n = 0; n < _pgeom_resid_abs_log2_bits[k]; n++)
@@ -294,7 +293,9 @@ PredGeomDecoder::decodeResidual(int mode)
         res += _aed->decode() << i;
       }
     }
-    residual[k] = sign ? res : -res;
+
+    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 0;
+    residual[k] = sign ? -res : res;
   }
 
   return residual;

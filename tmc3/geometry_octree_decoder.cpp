@@ -844,13 +844,12 @@ GeometryOctreeDecoder::decodeNodeQpOffsetsPresent()
 int
 GeometryOctreeDecoder::decodeQpOffset()
 {
-  int dqp = 0;
-  if (_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0)) {
-    int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
-    dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
-    dqp = dqp_sign ? dqp : -dqp;
-  }
-  return dqp;
+  if (!_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0))
+    return 0;
+
+  int dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+  int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
+  return dqp_sign ? -dqp : dqp;
 }
 
 //-------------------------------------------------------------------------
@@ -1181,8 +1180,6 @@ GeometryOctreeDecoder::decodeThetaRes()
   if (!_arithmeticDecoder->decode(_ctxThetaRes[0]))
     return 0;
 
-  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
-
   int absVal = 1;
   absVal += _arithmeticDecoder->decode(_ctxThetaRes[1]);
   if (absVal > 1)
@@ -1190,7 +1187,8 @@ GeometryOctreeDecoder::decodeThetaRes()
   if (absVal == 3)
     absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
 
-  return sign ? absVal : -absVal;
+  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
+  return sign ? -absVal : absVal;
 }
 
 //-------------------------------------------------------------------------
