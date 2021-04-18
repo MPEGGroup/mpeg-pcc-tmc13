@@ -35,7 +35,6 @@
 
 #include "AttributeEncoder.h"
 
-#include "ArithmeticCodec.h"
 #include "DualLutCoder.h"
 #include "constants.h"
 #include "entropy.h"

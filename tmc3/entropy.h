@@ -35,26 +35,10 @@
 
 #pragma once
 
-#define ENTROPY_O3DGC 0
-#define ENTROPY_DIRAC 1
-
-#if ENTROPY_O3DGC
-#  include "entropyo3dgc.h"
-#endif
-
-#if ENTROPY_DIRAC
-#  include "entropydirac.h"
-#endif
-
+#include "entropydirac.h"
 #include "entropyutils.h"
 
 namespace pcc {
-#if ENTROPY_O3DGC
-using EntropyEncoder = EntropyEncoderWrapper<o3dgc::ArithmeticEncoder>;
-using EntropyDecoder = EntropyDecoderWrapper<o3dgc::ArithmeticDecoder>;
-#endif
-#if ENTROPY_DIRAC
 using EntropyEncoder = EntropyEncoderWrapper<dirac::ArithmeticEncoder>;
 using EntropyDecoder = EntropyDecoderWrapper<dirac::ArithmeticDecoder>;
-#endif
 }  // namespace pcc

@@ -106,7 +106,6 @@ file(GLOB PROJECT_INC_FILES
   "version.h"
   "../dependencies/nanoflann/*.hpp"
   "../dependencies/nanoflann/*.h"
-  "../dependencies/arithmetic-coding/inc/*.h"
   "../dependencies/program-options-lite/*.h"
   "../dependencies/schroedinger/schroarith.h"
 )
@@ -143,7 +142,6 @@ file(GLOB PROJECT_CPP_FILES
   "pointset_processing.cpp"
   "quantization.cpp"
   "tables.cpp"
-  "../dependencies/arithmetic-coding/src/*.cpp"
   "../dependencies/program-options-lite/*.cpp"
   "../dependencies/schroedinger/schroarith.c"
 )
@@ -157,7 +155,6 @@ include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/nanoflann"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/arithmetic-coding/inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/program-options-lite"
 )
 
