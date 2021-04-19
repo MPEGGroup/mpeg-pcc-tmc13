@@ -65,10 +65,11 @@ enum class KnownAttributeLabel : uint32_t
 {
   kColour = 0,
   kReflectance = 1,
-  kFrameIndex = 2,
-  kMaterialId = 3,
-  kTransparency = 4,
-  kNormal = 5,
+  kOpacity = 2,
+  kFrameIndex = 3,
+  kFrameNumber = 4,
+  kMaterialId = 5,
+  kNormal = 6,
 
   // Indicates that the attrabute label is described by an Oid
   kOid = 0xffffffff,

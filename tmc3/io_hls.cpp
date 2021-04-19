@@ -141,8 +141,9 @@ operator<<(std::ostream& os, const AttributeLabel& label)
   case KnownAttributeLabel::kColour: os << "color"; break;
   case KnownAttributeLabel::kReflectance: os << "reflectance"; break;
   case KnownAttributeLabel::kFrameIndex: os << "frame index"; break;
+  case KnownAttributeLabel::kFrameNumber: os << "frame number"; break;
   case KnownAttributeLabel::kMaterialId: os << "material id"; break;
-  case KnownAttributeLabel::kTransparency: os << "transparency"; break;
+  case KnownAttributeLabel::kOpacity: os << "opacity"; break;
   case KnownAttributeLabel::kNormal: os << "normal"; break;
   case KnownAttributeLabel::kOid: os << std::string(label.oid);
   default:
