@@ -534,7 +534,37 @@ typedef DEPRECATED_MSVC Vec3<uint8_t> PCCColor3B DEPRECATED;
 template<typename T>
 using PCCVector3 DEPRECATED = Vec3<T>;
 
+//===========================================================================
+
+struct Rational {
+  int numerator;
+  int denominator;
+
+  Rational() : Rational(0, 1){};
+
+  Rational(int numerator) : Rational(numerator, 1){};
+
+  Rational(int numerator, int denominator)
+    : numerator(numerator), denominator(denominator)
+  {}
+
+  Rational(float val);
+  Rational(double val);
+
+  operator double() const { return double(numerator) / double(denominator); }
+
+  operator float() const { return float(numerator) / float(denominator); }
+};
+
 //---------------------------------------------------------------------------
+
+inline Rational
+reciprocal(const Rational x)
+{
+  return Rational(x.denominator, x.numerator);
+}
+
+//===========================================================================
 
 template<typename T>
 T

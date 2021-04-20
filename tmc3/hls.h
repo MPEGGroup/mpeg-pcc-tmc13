@@ -367,7 +367,7 @@ struct SequenceParameterSet {
   Vec3<int> seqBoundingBoxSize;
 
   // A value describing the scaling of the source positions prior to encoding.
-  float seq_geom_scale;
+  Rational seq_geom_scale;
 
   // Indicates that units used to interpret seq_geom_scale.
   ScaleUnit seq_geom_scale_unit_flag;

@@ -420,8 +420,9 @@ write(const SequenceParameterSet& sps)
       bs.writeUn(bbSizeBits, seq_bounding_box_whd.z());
     }
   }
-  // todo(df): determine encoding of scale factor
-  bs.writeF(sps.seq_geom_scale);
+
+  bs.writeUe(sps.seq_geom_scale.numerator);
+  bs.writeUe(sps.seq_geom_scale.denominator);
   bs.writeUn(1, sps.seq_geom_scale_unit_flag);
 
   int num_attribute_sets = int(sps.attributeSets.size());
@@ -502,7 +503,9 @@ parseSps(const PayloadBuffer& buf)
     sps.seqBoundingBoxOrigin = seq_bounding_box_offset;
     sps.seqBoundingBoxSize = seq_bounding_box_whd;
   }
-  bs.readF(&sps.seq_geom_scale);
+
+  bs.readUe(&sps.seq_geom_scale.numerator);
+  bs.readUe(&sps.seq_geom_scale.denominator);
   bs.readUn(1, &sps.seq_geom_scale_unit_flag);
 
   int num_attribute_sets = int(bs.readUe());
