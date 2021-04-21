@@ -113,6 +113,14 @@ PCCTMC3Decoder3::dectectFrameBoundary(const PayloadBuffer* buf)
     break;
   }
 
+  case PayloadType::kGeneralizedAttrParamInventory: {
+    auto apih = parseAttrParamInventoryHdr(*buf);
+    activateParameterSets(apih);
+    // todo(conf): check lsb_bits is same as sps
+    frameCtrLsb = apih.attr_param_frame_ctr_lsb;
+    break;
+  }
+
   // other data units don't indicate a boundary
   default: return false;
   }
@@ -244,10 +252,16 @@ PCCTMC3Decoder3::decompress(
     storeTileInventory(parseTileInventory(*buf));
     return 0;
 
-  case PayloadType::kGeneralizedAttrParamInventory:
-    // todo(df): store and process the inventory
-    parseAttrParamInventoryHdr(*buf);
+  case PayloadType::kGeneralizedAttrParamInventory: {
+    if (!_outputInitialized)
+      startFrame();
+
+    auto hdr = parseAttrParamInventoryHdr(*buf);
+    assert(hdr.attr_param_sps_attr_idx < int(_sps->attributeSets.size()));
+    auto& attrDesc = _outCloud.attrDesc[hdr.attr_param_sps_attr_idx];
+    parseAttrParamInventory(attrDesc, *buf, attrDesc.params);
     return 0;
+  }
 
   case PayloadType::kUserData: parseUserData(*buf); return 0;
   }
@@ -296,6 +310,20 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 
 void
 PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
+{
+  // HACK: assume activation of the first SPS and GPS
+  // todo(df): parse brick header here for propper sps & gps activation
+  //  -- this is currently inconsistent between trisoup and octree
+  assert(!_spss.empty());
+  assert(!_gpss.empty());
+  _sps = &_spss.cbegin()->second;
+  _gps = &_gpss.cbegin()->second;
+}
+
+//--------------------------------------------------------------------------
+
+void
+PCCTMC3Decoder3::activateParameterSets(const AttributeParamInventoryHdr& hdr)
 {
   // HACK: assume activation of the first SPS and GPS
   // todo(df): parse brick header here for propper sps & gps activation
@@ -357,7 +385,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _currentPointCloud.resize(_gbh.footer.geom_num_points_minus1 + 1);
   if (hasColour) {
     auto it = std::find_if(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      _outCloud.attrDesc.cbegin(), _outCloud.attrDesc.cend(),
       [](const AttributeDescription& desc) {
         return desc.attributeLabel == KnownAttributeLabel::kColour;
       });
@@ -372,7 +400,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (hasReflectance) {
     auto it = std::find_if(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      _outCloud.attrDesc.cbegin(), _outCloud.attrDesc.cend(),
       [](const AttributeDescription& desc) {
         return desc.attributeLabel == KnownAttributeLabel::kReflectance;
       });

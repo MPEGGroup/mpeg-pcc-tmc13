@@ -88,6 +88,7 @@ public:
   //==========================================================================
 
 private:
+  void activateParameterSets(const AttributeParamInventoryHdr& gbh);
   void activateParameterSets(const GeometryBrickHeader& gbh);
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
