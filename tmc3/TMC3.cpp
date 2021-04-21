@@ -115,8 +115,6 @@ public:
 
 protected:
   Parameters* params;
-
-  int frameNum;
 };
 
 //----------------------------------------------------------------------------
@@ -145,6 +143,8 @@ private:
   PCCTMC3Encoder3 encoder;
 
   std::ofstream bytestreamFile;
+
+  int frameNum;
 };
 
 //----------------------------------------------------------------------------
@@ -1609,6 +1609,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   CloudFrame frame;
   frame.setParametersFrom(params->encoder.sps);
   frame.cloud = cloud;
+  frame.frameNum = frameNum - params->firstFrameNum;
 
   writeOutputFrame(params->postRecolorPath, {}, frame, tmpCloud);
 }
@@ -1629,13 +1630,10 @@ SequenceDecoder::decompress(Stopwatch* clock)
     return -1;
   }
 
-  frameNum = params->firstFrameNum;
   this->clock = clock;
-
-  PayloadBuffer buf;
-
   clock->start();
 
+  PayloadBuffer buf;
   while (true) {
     PayloadBuffer* buf_ptr = &buf;
     readTlv(fin, &buf);
@@ -1675,9 +1673,6 @@ SequenceDecoder::onOutputCloud(const CloudFrame& frame)
     params->reconstructedDataPath, params->preInvScalePath, frame, pointCloud);
 
   clock->start();
-
-  // todo(df): frame number should be derived from the bitstream
-  frameNum++;
 }
 
 //============================================================================
@@ -1722,6 +1717,9 @@ SequenceCodec::writeOutputFrame(
   // the order of the property names must be determined from the sps
   ply::PropertyNameMap attrNames;
   attrNames.position = axisOrderToPropertyNames(frame.geometry_axis_order);
+
+  // offset frame number
+  int frameNum = frame.frameNum + params->firstFrameNum;
 
   // Dump the decoded colour using the pre inverse scaled geometry
   if (!preInvScalePath.empty()) {
