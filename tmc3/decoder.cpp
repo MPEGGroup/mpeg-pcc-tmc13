@@ -67,6 +67,7 @@ void
 PCCTMC3Decoder3::init()
 {
   _firstSliceInFrame = true;
+  _outputInitialized = false;
   _suppressOutput = 1;
   _sps = nullptr;
   _gps = nullptr;
@@ -93,12 +94,42 @@ payloadStartsNewSlice(PayloadType type)
 
 //============================================================================
 
+bool
+PCCTMC3Decoder3::dectectFrameBoundary(const PayloadBuffer* buf)
+{
+  // This may be from either geometry brick or attr param inventory
+  int frameCtrLsb;
+
+  switch (buf->type) {
+  case PayloadType::kFrameBoundaryMarker:
+    // the frame boundary data marker explcitly indicates a boundary
+    _attrDecoder.reset();
+    return true;
+
+  case PayloadType::kGeometryBrick: {
+    activateParameterSets(parseGbhIds(*buf));
+    auto gbh = parseGbh(*_sps, *_gps, *buf, nullptr, nullptr);
+    frameCtrLsb = gbh.frame_ctr_lsb;
+    break;
+  }
+
+  // other data units don't indicate a boundary
+  default: return false;
+  }
+
+  auto bdry = _frameCtr.isDifferentFrame(frameCtrLsb, _sps->frame_ctr_bits);
+  _frameCtr.update(frameCtrLsb, _sps->frame_ctr_bits);
+
+  return bdry;
+}
+
+//============================================================================
+
 void
 PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
 {
-  // the following could be set once when the SPS is discovered
-  _outCloud.setParametersFrom(*_sps);
-  _outCloud.frameNum = _frameCtr;
+  if (_suppressOutput)
+    return;
 
   std::swap(_outCloud.cloud, _accumCloud);
 
@@ -106,6 +137,19 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
 
   std::swap(_outCloud.cloud, _accumCloud);
   _accumCloud.clear();
+}
+
+//============================================================================
+
+void
+PCCTMC3Decoder3::startFrame()
+{
+  _outputInitialized = true;
+  _firstSliceInFrame = true;
+  _outCloud.frameNum = _frameCtr;
+
+  // the following could be set once when the SPS is discovered
+  _outCloud.setParametersFrom(*_sps);
 }
 
 //============================================================================
@@ -131,6 +175,16 @@ PCCTMC3Decoder3::decompress(
     return 0;
   }
 
+  // process a frame boundary
+  //  - this may update FrameCtr
+  //  - this will activate the sps for GeometryBrick and AttrParamInventory
+  //  - after outputing the current frame, the output must be reinitialized
+  if (dectectFrameBoundary(buf)) {
+    outputCurrentCloud(callback);
+    _outputInitialized = false;
+  }
+
+  // process the buffer
   switch (buf->type) {
   case PayloadType::kSequenceParameterSet: {
     auto sps = parseSps(*buf);
@@ -161,30 +215,22 @@ PCCTMC3Decoder3::decompress(
     return 0;
   }
 
-  // the frame boundary marker flushes the current frame.
   case PayloadType::kFrameBoundaryMarker:
-    // todo(df): if no sps is activated ...
-    outputCurrentCloud(callback);
-    _attrDecoder.reset();
-    _suppressOutput = 1;
+    // the frame boundary marker belongs to the end of the current frame.
+    // the same frame boundary will be detected at the start of the next frame.
+    // avoid outputing an empty cloud in this case.
+    _suppressOutput = true;
     return 0;
 
-  case PayloadType::kGeometryBrick: {
-    activateParameterSets(parseGbhIds(*buf));
-    auto gbh = parseGbh(*_sps, *_gps, *buf, nullptr, nullptr);
-
-    _firstSliceInFrame |=
-      _frameCtr.isDifferentFrame(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
-    _frameCtr.update(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
-    if (_firstSliceInFrame && !_suppressOutput)
-      outputCurrentCloud(callback);
-
-    _suppressOutput = false;
+  case PayloadType::kGeometryBrick:
+    if (!_outputInitialized)
+      startFrame();
 
     // avoid accidents with stale attribute decoder on next slice
     _attrDecoder.reset();
+    // Avoid dropping an actual frame
+    _suppressOutput = false;
     return decodeGeometryBrick(*buf);
-  }
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
 

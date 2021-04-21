@@ -92,8 +92,9 @@ private:
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
   void decodeConstantAttribute(const PayloadBuffer& buf);
-  bool frameCtrChanged(const GeometryBrickHeader& gbh) const;
+  bool dectectFrameBoundary(const PayloadBuffer* buf);
   void outputCurrentCloud(Callbacks* callback);
+  void startFrame();
 
   //==========================================================================
 
@@ -107,6 +108,9 @@ private:
   // Indicates that this is the start of a new frame.
   // NB: this is set to false quiet early in the decoding process
   bool _firstSliceInFrame;
+
+  // Indicates whether the output has been initialised
+  bool _outputInitialized;
 
   // Current identifier of payloads with the same geometry
   int _sliceId;
