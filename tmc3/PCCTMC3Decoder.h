@@ -42,6 +42,7 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "frame.h"
 #include "framectr.h"
 #include "geometry.h"
 #include "hls.h"
@@ -92,6 +93,7 @@ private:
   void decodeAttributeBrick(const PayloadBuffer& buf);
   void decodeConstantAttribute(const PayloadBuffer& buf);
   bool frameCtrChanged(const GeometryBrickHeader& gbh) const;
+  void outputCurrentCloud(Callbacks* callback);
 
   //==========================================================================
 
@@ -120,7 +122,12 @@ private:
 
   // The point cloud currently being decoded
   PCCPointSet3 _currentPointCloud;
+
+  // The accumulated decoded slices
   PCCPointSet3 _accumCloud;
+
+  // The current output cloud
+  CloudFrame _outCloud;
 
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
@@ -153,8 +160,7 @@ private:
 
 class PCCTMC3Decoder3::Callbacks {
 public:
-  virtual void
-  onOutputCloud(const SequenceParameterSet&, const PCCPointSet3&) = 0;
+  virtual void onOutputCloud(const CloudFrame&) = 0;
 };
 
 //============================================================================

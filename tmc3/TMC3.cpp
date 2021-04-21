@@ -137,12 +137,10 @@ public:
   int decompress(Stopwatch* clock);
 
   // determine the output ply scale factor
-  double outputScale(const SequenceParameterSet& sps);
+  double outputScale(const CloudFrame& cloud);
 
 protected:
-  void onOutputCloud(
-    const SequenceParameterSet& sps,
-    const PCCPointSet3& decodedPointCloud) override;
+  void onOutputCloud(const CloudFrame& cloud) override;
 
 private:
   const Parameters* params;
@@ -156,8 +154,11 @@ private:
 
 //============================================================================
 
-void convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud);
-void convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud);
+void convertToGbr(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
+
+void convertFromGbr(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
 
 //============================================================================
 
@@ -1551,7 +1552,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   clock->start();
 
   if (params->convertColourspace)
-    convertFromGbr(params->encoder.sps, pointCloud);
+    convertFromGbr(params->encoder.sps.attributeSets, pointCloud);
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
     const auto pointCount = pointCloud.getPointCount();
@@ -1585,7 +1586,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   if (!params->reconstructedDataPath.empty()) {
     if (params->convertColourspace)
-      convertToGbr(params->encoder.sps, *reconPointCloud);
+      convertToGbr(params->encoder.sps.attributeSets, *reconPointCloud);
 
     if (params->reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
       const auto pointCount = reconPointCloud->getPointCount();
@@ -1637,7 +1638,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   }
 
   PCCPointSet3 tmpCloud(cloud);
-  convertToGbr(params->encoder.sps, tmpCloud);
+  convertToGbr(params->encoder.sps.attributeSets, tmpCloud);
   ply::write(
     tmpCloud, _plyAttrNames, plyScale, plyOrigin, plyName,
     !params->outputBinaryPly);
@@ -1652,16 +1653,16 @@ SequenceDecoder::SequenceDecoder(const Parameters* params)
 //----------------------------------------------------------------------------
 
 double
-SequenceDecoder::outputScale(const SequenceParameterSet& sps)
+SequenceDecoder::outputScale(const CloudFrame& frame)
 {
-  switch (sps.seq_geom_scale_unit_flag) {
+  switch (frame.outputUnit) {
   case ScaleUnit::kPointsPerMetre:
     // todo(df): warn if output resolution not specified?
     return params->outputResolution > 0
-      ? params->outputResolution / sps.seq_geom_scale
+      ? params->outputResolution / frame.outputScale
       : 1.;
 
-  case ScaleUnit::kDimensionless: return 1. / sps.seq_geom_scale;
+  case ScaleUnit::kDimensionless: return 1. / frame.outputScale;
   }
 }
 
@@ -1711,14 +1712,13 @@ SequenceDecoder::decompress(Stopwatch* clock)
 //----------------------------------------------------------------------------
 
 void
-SequenceDecoder::onOutputCloud(
-  const SequenceParameterSet& sps, const PCCPointSet3& decodedPointCloud)
+SequenceDecoder::onOutputCloud(const CloudFrame& frame)
 {
   // copy the point cloud in order to modify it according to the output options
-  PCCPointSet3 pointCloud(decodedPointCloud);
+  PCCPointSet3 pointCloud(*frame.cloud);
 
   if (params->convertColourspace)
-    convertToGbr(sps, pointCloud);
+    convertToGbr(frame.attrDesc, pointCloud);
 
   if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
     const auto pointCount = pointCloud.getPointCount();
@@ -1730,7 +1730,7 @@ SequenceDecoder::onOutputCloud(
 
   // the order of the property names must be determined from the sps
   ply::PropertyNameMap attrNames;
-  attrNames.position = axisOrderToPropertyNames(sps.geometry_axis_order);
+  attrNames.position = axisOrderToPropertyNames(frame.geometry_axis_order);
 
   // Dump the decoded colour using the pre inverse scaled geometry
   if (!params->preInvScalePath.empty()) {
@@ -1742,8 +1742,8 @@ SequenceDecoder::onOutputCloud(
 
   clock->stop();
 
-  auto plyScale = outputScale(sps);
-  auto plyOrigin = sps.seqBoundingBoxOrigin * plyScale;
+  auto plyScale = outputScale(frame);
+  auto plyOrigin = frame.outputOrigin * plyScale;
   std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
   if (!ply::write(
         pointCloud, attrNames, plyScale, plyOrigin, decName,
@@ -1760,10 +1760,10 @@ SequenceDecoder::onOutputCloud(
 //============================================================================
 
 const AttributeDescription*
-findColourAttrDesc(const SequenceParameterSet& sps)
+findColourAttrDesc(const std::vector<AttributeDescription>& attrDescs)
 {
   // todo(df): don't assume that there is only one colour attribute in the sps
-  for (const auto& desc : sps.attributeSets) {
+  for (const auto& desc : attrDescs) {
     if (desc.attributeLabel == KnownAttributeLabel::kColour)
       return &desc;
   }
@@ -1773,9 +1773,10 @@ findColourAttrDesc(const SequenceParameterSet& sps)
 //----------------------------------------------------------------------------
 
 void
-convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
+convertToGbr(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
 {
-  const AttributeDescription* attrDesc = findColourAttrDesc(sps);
+  const AttributeDescription* attrDesc = findColourAttrDesc(attrDescs);
   if (!attrDesc)
     return;
 
@@ -1795,9 +1796,10 @@ convertToGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
 //----------------------------------------------------------------------------
 
 void
-convertFromGbr(const SequenceParameterSet& sps, PCCPointSet3& cloud)
+convertFromGbr(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
 {
-  const AttributeDescription* attrDesc = findColourAttrDesc(sps);
+  const AttributeDescription* attrDesc = findColourAttrDesc(attrDescs);
   if (!attrDesc)
     return;
 

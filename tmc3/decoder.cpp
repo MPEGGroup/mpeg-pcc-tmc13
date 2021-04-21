@@ -93,6 +93,21 @@ payloadStartsNewSlice(PayloadType type)
 
 //============================================================================
 
+void
+PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
+{
+  // the following could be set once when the SPS is discovered
+  _outCloud.setParametersFrom(*_sps);
+  _outCloud.frameNum = _frameCtr;
+
+  _outCloud.cloud = &_accumCloud;
+
+  callback->onOutputCloud(_outCloud);
+  _accumCloud.clear();
+}
+
+//============================================================================
+
 int
 PCCTMC3Decoder3::decompress(
   const PayloadBuffer* buf, PCCTMC3Decoder3::Callbacks* callback)
@@ -110,8 +125,7 @@ PCCTMC3Decoder3::decompress(
 
   if (!buf) {
     // flush decoder, output pending cloud if any
-    callback->onOutputCloud(*_sps, _accumCloud);
-    _accumCloud.clear();
+    outputCurrentCloud(callback);
     return 0;
   }
 
@@ -148,8 +162,7 @@ PCCTMC3Decoder3::decompress(
   // the frame boundary marker flushes the current frame.
   case PayloadType::kFrameBoundaryMarker:
     // todo(df): if no sps is activated ...
-    callback->onOutputCloud(*_sps, _accumCloud);
-    _accumCloud.clear();
+    outputCurrentCloud(callback);
     _attrDecoder.reset();
     _suppressOutput = 1;
     return 0;
@@ -161,10 +174,8 @@ PCCTMC3Decoder3::decompress(
     _firstSliceInFrame |=
       _frameCtr.isDifferentFrame(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
     _frameCtr.update(gbh.frame_ctr_lsb, _sps->frame_ctr_bits);
-    if (_firstSliceInFrame && !_suppressOutput) {
-      callback->onOutputCloud(*_sps, _accumCloud);
-      _accumCloud.clear();
-    }
+    if (_firstSliceInFrame && !_suppressOutput)
+      outputCurrentCloud(callback);
 
     _suppressOutput = false;
 
