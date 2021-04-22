@@ -401,27 +401,25 @@ decodeTrisoupCommon(
     if (leafVertices.size() < 3)
       continue;
 
-    // Compute mean of leaf vertices.
-    Vec3<int32_t> blockCentroid = 0;
-    for (int j = 0; j < leafVertices.size(); j++) {
-      blockCentroid += leafVertices[j].pos;
-    }
-    blockCentroid /= (int32_t)leafVertices.size();
-
-    // Compute variance of each component of leaf vertices.
-    Vec3<int32_t> SS = 0;
-    for (int j = 0; j < leafVertices.size(); j++) {
-      Vec3<int32_t> S = leafVertices[j].pos - blockCentroid;
-      SS += times(S, S) >> kTrisoupFpBits;
+    // Determine dominant axis
+    Vec3<int32_t> minPos = leafVertices[0].pos;
+    Vec3<int32_t> maxPos = leafVertices[0].pos;
+    for (int j = 1; j < leafVertices.size(); j++) {
+      for (int k = 0; k < 3; k++) {
+        if (leafVertices[j].pos[k] > maxPos[k])
+          maxPos[k] = leafVertices[j].pos[k];
+        else if (leafVertices[j].pos[k] < minPos[k])
+          minPos[k] = leafVertices[j].pos[k];
+      }
     }
 
-    // Dominant axis is the coordinate minimizing the variance.
-    int32_t minSS = SS[0];
+    Vec3<int32_t> diffMaxMin = maxPos - minPos;
+    int32_t minDiff = diffMaxMin[0];
     int32_t dominantAxis = 0;
-    for (int32_t j = 1; j < 3; j++) {
-      if (minSS > SS[j]) {
-        minSS = SS[j];
-        dominantAxis = j;
+    for (int k = 1; k < 3; k++) {
+      if (diffMaxMin[k] < minDiff) {
+        minDiff = diffMaxMin[k];
+        dominantAxis = k;
       }
     }
 
