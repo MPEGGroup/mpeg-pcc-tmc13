@@ -659,6 +659,7 @@ AttributeEncoder::encodeReflectancesPred(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor);
@@ -971,6 +972,7 @@ AttributeEncoder::encodeColorsPred(
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleColor(desc, aps, pointCloud, _lods.indexes, predictor);

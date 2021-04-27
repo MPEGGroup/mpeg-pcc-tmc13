@@ -327,6 +327,7 @@ AttributeDecoder::decodeReflectancesPred(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     if (--zeroRunRem < 0)
       zeroRunRem = decoder.decodeRunLength();
@@ -429,6 +430,7 @@ AttributeDecoder::decodeColorsPred(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     if (--zeroRunRem < 0)
       zeroRunRem = decoder.decodeRunLength();
