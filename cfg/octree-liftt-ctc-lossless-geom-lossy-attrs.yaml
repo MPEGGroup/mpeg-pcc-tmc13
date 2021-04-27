@@ -54,9 +54,6 @@ categories:
      #  - use lifting transform for lossy conditions
      #  - scale 16bit reflectance data to 8bit
      - convertPlyColourspace: 1
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
      - transformType: 2
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
@@ -83,6 +80,10 @@ categories:
            r05: 28
            r06: 22
        - bitdepth: 8
+       -
+         - !conditional '${reflectance8b16b_scale_factor}'
+         - attrOffset: 0
+         - attrScale: ${reflectance8b16b_scale_factor}
        - attribute: reflectance
 
      ##
@@ -99,6 +100,8 @@ categories:
            r06: 22
        - qpChromaOffset: 0
        - bitdepth: 8
+       - attrOffset: 0
+       - attrScale: 1
        - attribute: color
 
     decflags:
@@ -108,9 +111,6 @@ categories:
        - outputUnitLength: '${src-unit-metres}'
 
      - convertPlyColourspace: 1
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
 
     pcerrorflags:
      - dropdups: 2

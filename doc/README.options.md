@@ -98,13 +98,6 @@ converter available for the requested `colourMatrix`, no conversion
 happens; however the `colourMatrix` value is still written to the
 bitstream.
 
-### `--hack.reflectanceScale=0|1`
-Some input data uses 8-bit reflectance data scaled by 255 and represented
-using 16-bit attributes.  This option enables a conversion of 16-bit to
-8-bit at the encoder, and the corresponding conversion from 8-bit back to
-16-bit at the decoder.  If the original data has been scaled by 255, the
-conversion process is lossless.
-
 
 Decoder-specific options
 ========================
@@ -635,7 +628,17 @@ chroma component bitdepth is N + 1.
 
 ### `--bitdepth=INT-VALUE`
 The bitdepth of the attribute data.  NB, this is not necessarily the
-same as the bitdepth of the PLY property.  
+same as the bitdepth of the PLY property.
+
+### `--attrScale=INT-VALUE` and `--attrOffset=INT-VALUE`
+Scale and offset used to interpret coded attribute values.
+
+The encoder derives the coded attribute value as $(attr - offset) / scale$.
+
+The encoder and decoder scale coded attributes for output as
+$attr × scale + offset$.
+
+NB: these parameters are only supported for reflectance attributes.
 
 ### `--transformType=0|1|2`
 Coding method to use for the current attribute:

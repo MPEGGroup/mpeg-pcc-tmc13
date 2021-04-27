@@ -189,10 +189,12 @@ template<typename Bs>
 void
 writeAttrParamScaling(Bs& bs, const AttributeParameters& param)
 {
-  bs.writeUe(param.attr_offset_bits);
-  bs.writeSn(param.attr_offset_bits, param.attr_offset);
-  bs.writeUe(param.attr_scale_bits);
-  bs.writeUn(param.attr_scale_bits, param.attr_scale_minus1);
+  int attr_offset_bits = numBits(std::abs(param.attr_offset));
+  int attr_scale_bits = numBits(param.attr_scale_minus1);
+  bs.writeUe(attr_offset_bits);
+  bs.writeSn(attr_offset_bits, param.attr_offset);
+  bs.writeUe(attr_scale_bits);
+  bs.writeUn(attr_scale_bits, param.attr_scale_minus1);
   bs.writeUe(param.attr_frac_bits);
   bs.byteAlign();
 }
@@ -203,10 +205,11 @@ template<typename Bs>
 void
 parseAttrParamScaling(Bs& bs, AttributeParameters* param)
 {
-  bs.readUe(&param->attr_offset_bits);
-  bs.readSn(param->attr_offset_bits, &param->attr_offset);
-  bs.readUe(&param->attr_scale_bits);
-  bs.readUn(param->attr_scale_bits, &param->attr_scale_minus1);
+  int attr_offset_bits, attr_scale_bits;
+  bs.readUe(&attr_offset_bits);
+  bs.readSn(attr_offset_bits, &param->attr_offset);
+  bs.readUe(&attr_scale_bits);
+  bs.readUn(attr_scale_bits, &param->attr_scale_minus1);
   bs.readUe(&param->attr_frac_bits);
   param->scalingParametersPresent = 1;
   bs.byteAlign();

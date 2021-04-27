@@ -93,9 +93,6 @@ struct Parameters {
   // perform attribute colourspace conversion on ply input/output.
   bool convertColourspace;
 
-  // todo(df): this should be per-attribute
-  int reflectanceScale;
-
   // resort the input points by azimuth angle
   bool sortInputByAzimuth;
 };
@@ -117,6 +114,14 @@ public:
 
   // determine the output ply scale factor
   double outputScale(const CloudFrame& cloud);
+
+  void
+  scaleAttributesForInput(
+    const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
+
+  void
+  scaleAttributesForOutput(
+    const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
 
 protected:
   Parameters* params;
@@ -577,13 +582,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.convertColourspace, true,
     "Convert ply colourspace according to attribute colourMatrix")
 
-  // general
-  // todo(df): this should be per-attribute
-  ("hack.reflectanceScale",
-    params.reflectanceScale, 1,
-    "scale factor to be applied to reflectance "
-    "pre encoding / post reconstruction")
-
   ("outputBinaryPly",
     params.outputBinaryPly, false,
     "Output ply files using binary (or otherwise ascii) format")
@@ -925,6 +923,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Encode the given attribute (NB, must appear after the"
     "following attribute parameters)")
 
+  // NB: the cli option sets +1, the minus1 will be applied later
+  ("attrScale",
+    params_attr.desc.params.attr_scale_minus1, 1,
+    "Scale factor used to interpret coded attribute values")
+
+  ("attrOffset",
+    params_attr.desc.params.attr_offset, 0,
+    "Offset used to interpret coded attribute values")
+
   ("bitdepth",
     params_attr.desc.bitdepth, 8,
     "Attribute bitdepth")
@@ -1225,6 +1232,9 @@ sanitizeEncoderOpts(
   params.encoder.gps.geom_angular_azimuth_speed_minus1--;
   params.encoder.gps.neighbour_avail_boundary_log2_minus1 =
     std::max(0, params.encoder.gps.neighbour_avail_boundary_log2_minus1 - 1);
+  for (auto& attr_sps : params.encoder.sps.attributeSets) {
+    attr_sps.params.attr_scale_minus1--;
+  }
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
@@ -1313,12 +1323,19 @@ sanitizeEncoderOpts(
     attrMeta.cicp_transfer_characteristics_idx = 2;
     attrMeta.cicp_video_full_range_flag = true;
     attrMeta.cicpParametersPresent = false;
-    attrMeta.attr_offset = 0;
-    attrMeta.attr_offset_bits = 0;
-    attrMeta.attr_scale_minus1 = 0;
-    attrMeta.attr_scale_bits = 0;
     attrMeta.attr_frac_bits = 0;
     attrMeta.scalingParametersPresent = false;
+
+    // Enable scaling if a paramter has been set
+    //  - pre/post scaling is only currently supported for reflectance
+    attrMeta.scalingParametersPresent = attrMeta.attr_offset
+      || attrMeta.attr_scale_minus1 || attrMeta.attr_frac_bits;
+
+    // todo(df): remove this hack when scaling is generalised
+    if (it.first != "reflectance" && attrMeta.scalingParametersPresent) {
+      err.warn() << it.first << ": scaling not supported, disabling\n";
+      attrMeta.scalingParametersPresent = 0;
+    }
 
     if (it.first == "reflectance") {
       // Avoid wasting bits signalling chroma quant step size for reflectance
@@ -1644,13 +1661,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   if (params->convertColourspace)
     convertFromGbr(params->encoder.sps.attributeSets, pointCloud);
 
-  if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
-    const auto pointCount = pointCloud.getPointCount();
-    for (size_t i = 0; i < pointCount; ++i) {
-      int val = pointCloud.getReflectance(i) / params->reflectanceScale;
-      pointCloud.setReflectance(i, val);
-    }
-  }
+  scaleAttributesForInput(params->encoder.sps.attributeSets, pointCloud);
 
   // The reconstructed point cloud
   CloudFrame recon;
@@ -1786,16 +1797,10 @@ SequenceCodec::writeOutputFrame(
   if (postInvScalePath.empty() && preInvScalePath.empty())
     return;
 
+  scaleAttributesForOutput(frame.attrDesc, cloud);
+
   if (params->convertColourspace)
     convertToGbr(frame.attrDesc, cloud);
-
-  if (params->reflectanceScale > 1 && cloud.hasReflectances()) {
-    const auto pointCount = cloud.getPointCount();
-    for (size_t i = 0; i < pointCount; ++i) {
-      int val = cloud.getReflectance(i) * params->reflectanceScale;
-      cloud.setReflectance(i, val);
-    }
-  }
 
   // the order of the property names must be determined from the sps
   ply::PropertyNameMap attrNames;
@@ -1877,6 +1882,86 @@ convertFromGbr(
 
   default: break;
   }
+}
+
+//============================================================================
+
+const AttributeDescription*
+findReflAttrDesc(const std::vector<AttributeDescription>& attrDescs)
+{
+  // todo(df): don't assume that there is only one in the sps
+  for (const auto& desc : attrDescs) {
+    if (desc.attributeLabel == KnownAttributeLabel::kReflectance)
+      return &desc;
+  }
+  return nullptr;
+}
+
+//----------------------------------------------------------------------------
+
+struct AttrFwdScaler {
+  template<typename T>
+  T operator()(const AttributeParameters& params, T val) const
+  {
+    int scale = params.attr_scale_minus1 + 1;
+    return ((val - params.attr_offset) << params.attr_frac_bits) / scale;
+  }
+};
+
+//----------------------------------------------------------------------------
+
+struct AttrInvScaler {
+  template<typename T>
+  T operator()(const AttributeParameters& params, T val) const
+  {
+    int scale = params.attr_scale_minus1 + 1;
+    return ((val * scale) >> params.attr_frac_bits) + params.attr_offset;
+  }
+};
+
+//----------------------------------------------------------------------------
+
+template<typename Op>
+void
+scaleAttributes(
+  const std::vector<AttributeDescription>& attrDescs,
+  PCCPointSet3& cloud, Op scaler)
+{
+  // todo(df): extend this to other attributes
+  const AttributeDescription* attrDesc = findReflAttrDesc(attrDescs);
+  if (!attrDesc || !attrDesc->params.scalingParametersPresent)
+    return;
+
+  auto& params = attrDesc->params;
+
+  // Parameters present, but nothing to do
+  bool unityScale = !params.attr_scale_minus1 && !params.attr_frac_bits;
+  if (unityScale && !params.attr_offset)
+    return;
+
+  const auto pointCount = cloud.getPointCount();
+  for (size_t i = 0; i < pointCount; ++i) {
+    auto& val = cloud.getReflectance(i);
+    val = scaler(params, val);
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceCodec::scaleAttributesForInput(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
+{
+  scaleAttributes(attrDescs, cloud, AttrFwdScaler());
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceCodec::scaleAttributesForOutput(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
+{
+  scaleAttributes(attrDescs, cloud, AttrInvScaler());
 }
 
 //============================================================================
