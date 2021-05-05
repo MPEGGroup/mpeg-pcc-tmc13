@@ -143,6 +143,17 @@ not used to perform scaling by the encoder.
 For example, `srcUnitLength=1000` and `srcUnit=metre` indicates that
 integer positions in the source point cloud represent millimetres.
 
+### `--inputScale=REAL-VALUE`
+A scale factor applied to point positions in the source point cloud prior
+to integer conversion.  The `inputScale` changes the length of the source
+unit vectors (as set by `srcUnitLength`).
+
+For example, a point cloud may have a unit vector representing 1 metre
+(`srcUnitLength=1`) and contain points with a resolution of 1000 points per
+metre.  Since the codec can only represent integer positions, without input
+scaling, it is coded with a precision of one metre.
+Setting `inputScale=1000` will increase the precision to 1 millimetre.
+
 ### `--positionQuantizationScale=REAL-FACTOR`
 Prior to encoding, scale the point cloud geometry by multiplying each
 co-ordinate by the real *FACTOR* and rounding to integer precision.  The

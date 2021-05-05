@@ -191,6 +191,7 @@ bool
 ply::read(
   const std::string& fileName,
   const PropertyNameMap& attributeNames,
+  double positionScale,
   PCCPointSet3& cloud)
 {
   std::ifstream ifs(fileName, std::ifstream::in | std::ifstream::binary);
@@ -394,9 +395,9 @@ ply::read(
         return false;
       }
       auto& position = cloud[pointCounter];
-      position[0] = atof(tokens[indexX].c_str());
-      position[1] = atof(tokens[indexY].c_str());
-      position[2] = atof(tokens[indexZ].c_str());
+      position[0] = atof(tokens[indexX].c_str()) * positionScale;
+      position[1] = atof(tokens[indexY].c_str()) * positionScale;
+      position[2] = atof(tokens[indexZ].c_str()) * positionScale;
       if (cloud.hasColors()) {
         auto& color = cloud.getColor(pointCounter);
         color[0] = atoi(tokens[indexG].c_str());
@@ -423,31 +424,31 @@ ply::read(
           if (attributeInfo.byteCount == 4) {
             float x;
             ifs.read(reinterpret_cast<char*>(&x), sizeof(float));
-            position[0] = x;
+            position[0] = x * positionScale;
           } else {
             double x;
             ifs.read(reinterpret_cast<char*>(&x), sizeof(double));
-            position[0] = x;
+            position[0] = x * positionScale;
           }
         } else if (a == indexY) {
           if (attributeInfo.byteCount == 4) {
             float y;
             ifs.read(reinterpret_cast<char*>(&y), sizeof(float));
-            position[1] = y;
+            position[1] = y * positionScale;
           } else {
             double y;
             ifs.read(reinterpret_cast<char*>(&y), sizeof(double));
-            position[1] = y;
+            position[1] = y * positionScale;
           }
         } else if (a == indexZ) {
           if (attributeInfo.byteCount == 4) {
             float z;
             ifs.read(reinterpret_cast<char*>(&z), sizeof(float));
-            position[2] = z;
+            position[2] = z * positionScale;
           } else {
             double z;
             ifs.read(reinterpret_cast<char*>(&z), sizeof(double));
-            position[2] = z;
+            position[2] = z * positionScale;
           }
         } else if (a == indexR && attributeInfo.byteCount == 1) {
           uint8_t val8b;

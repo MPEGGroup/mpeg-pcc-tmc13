@@ -57,6 +57,11 @@ struct Parameters {
   // command line parsing should adjust dist2 values according to PQS
   bool positionQuantizationScaleAdjustsDist2;
 
+  // Scale factor to apply when loading the ply before integer conversion.
+  // Eg, If source point positions are in fractional metres converting to
+  // millimetres will allow some fidelity to be preserved.
+  double inputScale;
+
   // Length of the output point clouds unit vectors.
   double outputUnitLength;
 
@@ -598,6 +603,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("srcUnit",
     params.encoder.sps.seq_geom_scale_unit_flag, ScaleUnit::kDimensionless,
     " 0: dimensionless\n 1: metres")
+
+  ("inputScale",
+    params.inputScale, 1.,
+    "Scale input while reading src ply. "
+    "Eg, 1000 converts metres to integer millimetres")
 
   (po::Section("Decoder"))
 
@@ -1173,6 +1183,11 @@ void
 sanitizeEncoderOpts(
   Parameters& params, df::program_options_lite::ErrorReporter& err)
 {
+  // Input scaling affects the definition of the source unit length.
+  // eg, if the unit length of the source is 1m, scaling by 1000 generates
+  // a cloud with unit length 1mm.
+  params.encoder.srcUnitLength /= params.inputScale;
+
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
   params.encoder.gps.geom_idcm_rate_minus1--;
@@ -1568,7 +1583,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   std::string srcName{expandNum(params->uncompressedDataPath, frameNum)};
   PCCPointSet3 pointCloud;
   if (
-    !ply::read(srcName, _plyAttrNames, pointCloud)
+    !ply::read(srcName, _plyAttrNames, params->inputScale, pointCloud)
     || pointCloud.getPointCount() == 0) {
     cout << "Error: can't open input file!" << endl;
     return -1;
