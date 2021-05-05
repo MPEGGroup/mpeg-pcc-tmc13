@@ -53,9 +53,15 @@ struct CloudFrame {
   // Defines the ordering of the position components (eg, xyz vs zyx)
   AxisOrder geometry_axis_order;
 
-  // The scale of the output coordinate system wrt. source.
-  // Equivalent to seq_geom_scale.
-  double outputScale;
+  // The length of the output cloud's unit vector.
+  // The units of outputUnitLength is given by outputUnit.
+  //
+  // When outputUnit is ScaleUnit::kMetres, outputUnitLength is
+  // measured in metres.
+  //
+  // When outputUnit is ScaleUnit::kDimensionless, outputUnitLength is
+  // measured in units of an external coordinate system.
+  double outputUnitLength;
 
   // The unit of the output cloud's unit vector
   ScaleUnit outputUnit;

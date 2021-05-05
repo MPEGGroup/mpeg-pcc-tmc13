@@ -362,22 +362,9 @@ PCCTMC3Encoder3::compress(
 void
 PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
 {
-  // NB: Desrive the units based on srcResolution
-  if (params->srcResolution == 0.)
-    params->sps.seq_geom_scale_unit_flag = ScaleUnit::kDimensionless;
-  else
-    params->sps.seq_geom_scale_unit_flag = ScaleUnit::kPointsPerMetre;
-
   // Derive the sps scale factor
-  switch (params->sps.seq_geom_scale_unit_flag) {
-  case ScaleUnit::kPointsPerMetre:
-    params->sps.seq_geom_scale = params->srcResolution * params->geomPreScale;
-    break;
-
-  case ScaleUnit::kDimensionless:
-    params->sps.seq_geom_scale = params->geomPreScale;
-    break;
-  }
+  // NB: seq_geom_scale is the reciprocal of unit length
+  params->sps.seq_geom_scale = params->geomPreScale / params->srcUnitLength;
 }
 
 //----------------------------------------------------------------------------

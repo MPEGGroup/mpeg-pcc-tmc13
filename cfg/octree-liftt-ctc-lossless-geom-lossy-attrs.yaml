@@ -6,6 +6,12 @@ categories:
     encflags:
      - mode: 0
 
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      ##
      # geometry parameters (octree)
      #  - preserve lossless geometry property
@@ -13,8 +19,6 @@ categories:
      - mergeDuplicatedPoints: 0
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
-     - srcResolution: '$eval{ ${src-resolution} || 0 }'
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - positionQuantizationScale: 1
      -
        - !conditional '${numLasers}'
@@ -99,7 +103,10 @@ categories:
 
     decflags:
      - mode: 1
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
+     -
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      - convertPlyColourspace: 1
      -
        - !conditional '${reflectance8b16b_scale_factor}'

@@ -6,10 +6,14 @@ categories:
     encflags:
      - mode: 0
 
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      # preserve lossless geometry property
      - mergeDuplicatedPoints: 0
-     - srcResolution: '$eval{ ${src-resolution} || 0 }'
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - positionQuantizationScale: 1
 
      ##
@@ -105,7 +109,10 @@ categories:
 
     decflags:
      - mode: 1
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
+     -
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      - convertPlyColourspace: 0
      -
        - !conditional '${reflectance8b16b_scale_factor}'

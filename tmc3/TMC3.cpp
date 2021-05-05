@@ -57,11 +57,11 @@ struct Parameters {
   // command line parsing should adjust dist2 values according to PQS
   bool positionQuantizationScaleAdjustsDist2;
 
+  // Length of the output point clouds unit vectors.
+  double outputUnitLength;
+
   // output mode for ply writing (binary or ascii)
   bool outputBinaryPly;
-
-  // output ply resolution in points per metre (or 0 for undefined)
-  float outputResolution;
 
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
@@ -248,6 +248,28 @@ readUInt(std::istream& in, T& val)
 
 namespace pcc {
 static std::istream&
+operator>>(std::istream& in, ScaleUnit& val)
+{
+  try {
+    readUInt(in, val);
+  }
+  catch (...) {
+    in.clear();
+    std::string str;
+    in >> str;
+
+    val = ScaleUnit::kDimensionless;
+    if (str == "metre")
+      val = ScaleUnit::kMetre;
+    else if (!str.empty())
+      throw std::runtime_error("Cannot parse unit");
+  }
+  return in;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::istream&
 operator>>(std::istream& in, ColourMatrix& val)
 {
   return readUInt(in, val);
@@ -299,6 +321,18 @@ static std::istream&
 operator>>(std::istream& in, OctreeEncOpts::QpMethod& val)
 {
   return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const ScaleUnit& val)
+{
+  switch (val) {
+  case ScaleUnit::kDimensionless: out << "0 (Dimensionless)"; break;
+  case ScaleUnit::kMetre: out << "1 (Metre)"; break;
+  }
+  return out;
 }
 }  // namespace pcc
 
@@ -534,14 +568,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.preInvScalePath, {},
     "Pre inverse scaled pointcloud file path (decoder only)")
 
-  ("outputBinaryPly",
-    params.outputBinaryPly, false,
-    "Output ply files using binary (or otherwise ascii) format")
-
-  ("outputResolution",
-    params.outputResolution, -1.f,
-    "Resolution of output point cloud in points per metre")
-
   ("convertPlyColourspace",
     params.convertColourspace, true,
     "Convert ply colourspace according to attribute colourMatrix")
@@ -552,6 +578,26 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.reflectanceScale, 1,
     "scale factor to be applied to reflectance "
     "pre encoding / post reconstruction")
+
+  ("outputBinaryPly",
+    params.outputBinaryPly, false,
+    "Output ply files using binary (or otherwise ascii) format")
+
+  ("outputUnitLength",
+    params.outputUnitLength, 0.,
+    "Length of reconstructed point cloud x,y,z unit vectors.\n"
+    " 0: use srcUnitLength")
+
+  // This section controls all general geometry scaling parameters
+  (po::Section("Coordinate system scaling"))
+
+  ("srcUnitLength",
+    params.encoder.srcUnitLength, 1.,
+    "Length of source point cloud x,y,z unit vectors in srcUnits")
+
+  ("srcUnit",
+    params.encoder.sps.seq_geom_scale_unit_flag, ScaleUnit::kDimensionless,
+    " 0: dimensionless\n 1: metres")
 
   (po::Section("Decoder"))
 
@@ -590,10 +636,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("seq_bounding_box_whd",
     params.encoder.sps.seqBoundingBoxSize, {0},
     "seq_bounding_box_whd")
-
-  ("srcResolution",
-    params.encoder.srcResolution, 0.f,
-    "Resolution of source point cloud in points per metre")
 
   ("positionQuantizationScale",
     params.encoder.geomPreScale, 1.f,
@@ -1076,12 +1118,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     return false;
   }
 
+  // set default output units (this works for the decoder too)
+  if (params.outputUnitLength <= 0.)
+    params.outputUnitLength = params.encoder.srcUnitLength;
+
   if (!params.isDecoder)
     sanitizeEncoderOpts(params, err);
-
-  // set default output resolution (this works for the decoder too)
-  if (params.outputResolution < 0)
-    params.outputResolution = params.encoder.srcResolution;
 
   // check required arguments are specified
   if (!params.isDecoder && params.uncompressedDataPath.empty())
@@ -1105,6 +1147,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   if (params.isDecoder) {
     po::dumpCfg(cout, opts, "Decoder", 4);
   } else {
+    po::dumpCfg(cout, opts, "Coordinate system scaling", 4);
     po::dumpCfg(cout, opts, "Encoder", 4);
     po::dumpCfg(cout, opts, "Geometry", 4);
     po::dumpCfg(cout, opts, "Recolouring", 4);
@@ -1680,15 +1723,9 @@ SequenceDecoder::onOutputCloud(const CloudFrame& frame)
 double
 SequenceCodec::outputScale(const CloudFrame& frame)
 {
-  switch (frame.outputUnit) {
-  case ScaleUnit::kPointsPerMetre:
-    // todo(df): warn if output resolution not specified?
-    return params->outputResolution > 0
-      ? params->outputResolution / frame.outputScale
-      : 1.;
-
-  case ScaleUnit::kDimensionless: return 1. / frame.outputScale;
-  }
+  // The scaling converts from the frame's unit length to configured output.
+  // In terms of specification this is the external coordinate system.
+  return frame.outputUnitLength / params->outputUnitLength;
 }
 
 //----------------------------------------------------------------------------

@@ -44,7 +44,7 @@ CloudFrame::setParametersFrom(const SequenceParameterSet& sps)
 {
   this->geometry_axis_order = sps.geometry_axis_order;
   this->outputOrigin = sps.seqBoundingBoxOrigin;
-  this->outputScale = sps.seq_geom_scale;
+  this->outputUnitLength = 1. / sps.seq_geom_scale;
   this->outputUnit = sps.seq_geom_scale_unit_flag;
   this->attrDesc = sps.attributeSets;
 }

@@ -81,9 +81,8 @@ struct EncoderParams {
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
 
-  // Resolution of the source point cloud points per metres.
-  // The value 0 indicates undefined.
-  float srcResolution;
+  // Length of the source point cloud unit vectors.
+  double srcUnitLength;
 
   // Quantisation scale factor for geometry pre-processing
   float geomPreScale;

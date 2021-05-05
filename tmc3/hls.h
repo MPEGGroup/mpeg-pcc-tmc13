@@ -343,7 +343,7 @@ struct ProfileCompatibility {
 enum class ScaleUnit : bool
 {
   kDimensionless = 0,
-  kPointsPerMetre = 1,
+  kMetre = 1,
 };
 
 //============================================================================

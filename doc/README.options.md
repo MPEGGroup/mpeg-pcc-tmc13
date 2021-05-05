@@ -83,10 +83,12 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
-### `---outputResolution=REAL-VALUE`
-The output point clouds resolution in points per metre.  Decoded point
-clouds that indicate a coded resolution are rescaled to this output
-resolution.
+### `--outputUnitLength=REAL-VALUE`
+The length of the output point cloud unit vector.  Point clouds output by
+the encoder or decoder are rescaled to match this length.
+
+For example, `outputUnitLength=1000` outputs a point cloud with integer
+point positions representing millimetres.
 
 ### `--convertPlyColourspace=0|1`
 Controls the conversion of ply RGB colour attributes to/from the
@@ -122,13 +124,24 @@ point count metadata (see `pointCountMetadata`).
 Encoder-specific options
 ========================
 
-### `--srcResolution=REAL-VALUE`
-Resolution of the input point cloud in points per metre.  This value is
-used to derive the resolution of the coded point cloud.
+Co-ordinate systems and pre-scaling
+-----------------------------------
 
-If equal to zero, the input point cloud size is considered to be
-dimensionless.  In this case, the coded point cloud will indicate the
-dimensionless scale factor of the coded size to the input size.
+### `--srcUnit=0|1|metre`
+The physical unit used to interpret values of `srcUnitLength`.
+
+  | Value   | Description    |
+  |:-------:| ---------------|
+  | 0       | dimensionless  |
+  | 1,metre | metre          |
+
+### `--srcUnitLength=REAL-VALUE`
+The length of the source point cloud unit vector.  This value is used to
+define the unit vector length of the sequence co-ordinate system.  It is
+not used to perform scaling by the encoder.
+
+For example, `srcUnitLength=1000` and `srcUnit=metre` indicates that
+integer positions in the source point cloud represent millimetres.
 
 ### `--positionQuantizationScale=REAL-FACTOR`
 Prior to encoding, scale the point cloud geometry by multiplying each
@@ -169,30 +182,13 @@ Controls the ability to code duplicate points.  When duplicate point
 merging is enabled, bitstream syntax related to duplicate points is
 disabled and a pre-filtering process is used to remove co-located points.
 
-### `--geometry_axis_order=INT-VALUE`
-Configures the order in which axes are internally coded.  Changing
-the axis order does not change the orientation of the reconstructed
-point cloud.
-
-  | Value | Coding order |
-  |:-----:| -------------|
-  | 0     | z, y, x      |
-  | 1     | x, y, z      |
-  | 2     | x, z, y      |
-  | 3     | y, z, x      |
-  | 4     | z, y, x      |
-  | 5     | z, x, y      |
-  | 6     | y, x, z      |
-  | 7     | x, y, z      |
-
-### `--disableAttributeCoding=0|1`
-This option instructs the encoder to ignore all options relating to
-attribute coding, as if they had never been configured.
-
 ### `--sortInputByAzimuth=0|1`
 Pre-sort the input point cloud according to azimuth angle with the
 origin `lidarHeadPosition`.  Pre-sorting occurs prior to tile/slice
 partitioning.
+
+Input partitioning (slices & tiles)
+-----------------------------------
 
 ### `--partitionMethod=0|2|3|4|5`
 Selects the partitioning method to map points to tiles and slices:
@@ -245,6 +241,30 @@ merge small slices together.
 ### `--tileSize=INT-VALUE`
 Tile dimension to use when performing initial partitioning.  A value of zero
 disables tile partitioning.
+
+
+General options
+---------------
+
+### `--geometry_axis_order=INT-VALUE`
+Configures the order in which axes are internally coded.  Changing
+the axis order does not change the orientation of the reconstructed
+point cloud.
+
+  | Value | Coding order |
+  |:-----:| -------------|
+  | 0     | z, y, x      |
+  | 1     | x, y, z      |
+  | 2     | x, z, y      |
+  | 3     | y, z, x      |
+  | 4     | z, y, x      |
+  | 5     | z, x, y      |
+  | 6     | y, x, z      |
+  | 7     | x, y, z      |
+
+### `--disableAttributeCoding=0|1`
+This option instructs the encoder to ignore all options relating to
+attribute coding, as if they had never been configured.
 
 ### `--enforceLevelLimits=0|1`
 Controls the enforcement of level limits by the encoder.  If a level
