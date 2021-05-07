@@ -362,9 +362,25 @@ PCCTMC3Encoder3::compress(
 void
 PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
 {
-  // Derive the sps scale factor
+  // fixup extGeomScale in the case that we're coding metres
+  if (params->sps.seq_geom_scale_unit_flag == ScaleUnit::kMetre)
+    params->extGeomScale = 0;
+
+  if (params->extGeomScale == 0.)
+    params->extGeomScale = params->srcUnitLength;
+
+  // Derive the sps scale factor:  The sequence scale is normalised to an
+  // external geometry scale of 1.
+  //  - Ie, if the user specifies that extGeomScale=2 (1 seq point is equal
+  //    to 2 external points), seq_geom_scale is halved.
+  //
+  //  - In cases where the sequence scale is in metres, the external system
+  //    is defined to have a unit length of 1 metre, and srcUnitLength must
+  //    be used to define the sequence scale.
+  //  - The user may define the relationship to the external coordinate system.
+  //
   // NB: seq_geom_scale is the reciprocal of unit length
-  params->sps.seq_geom_scale = params->seqGeomScale / params->srcUnitLength;
+  params->sps.seq_geom_scale = params->seqGeomScale / params->extGeomScale;
 }
 
 //----------------------------------------------------------------------------

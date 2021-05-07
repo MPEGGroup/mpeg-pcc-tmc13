@@ -159,10 +159,17 @@ A scale factor used to determine the length of the sequence co-ordinate
 system unit vector.  The scale factor is relative to `inputScale`.  The
 input point cloud (after integer conversion) is scaled by `sequenceScale`.
 
-For example, a point cloud coded with `sequenceScale=0.25` specifies that:
+### `--externalScale=REAL-VALUE`
+A scale factor used to define the length of the sequence co-ordinate system
+when `srcUnit` is dimensionless.  The scale factor is relative to `inputScale`.
+The `externalScale` does not affect scaling of the input point cloud prior
+to coding.
+
+For example, a point cloud coded with `sequenceScale=0.25` and
+`externalScale=0.5` specifies that:
 
 - the input is scaled by 0.25 prior to coding, and
-- the decoder is informed that 1 sequence unit is equal to 4 external units.
+- the decoder is informed that 1 sequence unit is equal to 2 external units.
 
 NB: a decoder is not required to scale the sequence co-ordinate system to an
 external co-ordinate system prior to output.

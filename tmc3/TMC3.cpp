@@ -617,6 +617,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // Alias for compatibility with old name.
   ("positionQuantizationScale", params.encoder.seqGeomScale, 1.)
 
+  ("externalScale",
+    params.encoder.extGeomScale, 1.,
+    "Scale used to define external coordinate system.\n"
+    "Meaningless when srcUnit = metres.\n"
+    "  0: Use srcUnitLength\n"
+    " >0: Relative to inputScale")
+
   (po::Section("Decoder"))
 
   ("skipOctreeLayers",

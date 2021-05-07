@@ -88,6 +88,10 @@ struct EncoderParams {
   //  P_seq = P_src * seqGeomScale
   double seqGeomScale;
 
+  // Scale factor used to define the external coordinate system.
+  //  P_ext = P_src * extGeomScale
+  double extGeomScale;
+
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
 
