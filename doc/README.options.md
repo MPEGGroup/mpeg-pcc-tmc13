@@ -154,25 +154,18 @@ metre.  Since the codec can only represent integer positions, without input
 scaling, it is coded with a precision of one metre.
 Setting `inputScale=1000` will increase the precision to 1 millimetre.
 
-### `--positionQuantizationScale=REAL-FACTOR`
-Prior to encoding, scale the point cloud geometry by multiplying each
-co-ordinate by the real *FACTOR* and rounding to integer precision.  The
-scale factor is written to the bitstream and a decoder may use it to
-provide output at the original scale.
+### `--sequenceScale=REAL-VALUE`
+A scale factor used to determine the length of the sequence co-ordinate
+system unit vector.  The scale factor is relative to `inputScale`.  The
+input point cloud (after integer conversion) is scaled by `sequenceScale`.
 
-NB: when using trisoup geometry coding, use `triSoupIntToOrigScale`
-instead of this option.
+For example, a point cloud coded with `sequenceScale=0.25` specifies that:
 
-### `--positionQuantizationScaleAdjustsDist2=0|1`
-This option simplifies the specification of the per-attribute `dist2`
-parameter.
+- the input is scaled by 0.25 prior to coding, and
+- the decoder is informed that 1 sequence unit is equal to 4 external units.
 
-The squared distance threshold used for generating levels-of-detail in
-attribute coding is dependent on the point cloud density and is therefore
-affected by geometry quantization.  When this parameter is enabled,
-`dist2` values are scaled by `positionQuantizationScale` squared, thereby
-allowing `dist2` to be specified as an intrinsic property of the source
-sequence.
+NB: a decoder is not required to scale the sequence co-ordinate system to an
+external co-ordinate system prior to output.
 
 ### `--seq_bounding_box_xyz0=x,y,z`
 Explicitly sets the origin of the sequence-level bounding box in
@@ -726,6 +719,17 @@ When equal to zero, an initial value is automatically determined.
 
 ### `--dist2PercentileEstimate=FLOAT-VALUE`
 Percentile of per-point nearest neighbour distances used to estimate `dist2`.
+
+### `--positionQuantizationScaleAdjustsDist2=0|1`
+Adjusts `dist2` according to `sequenceScale`.  This option simplifies the
+specification of the per-attribute `dist2` parameter.
+
+The squared distance threshold used for generating levels-of-detail in
+attribute coding is dependent on the point cloud density and is therefore
+affected by geometry quantization.  When this parameter is enabled,
+`dist2` values are scaled by `sequenceScale` squared, thereby
+allowing `dist2` to be specified as an intrinsic property of the source
+sequence.
 
 ### `--lodSubsamplingPeriod=INT-VALUE|INT-VALUE-LIST`
 A list of sampling periods used to generate successive levels of detail.

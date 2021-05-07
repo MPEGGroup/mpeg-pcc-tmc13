@@ -609,6 +609,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Scale input while reading src ply. "
     "Eg, 1000 converts metres to integer millimetres")
 
+  ("sequenceScale",
+    params.encoder.seqGeomScale, 1.,
+    "Scale used to obtain sequence coordinate system. "
+    "Relative to inputScale")
+
+  // Alias for compatibility with old name.
+  ("positionQuantizationScale", params.encoder.seqGeomScale, 1.)
+
   (po::Section("Decoder"))
 
   ("skipOctreeLayers",
@@ -646,14 +654,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("seq_bounding_box_whd",
     params.encoder.sps.seqBoundingBoxSize, {0},
     "seq_bounding_box_whd")
-
-  ("positionQuantizationScale",
-    params.encoder.geomPreScale, 1.f,
-    "Scale factor to be applied to point positions during pre-processing")
-
-  ("positionQuantizationScaleAdjustsDist2",
-    params.positionQuantizationScaleAdjustsDist2, false,
-    "Scale dist2 values by squared positionQuantizationScale")
 
   ("mergeDuplicatedPoints",
     params.encoder.gps.geom_unique_points_flag, true,
@@ -1000,6 +1000,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.encoder.dist2PercentileEstimate, 0.85f,
     "Percentile for dist2 estimation during nearest neighbour search")
 
+  ("positionQuantizationScaleAdjustsDist2",
+    params.positionQuantizationScaleAdjustsDist2, false,
+    "Scale dist2 values by squared positionQuantizationScale")
+
   ("lodSamplingPeriod",
     params_attr.aps.lodSamplingPeriod, {4},
     "List of per LoD sampling periods used in LoD generation.\n")
@@ -1323,7 +1327,7 @@ sanitizeEncoderOpts(
     // adjust the dist2 values according to PQS.  The user need only
     // specify the unquantised PQS value.
     if (params.positionQuantizationScaleAdjustsDist2) {
-      auto delta = log2(params.encoder.geomPreScale);
+      auto delta = log2(params.encoder.seqGeomScale);
       attr_aps.dist2 =
         std::max(0, int32_t(std::round(attr_aps.dist2 + delta)));
     }
@@ -1374,7 +1378,7 @@ sanitizeEncoderOpts(
 
     for (auto val : params.encoder.lasersZ) {
       int one = 1 << 3;
-      auto scale = params.encoder.geomPreScale;
+      auto scale = params.encoder.seqGeomScale;
       if (params.encoder.gps.predgeom_enabled_flag)
         scale = 1.;
 
@@ -1394,9 +1398,9 @@ sanitizeEncoderOpts(
 
     if (params.encoder.gps.qtbt_enabled_flag) {
       params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =
-        std::max<int>(0, 8 + log2(params.encoder.geomPreScale));
+        std::max<int>(0, 8 + log2(params.encoder.seqGeomScale));
       params.encoder.geom.qtbt.angularMaxDiffToSplitZ =
-        std::max<int>(0, 1 + log2(params.encoder.geomPreScale));
+        std::max<int>(0, 1 + log2(params.encoder.seqGeomScale));
     }
 
     if (params.encoder.gps.predgeom_enabled_flag) {

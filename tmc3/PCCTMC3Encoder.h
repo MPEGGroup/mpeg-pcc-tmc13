@@ -84,8 +84,9 @@ struct EncoderParams {
   // Length of the source point cloud unit vectors.
   double srcUnitLength;
 
-  // Quantisation scale factor for geometry pre-processing
-  float geomPreScale;
+  // Scale factor used to define the sequence coordinate system.
+  //  P_seq = P_src * seqGeomScale
+  double seqGeomScale;
 
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;

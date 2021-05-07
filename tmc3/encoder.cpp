@@ -92,9 +92,9 @@ PCCTMC3Encoder3::compress(
 
   if (_frameCounter == 0) {
     // Save encoder parameters
-    _geomPreScale = params->geomPreScale;
+    _geomPreScale = params->seqGeomScale;
     if (params->gps.predgeom_enabled_flag)
-      params->geomPreScale = 1.;
+      params->seqGeomScale = 1.;
 
     deriveParameterSets(params);
     fixupParameterSets(params);
@@ -116,8 +116,8 @@ PCCTMC3Encoder3::compress(
       // the sps bounding box is in terms of the conformance scale
       // not the source scale.
       // NB: plus one to convert to range
-      min_k = std::round(min_k * params->geomPreScale);
-      max_k = std::round(max_k * params->geomPreScale);
+      min_k = std::round(min_k * params->seqGeomScale);
+      max_k = std::round(max_k * params->seqGeomScale);
       params->sps.seqBoundingBoxOrigin[k] = min_k;
       params->sps.seqBoundingBoxSize[k] = max_k - min_k + 1;
     }
@@ -130,7 +130,7 @@ PCCTMC3Encoder3::compress(
       numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
 
     // Determine the lidar head position relative to the sequence bounding box
-    params->gps.gpsAngularOrigin *= params->geomPreScale;
+    params->gps.gpsAngularOrigin *= params->seqGeomScale;
     params->gps.gpsAngularOrigin -= params->sps.seqBoundingBoxOrigin;
 
     // determine the scale factors based on a characteristic of the
@@ -364,7 +364,7 @@ PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
 {
   // Derive the sps scale factor
   // NB: seq_geom_scale is the reciprocal of unit length
-  params->sps.seq_geom_scale = params->geomPreScale / params->srcUnitLength;
+  params->sps.seq_geom_scale = params->seqGeomScale / params->srcUnitLength;
 }
 
 //----------------------------------------------------------------------------
@@ -538,7 +538,7 @@ PCCTMC3Encoder3::compressPartition(
   if (_gps->geom_unique_points_flag || _gps->trisoup_enabled_flag) {
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
-        attr_sps, params->recolour, originPartCloud, params->geomPreScale,
+        attr_sps, params->recolour, originPartCloud, params->seqGeomScale,
         _sps->seqBoundingBoxOrigin + _sliceOrigin, &pointCloud);
     }
   }
