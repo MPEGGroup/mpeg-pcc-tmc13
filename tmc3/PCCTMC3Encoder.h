@@ -44,11 +44,12 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "frame.h"
+#include "geometry.h"
 #include "geometry_params.h"
-#include "pointset_processing.h"
 #include "hls.h"
 #include "partitioning.h"
-#include "geometry.h"
+#include "pointset_processing.h"
 
 namespace pcc {
 
@@ -138,20 +139,20 @@ public:
     const PCCPointSet3& inputPointCloud,
     EncoderParams* params,
     Callbacks*,
-    PCCPointSet3* reconstructedCloud = nullptr);
+    CloudFrame* reconstructedCloud = nullptr);
 
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
     const PCCPointSet3& originPartCloud,
     EncoderParams* params,
     Callbacks*,
-    PCCPointSet3* reconstructedCloud = nullptr);
+    CloudFrame* reconstructedCloud = nullptr);
 
   static void deriveParameterSets(EncoderParams* params);
   static void fixupParameterSets(EncoderParams* params);
 
 private:
-  void appendReconstructedPoints(PCCPointSet3* reconstructedCloud);
+  void appendSlice(PCCPointSet3& cloud);
 
   void encodeGeometryBrick(const EncoderParams*, PayloadBuffer* buf);
 

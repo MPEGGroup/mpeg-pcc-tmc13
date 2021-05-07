@@ -100,9 +100,11 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
   _outCloud.setParametersFrom(*_sps);
   _outCloud.frameNum = _frameCtr;
 
-  _outCloud.cloud = &_accumCloud;
+  std::swap(_outCloud.cloud, _accumCloud);
 
   callback->onOutputCloud(_outCloud);
+
+  std::swap(_outCloud.cloud, _accumCloud);
   _accumCloud.clear();
 }
 

@@ -97,15 +97,38 @@ struct Parameters {
 
 //----------------------------------------------------------------------------
 
-class SequenceEncoder : public PCCTMC3Encoder3::Callbacks {
+class SequenceCodec {
+public:
+  // NB: params must outlive the lifetime of the decoder.
+  SequenceCodec(Parameters* params) : params(params) {}
+
+  // Perform conversions and write output point cloud
+  //  \params cloud  a mutable copy of reconFrame.cloud
+  void writeOutputFrame(
+    const std::string& postInvScalePath,
+    const std::string& preInvScalePath,
+    const CloudFrame& reconFrame,
+    PCCPointSet3& cloud);
+
+  // determine the output ply scale factor
+  double outputScale(const CloudFrame& cloud);
+
+protected:
+  Parameters* params;
+
+  int frameNum;
+};
+
+//----------------------------------------------------------------------------
+
+class SequenceEncoder
+  : public SequenceCodec
+  , PCCTMC3Encoder3::Callbacks {
 public:
   // NB: params must outlive the lifetime of the decoder.
   SequenceEncoder(Parameters* params);
 
   int compress(Stopwatch* clock);
-
-  // determine the output ply scale factor
-  double outputScale(const SequenceParameterSet& sps);
 
 protected:
   int compressOneFrame(Stopwatch* clock);
@@ -119,36 +142,30 @@ private:
   // The raw origin used for input sorting
   Vec3<int> _angularOrigin;
 
-  Parameters* params;
   PCCTMC3Encoder3 encoder;
 
   std::ofstream bytestreamFile;
-
-  int frameNum;
 };
 
 //----------------------------------------------------------------------------
 
-class SequenceDecoder : public PCCTMC3Decoder3::Callbacks {
+class SequenceDecoder
+  : public SequenceCodec
+  , PCCTMC3Decoder3::Callbacks {
 public:
   // NB: params must outlive the lifetime of the decoder.
-  SequenceDecoder(const Parameters* params);
+  SequenceDecoder(Parameters* params);
 
   int decompress(Stopwatch* clock);
-
-  // determine the output ply scale factor
-  double outputScale(const CloudFrame& cloud);
 
 protected:
   void onOutputCloud(const CloudFrame& cloud) override;
 
 private:
-  const Parameters* params;
   PCCTMC3Decoder3 decoder;
 
   std::ofstream bytestreamFile;
 
-  int frameNum;
   Stopwatch* clock;
 };
 
@@ -1468,7 +1485,7 @@ sanitizeEncoderOpts(
 
 //============================================================================
 
-SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
+SequenceEncoder::SequenceEncoder(Parameters* params) : SequenceCodec(params)
 {
   // determine the naming (ordering) of ply properties
   _plyAttrNames.position =
@@ -1476,22 +1493,6 @@ SequenceEncoder::SequenceEncoder(Parameters* params) : params(params)
 
   // NB: this is the raw origin before the encoder tweaks it
   _angularOrigin = params->encoder.gps.gpsAngularOrigin;
-}
-
-//----------------------------------------------------------------------------
-
-double
-SequenceEncoder::outputScale(const SequenceParameterSet& sps)
-{
-  switch (sps.seq_geom_scale_unit_flag) {
-  case ScaleUnit::kPointsPerMetre:
-    // todo(df): warn if output resolution not specified?
-    return params->outputResolution > 0
-      ? params->outputResolution / sps.seq_geom_scale
-      : 1.;
-
-  case ScaleUnit::kDimensionless: return 1. / sps.seq_geom_scale;
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -1563,15 +1564,12 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   }
 
   // The reconstructed point cloud
-  std::unique_ptr<PCCPointSet3> reconPointCloud;
-  if (!params->reconstructedDataPath.empty()) {
-    reconPointCloud.reset(new PCCPointSet3);
-  }
+  CloudFrame recon;
+  auto* reconPtr = params->reconstructedDataPath.empty() ? nullptr : &recon;
 
   auto bytestreamLenFrameStart = bytestreamFile.tellp();
 
-  int ret = encoder.compress(
-    pointCloud, &params->encoder, this, reconPointCloud.get());
+  int ret = encoder.compress(pointCloud, &params->encoder, this, reconPtr);
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
@@ -1579,31 +1577,12 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   auto bytestreamLenFrameEnd = bytestreamFile.tellp();
   int frameLen = bytestreamLenFrameEnd - bytestreamLenFrameStart;
-
   std::cout << "Total frame size " << frameLen << " B" << std::endl;
 
   clock->stop();
 
-  if (!params->reconstructedDataPath.empty()) {
-    if (params->convertColourspace)
-      convertToGbr(params->encoder.sps.attributeSets, *reconPointCloud);
-
-    if (params->reflectanceScale > 1 && reconPointCloud->hasReflectances()) {
-      const auto pointCount = reconPointCloud->getPointCount();
-      for (size_t i = 0; i < pointCount; ++i) {
-        int val =
-          reconPointCloud->getReflectance(i) * params->reflectanceScale;
-        reconPointCloud->setReflectance(i, val);
-      }
-    }
-
-    std::string recName{expandNum(params->reconstructedDataPath, frameNum)};
-    auto plyScale = outputScale(params->encoder.sps);
-    auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
-    ply::write(
-      *reconPointCloud, _plyAttrNames, plyScale, plyOrigin, recName,
-      !params->outputBinaryPly);
-  }
+  if (reconPtr)
+    writeOutputFrame(params->reconstructedDataPath, {}, recon, recon.cloud);
 
   return 0;
 }
@@ -1625,46 +1604,20 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
     return;
   }
 
-  std::string plyName{expandNum(params->postRecolorPath, frameNum)};
-  auto plyScale = outputScale(params->encoder.sps);
-  auto plyOrigin = params->encoder.sps.seqBoundingBoxOrigin * plyScale;
-
-  // todo(df): stop the clock
-  if (!params->convertColourspace) {
-    ply::write(
-      cloud, _plyAttrNames, plyScale, plyOrigin, plyName,
-      !params->outputBinaryPly);
-    return;
-  }
-
+  // todo(df): don't allocate if conversion is not required
   PCCPointSet3 tmpCloud(cloud);
-  convertToGbr(params->encoder.sps.attributeSets, tmpCloud);
-  ply::write(
-    tmpCloud, _plyAttrNames, plyScale, plyOrigin, plyName,
-    !params->outputBinaryPly);
+  CloudFrame frame;
+  frame.setParametersFrom(params->encoder.sps);
+  frame.cloud = cloud;
+
+  writeOutputFrame(params->postRecolorPath, {}, frame, tmpCloud);
 }
 
 //============================================================================
 
-SequenceDecoder::SequenceDecoder(const Parameters* params)
-  : params(params), decoder(params->decoder)
+SequenceDecoder::SequenceDecoder(Parameters* params)
+  : SequenceCodec(params), decoder(params->decoder)
 {}
-
-//----------------------------------------------------------------------------
-
-double
-SequenceDecoder::outputScale(const CloudFrame& frame)
-{
-  switch (frame.outputUnit) {
-  case ScaleUnit::kPointsPerMetre:
-    // todo(df): warn if output resolution not specified?
-    return params->outputResolution > 0
-      ? params->outputResolution / frame.outputScale
-      : 1.;
-
-  case ScaleUnit::kDimensionless: return 1. / frame.outputScale;
-  }
-}
 
 //----------------------------------------------------------------------------
 
@@ -1714,17 +1667,55 @@ SequenceDecoder::decompress(Stopwatch* clock)
 void
 SequenceDecoder::onOutputCloud(const CloudFrame& frame)
 {
+  clock->stop();
+
   // copy the point cloud in order to modify it according to the output options
-  PCCPointSet3 pointCloud(*frame.cloud);
+  PCCPointSet3 pointCloud(frame.cloud);
+  writeOutputFrame(
+    params->reconstructedDataPath, params->preInvScalePath, frame, pointCloud);
+
+  clock->start();
+
+  // todo(df): frame number should be derived from the bitstream
+  frameNum++;
+}
+
+//============================================================================
+
+double
+SequenceCodec::outputScale(const CloudFrame& frame)
+{
+  switch (frame.outputUnit) {
+  case ScaleUnit::kPointsPerMetre:
+    // todo(df): warn if output resolution not specified?
+    return params->outputResolution > 0
+      ? params->outputResolution / frame.outputScale
+      : 1.;
+
+  case ScaleUnit::kDimensionless: return 1. / frame.outputScale;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceCodec::writeOutputFrame(
+  const std::string& postInvScalePath,
+  const std::string& preInvScalePath,
+  const CloudFrame& frame,
+  PCCPointSet3& cloud)
+{
+  if (postInvScalePath.empty() && preInvScalePath.empty())
+    return;
 
   if (params->convertColourspace)
-    convertToGbr(frame.attrDesc, pointCloud);
+    convertToGbr(frame.attrDesc, cloud);
 
-  if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
-    const auto pointCount = pointCloud.getPointCount();
+  if (params->reflectanceScale > 1 && cloud.hasReflectances()) {
+    const auto pointCount = cloud.getPointCount();
     for (size_t i = 0; i < pointCount; ++i) {
-      int val = pointCloud.getReflectance(i) * params->reflectanceScale;
-      pointCloud.setReflectance(i, val);
+      int val = cloud.getReflectance(i) * params->reflectanceScale;
+      cloud.setReflectance(i, val);
     }
   }
 
@@ -1733,28 +1724,19 @@ SequenceDecoder::onOutputCloud(const CloudFrame& frame)
   attrNames.position = axisOrderToPropertyNames(frame.geometry_axis_order);
 
   // Dump the decoded colour using the pre inverse scaled geometry
-  if (!params->preInvScalePath.empty()) {
-    std::string filename{expandNum(params->preInvScalePath, frameNum)};
-    ply::write(
-      pointCloud, attrNames, 1.0, 0.0, params->preInvScalePath,
-      !params->outputBinaryPly);
+  if (!preInvScalePath.empty()) {
+    std::string filename{expandNum(preInvScalePath, frameNum)};
+    ply::write(cloud, attrNames, 1.0, 0.0, filename, !params->outputBinaryPly);
   }
-
-  clock->stop();
 
   auto plyScale = outputScale(frame);
   auto plyOrigin = frame.outputOrigin * plyScale;
-  std::string decName{expandNum(params->reconstructedDataPath, frameNum)};
+  std::string decName{expandNum(postInvScalePath, frameNum)};
   if (!ply::write(
-        pointCloud, attrNames, plyScale, plyOrigin, decName,
+        cloud, attrNames, plyScale, plyOrigin, decName,
         !params->outputBinaryPly)) {
     cout << "Error: can't open output file!" << endl;
   }
-
-  clock->start();
-
-  // todo(df): frame number should be derived from the bitstream
-  frameNum++;
 }
 
 //============================================================================

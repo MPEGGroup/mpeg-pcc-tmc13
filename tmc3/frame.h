@@ -71,7 +71,7 @@ struct CloudFrame {
   // The output point cloud.  The coordinate system is defined by the
   // other parameters in this structure.
   // NB: Point positions respect geometry_axis_order.
-  const PCCPointSet3* cloud;
+  PCCPointSet3 cloud;
 
   // Determines parameters according to the sps.
   void setParametersFrom(const SequenceParameterSet& sps);

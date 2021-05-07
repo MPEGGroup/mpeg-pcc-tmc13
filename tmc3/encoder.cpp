@@ -85,7 +85,7 @@ PCCTMC3Encoder3::compress(
   const PCCPointSet3& inputPointCloud,
   EncoderParams* params,
   PCCTMC3Encoder3::Callbacks* callback,
-  PCCPointSet3* reconstructedCloud)
+  CloudFrame* reconCloud)
 {
   // start of frame
   _frameCounter++;
@@ -175,6 +175,12 @@ PCCTMC3Encoder3::compress(
   _sliceId = 0;
   _sliceOrigin = Vec3<int>{0};
   _firstSliceInFrame = true;
+
+  // Configure output coud
+  if (reconCloud) {
+    reconCloud->setParametersFrom(*_sps);
+    reconCloud->frameNum = _frameCounter;
+  }
 
   // Partition the input point cloud into tiles
   //  - quantize the input point cloud (without duplicate point removal)
@@ -345,8 +351,7 @@ PCCTMC3Encoder3::compress(
     _sliceId = partition.sliceId;
     _tileId = partition.tileId;
     _sliceOrigin = sliceCloud.computeBoundingBox().min;
-    compressPartition(
-      sliceCloud, sliceSrcCloud, params, callback, reconstructedCloud);
+    compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);
   }
 
   return 0;
@@ -473,7 +478,7 @@ PCCTMC3Encoder3::compressPartition(
   const PCCPointSet3& originPartCloud,
   EncoderParams* params,
   PCCTMC3Encoder3::Callbacks* callback,
-  PCCPointSet3* reconstructedCloud)
+  CloudFrame* reconCloud)
 {
   // geometry compression consists of the following stages:
   //  - prefilter/quantize geometry (non-normative)
@@ -666,7 +671,8 @@ PCCTMC3Encoder3::compressPartition(
   _sliceId++;
   _firstSliceInFrame = false;
 
-  appendReconstructedPoints(reconstructedCloud);
+  if (reconCloud)
+    appendSlice(reconCloud->cloud);
 }
 
 //----------------------------------------------------------------------------
@@ -790,28 +796,15 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 //----------------------------------------------------------------------------
 
 void
-PCCTMC3Encoder3::appendReconstructedPoints(PCCPointSet3* reconstructedCloud)
+PCCTMC3Encoder3::appendSlice(PCCPointSet3& accumCloud)
 {
-  if (reconstructedCloud == nullptr) {
-    return;
-  }
-  const size_t pointCount = pointCloud.getPointCount();
-  size_t outIdx = reconstructedCloud->getPointCount();
+  // offset current point cloud to be in coding coordinate system
+  size_t numPoints = pointCloud.getPointCount();
+  for (size_t i = 0; i < numPoints; i++)
+    for (int k = 0; k < 3; k++)
+      pointCloud[i][k] += _sliceOrigin[k];
 
-  reconstructedCloud->addRemoveAttributes(
-    pointCloud.hasColors(), pointCloud.hasReflectances());
-  reconstructedCloud->resize(outIdx + pointCount);
-
-  for (size_t i = 0; i < pointCount; ++i, ++outIdx) {
-    (*reconstructedCloud)[outIdx] = pointCloud[i] + _sliceOrigin;
-
-    if (pointCloud.hasColors()) {
-      reconstructedCloud->setColor(outIdx, pointCloud.getColor(i));
-    }
-    if (pointCloud.hasReflectances()) {
-      reconstructedCloud->setReflectance(outIdx, pointCloud.getReflectance(i));
-    }
-  }
+  accumCloud.append(pointCloud);
 }
 
 //----------------------------------------------------------------------------
