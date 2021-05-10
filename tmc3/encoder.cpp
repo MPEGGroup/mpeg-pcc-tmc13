@@ -936,7 +936,7 @@ PCCPointSet3
 getPartition(const PCCPointSet3& src, const std::vector<int32_t>& indexes)
 {
   PCCPointSet3 dst;
-  dst.addRemoveAttributes(src.hasColors(), src.hasReflectances());
+  dst.addRemoveAttributes(src);
 
   int partitionSize = indexes.size();
   dst.resize(partitionSize);
@@ -950,6 +950,9 @@ getPartition(const PCCPointSet3& src, const std::vector<int32_t>& indexes)
 
     if (src.hasReflectances())
       dst.setReflectance(i, src.getReflectance(inputIdx));
+
+    if (src.hasLaserAngles())
+      dst.setLaserAngle(i, src.getLaserAngle(inputIdx));
   }
 
   return dst;
@@ -981,7 +984,7 @@ getPartition(
   }
 
   PCCPointSet3 dst;
-  dst.addRemoveAttributes(src.hasColors(), src.hasReflectances());
+  dst.addRemoveAttributes(src);
   dst.resize(size);
 
   int dstIdx = 0;
@@ -995,6 +998,9 @@ getPartition(
 
       if (src.hasReflectances())
         dst.setReflectance(dstIdx, src.getReflectance(srcIdx));
+
+      if (src.hasLaserAngles())
+        dst.setLaserAngle(dstIdx, src.getLaserAngle(srcIdx));
 
       dstIdx++;
       prevIdx = srcIdx;

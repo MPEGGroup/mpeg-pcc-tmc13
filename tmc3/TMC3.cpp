@@ -476,6 +476,7 @@ operator<<(std::ostream& out, const PredGeomEncOpts::SortMode& val)
   case SortMode::kSortMorton: out << int(val) << " (Morton)"; break;
   case SortMode::kSortAzimuth: out << int(val) << " (Azimuth)"; break;
   case SortMode::kSortRadius: out << int(val) << " (Radius)"; break;
+  case SortMode::kSortLaserAngle: out << int(val) << " (LaserAngle)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -953,7 +954,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Predictive geometry tree construction order")
 
   ("predGeomAzimuthSortPrecision",
-    params.encoder.predGeom.azimuthSortRecipBinWidth, 0,
+    params.encoder.predGeom.azimuthSortRecipBinWidth, 0.0f,
     "Reciprocal precision used in azimuthal sorting for tree construction")
 
   ("predGeomTreePtsMax",

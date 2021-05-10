@@ -784,6 +784,33 @@ mortonSort(PCCPointSet3& cloud, int begin, int end, int depth)
 
 //============================================================================
 
+Vec3<int>
+originFromLaserAngle(const PCCPointSet3& cloud)
+{
+  Vec3<int> origin;
+  auto numPoints = cloud.getPointCount();
+  int i;
+
+  for (i = 0; i < numPoints; i++) {
+    if (cloud.getLaserAngle(i) == 90) {
+      origin = cloud[i];
+      break;
+    }
+  }
+
+  for (; i < numPoints; i++) {
+    if (cloud.getLaserAngle(i) == 90) {
+      // the most left point
+      if (origin[0] > cloud[i][0])
+        origin = cloud[i];
+    }
+  }
+
+  return origin;
+}
+
+//============================================================================
+
 void
 encodePredictiveGeometry(
   const PredGeomEncOpts& opt,
@@ -797,7 +824,10 @@ encodePredictiveGeometry(
   auto numPoints = cloud.getPointCount();
 
   // Origin relative to slice origin
-  auto origin = gbh.geomAngularOrigin(gps);
+  //  - if angular disabled, try to find a presort origin using laser angles
+  Vec3<int> origin = gbh.geomAngularOrigin(gps);
+  if (!gps.geom_angular_mode_enabled_flag && cloud.hasLaserAngles())
+    origin = originFromLaserAngle(cloud);
 
   // storage for reordering the output point cloud
   PCCPointSet3 outCloud;
@@ -881,6 +911,8 @@ encodePredictiveGeometry(
       sortByAzimuth(cloud, i, iEnd, opt.azimuthSortRecipBinWidth, origin);
     else if (opt.sortMode == PredGeomEncOpts::kSortRadius)
       sortByRadius(cloud, i, iEnd, origin);
+    else if (opt.sortMode == PredGeomEncOpts::kSortLaserAngle)
+      sortByLaserAngle(cloud, i, iEnd, opt.azimuthSortRecipBinWidth, origin);
 
     // then build and encode the tree
     auto nodes = gps.geom_angular_mode_enabled_flag

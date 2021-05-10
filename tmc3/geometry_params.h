@@ -81,7 +81,8 @@ struct PredGeomEncOpts {
     kNoSort,
     kSortMorton,
     kSortAzimuth,
-    kSortRadius
+    kSortRadius,
+    kSortLaserAngle
   } sortMode;
 
   // limit on number of points per tree
@@ -89,7 +90,7 @@ struct PredGeomEncOpts {
 
   // Reciprocal bin width used in azimuthal sorting.
   //  0 => full precision
-  int azimuthSortRecipBinWidth;
+  float azimuthSortRecipBinWidth;
 };
 
 //=============================================================================

@@ -323,6 +323,7 @@ ply::read(
   size_t indexNX = PCC_UNDEFINED_INDEX;
   size_t indexNY = PCC_UNDEFINED_INDEX;
   size_t indexNZ = PCC_UNDEFINED_INDEX;
+  size_t indexLaserAngle = PCC_UNDEFINED_INDEX;
   const size_t attributeCount = attributesInfo.size();
   for (size_t a = 0; a < attributeCount; ++a) {
     const auto& attributeInfo = attributesInfo[a];
@@ -363,6 +364,8 @@ ply::read(
       attributeInfo.name == "nz"
       && (attributeInfo.byteCount == 8 || attributeInfo.byteCount == 4)) {
       indexNZ = a;
+    } else if (attributeInfo.name == "laserangle") {
+      indexLaserAngle = a;
     }
   }
   if (
@@ -375,12 +378,18 @@ ply::read(
     && indexG != PCC_UNDEFINED_INDEX && indexB != PCC_UNDEFINED_INDEX;
   bool withReflectances = indexReflectance != PCC_UNDEFINED_INDEX;
   bool withFrameIndex = indexFrame != PCC_UNDEFINED_INDEX;
+  bool withLaserAngles = indexLaserAngle != PCC_UNDEFINED_INDEX;
 
   cloud.addRemoveAttributes(withColors, withReflectances);
   if (withFrameIndex)
     cloud.addFrameIndex();
   else
     cloud.removeFrameIndex();
+
+  if (withLaserAngles)
+    cloud.addLaserAngles();
+  else
+    cloud.removeLaserAngles();
 
   cloud.resize(pointCount);
   if (isAscii) {
@@ -411,6 +420,10 @@ ply::read(
       if (cloud.hasFrameIndex()) {
         cloud.getFrameIndex(pointCounter) =
           uint8_t(atoi(tokens[indexFrame].c_str()));
+      }
+      if (cloud.hasLaserAngles()) {
+        cloud.getLaserAngle(pointCounter) =
+          std::round(atof(tokens[indexLaserAngle].c_str()));
       }
       ++pointCounter;
     }

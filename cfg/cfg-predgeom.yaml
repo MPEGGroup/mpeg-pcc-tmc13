@@ -16,6 +16,11 @@ encflags:
    - !conditional '${numLasers}'
    - predGeomAzimuthSortPrecision: 1024
 
+ -
+   - !conditional '"${group}" eq "cat3-fused"'
+   - predGeomSort: 4
+   - predGeomAzimuthSortPrecision: 0.05
+
 # the following are for specific configurations
 categories:
   lossless-geom-lossless-attrs: &predgeomlossless

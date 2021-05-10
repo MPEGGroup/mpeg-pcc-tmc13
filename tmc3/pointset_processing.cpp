@@ -79,6 +79,8 @@ reducePointSet(const PCCPointSet3& src, UniqueFn uniqueFn, QFn qFn)
   // Number of quantised points is now known
   dst.cloud.resize(numDstPoints);
   dst.idxToSrcIdx.resize(numDstPoints);
+  if (src.hasLaserAngles())
+    dst.cloud.addLaserAngles();
 
   // Generate dst outputs
   for (int i = 0, dstIdx = 0; i < numSrcPoints; ++i) {
@@ -88,6 +90,8 @@ reducePointSet(const PCCPointSet3& src, UniqueFn uniqueFn, QFn qFn)
 
     dst.srcIdxDupList[i] ^= 0x80000000;
     dst.idxToSrcIdx[dstIdx] = i;
+    if (src.hasLaserAngles() == true)
+      dst.cloud.setLaserAngle(dstIdx, src.getLaserAngle(i));
     dst.cloud[dstIdx++] = qFn(src[i]);
   }
 
@@ -175,7 +179,7 @@ quantizePositions(
   // In case dst and src point clouds are the same, don't destroy src.
   if (&src != dst) {
     dst->clear();
-    dst->addRemoveAttributes(src.hasColors(), src.hasReflectances());
+    dst->addRemoveAttributes(src);
     dst->resize(numSrcPoints);
   }
 
@@ -200,6 +204,11 @@ quantizePositions(
   if (src.hasReflectances()) {
     for (int i = 0; i < numSrcPoints; ++i)
       dst->setReflectance(i, src.getReflectance(i));
+  }
+
+  if (src.hasLaserAngles()) {
+    for (int i = 0; i < numSrcPoints; ++i)
+      dst->setLaserAngle(i, src.getLaserAngle(i));
   }
 }
 
@@ -1114,5 +1123,79 @@ sortByRadius(PCCPointSet3& cloud, int start, int end, Vec3<int32_t> origin)
 }
 
 //============================================================================
+
+std::vector<int>
+orderByLaserAngle(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin)
+{
+  // build a list of inxdexes to sort
+  auto pointCount = end - start;
+  std::vector<int> order(pointCount);
+  for (int i = 0; i < pointCount; i++)
+    order[i] = start + i;
+
+  std::sort(order.begin(), order.end(), [&](int aIdx, int bIdx) {
+    auto a = cloud[aIdx] - origin;
+    auto b = cloud[bIdx] - origin;
+
+    double rA = hypot(a[0], a[1]);
+    double phiA = cloud.getLaserAngle(aIdx);
+    double tanThetaA = a[2] / rA;
+
+    double rB = hypot(b[0], b[1]);
+    double phiB = cloud.getLaserAngle(bIdx);
+    double tanThetaB = b[2] / rB;
+
+    // quantise azimith to specified precision
+    if (recipBinWidth != 0.) {
+      phiA = std::round(phiA * recipBinWidth);
+      phiB = std::round(phiB * recipBinWidth);
+    }
+
+    // NB: the a < b comparison adds some stability to the sort.  It is not
+    // required in an actual implementation.  Either slightly more performance
+    // can be achieved by sorting by a second data dependent dimension, or
+    // efficiency can be improved by removing the stability (at a cost of
+    // being able to reproduce the exact same bitstream).
+
+    return phiB != phiA ? phiA < phiB
+                        : rA != rB ? rA < rB : tanThetaA < tanThetaB;
+  });
+
+  return order;
+}
+
+//============================================================================
+// Sorts according to azimuth.
+// \param recipBinWidth is the reciprocal bin width used in sorting.
+//        recipBinWidth = 0 disables binning.
+
+void
+sortByLaserAngle(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin)
+{
+  auto pointCount = end - start;
+  std::vector<int> order;
+  if (cloud.hasLaserAngles())
+    order = orderByLaserAngle(cloud, start, end, recipBinWidth, origin);
+  else
+    order = orderByAzimuth(cloud, start, end, recipBinWidth, origin);
+
+  // inefficiently reorder the point cloud
+  for (int i = 0; i < pointCount; i++) {
+    while (order[i] - start != i) {
+      cloud.swapPoints(order[i], order[order[i] - start]);
+      std::swap(order[i], order[order[i] - start]);
+    }
+  }
+}
 
 }  // namespace pcc

@@ -558,12 +558,13 @@ the number of generated points does not exceed the slice limit set by
 Point order used to construct predictive geometry trees.
 Requires `geomTreeType=1`.
 
- | Value | Description     |
- |:-----:| ----------------|
- | 0     | none            |
- | 1     | morton order    |
- | 2     | azimuth angle   |
- | 3     | radial distance |
+ | Value | Description                            |
+ |:-----:| -------------------------------------- |
+ | 0     | none                                   |
+ | 1     | morton order                           |
+ | 2     | azimuth angle                          |
+ | 3     | radial distance                        |
+ | 4     | source azimuth angle (ply: laserangle) |
 
 ### `--predGeomAzimuthSortPrecision=INT-VALUE`
 Controls the precision used in azimuthal sorting of points prior to
