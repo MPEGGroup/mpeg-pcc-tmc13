@@ -57,21 +57,21 @@ void
 scaleGeometry(
   PCCPointSet3& cloud, const SequenceParameterSet::GlobalScale& globalScale)
 {
-  int denominator = 1 << globalScale.denominatorLog2;
-  int numerator = denominator + globalScale.numeratorModDenominator;
-  numerator <<= globalScale.numeratorMulLog2;
+  // Conversion to rational simplifies the globalScale expression.
+  Rational gs = globalScale;
 
   // Nothing to do if scale factor is 1.
-  if (numerator == denominator)
+  if (gs.numerator == gs.denominator)
     return;
 
-  int gsDenominatorLog2 = globalScale.denominatorLog2;
+  // NB: by definition, gs.denominator is a power of two.
+  int gsDenominatorLog2 = ilog2(uint32_t(gs.denominator));
 
   // The scaling here is equivalent to the integer conformance output
   size_t numPoints = cloud.getPointCount();
   for (size_t i = 0; i < numPoints; i++) {
     auto& pos = cloud[i];
-    pos = (pos * numerator + (denominator >> 1)) >> gsDenominatorLog2;
+    pos = (pos * gs.numerator + (gs.denominator >> 1)) >> gsDenominatorLog2;
   }
 }
 

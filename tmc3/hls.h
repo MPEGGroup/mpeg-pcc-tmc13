@@ -383,6 +383,9 @@ struct SequenceParameterSet {
 
     // Initialized to 1/1
     GlobalScale() = default;
+
+    // Convert to simplified Rational form
+    operator Rational() const;
   };
 
   // Scale factor applied to the coded geometry to get the output geometry

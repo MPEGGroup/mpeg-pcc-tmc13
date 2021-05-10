@@ -1816,5 +1816,25 @@ parseUserData(const PayloadBuffer& buf)
 }
 
 //============================================================================
+// Helpers for Global scaling
+
+SequenceParameterSet::GlobalScale::operator Rational() const
+{
+  int numeratorPreMul = ((1 << denominatorLog2) + numeratorModDenominator);
+
+  // Simplify 2^numeratorMulLog2 / 2^denominatorLog2
+  int numeratorS = std::max(0, numeratorMulLog2 - denominatorLog2);
+  int denominatorS = denominatorLog2 - (numeratorMulLog2 - numeratorS);
+
+  // Simplify numeratorPreMul / 2^denominatorLog2
+  while (!(numeratorPreMul & 1) && denominatorS) {
+    numeratorPreMul >>= 1;
+    denominatorS--;
+  }
+
+  return Rational(numeratorPreMul << numeratorS, 1 << denominatorS);
+}
+
+//============================================================================
 
 }  // namespace pcc
