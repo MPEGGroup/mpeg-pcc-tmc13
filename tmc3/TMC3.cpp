@@ -546,7 +546,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // i/o parameters
   ("firstFrameNum",
      params.firstFrameNum, 0,
-     "Frame number for use with interpolating %d format specifiers"
+     "Frame number for use with interpolating %d format specifiers "
      "in input/output filenames")
 
   ("frameCount",
@@ -590,7 +590,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("outputUnitLength",
     params.outputUnitLength, 0.,
-    "Length of reconstructed point cloud x,y,z unit vectors.\n"
+    "Length of reconstructed point cloud x,y,z unit vectors\n"
     " 0: use srcUnitLength")
 
   // This section controls all general geometry scaling parameters
@@ -619,12 +619,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Relative to inputScale")
 
   // Alias for compatibility with old name.
-  ("positionQuantizationScale", params.encoder.seqGeomScale, 1.)
+  ("positionQuantizationScale", params.encoder.seqGeomScale, 1.,
+   "(deprecated)")
 
   ("externalScale",
     params.encoder.extGeomScale, 1.,
     "Scale used to define external coordinate system.\n"
-    "Meaningless when srcUnit = metres.\n"
+    "Meaningless when srcUnit = metres\n"
     "  0: Use srcUnitLength\n"
     " >0: Relative to inputScale")
 
@@ -632,13 +633,13 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("skipOctreeLayers",
     params.decoder.minGeomNodeSizeLog2, 0,
-    " 0   : Full decode. \n"
-    " N>0 : Skip the bottom N layers in decoding process.\n"
-    " skipLayerNum indicates the number of skipped lod layers from leaf lod.")
+    "Partial decoding of octree and attributes\n"
+    " 0   : Full decode\n"
+    " N>0 : Skip the bottom N layers in decoding process")
 
   ("decodeMaxPoints",
     params.decoder.decodeMaxPoints, 0,
-    "Partially decode up to N points\n")
+    "Partially decode up to N points")
 
   (po::Section("Encoder"))
 
@@ -715,7 +716,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("geomTreeType",
     params.encoder.gps.predgeom_enabled_flag, false,
-    "Selects the tree coding method\n"
+    "Selects the tree coding method:\n"
     "  0: octree\n"
     "  1: predictive")
 
@@ -790,12 +791,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
    ("planarModeIdcmUse",
     // NB: this is adjusted by minus1 after thearguments are parsed
     params.encoder.gps.geom_idcm_rate_minus1, 0,
-    "Degree (1/32%) of IDCM activation when planar mode is enabled.\n"
+    "Degree (1/32%) of IDCM activation when planar mode is enabled\n"
     "  0 => never, 32 => always")
 
   ("trisoupNodeSizeLog2",
     params.encoder.trisoupNodeSizesLog2, {0},
-    "Node size for surface triangulation.\n"
+    "Node size for surface triangulation\n"
     " <2: disabled")
 
   ("trisoup_sampling_value",
@@ -857,7 +858,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   //     Conversion happens during argument sanitization.
   ("lidarHeadPosition",
     params.encoder.gps.gpsAngularOrigin, {0, 0, 0},
-    "laser head position (x, y, z) in angular mode")
+    "laser head position (x,y,z) in angular mode")
 
   ("numLasers",
     params.encoder.numLasers, 0,
@@ -898,7 +899,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("predGeomAzimuthSortPrecision",
     params.encoder.predGeom.azimuthSortRecipBinWidth, 0,
-    "Reciprocal precision used in azimuthal sorting for tree construction\n")
+    "Reciprocal precision used in azimuthal sorting for tree construction")
 
   ("predGeomTreePtsMax",
     params.encoder.predGeom.maxPtsPerTree, 1100000,
@@ -965,19 +966,19 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("intraLodSearchRange",
     params_attr.aps.intra_lod_search_range, -1,
-    "Intra LoD nearest neighbor search range.\n"
+    "Intra LoD nearest neighbor search range\n"
     " -1: Full-range")
 
   ("interLodSearchRange",
     params_attr.aps.inter_lod_search_range, -1,
-    "Inter LoD nearest neighbor search range.\n"
+    "Inter LoD nearest neighbor search range\n"
     " -1: Full-range")
 
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
   ("lod_neigh_bias",
     params_attr.aps.lodNeighBias, {1, 1, 1},
-    "Attribute's (x, y, z) component intra prediction weights")
+    "Attribute's (x,y,z) component intra prediction weights")
 
   ("lodDecimator",
     params_attr.aps.lod_decimation_type, LodDecimationMethod::kNone,
@@ -1007,7 +1008,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("dist2",
     params_attr.aps.dist2, 0,
-    "Initial squared distance used in LoD generation.\n")
+    "Initial squared distance used in LoD generation")
 
   ("dist2PercentileEstimate",
     params_attr.encoder.dist2PercentileEstimate, 0.85f,
@@ -1019,11 +1020,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("lodSamplingPeriod",
     params_attr.aps.lodSamplingPeriod, {4},
-    "List of per LoD sampling periods used in LoD generation.\n")
+    "List of per LoD sampling periods used in LoD generation")
 
   ("intraLodPredictionSkipLayers",
     params_attr.aps.intra_lod_prediction_skip_layers, -1,
-    "Number of finest detail levels that skip intra prediction.\n"
+    "Number of finest detail levels that skip intra prediction\n"
     " -1: skip all (disables intra pred)")
 
   ("interComponentPredictionEnabled",
@@ -1207,7 +1208,7 @@ sanitizeEncoderOpts(
 
   // global scale factor must be positive
   if (params.encoder.codedGeomScale > params.encoder.seqGeomScale) {
-    err.warn() << "adjusted codingScale: must be <= sequenceScale";
+    err.warn() << "codingScale must be <= sequenceScale, adjusting\n";
     params.encoder.codedGeomScale = params.encoder.seqGeomScale;
   }
 
@@ -1237,7 +1238,7 @@ sanitizeEncoderOpts(
     if (params.encoder.gps.inferred_direct_coding_mode > 1) {
       params.encoder.gps.geom_idcm_rate_minus1 = 31;
       err.warn() << "ignoring planarModeIdcmUse < 32: "
-        "contradicts inferredDirectCodingMode > 1\n";
+                    "contradicts inferredDirectCodingMode > 1\n";
     }
   }
 
