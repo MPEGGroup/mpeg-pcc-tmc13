@@ -36,6 +36,7 @@
 #include "PCCTMC3Encoder.h"
 
 #include <cassert>
+#include <limits>
 #include <set>
 #include <stdexcept>
 
@@ -91,13 +92,21 @@ PCCTMC3Encoder3::compress(
   _frameCounter++;
 
   if (_frameCounter == 0) {
-    // Save encoder parameters
-    _geomPreScale = params->seqGeomScale;
-    if (params->gps.predgeom_enabled_flag)
+    // Angular predictive geometry coding needs to determine spherical
+    // positions.  To avoid quantization of the input disturbing this:
+    //  - sequence scaling is replaced by decimation of the input
+    //  - any user-specified global scaling is honoured
+    _inputDecimationScale = 1.;
+    if (params->gps.predgeom_enabled_flag) {
+      _inputDecimationScale = params->codedGeomScale;
+      params->codedGeomScale /= params->seqGeomScale;
       params->seqGeomScale = 1.;
+    }
 
     deriveParameterSets(params);
     fixupParameterSets(params);
+
+    _srcToCodingScale = params->codedGeomScale;
 
     // Determine input bounding box (for SPS metadata) if not manually set
     Box3<int> bbox;
@@ -120,6 +129,19 @@ PCCTMC3Encoder3::compress(
       max_k = std::round(max_k * params->seqGeomScale);
       params->sps.seqBoundingBoxOrigin[k] = min_k;
       params->sps.seqBoundingBoxSize[k] = max_k - min_k + 1;
+
+      // Compensate the sequence origin such that source point (0,0,0) coded
+      // as P_c is reconstructed as (0,0,0):
+      //   0 = P_c * globalScale + seqOrigin
+      auto gs = Rational(params->sps.globalScale);
+      int rem = params->sps.seqBoundingBoxOrigin[k] % gs.numerator;
+      rem += rem < 0 ? gs.numerator : 0;
+      params->sps.seqBoundingBoxOrigin[k] -= rem;
+      params->sps.seqBoundingBoxSize[k] += rem;
+
+      // Convert the origin to coding coordinate system
+      _originInCodingCoords[k] = params->sps.seqBoundingBoxOrigin[k];
+      _originInCodingCoords[k] /= double(gs);
     }
 
     // Determine the number of bits to signal the bounding box
@@ -129,16 +151,17 @@ PCCTMC3Encoder3::compress(
     params->sps.sps_bounding_box_size_bits_minus1 =
       numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
 
-    // Determine the lidar head position relative to the sequence bounding box
-    params->gps.gpsAngularOrigin *= params->seqGeomScale;
-    params->gps.gpsAngularOrigin -= params->sps.seqBoundingBoxOrigin;
+    // Determine the lidar head position in coding coordinate system
+    params->gps.gpsAngularOrigin *= _srcToCodingScale;
+    params->gps.gpsAngularOrigin -= _originInCodingCoords;
 
     // determine the scale factors based on a characteristic of the
     // acquisition system
     if (params->gps.geom_angular_mode_enabled_flag) {
+      auto gs = Rational(params->sps.globalScale);
+      int maxX = (params->sps.seqBoundingBoxSize[0] - 1) / double(gs);
+      int maxY = (params->sps.seqBoundingBoxSize[1] - 1) / double(gs);
       auto& origin = params->gps.gpsAngularOrigin;
-      int maxX = params->sps.seqBoundingBoxSize[0] - 1;
-      int maxY = params->sps.seqBoundingBoxSize[1] - 1;
       int rx = std::max(std::abs(origin[0]), std::abs(maxX - origin[0]));
       int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
       int r = std::max(rx, ry);
@@ -217,6 +240,15 @@ PCCTMC3Encoder3::compress(
 
     // Get the bounding box of current tile and write it into tileInventory
     partitions.tileInventory.tiles.resize(tileMaps.size());
+
+    // Convert tile bounding boxes to sequence coordinate system.
+    // A position in the box must remain in the box after conversion
+    // irrispective of how the decoder outputs positions (fractional | integer)
+    //   => truncate origin (eg, rounding 12.5 to 13 would not allow all
+    //      decoders to find that point).
+    //   => use next integer for upper coordinate.
+    double gs = Rational(_sps->globalScale);
+
     for (int t = 0; t < tileMaps.size(); t++) {
       Box3<int32_t> bbox = quantizedInput.cloud.computeBoundingBox(
         tileMaps[t].begin(), tileMaps[t].end());
@@ -224,8 +256,10 @@ PCCTMC3Encoder3::compress(
       auto& tileIvt = partitions.tileInventory.tiles[t];
       tileIvt.tile_id = t;
       for (int k = 0; k < 3; k++) {
-        tileIvt.tileSize[k] = bbox.max[k] - bbox.min[k] + 1;
-        tileIvt.tileOrigin[k] = bbox.min[k];
+        auto origin = std::trunc(bbox.min[k] * gs);
+        auto size = std::ceil(bbox.max[k] * gs) - origin + 1;
+        tileIvt.tileOrigin[k] = origin;
+        tileIvt.tileSize[k] = size;
       }
     }
   } else {
@@ -385,6 +419,13 @@ PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
   //
   // NB: seq_geom_scale is the reciprocal of unit length
   params->sps.seq_geom_scale = params->seqGeomScale / params->extGeomScale;
+
+  // Global scaling converts from the coded scale to the sequence scale
+  // NB: globalScale is constrained, eg 1.1 is not representable
+  // todo: consider adjusting seqGeomScale to make a valid globalScale
+  // todo: consider adjusting codedGeomScale to make a valid globalScale
+  params->sps.globalScale =
+    Rational(params->seqGeomScale / params->codedGeomScale);
 }
 
 //----------------------------------------------------------------------------
@@ -417,9 +458,6 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // number of bits for slice tag (tileid) if tiles partitioning enabled
   // NB: the limit of 64 tiles is arbritrary
   params->sps.slice_tag_bits = params->partition.tileSize > 0 ? 6 : 0;
-
-  // global scaling is not currently supported
-  params->sps.globalScale = SequenceParameterSet::GlobalScale();
 
   // slice origin parameters used by this encoder implementation
   params->gps.geom_box_log2_scale_present_flag = true;
@@ -561,8 +599,8 @@ PCCTMC3Encoder3::compressPartition(
   if (_gps->geom_unique_points_flag || _gps->trisoup_enabled_flag) {
     for (const auto& attr_sps : _sps->attributeSets) {
       recolour(
-        attr_sps, params->recolour, originPartCloud, params->seqGeomScale,
-        _sps->seqBoundingBoxOrigin + _sliceOrigin, &pointCloud);
+        attr_sps, params->recolour, originPartCloud, _srcToCodingScale,
+        _originInCodingCoords + _sliceOrigin, &pointCloud);
     }
   }
 
@@ -828,21 +866,22 @@ PCCTMC3Encoder3::quantization(const PCCPointSet3& src)
   assert(_sps->seqBoundingBoxSize != Vec3<int>{0});
 
   // Clamp all points to [clampBox.min, clampBox.max] after translation
-  // and quantisation.   NB: minus 1 to convert to max s/t/v position
-  Box3<int32_t> clampBox(0, _sps->seqBoundingBoxSize - 1);
+  // and quantisation.
+  Box3<int32_t> clampBox(0, std::numeric_limits<int32_t>::max());
 
   // When using predictive geometry, sub-sample the point cloud and let
   // the predictive geometry coder quantise internally.
-  if (_gps->predgeom_enabled_flag && _gps->geom_unique_points_flag)
-    return samplePositionsUniq(_geomPreScale, _sps->seqBoundingBoxOrigin, src);
+  if (_inputDecimationScale != 1.)
+    return samplePositionsUniq(
+      _inputDecimationScale, _srcToCodingScale, _originInCodingCoords, src);
 
   if (_gps->geom_unique_points_flag)
     return quantizePositionsUniq(
-      _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, src);
+      _srcToCodingScale, _originInCodingCoords, clampBox, src);
 
   SrcMappedPointSet dst;
   quantizePositions(
-    _geomPreScale, _sps->seqBoundingBoxOrigin, clampBox, src, &dst.cloud);
+    _srcToCodingScale, _originInCodingCoords, clampBox, src, &dst.cloud);
   return dst;
 }
 

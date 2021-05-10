@@ -81,12 +81,16 @@ struct SrcMappedPointSet {
 //============================================================================
 // Subsample a point cloud, retaining unique points only.
 // Uniqueness is assessed by quantising each position by a multiplicative
-// @scaleFactor.  Output points are not quantised, only translated by -@offset.
+// @sampleScale.  Output points are quantised by @quantScale with rounding,
+// and translated by -@offset.
 //
 // NB: attributes are not processed.
 
 SrcMappedPointSet samplePositionsUniq(
-  const float scaleFactor, const Vec3<int> offset, const PCCPointSet3& src);
+  float sampleScale,
+  float quantScale,
+  Vec3<int> offset,
+  const PCCPointSet3& src);
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.

@@ -154,10 +154,23 @@ metre.  Since the codec can only represent integer positions, without input
 scaling, it is coded with a precision of one metre.
 Setting `inputScale=1000` will increase the precision to 1 millimetre.
 
+### `--codingScale=REAL-VALUE`
+A scale factor used to determine the length of the coding co-ordinate
+system unit vector.  The scale factor is relative to `inputScale`.  The
+input point cloud (after integer conversion) is scaled by `codingScale`
+and rounded to integer positions.
+
+If `codingScale` is greater than `sequenceScale`, the encoder will set
+`codingScale=sequenceScale`.
+
+A decoder will scale the coded point cloud by `sequenceScale/codingScale`
+prior to output.
+
 ### `--sequenceScale=REAL-VALUE`
 A scale factor used to determine the length of the sequence co-ordinate
 system unit vector.  The scale factor is relative to `inputScale`.  The
-input point cloud (after integer conversion) is scaled by `sequenceScale`.
+input point cloud (after integer conversion) is scaled by the smallest of
+`sequenceScale` and `codingScale`.
 
 ### `--externalScale=REAL-VALUE`
 A scale factor used to define the length of the sequence co-ordinate system

@@ -100,22 +100,32 @@ reducePointSet(const PCCPointSet3& src, UniqueFn uniqueFn, QFn qFn)
 //============================================================================
 // Subsample a point cloud, retaining unique points only.
 // Uniqueness is assessed by quantising each position by a multiplicative
-// @scaleFactor.  Output points are not quantised, only translated by -@offset.
+// @sampleScale.  Output points are quantised by @quantScale with rounding,
+// and translated by -@offset.
 //
 // NB: attributes are not processed.
 
 SrcMappedPointSet
 samplePositionsUniq(
-  const float scaleFactor, const Vec3<int> offset, const PCCPointSet3& src)
+  float sampleScale,
+  float quantScale,
+  Vec3<int> offset,
+  const PCCPointSet3& src)
 {
+  auto diffScale = sampleScale / quantScale;
+
   return reducePointSet(
     src,
     [=](Vec3<int> point) {
       for (int k = 0; k < 3; k++)
-        point[k] = std::round(point[k] * scaleFactor);
+        point[k] = std::round(std::round(point[k] * quantScale) * diffScale);
       return point;
     },
-    [=](Vec3<int> point) { return point - offset; });
+    [=](Vec3<int> point) {
+      for (int k = 0; k < 3; k++)
+        point[k] = std::round(point[k] * quantScale);
+      return point - offset;
+    });
 }
 
 //============================================================================

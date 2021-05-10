@@ -84,6 +84,11 @@ struct EncoderParams {
   // Length of the source point cloud unit vectors.
   double srcUnitLength;
 
+  // Scale factor used to define the coordinate system used for coding.
+  // This is the coordinate system where slicing is performed.
+  //  P_cod = P_src * codedGeomScale
+  double codedGeomScale;
+
   // Scale factor used to define the sequence coordinate system.
   //  P_seq = P_src * seqGeomScale
   double seqGeomScale;
@@ -168,8 +173,18 @@ private:
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 
-  // Scale factor used to quantise geometry during pre-processing
-  float _geomPreScale;
+  // Scale factor used to decimate the input point cloud.
+  // Decimation is performed as if the input were scaled by
+  //   Round(P_src * inputDecimationScale)
+  // and duplicate points removed.
+  // todo: expose this parameter?
+  double _inputDecimationScale;
+
+  // Scale factor that defines coding coordinate system
+  double _srcToCodingScale;
+
+  // Sequence origin in terms of coding coordinate system
+  Vec3<int> _originInCodingCoords;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;

@@ -1818,6 +1818,26 @@ parseUserData(const PayloadBuffer& buf)
 //============================================================================
 // Helpers for Global scaling
 
+SequenceParameterSet::GlobalScale::GlobalScale(Rational x)
+{
+  // x must be representable using fixed point
+  if (popcntGt1(uint32_t(x.denominator)))
+    throw std::runtime_error("cannot convert Rational to GlobalScale");
+
+  // Direct conversion
+  denominatorLog2 = ilog2(uint32_t(x.numerator));
+  numeratorModDenominator = x.numerator - (1 << denominatorLog2);
+  numeratorMulLog2 = denominatorLog2 - ilog2(uint32_t(x.denominator));
+
+  // Simplify: remove powers of two from numeratorModDenominator
+  while (!(numeratorModDenominator & 1) && denominatorLog2) {
+    numeratorModDenominator >>= 1;
+    denominatorLog2--;
+  }
+}
+
+//----------------------------------------------------------------------------
+
 SequenceParameterSet::GlobalScale::operator Rational() const
 {
   int numeratorPreMul = ((1 << denominatorLog2) + numeratorModDenominator);

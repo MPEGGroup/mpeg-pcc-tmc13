@@ -609,6 +609,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Scale input while reading src ply. "
     "Eg, 1000 converts metres to integer millimetres")
 
+  ("codingScale",
+    params.encoder.codedGeomScale, 1.,
+    "Scale used to represent coded geometry. Relative to inputScale")
+
   ("sequenceScale",
     params.encoder.seqGeomScale, 1.,
     "Scale used to obtain sequence coordinate system. "
@@ -1199,6 +1203,12 @@ sanitizeEncoderOpts(
   // a cloud with unit length 1mm.
   params.encoder.srcUnitLength /= params.inputScale;
 
+  // global scale factor must be positive
+  if (params.encoder.codedGeomScale > params.encoder.seqGeomScale) {
+    err.warn() << "adjusted codingScale: must be <= sequenceScale";
+    params.encoder.codedGeomScale = params.encoder.seqGeomScale;
+  }
+
   // fix the representation of various options
   params.encoder.gbh.geom_stream_cnt_minus1--;
   params.encoder.gps.geom_idcm_rate_minus1--;
@@ -1334,7 +1344,7 @@ sanitizeEncoderOpts(
     // adjust the dist2 values according to PQS.  The user need only
     // specify the unquantised PQS value.
     if (params.positionQuantizationScaleAdjustsDist2) {
-      auto delta = log2(params.encoder.seqGeomScale);
+      auto delta = log2(params.encoder.codedGeomScale);
       attr_aps.dist2 =
         std::max(0, int32_t(std::round(attr_aps.dist2 + delta)));
     }
@@ -1385,9 +1395,9 @@ sanitizeEncoderOpts(
 
     for (auto val : params.encoder.lasersZ) {
       int one = 1 << 3;
-      auto scale = params.encoder.seqGeomScale;
+      auto scale = params.encoder.codedGeomScale;
       if (params.encoder.gps.predgeom_enabled_flag)
-        scale = 1.;
+        scale = params.encoder.codedGeomScale / params.encoder.seqGeomScale;
 
       params.encoder.gps.angularZ.push_back(round(val * scale * one));
     }
@@ -1405,9 +1415,9 @@ sanitizeEncoderOpts(
 
     if (params.encoder.gps.qtbt_enabled_flag) {
       params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV =
-        std::max<int>(0, 8 + log2(params.encoder.seqGeomScale));
+        std::max<int>(0, 8 + log2(params.encoder.codedGeomScale));
       params.encoder.geom.qtbt.angularMaxDiffToSplitZ =
-        std::max<int>(0, 1 + log2(params.encoder.seqGeomScale));
+        std::max<int>(0, 1 + log2(params.encoder.codedGeomScale));
     }
 
     if (params.encoder.gps.predgeom_enabled_flag) {

@@ -384,6 +384,10 @@ struct SequenceParameterSet {
     // Initialized to 1/1
     GlobalScale() = default;
 
+    // Convert rational to global scale representation.
+    // NB: may throw an exception if not possible
+    GlobalScale(Rational x);
+
     // Convert to simplified Rational form
     operator Rational() const;
   };
