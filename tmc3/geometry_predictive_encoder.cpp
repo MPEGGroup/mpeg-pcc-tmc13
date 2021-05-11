@@ -197,11 +197,14 @@ PredGeomEncoder::encodeNumDuplicatePoints(int numDupPoints)
 void
 PredGeomEncoder::encodeNumChildren(int numChildren)
 {
-  _aec->encode(numChildren == 1, _ctxNumChildren[0]);
-  if (numChildren != 1) {
-    _aec->encode(numChildren == 0, _ctxNumChildren[1]);
-    if (numChildren > 1)
-      _aec->encode(numChildren - 2, _ctxNumChildren[2]);
+  // Mapping order: 0, 1, 3, 2
+  int val = numChildren ^ 1;
+
+  _aec->encode(val > 0, _ctxNumChildren[0]);
+  if (val > 0) {
+    _aec->encode(val > 1, _ctxNumChildren[1]);
+    if (val > 1)
+      _aec->encode(val - 2, _ctxNumChildren[2]);
   }
 }
 
