@@ -1557,6 +1557,39 @@ parseConstantAttribute(
 
 //============================================================================
 
+void
+write(
+  const SequenceParameterSet& sps,
+  const FrameBoundaryMarker& fbm,
+  PayloadBuffer* buf)
+{
+  assert(buf->type == PayloadType::kFrameBoundaryMarker);
+  auto bs = makeBitWriter(std::back_inserter(*buf));
+
+  int fbdu_frame_ctr_lsb_bits = sps.frame_ctr_bits;
+  bs.writeUn(5, fbdu_frame_ctr_lsb_bits);
+  bs.writeUn(fbdu_frame_ctr_lsb_bits, fbm.fbdu_frame_ctr_lsb);
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+FrameBoundaryMarker
+parseFrameBoundaryMarker(const PayloadBuffer& buf)
+{
+  FrameBoundaryMarker fbm;
+  assert(buf.type == PayloadType::kFrameBoundaryMarker);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  int fbdu_frame_ctr_lsb_bits;
+  bs.readUn(5, &fbdu_frame_ctr_lsb_bits);
+  bs.readUn(fbdu_frame_ctr_lsb_bits, &fbm.fbdu_frame_ctr_lsb);
+
+  return fbm;
+}
+
+//============================================================================
+
 PayloadBuffer
 write(const SequenceParameterSet& sps, const TileInventory& inventory)
 {

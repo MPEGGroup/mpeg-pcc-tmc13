@@ -53,6 +53,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps);
 PayloadBuffer
 write(const SequenceParameterSet& sps, const TileInventory& inventory);
 
+PayloadBuffer
+write(const SequenceParameterSet& sps, const FrameBoundaryMarker& fbm);
+
 PayloadBuffer write(
   const SequenceParameterSet& sps,
   const AttributeParamInventoryHdr& inventory,
@@ -71,6 +74,7 @@ SequenceParameterSet parseSps(const PayloadBuffer& buf);
 GeometryParameterSet parseGps(const PayloadBuffer& buf);
 AttributeParameterSet parseAps(const PayloadBuffer& buf);
 TileInventory parseTileInventory(const PayloadBuffer& buf);
+FrameBoundaryMarker parseFrameBoundaryMarker(const PayloadBuffer& buf);
 UserData parseUserData(const PayloadBuffer& buf);
 
 AttributeParamInventoryHdr parseAttrParamInventoryHdr(const PayloadBuffer&);

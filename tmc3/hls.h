@@ -813,6 +813,13 @@ struct ConstantAttributeDataUnit {
 
 //============================================================================
 
+struct FrameBoundaryMarker {
+  // Identifies the frame to be terminated
+  int fbdu_frame_ctr_lsb;
+};
+
+//============================================================================
+
 struct TileInventory {
   struct Entry {
     // The tile id (either manually specified, or the implicit value).
