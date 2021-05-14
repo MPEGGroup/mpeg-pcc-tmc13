@@ -861,10 +861,6 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
     bs.writeUe(aps.inter_lod_search_range);
-    bs.writeUe(aps.intra_lod_search_range);
-
-    bs.writeUe(aps.dist2);
-    bs.write(aps.aps_slice_dist2_deltas_present_flag);
 
     auto lod_neigh_bias_minus1 =
       toXyz(sps.geometry_axis_order, aps.lodNeighBias) - 1;
@@ -892,6 +888,11 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
             bs.writeUe(lod_sampling_period_minus2);
           }
         }
+
+        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
+          bs.writeUe(aps.dist2);
+          bs.write(aps.aps_slice_dist2_deltas_present_flag);
+        }
       }
     }
   }
@@ -903,6 +904,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.write(aps.direct_avg_predictor_disabled_flag);
     }
     bs.writeUe(aps.intra_lod_prediction_skip_layers);
+    bs.writeUe(aps.intra_lod_search_range);
     bs.write(aps.inter_component_prediction_enabled_flag);
     bs.write(aps.pred_weight_blending_enabled_flag);
   }
@@ -952,10 +954,6 @@ parseAps(const PayloadBuffer& buf)
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.inter_lod_search_range);
-    bs.readUe(&aps.intra_lod_search_range);
-
-    bs.readUe(&aps.dist2);
-    bs.read(&aps.aps_slice_dist2_deltas_present_flag);
 
     Vec3<int> lod_neigh_bias_minus1;
     bs.readUe(&lod_neigh_bias_minus1.x());
@@ -987,6 +985,12 @@ parseAps(const PayloadBuffer& buf)
             aps.lodSamplingPeriod[idx] = lod_sampling_period_minus2 + 2;
           }
         }
+
+        aps.dist2 = 0;
+        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
+          bs.readUe(&aps.dist2);
+          bs.read(&aps.aps_slice_dist2_deltas_present_flag);
+        }
       }
     }
   }
@@ -1002,6 +1006,7 @@ parseAps(const PayloadBuffer& buf)
       bs.read(&aps.direct_avg_predictor_disabled_flag);
     }
     bs.readUe(&aps.intra_lod_prediction_skip_layers);
+    bs.readUe(&aps.intra_lod_search_range);
     bs.read(&aps.inter_component_prediction_enabled_flag);
     bs.read(&aps.pred_weight_blending_enabled_flag);
   }
@@ -1442,6 +1447,7 @@ parseAbh(
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
+  abh.attr_dist2_delta = 0;
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.readSe(&abh.attr_dist2_delta);
 
