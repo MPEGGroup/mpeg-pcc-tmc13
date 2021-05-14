@@ -253,7 +253,7 @@ struct AttributeParameters {
   // attribute scaling
   bool scalingParametersPresent;
   int attr_scale_bits;
-  int attr_scale;
+  int attr_scale_minus1;
   int attr_frac_bits;
   int attr_offset_bits;
   int attr_offset;

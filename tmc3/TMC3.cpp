@@ -1308,8 +1308,8 @@ sanitizeEncoderOpts(
     attrMeta.cicpParametersPresent = false;
     attrMeta.attr_offset = 0;
     attrMeta.attr_offset_bits = 0;
-    attrMeta.attr_scale = 1;
-    attrMeta.attr_scale_bits = 1;
+    attrMeta.attr_scale_minus1 = 0;
+    attrMeta.attr_scale_bits = 0;
     attrMeta.attr_frac_bits = 0;
     attrMeta.scalingParametersPresent = false;
 

@@ -192,7 +192,7 @@ writeAttrParamScaling(Bs& bs, const AttributeParameters& param)
   bs.writeUe(param.attr_offset_bits);
   bs.writeSn(param.attr_offset_bits, param.attr_offset);
   bs.writeUe(param.attr_scale_bits);
-  bs.writeUn(param.attr_scale_bits, param.attr_scale);
+  bs.writeUn(param.attr_scale_bits, param.attr_scale_minus1);
   bs.writeUe(param.attr_frac_bits);
   bs.byteAlign();
 }
@@ -206,7 +206,7 @@ parseAttrParamScaling(Bs& bs, AttributeParameters* param)
   bs.readUe(&param->attr_offset_bits);
   bs.readSn(param->attr_offset_bits, &param->attr_offset);
   bs.readUe(&param->attr_scale_bits);
-  bs.readUn(param->attr_scale_bits, &param->attr_scale);
+  bs.readUn(param->attr_scale_bits, &param->attr_scale_minus1);
   bs.readUe(&param->attr_frac_bits);
   param->scalingParametersPresent = 1;
   bs.byteAlign();
