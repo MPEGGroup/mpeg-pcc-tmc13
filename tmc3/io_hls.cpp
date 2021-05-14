@@ -398,31 +398,27 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(5, sps.frame_ctr_bits);
   bs.writeUn(5, sps.slice_tag_bits);
 
-  bool seq_bounding_box_present_flag = true;
-  bs.write(seq_bounding_box_present_flag);
-  if (seq_bounding_box_present_flag) {
+  bs.writeUe(sps.sps_bounding_box_offset_bits);
+  if (auto bbOriginBits = sps.sps_bounding_box_offset_bits) {
     auto sps_bounding_box_offset_xyz =
       toXyz(sps.geometry_axis_order, sps.seqBoundingBoxOrigin);
 
-    bs.writeUe(sps.sps_bounding_box_offset_bits_minus1);
-    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.x());
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.y());
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.z());
-    }
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.x());
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.y());
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.z());
 
     int seq_bounding_box_offset_log2_scale = 0;
     bs.writeUe(seq_bounding_box_offset_log2_scale);
+  }
 
-    auto seq_bounding_box_whd =
-      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize);
+  bs.writeUe(sps.sps_bounding_box_size_bits);
+  if (auto bbSizeBits = sps.sps_bounding_box_size_bits) {
+    auto seq_bounding_box_size_minus1 =
+      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize - 1);
 
-    bs.writeUe(sps.sps_bounding_box_size_bits_minus1);
-    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.x());
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.y());
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.z());
-    }
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.x());
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.y());
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.z());
   }
 
   bs.writeUe(sps.seq_geom_scale.numerator);
@@ -483,31 +479,32 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(5, &sps.frame_ctr_bits);
   bs.readUn(5, &sps.slice_tag_bits);
 
-  bool seq_bounding_box_present_flag = bs.read();
-  if (seq_bounding_box_present_flag) {
+  sps.seqBoundingBoxOrigin = 0;
+  bs.readUe(&sps.sps_bounding_box_offset_bits);
+  if (auto bbOriginBits = sps.sps_bounding_box_offset_bits) {
     Vec3<int> seq_bounding_box_offset;
-    bs.readUe(&sps.sps_bounding_box_offset_bits_minus1);
-    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.x());
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.y());
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.z());
-    }
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.x());
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.y());
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.z());
 
     int seq_bounding_box_offset_log2_scale;
     bs.readUe(&seq_bounding_box_offset_log2_scale);
     seq_bounding_box_offset *= 1 << seq_bounding_box_offset_log2_scale;
 
-    Vec3<int> seq_bounding_box_whd;
-    bs.readUe(&sps.sps_bounding_box_size_bits_minus1);
-    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.x());
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.y());
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.z());
-    }
-
-    // NB: these are in XYZ axis order until the SPS is converted to STV
+    // NB: this is in XYZ axis order until the SPS is converted to STV
     sps.seqBoundingBoxOrigin = seq_bounding_box_offset;
-    sps.seqBoundingBoxSize = seq_bounding_box_whd;
+  }
+
+  sps.seqBoundingBoxSize = 0;
+  bs.readUe(&sps.sps_bounding_box_size_bits);
+  if (auto bbSizeBits = sps.sps_bounding_box_size_bits) {
+    Vec3<int> seq_bounding_box_whd_minus1;
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.x());
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.y());
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.z());
+
+    // NB: this is in XYZ axis order until the SPS is converted to STV
+    sps.seqBoundingBoxSize = seq_bounding_box_whd_minus1 + 1;
   }
 
   bs.readUe(&sps.seq_geom_scale.numerator);

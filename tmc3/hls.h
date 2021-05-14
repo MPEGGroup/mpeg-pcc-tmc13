@@ -356,13 +356,13 @@ struct SequenceParameterSet {
   int level;
 
   // Number of bits used to code seqBoundingBoxOrigin
-  int sps_bounding_box_offset_bits_minus1;
+  int sps_bounding_box_offset_bits;
 
   // the bounding box origin (in stv axis order).
   Vec3<int> seqBoundingBoxOrigin;
 
   // Number of bits used to code seqBoundingBoxSize
-  int sps_bounding_box_size_bits_minus1;
+  int sps_bounding_box_size_bits;
 
   // the size of the bounding box (in stv axis order).
   Vec3<int> seqBoundingBoxSize;

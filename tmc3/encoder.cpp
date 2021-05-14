@@ -145,11 +145,11 @@ PCCTMC3Encoder3::compress(
     }
 
     // Determine the number of bits to signal the bounding box
-    params->sps.sps_bounding_box_offset_bits_minus1 =
-      numBits(params->sps.seqBoundingBoxOrigin.abs().max()) - 1;
+    params->sps.sps_bounding_box_offset_bits =
+      numBits(params->sps.seqBoundingBoxOrigin.abs().max());
 
-    params->sps.sps_bounding_box_size_bits_minus1 =
-      numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
+    params->sps.sps_bounding_box_size_bits =
+      numBits(params->sps.seqBoundingBoxSize.abs().max());
 
     // Determine the lidar head position in coding coordinate system
     params->gps.gpsAngularOrigin *= _srcToCodingScale;
