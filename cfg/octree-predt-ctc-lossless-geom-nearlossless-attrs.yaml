@@ -59,7 +59,7 @@ categories:
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
-     - transformType: 0
+     - transformType: 1
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
      -

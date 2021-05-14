@@ -53,7 +53,7 @@ categories:
      -
        - !conditional '${reflectance8b16b_scale_factor}'
        - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
-     - transformType: 1
+     - transformType: 0
      -
        - !conditional '${numLasers}'
        - spherical_coord_flag: 1

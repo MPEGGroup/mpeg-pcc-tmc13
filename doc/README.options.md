@@ -635,8 +635,8 @@ Coding method to use for the current attribute:
 
   | Value | Description                                                |
   |:-----:| ---------------------------------------------------------- |
-  | 0     | Hierarchical neighbourhood prediction                      |
-  | 1     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 0     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 1     | Hierarchical neighbourhood prediction                      |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
 
 ### `--rahtPredictionEnabled=0|1`

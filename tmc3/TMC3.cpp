@@ -389,8 +389,8 @@ static std::ostream&
 operator<<(std::ostream& out, const AttributeEncoding& val)
 {
   switch (val) {
-  case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
-  case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
+  case AttributeEncoding::kRAHTransform: out << "0 (RAHT)"; break;
+  case AttributeEncoding::kPredictingTransform: out << "1 (Pred)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
   }
   return out;
@@ -937,9 +937,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("transformType",
     params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
     "Coding method to use for attribute:\n"
-    "  0: Hierarchical neighbourhood prediction\n"
-    "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
-    "  2: Hierarichical neighbourhood prediction as lifting transform")
+    "  0: Region Adaptive Hierarchical Transform (RAHT)\n"
+    "  1: Hierarchical neighbourhood prediction\n"
+    "  2: Hierarchical neighbourhood prediction as lifting transform")
 
   ("rahtPredictionEnabled",
     params_attr.aps.raht_prediction_enabled_flag, true,

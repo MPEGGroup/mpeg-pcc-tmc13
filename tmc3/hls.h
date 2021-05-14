@@ -130,8 +130,8 @@ std::ostream& operator<<(std::ostream& os, const AttributeLabel& label);
 
 enum class AttributeEncoding
 {
-  kPredictingTransform = 0,
-  kRAHTransform = 1,
+  kRAHTransform = 0,
+  kPredictingTransform = 1,
   kLiftingTransform = 2,
 };
 
