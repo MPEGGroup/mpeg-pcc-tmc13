@@ -301,9 +301,9 @@ void
 writeAttributeParameters(
   const AttributeDescription& attr, T& bs, const AttributeParameters& params)
 {
-  // NB: annoyingly num_attribute_parameters is coded as u(5) in sps, and
-  // as ue(v) in the attribute parameter inventory.  Becareful that there
-  // isn't a mismatch between the two.
+  int num_attr_parameters = params.numParams();
+  bs.writeUe(num_attr_parameters);
+  bs.byteAlign();
 
   if (!params.attr_default_value.empty()) {
     int attr_param_len = 0;
@@ -449,9 +449,6 @@ write(const SequenceParameterSet& sps)
     else
       writeOid(bs, label.oid);
 
-    int num_attribute_parameters = attr.params.numParams();
-    bs.writeUn(5, num_attribute_parameters);
-    bs.byteAlign();
     writeAttributeParameters(attr, bs, attr.params);
   }
 
@@ -542,7 +539,7 @@ parseSps(const PayloadBuffer& buf)
     }
 
     int num_attribute_parameters;
-    bs.readUn(5, &num_attribute_parameters);
+    bs.readUe(&num_attribute_parameters);
     bs.byteAlign();
     for (int i = 0; i < num_attribute_parameters; i++)
       parseAttributeParameter(attr, bs, attr.params);
@@ -1715,10 +1712,6 @@ write(
   bs.writeUn(5, attr_param_frame_ctr_lsb_bits);
   bs.writeUn(attr_param_frame_ctr_lsb_bits, inv.attr_param_frame_ctr_lsb);
   bs.writeUe(inv.attr_param_sps_attr_idx);
-
-  int num_attr_parameters = params.numParams();
-  bs.writeUe(num_attr_parameters);
-  bs.byteAlign();
 
   assert(inv.attr_param_sps_attr_idx < sps.attributeSets.size());
   auto& desc = sps.attributeSets[inv.attr_param_sps_attr_idx];
