@@ -792,7 +792,6 @@ encodePredictiveGeometry(
   if (gps.geom_angular_mode_enabled_flag) {
     auto xyzBboxLog2 = gbh.rootNodeSizeLog2;
     auto rDivLog2 = gps.geom_angular_radius_inv_scale_log2;
-    auto azimuthBits = gps.geom_angular_azimuth_scale_log2;
 
     // first work out the maximum number of bits for the residual
     // NB: the slice coordinate system is used here: ie, minX|minY = 0

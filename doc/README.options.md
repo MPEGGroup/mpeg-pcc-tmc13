@@ -560,8 +560,8 @@ Requires `positionQuantisationEnabled=1`.
 Identical to `positionBaseQpFreqLog2`, but controls per-slice configuration.
 
 ### `--positionAzimuthScaleLog2=INT-VALUE`
-Number of bits used to represent predictive geometry azimuth angles.
-Requires `angularEnabled=1`.
+Number of additional bits used to represent predictive geometry azimuth
+angles.  Requires `angularEnabled=1`.
 
 ### `--positionRadiusInvScaleLog2=INT-VALUE`
 Degree of quantisation applied in the representation of angular predictive

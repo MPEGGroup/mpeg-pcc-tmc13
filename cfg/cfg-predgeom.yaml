@@ -44,12 +44,12 @@ categories:
           r02: 7
           r01: 8
        - positionAzimuthScaleLog2:
-          r06: 15
-          r05: 15
-          r04: 13
-          r03: 12
-          r02: 12
-          r01: 12
+          r06: 3
+          r05: 3
+          r04: 1
+          r03: 0
+          r02: 0
+          r01: 0
        - positionAzimuthSpeed:
           r06: '$eval{ ${pos_azimuth_speed} + 2 >> 2}'
           r05: '$eval{ ${pos_azimuth_speed} + 2 >> 2}'

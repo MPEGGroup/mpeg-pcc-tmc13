@@ -169,7 +169,8 @@ PCCTMC3Encoder3::compress(
       int maxLaserIdx = params->gps.numLasers() - 1;
 
       if (params->gps.predgeom_enabled_flag) {
-        twoPi = 1 << params->gps.geom_angular_azimuth_scale_log2;
+        auto& gps = params->gps;
+        twoPi = 1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12);
         r >>= params->gps.geom_angular_radius_inv_scale_log2;
       }
 

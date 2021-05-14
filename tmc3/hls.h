@@ -526,7 +526,7 @@ struct GeometryParameterSet {
   int geom_qp_offset_intvl_log2;
 
   // scale factor for azimuth in coding predictive geometry coding
-  int geom_angular_azimuth_scale_log2;
+  int geom_angular_azimuth_scale_log2_minus11;
   int geom_angular_azimuth_speed_minus1;
 
   // inverse scale factor for radius coding in predictive geometry coding

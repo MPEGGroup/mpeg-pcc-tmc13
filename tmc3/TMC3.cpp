@@ -881,8 +881,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Disable planar buffer (when angular mode is enabled)")
 
   ("positionAzimuthScaleLog2",
-    params.encoder.gps.geom_angular_azimuth_scale_log2, 17,
-    "Scale factor applied to azimuth angle in predictive geometry coding")
+    params.encoder.gps.geom_angular_azimuth_scale_log2_minus11, 5,
+    "Additional bits to represent azimuth angle in predictive geometry coding")
 
   // NB: this will be corrected to be minus 1 later
   ("positionAzimuthSpeed",
@@ -1423,7 +1423,8 @@ sanitizeEncoderOpts(
     }
 
     if (params.encoder.gps.predgeom_enabled_flag) {
-      int maxSpeed = 1 << params.encoder.gps.geom_angular_azimuth_scale_log2;
+      auto& gps = params.encoder.gps;
+      int maxSpeed = 1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12);
       if (params.encoder.gps.geom_angular_azimuth_speed_minus1 + 1 > maxSpeed)
         err.error() << "positionAzimuthSpeed > max (" << maxSpeed << ")\n";
     }
