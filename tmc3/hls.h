@@ -506,7 +506,7 @@ struct GeometryParameterSet {
   // (in stv axis order).
   Vec3<int> gpsAngularOrigin;
 
-  int geom_angular_num_lidar_lasers() const { return angularTheta.size(); }
+  int numLasers() const { return angularTheta.size(); }
 
   std::vector<int> angularTheta;
   std::vector<int> angularZ;

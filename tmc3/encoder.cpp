@@ -166,7 +166,7 @@ PCCTMC3Encoder3::compress(
       int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
       int r = std::max(rx, ry);
       int twoPi = 25735;
-      int maxLaserIdx = params->gps.geom_angular_num_lidar_lasers() - 1;
+      int maxLaserIdx = params->gps.numLasers() - 1;
 
       if (params->gps.predgeom_enabled_flag) {
         twoPi = 1 << params->gps.geom_angular_azimuth_scale_log2;

@@ -1387,6 +1387,9 @@ sanitizeEncoderOpts(
 
   // convert floating point values of Lasers' Theta and H to fixed point
   if (params.encoder.gps.geom_angular_mode_enabled_flag) {
+    if (params.encoder.numLasers == 0)
+      err.error() << "numLasers must be at least 1\n";
+
     for (auto val : params.encoder.lasersTheta) {
       int one = 1 << 18;
       params.encoder.gps.angularTheta.push_back(round(val * one));

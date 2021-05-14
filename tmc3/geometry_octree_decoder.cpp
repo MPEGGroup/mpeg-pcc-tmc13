@@ -233,8 +233,8 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
   , _planar(gps)
-  , _phiBuffer(gps.geom_angular_num_lidar_lasers(), 0x80000000)
-  , _phiZi(gps.geom_angular_num_lidar_lasers(), gps.angularNumPhiPerTurn)
+  , _phiBuffer(gps.numLasers(), 0x80000000)
+  , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -1261,7 +1261,7 @@ decodeGeometryOctree(
   uint32_t idcmEnableMaskInit = mkIdcmEnableMask(gps);
 
   // Lidar angles for planar prediction
-  const int numLasers = gps.geom_angular_num_lidar_lasers();
+  const int numLasers = gps.numLasers();
   const int* thetaLaser = gps.angularTheta.data();
   const int* zLaser = gps.angularZ.data();
 
