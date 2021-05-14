@@ -395,6 +395,9 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(8, sps.level);
   bs.writeUn(4, sps.sps_seq_parameter_set_id);
 
+  bs.writeUn(5, sps.frame_ctr_bits);
+  bs.writeUn(5, sps.slice_tag_bits);
+
   bool seq_bounding_box_present_flag = true;
   bs.write(seq_bounding_box_present_flag);
   if (seq_bounding_box_present_flag) {
@@ -452,8 +455,6 @@ write(const SequenceParameterSet& sps)
     writeAttributeParameters(attr, bs, attr.params);
   }
 
-  bs.writeUn(5, sps.frame_ctr_bits);
-  bs.writeUn(5, sps.slice_tag_bits);
   bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
   bs.write(sps.entropy_continuation_enabled_flag);
@@ -481,6 +482,9 @@ parseSps(const PayloadBuffer& buf)
 
   bs.readUn(8, &sps.level);
   bs.readUn(4, &sps.sps_seq_parameter_set_id);
+
+  bs.readUn(5, &sps.frame_ctr_bits);
+  bs.readUn(5, &sps.slice_tag_bits);
 
   bool seq_bounding_box_present_flag = bs.read();
   if (seq_bounding_box_present_flag) {
@@ -544,8 +548,6 @@ parseSps(const PayloadBuffer& buf)
       parseAttributeParameter(attr, bs, attr.params);
   }
 
-  bs.readUn(5, &sps.frame_ctr_bits);
-  bs.readUn(5, &sps.slice_tag_bits);
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
   bs.read(&sps.entropy_continuation_enabled_flag);
@@ -590,14 +592,12 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   bs.write(gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.writeUe(gps.gps_geom_box_log2_scale);
+
+  bs.write(gps.geom_unique_points_flag);
+
   bs.write(gps.predgeom_enabled_flag);
-
-  if (gps.predgeom_enabled_flag)
-    bs.write(gps.geom_unique_points_flag);
-
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.octree_point_count_list_present_flag);
-    bs.write(gps.geom_unique_points_flag);
 
     bs.writeUn(2, gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
@@ -711,16 +711,15 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.readUe(&gps.gps_geom_box_log2_scale);
-  bs.read(&gps.predgeom_enabled_flag);
 
-  if (gps.predgeom_enabled_flag)
-    bs.read(&gps.geom_unique_points_flag);
+  bs.read(&gps.geom_unique_points_flag);
 
   gps.geom_planar_mode_enabled_flag = false;
   gps.octree_point_count_list_present_flag = false;
+
+  bs.read(&gps.predgeom_enabled_flag);
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.octree_point_count_list_present_flag);
-    bs.read(&gps.geom_unique_points_flag);
 
     bs.readUn(2, &gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
