@@ -1443,6 +1443,7 @@ parseAbh(
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
+  abh.attr_dist2_delta = 0;
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.readSe(&abh.attr_dist2_delta);
 

@@ -499,6 +499,10 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     attr_aps.aps_slice_dist2_deltas_present_flag =
       attr_aps.lodParametersPresent();
 
+    // disable dist2 estimation when decimating with centroid sampler
+    if (attr_aps.lod_decimation_type == LodDecimationMethod::kCentroid)
+      attr_aps.aps_slice_dist2_deltas_present_flag = false;
+
     // If the lod search ranges are negative, use a full-range search
     // todo(df): lookup level limit
     if (attr_aps.inter_lod_search_range < 0)
