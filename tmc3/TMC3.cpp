@@ -654,18 +654,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  3: (yzx)\n  4: (zyx)\n  5: (zxy)\n"
     "  6: (yxz)\n  7: (xyz)")
 
-  // NB: the underlying variable is in STV order.
-  //     Conversion happens during argument sanitization.
-  ("seq_bounding_box_xyz0",
-    params.encoder.sps.seqBoundingBoxOrigin, {0},
-    "Origin (x,y,z) of the sequence bounding box. "
-    "NB: seq_bounding_box_whd must be set for paramter to have an effect")
+  ("autoSeqBbox",
+    params.encoder.autoSeqBbox, true,
+    "Calculate seqOrigin and seqSizeWhd automatically.")
 
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
-  ("seq_bounding_box_whd",
+  ("seqOrigin",
+    params.encoder.sps.seqBoundingBoxOrigin, {0},
+    "Origin (x,y,z) of the sequence bounding box "
+    "(in input coordinate system). "
+    "Requires autoSeqBbox=0")
+
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
+  ("seqSizeWhd",
     params.encoder.sps.seqBoundingBoxSize, {0},
-    "seq_bounding_box_whd")
+    "Size of the sequence bounding box "
+    "(in input coordinate system). "
+    "Requires autoSeqBbox=0")
 
   ("mergeDuplicatedPoints",
     params.encoder.gps.geom_unique_points_flag, true,

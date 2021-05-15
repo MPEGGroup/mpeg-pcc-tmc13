@@ -187,19 +187,26 @@ For example, a point cloud coded with `sequenceScale=0.25` and
 NB: a decoder is not required to scale the sequence co-ordinate system to an
 external co-ordinate system prior to output.
 
-### `--seq_bounding_box_xyz0=x,y,z`
-Explicitly sets the origin of the sequence-level bounding box in
-unscaled integer coordinates.
+### `--autoSeqBbox=0|1`
+Automatically determine the sequence bounding box (`seqOrigin` and
+`seqSizeWhd`) using the first input frame.
 
-NB: This option has no effect if `seq_bounding_box_whd`=0,0,0.
+### `--seqOrigin=x,y,z`
+Sets the origin of the sequence bounding box.  The `seqOrigin` must be less
+than or equal to the lowest input point position.  The origin is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the origin according to `sequenceScale`.
 
-### `--seq_bounding_box_whd=w,h,d`
-Explicitly sets the size of the sequence-level bounding box in
-unscaled integer coordinates.
+This option has no effect when `autoSeqBbox=1`.
 
-When $w,h,d$ not equal to 0,0,0, the sequence-level bounding box
-origin is set according to `seq_bounding_box_xyz0`.  Otherwise,
-the sequence-level bounding box is determined by the encoder.
+### `--seqSizeWhd=w,h,d`
+Sets the size of the sequence bounding box.  The size is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the size according to `sequenceScale`.
+
+`seqSizeWhd=0,0,0` disables signalling the sequence bounding box size.
+
+This option has no effect when `autoSeqBbox=1`.
 
 ### `--mergeDuplicatedPoints=0|1`
 Controls the ability to code duplicate points.  When duplicate point

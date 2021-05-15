@@ -110,12 +110,18 @@ PCCTMC3Encoder3::compress(
 
     // Determine input bounding box (for SPS metadata) if not manually set
     Box3<int> bbox;
-    if (params->sps.seqBoundingBoxSize == Vec3<int>{0})
+    if (params->autoSeqBbox)
       bbox = inputPointCloud.computeBoundingBox();
     else {
       bbox.min = params->sps.seqBoundingBoxOrigin;
       bbox.max = bbox.min + params->sps.seqBoundingBoxSize - 1;
     }
+
+    // Note whether the bounding box size is defined
+    // todo(df): set upper limit using level
+    bool bboxSizeDefined = params->sps.seqBoundingBoxSize > 0;
+    if (!bboxSizeDefined)
+      params->sps.seqBoundingBoxSize = (1 << 21) - 1;
 
     // Then scale the bounding box to match the reconstructed output
     for (int k = 0; k < 3; k++) {
@@ -148,8 +154,8 @@ PCCTMC3Encoder3::compress(
     params->sps.sps_bounding_box_offset_bits =
       numBits(params->sps.seqBoundingBoxOrigin.abs().max());
 
-    params->sps.sps_bounding_box_size_bits =
-      numBits(params->sps.seqBoundingBoxSize.abs().max());
+    params->sps.sps_bounding_box_size_bits = bboxSizeDefined ?
+      numBits(params->sps.seqBoundingBoxSize.abs().max()) : 0;
 
     // Determine the lidar head position in coding coordinate system
     params->gps.gpsAngularOrigin *= _srcToCodingScale;
