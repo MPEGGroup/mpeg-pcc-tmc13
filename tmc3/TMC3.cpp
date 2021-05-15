@@ -585,8 +585,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "pre encoding / post reconstruction")
 
   ("outputBinaryPly",
-    params.outputBinaryPly, false,
-    "Output ply files using binary (or otherwise ascii) format")
+    params.outputBinaryPly, true,
+    "Output ply files using binary (or ascii) format")
 
   ("outputUnitLength",
     params.outputUnitLength, 0.,
