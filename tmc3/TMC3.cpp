@@ -51,6 +51,16 @@ using namespace pcc;
 
 //============================================================================
 
+enum class OutputSystem {
+  // Output after global scaling, don't convert to external system
+  kConformance = 0,
+
+  // Scale output to external coordinate system
+  kExternal = 1,
+};
+
+//----------------------------------------------------------------------------
+
 struct Parameters {
   bool isDecoder;
 
@@ -70,6 +80,9 @@ struct Parameters {
 
   // Fractional fixed-point bits retained in conformance output
   int outputFpBits;
+
+  // Output coordinate system to use
+  OutputSystem outputSystem;
 
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
@@ -116,7 +129,10 @@ public:
     PCCPointSet3& cloud);
 
   // determine the output ply scale factor
-  double outputScale(const CloudFrame& cloud);
+  double outputScale(const CloudFrame& cloud) const;
+
+  // the output ply origin, scaled according to output coordinate system
+  Vec3<double> outputOrigin(const CloudFrame& cloud) const;
 
   void
   scaleAttributesForInput(
@@ -281,6 +297,12 @@ operator>>(std::istream& in, ScaleUnit& val)
 }
 }  // namespace pcc
 
+static std::istream&
+operator>>(std::istream& in, OutputSystem& val)
+{
+  return readUInt(in, val);
+}
+
 namespace pcc {
 static std::istream&
 operator>>(std::istream& in, ColourMatrix& val)
@@ -336,6 +358,16 @@ operator>>(std::istream& in, OctreeEncOpts::QpMethod& val)
   return readUInt(in, val);
 }
 }  // namespace pcc
+
+static std::ostream&
+operator<<(std::ostream& out, const OutputSystem& val)
+{
+  switch (val) {
+  case OutputSystem::kConformance: out << "0 (Conformance)"; break;
+  case OutputSystem::kExternal: out << "1 (External)"; break;
+  }
+  return out;
+}
 
 namespace pcc {
 static std::ostream&
@@ -594,9 +626,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Length of reconstructed point cloud x,y,z unit vectors\n"
     " 0: use srcUnitLength")
 
+  ("outputScaling",
+    params.outputSystem, OutputSystem::kExternal,
+    "Output coordnate system scaling\n"
+    " 0: Conformance\n"
+    " 1: External")
+
   ("outputPrecisionBits",
     params.outputFpBits, -1,
-    "Fractional bits after output scaling\n"
+    "Fractional bits in conformance output (prior to external scaling)\n"
     " 0: integer,  -1: automatic (full)")
 
   // This section controls all general geometry scaling parameters
@@ -1788,11 +1826,29 @@ SequenceDecoder::onOutputCloud(const CloudFrame& frame)
 //============================================================================
 
 double
-SequenceCodec::outputScale(const CloudFrame& frame)
+SequenceCodec::outputScale(const CloudFrame& frame) const
 {
-  // The scaling converts from the frame's unit length to configured output.
-  // In terms of specification this is the external coordinate system.
-  return frame.outputUnitLength / params->outputUnitLength;
+  switch (params->outputSystem) {
+  case OutputSystem::kConformance: return 1.;
+
+  case OutputSystem::kExternal:
+    // The scaling converts from the frame's unit length to configured output.
+    // In terms of specification this is the external coordinate system.
+    return frame.outputUnitLength / params->outputUnitLength;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+Vec3<double>
+SequenceCodec::outputOrigin(const CloudFrame& frame) const
+{
+  switch (params->outputSystem) {
+  case OutputSystem::kConformance: return 0.;
+
+  case OutputSystem::kExternal:
+    return frame.outputOrigin * outputScale(frame);
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -1825,9 +1881,8 @@ SequenceCodec::writeOutputFrame(
     ply::write(cloud, attrNames, 1.0, 0.0, filename, !params->outputBinaryPly);
   }
 
-  auto plyScale = outputScale(frame);
-  auto plyOrigin = frame.outputOrigin * plyScale;
-  plyScale /= 1 << frame.outputFpBits;
+  auto plyScale = outputScale(frame) / (1 << frame.outputFpBits);
+  auto plyOrigin = outputOrigin(frame);
   std::string decName{expandNum(postInvScalePath, frameNum)};
   if (!ply::write(
         cloud, attrNames, plyScale, plyOrigin, decName,

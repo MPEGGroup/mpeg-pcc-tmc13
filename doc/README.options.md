@@ -83,6 +83,23 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
+### `--outputSystem=0|1`
+Controls the output scaling of the coded point cloud.
+
+  | Value | Description                 |
+  |:-----:| ----------------------------|
+  | 0     | Conformance output          |
+  | 1     | External co-ordinate system |
+
+The conformance output scales the coded point cloud to the sequence
+co-ordinate system.  The output point positions are not offset by the
+sequence origin.
+
+The external co-ordinate system output scales the point cloud to the
+defined external co-ordinate system (see `sequenceScale`, `externalScale`,
+and `outputUnitLength`).  The output point positions are offset by the
+sequence origin, appropriately scaled.
+
 ### `--outputUnitLength=REAL-VALUE`
 The length of the output point cloud unit vector.  Point clouds output by
 the encoder or decoder are rescaled to match this length.
