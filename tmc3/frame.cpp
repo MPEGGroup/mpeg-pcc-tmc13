@@ -42,9 +42,22 @@ namespace pcc {
 //============================================================================
 
 void
-CloudFrame::setParametersFrom(const SequenceParameterSet& sps)
+CloudFrame::setParametersFrom(
+  const SequenceParameterSet& sps, int fixedPointBits)
 {
+  // How many bits should be preserved during global scaling:
+  //  -1: all
+  //   n: n bits, limited to all
+  if (fixedPointBits) {
+    int gsFracBits = ilog2(uint32_t(Rational(sps.globalScale).denominator));
+    if (fixedPointBits < 0)
+      fixedPointBits = gsFracBits;
+    else
+      fixedPointBits = std::min(fixedPointBits, gsFracBits);
+  }
+
   this->geometry_axis_order = sps.geometry_axis_order;
+  this->outputFpBits = fixedPointBits;
   this->outputOrigin = sps.seqBoundingBoxOrigin;
   this->outputUnitLength = reciprocal(sps.seq_geom_scale);
   this->outputUnit = sps.seq_geom_scale_unit_flag;
@@ -55,19 +68,26 @@ CloudFrame::setParametersFrom(const SequenceParameterSet& sps)
 
 void
 scaleGeometry(
-  PCCPointSet3& cloud, const SequenceParameterSet::GlobalScale& globalScale)
+  PCCPointSet3& cloud,
+  const SequenceParameterSet::GlobalScale& globalScale,
+  int fixedPointFracBits)
 {
   // Conversion to rational simplifies the globalScale expression.
   Rational gs = globalScale;
+
+  // NB: by definition, gs.denominator is a power of two.
+  int gsDenominatorLog2 = ilog2(uint32_t(gs.denominator));
+
+  // appliy fixed-point scaling to numerator, removing common factor
+  gs.numerator <<= std::max(fixedPointFracBits - gsDenominatorLog2, 0);
+  gsDenominatorLog2 = std::max(gsDenominatorLog2 - fixedPointFracBits, 0);
+  gs.denominator = 1 << gsDenominatorLog2;
 
   // Nothing to do if scale factor is 1.
   if (gs.numerator == gs.denominator)
     return;
 
-  // NB: by definition, gs.denominator is a power of two.
-  int gsDenominatorLog2 = ilog2(uint32_t(gs.denominator));
-
-  // The scaling here is equivalent to the integer conformance output
+  // The scaling here is equivalent to the fixed-point conformance output
   size_t numPoints = cloud.getPointCount();
   for (size_t i = 0; i < numPoints; i++) {
     auto& pos = cloud[i];

@@ -90,6 +90,15 @@ the encoder or decoder are rescaled to match this length.
 For example, `outputUnitLength=1000` outputs a point cloud with integer
 point positions representing millimetres.
 
+### `--outputPrecisionBits=INT-VALUE`
+The number of fractional bits to retain when scaling from the coding
+co-ordinate system to the sequence co-ordinate system.  The fractional
+bits are further retained when converting to the external co-ordinate
+system.
+
+The special value `outputPrecisionBits=-1` retains all fractional bits
+during the scaling process.
+
 ### `--convertPlyColourspace=0|1`
 Controls the conversion of ply RGB colour attributes to/from the
 colourspace set by an attribute's `colourMatrix` before attribute

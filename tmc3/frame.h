@@ -70,6 +70,9 @@ struct CloudFrame {
   // NB: this respects geometry_axis_order.
   Vec3<int> outputOrigin;
 
+  // Number of fractional bits in representaiton of cloud.positions.
+  int outputFpBits;
+
   // Descriptions of each attribute.  Attribute parameters in the description
   // are only applicable to this frame -- they may change in a subsequent frame
   std::vector<AttributeDescription> attrDesc;
@@ -80,14 +83,16 @@ struct CloudFrame {
   PCCPointSet3 cloud;
 
   // Determines parameters according to the sps.
-  void setParametersFrom(const SequenceParameterSet& sps);
+  void setParametersFrom(const SequenceParameterSet& sps, int fixedPointBits);
 };
 
 //============================================================================
 // Scale point cloud geometry by global scale factor
 
 void scaleGeometry(
-  PCCPointSet3& cloud, const SequenceParameterSet::GlobalScale& globalScale);
+  PCCPointSet3& cloud,
+  const SequenceParameterSet::GlobalScale& globalScale,
+  int fixedPointFracBits);
 
 //============================================================================
 

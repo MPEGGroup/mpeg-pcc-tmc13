@@ -150,7 +150,7 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
   // todo: add other output scaling modes
   // NB: if accumCloud is reused for future inter-prediction, global scaling
   //     must be applied to a copy.
-  scaleGeometry(_outCloud.cloud, _sps->globalScale);
+  scaleGeometry(_outCloud.cloud, _sps->globalScale, _outCloud.outputFpBits);
 
   callback->onOutputCloud(_outCloud);
 
@@ -168,7 +168,7 @@ PCCTMC3Decoder3::startFrame()
   _outCloud.frameNum = _frameCtr;
 
   // the following could be set once when the SPS is discovered
-  _outCloud.setParametersFrom(*_sps);
+  _outCloud.setParametersFrom(*_sps, _params.outputFpBits);
 }
 
 //============================================================================

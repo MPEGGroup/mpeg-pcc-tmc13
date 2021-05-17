@@ -208,7 +208,7 @@ PCCTMC3Encoder3::compress(
 
   // Configure output coud
   if (reconCloud) {
-    reconCloud->setParametersFrom(*_sps);
+    reconCloud->setParametersFrom(*_sps, params->outputFpBits);
     reconCloud->frameNum = _frameCounter;
   }
 
@@ -397,7 +397,8 @@ PCCTMC3Encoder3::compress(
 
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
-    scaleGeometry(reconCloud->cloud, _sps->globalScale);
+    scaleGeometry(
+      reconCloud->cloud, _sps->globalScale, reconCloud->outputFpBits);
 
   return 0;
 }

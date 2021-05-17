@@ -100,6 +100,9 @@ struct EncoderParams {
   //  P_ext = P_src * extGeomScale
   double extGeomScale;
 
+  // Number of fractional bits used in output position representation.
+  int outputFpBits;
+
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
 

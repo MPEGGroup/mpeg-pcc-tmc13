@@ -68,6 +68,9 @@ struct Parameters {
   // output mode for ply writing (binary or ascii)
   bool outputBinaryPly;
 
+  // Fractional fixed-point bits retained in conformance output
+  int outputFpBits;
+
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
 
@@ -590,6 +593,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.outputUnitLength, 0.,
     "Length of reconstructed point cloud x,y,z unit vectors\n"
     " 0: use srcUnitLength")
+
+  ("outputPrecisionBits",
+    params.outputFpBits, -1,
+    "Fractional bits after output scaling\n"
+    " 0: integer,  -1: automatic (full)")
 
   // This section controls all general geometry scaling parameters
   (po::Section("Coordinate system scaling"))
@@ -1163,6 +1171,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // set default output units (this works for the decoder too)
   if (params.outputUnitLength <= 0.)
     params.outputUnitLength = params.encoder.srcUnitLength;
+  params.encoder.outputFpBits = params.outputFpBits;
+  params.decoder.outputFpBits = params.outputFpBits;
 
   if (!params.isDecoder)
     sanitizeEncoderOpts(params, err);
@@ -1707,7 +1717,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   // todo(df): don't allocate if conversion is not required
   PCCPointSet3 tmpCloud(cloud);
   CloudFrame frame;
-  frame.setParametersFrom(params->encoder.sps);
+  frame.setParametersFrom(params->encoder.sps, params->encoder.outputFpBits);
   frame.cloud = cloud;
   frame.frameNum = frameNum - params->firstFrameNum;
 
@@ -1817,6 +1827,7 @@ SequenceCodec::writeOutputFrame(
 
   auto plyScale = outputScale(frame);
   auto plyOrigin = frame.outputOrigin * plyScale;
+  plyScale /= 1 << frame.outputFpBits;
   std::string decName{expandNum(postInvScalePath, frameNum)};
   if (!ply::write(
         cloud, attrNames, plyScale, plyOrigin, decName,
