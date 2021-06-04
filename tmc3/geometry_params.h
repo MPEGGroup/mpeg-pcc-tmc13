@@ -91,6 +91,8 @@ struct PredGeomEncOpts {
   // Reciprocal bin width used in azimuthal sorting.
   //  0 => full precision
   float azimuthSortRecipBinWidth;
+
+  int radiusThresholdForNewPred;
 };
 
 //=============================================================================

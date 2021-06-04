@@ -969,6 +969,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.octree_point_count_list_present_flag, false,
     "Add octree layer point count metadata")
 
+  ("predGeomRadiusPredThreshold",
+    params.encoder.predGeom.radiusThresholdForNewPred, 2048,
+    "Threshold for considering new predictor in the list,\n"
+    " the threshold effectively used is predGeomRadiusPredThreshold,\n"
+    " scaled accordingly to positionRadiusInvScaleLog2.")
+
   (po::Section("Attributes"))
 
   // attribute processing
@@ -1518,6 +1524,12 @@ sanitizeEncoderOpts(
       int maxSpeed = 1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12);
       if (params.encoder.gps.geom_angular_azimuth_speed_minus1 + 1 > maxSpeed)
         err.error() << "positionAzimuthSpeed > max (" << maxSpeed << ")\n";
+    }
+
+    if (params.encoder.gps.azimuth_scaling_enabled_flag) {
+      params.encoder.gps.predgeom_radius_threshold_for_pred_list
+        = params.encoder.predGeom.radiusThresholdForNewPred
+          >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
     }
   }
 

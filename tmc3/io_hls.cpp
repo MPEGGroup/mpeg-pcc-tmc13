@@ -695,8 +695,11 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   if (gps_extension_flag) {
     bs.write(gps.trisoup_enabled_flag);
 
-    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
       bs.write(gps.azimuth_scaling_enabled_flag);
+      if (gps.azimuth_scaling_enabled_flag)
+        bs.writeUe(gps.predgeom_radius_threshold_for_pred_list);
+    }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.write(gps.octree_angular_extension_flag);
   }
@@ -835,8 +838,11 @@ parseGps(const PayloadBuffer& buf)
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
 
-    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
       bs.read(&gps.azimuth_scaling_enabled_flag);
+      if (gps.azimuth_scaling_enabled_flag)
+        bs.readUe(&gps.predgeom_radius_threshold_for_pred_list);
+    }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.read(&gps.octree_angular_extension_flag);
   }

@@ -81,8 +81,10 @@ public:
   void reset();
 
 protected:
+  static const int NPredDelta = 4;
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
+  AdaptiveBitModel _ctxPredIdx[NPredDelta];
   AdaptiveBitModel _ctxResGt0[3];
   AdaptiveBitModel _ctxSign[3];
   AdaptiveBitModel _ctxNumBits[5][3][31];
@@ -194,7 +196,13 @@ GPredicter::predict(
   }
 
   case GPredicter::Delta: {
-    pred = points[this->index[0]];
+    pred = 0;
+
+    pred[0] = pgeom_min_radius;
+
+    if (this->index[0] >= 0) {
+      pred = points[this->index[0]];
+    }
     break;
   }
 
