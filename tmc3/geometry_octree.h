@@ -446,6 +446,13 @@ int determineContextAngleForPlanar(
   int* contextAnglePhiY,
   Vec3<uint32_t> quantMasks);
 
+//---------------------------------------------------------------------------
+
+inline int determineContextIndexForAngularPhiIDCM(int deltaPhi, int phiLRDiff)
+{
+  return (3*deltaPhi < phiLRDiff<<2) + (deltaPhi < phiLRDiff<<1);
+}
+
 //----------------------------------------------------------------------------
 
 int findLaser(point_t point, const int* thetaList, const int numTheta);
@@ -499,7 +506,7 @@ protected:
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
 
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[8];
-  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[8];
+  AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[8][3];
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;

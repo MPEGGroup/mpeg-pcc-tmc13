@@ -1068,7 +1068,12 @@ GeometryOctreeDecoder::decodePointPositionAngular(
       contextAnglePhi += 4;
 
     // entropy coding
-    auto& ctx = _ctxPlanarPlaneLastIndexAngularPhiIDCM[contextAnglePhi];
+    int ctxIndex = 0;
+    if (_angularExtension)
+      ctxIndex = determineContextIndexForAngularPhiIDCM(
+        _phiZi.delta(laserIdx), std::abs(phiL - phiR));
+    auto& ctx =
+      _ctxPlanarPlaneLastIndexAngularPhiIDCM[contextAnglePhi][ctxIndex];
     bool bit = _arithmeticDecoder->decode(ctx);
     delta[phiAxis] <<= 1;
     if (bit) {
