@@ -104,6 +104,13 @@ protected:
   AdaptiveBitModel _ctxResidualPhi[7];
 
   AdaptiveBitModel _ctxEndOfTrees;
+
+  AdaptiveBitModel _ctxResPhiIsZero[2];
+  bool             _resPhiOldSign = false;
+  AdaptiveBitModel _ctxResPhiSign[2][2];
+  AdaptiveBitModel _ctxResPhiIsOne[2];
+  AdaptiveBitModel _ctxResPhiExpGolombPre[2][4];
+  AdaptiveBitModel _ctxResPhiExpGolombSuf[2][4];
 };
 
 //----------------------------------------------------------------------------
