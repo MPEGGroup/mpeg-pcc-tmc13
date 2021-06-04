@@ -983,24 +983,53 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     _prevLaserIndexResidual[nodeLaserIdx] = resLaser;
 
   // find predictor
+  const int thInterp = 1 << 13;
+
   int phiNode = iatan2(posXyz[1], posXyz[0]);
+  int phiTop = directAxis
+    ? iatan2(posXyz[1], posXyz[0] + (1 << nodeSizeLog2Rem[!directAxis]))
+    : iatan2(posXyz[1] + (1 << nodeSizeLog2Rem[!directAxis]), posXyz[0]);
+  int phiMiddle = (phiNode + phiTop) >> 1;
+  if (_angularExtension && !(std::abs(phiNode - phiTop) < thInterp))
+    phiMiddle = directAxis
+      ? iatan2(
+          posXyz[1], posXyz[0] + ((1 << nodeSizeLog2Rem[!directAxis]) >> 1))
+      : iatan2(
+          posXyz[1] + ((1 << nodeSizeLog2Rem[!directAxis]) >> 1), posXyz[0]);
+
   int predPhi = _phiBuffer[laserIdx];
+  int phiRef = _angularExtension ? phiMiddle : phiNode;
   if (predPhi == 0x80000000)
-    predPhi = phiNode;
+    predPhi = phiRef;
 
   // elementary shift predictor
   int nShift =
-    ((predPhi - phiNode) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
+    ((predPhi - phiRef) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
   predPhi -= _phiZi.delta(laserIdx) * nShift;
 
   // azimuthal code x or y
   const int phiAxis = !directAxis;
-  for (int mask = (1 << nodeSizeLog2Rem[phiAxis]) >> 1; mask; mask >>= 1) {
+  for (int mask = (1 << nodeSizeLog2Rem[phiAxis]) >> 1,
+           shiftBits = nodeSizeLog2Rem[phiAxis];
+       mask; mask >>= 1, shiftBits--) {
     // angles left and right
     int scaledMask = quant.scaleEns(phiAxis, mask);
-    int phiL = phiNode;
-    int phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + scaledMask)
-                          : iatan2(posXyz[1] + scaledMask, posXyz[0]);
+    int phiL, phiR;
+
+    if (_angularExtension) {
+      const int offset = scaledMask - 1;
+      const int offset2 = shiftBits > 1 ? (shiftBits > 2 ? 0 : 1) : 2;
+
+      phiL = phiNode
+        + ((offset - offset2) * (phiMiddle - phiNode) >> (shiftBits));
+      phiR = phiMiddle
+        + ((offset + offset2) * (phiMiddle - phiNode) >> (shiftBits));
+    }
+    else {
+      phiL = phiNode;
+      phiR = directAxis ? iatan2(posXyz[1], posXyz[0] + scaledMask)
+                        : iatan2(posXyz[1] + scaledMask, posXyz[0]);
+    }
 
     // ctx azimutal
     int angleL = phiL - predPhi;
@@ -1022,14 +1051,35 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     _arithmeticEncoder->encode(bit, ctx);
     if (bit) {
       posXyz[phiAxis] += scaledMask;
-      phiNode = phiR;
-      predPhi = _phiBuffer[laserIdx];
-      if (predPhi == 0x80000000)
-        predPhi = phiNode;
+      if (_angularExtension)
+        phiNode = phiMiddle;
+      else {
+        phiNode = phiR;
+        predPhi = _phiBuffer[laserIdx];
+        if (predPhi == 0x80000000)
+          predPhi = phiNode;
 
-      // elementary shift predictor
+        // elementary shift predictor
+        int nShift =
+          ((predPhi - phiNode) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
+        predPhi -= _phiZi.delta(laserIdx) * nShift;
+      }
+    }
+    else if (_angularExtension)
+      phiTop = phiMiddle;
+
+    if (_angularExtension) {
+      // update Phi middle
+      if (std::abs(phiNode - phiTop) < thInterp)
+        phiMiddle = (phiNode + phiTop) >> 1;
+      else
+        phiMiddle = directAxis
+          ? iatan2(posXyz[1], posXyz[0] + (scaledMask >> 1))
+          : iatan2(posXyz[1] + (scaledMask >> 1), posXyz[0]);
+
+      // update elementary shift predictor
       int nShift =
-        ((predPhi - phiNode) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
+        ((predPhi - phiMiddle) * _phiZi.invDelta(laserIdx) + (1 << 29)) >> 30;
       predPhi -= _phiZi.delta(laserIdx) * nShift;
     }
   }
