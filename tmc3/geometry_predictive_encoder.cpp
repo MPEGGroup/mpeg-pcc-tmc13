@@ -111,7 +111,7 @@ public:
   void encodeNumDuplicatePoints(int numDupPoints);
   void encodeNumChildren(int numChildren);
   void encodePredMode(GPredicter::Mode mode);
-  void encodeResidual(const Vec3<int32_t>& residual, int iMode, int rPred);
+  void encodeResidual(const Vec3<int32_t>& residual, int iMode, int multiplier, int rPred);
   void encodeResPhi(int32_t resPhi, int predIdx, int boundPhi);
   void encodeResidual2(const Vec3<int32_t>& residual);
   void encodePhiMultiplier(const int32_t multiplier);
@@ -344,7 +344,7 @@ PredGeomEncoder::estimateResPhi(
 //----------------------------------------------------------------------------
 
 void
-PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode, int rPred)
+PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode, int multiplier, int rPred)
 {
   for (int k = 0, ctxIdx = 0; k < 3; k++) {
     // The last component (delta laseridx) isn't coded if there is one laser
@@ -381,8 +381,20 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode, int rP
     for (int32_t i = 0; i < numBits; ++i)
       _aec->encode((value >> i) & 1);
 
-    if (iMode || k)
-      _aec->encode(res < 0, _ctxSign[k]);
+    if (iMode || k) {
+      if (_azimuth_scaling_enabled_flag && k == 0) {
+        int contextR = (_precAzimuthStepDelta ? 4 : 0);
+        contextR += (multiplier ? 2 : 0);
+        contextR += _precSignR;
+        int ctxL = iMode == 1 /* parent */;
+        _precAzimuthStepDelta = multiplier;
+        _aec->encode(res < 0, _ctxResRSign[ctxL][contextR]);
+        _precSignR = res < 0;
+      }
+      else {
+        _aec->encode(res < 0, _ctxSign[k]);
+      }
+    }
   }
 }
 
@@ -507,8 +519,18 @@ PredGeomEncoder::estimateBits(
     if (res == 0)
       continue;
 
-    if (iMode > 0 || k)
-      bits += estimate(res < 0, _ctxSign[k]);
+    if (iMode > 0 || k) {
+      if (_azimuth_scaling_enabled_flag && k == 0) {
+        int contextR = (_precAzimuthStepDelta ? 4 : 0);
+        contextR += (multiplier ? 2 : 0);
+        contextR += _precSignR;
+        int ctxL = iMode == 1 /* parent */;
+        bits += estimate(res < 0, _ctxResRSign[ctxL][contextR]);
+      }
+      else {
+        bits += estimate(res < 0, _ctxSign[k]);
+      }
+    }
 
     int32_t value = abs(res) - 1;
     int32_t numBits = 1 + ilog2(uint32_t(value));
@@ -683,7 +705,7 @@ PredGeomEncoder::encodeTree(
     if (_geom_angular_mode_enabled_flag)
       encodePhiMultiplier(best.qphi);
 
-    encodeResidual(best.residual, best.mode, best.prediction[0]);
+    encodeResidual(best.residual, best.mode, best.qphi, best.prediction[0]);
 
     // convert spherical prediction to cartesian and re-calculate residual
     if (_geom_angular_mode_enabled_flag) {

@@ -78,7 +78,7 @@ private:
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   int32_t decodeResPhi(int predIdx, int boundPhi);
-  Vec3<int32_t> decodeResidual(int mode, int rPred, int *azimuthSpeed);
+  Vec3<int32_t> decodeResidual(int mode, int multiplier, int rPred, int *azimuthSpeed);
   Vec3<int32_t> decodeResidual2();
   int32_t decodePhiMultiplier(GPredicter::Mode mode);
   int32_t decodeQpOffset();
@@ -303,7 +303,7 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual(int mode, int rPred, int* azimuthSpeed)
+PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimuthSpeed)
 {
   Vec3<int32_t> residual;
 
@@ -356,7 +356,21 @@ PredGeomDecoder::decodeResidual(int mode, int rPred, int* azimuthSpeed)
       }
     }
 
-    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 0;
+    int sign = 0;
+    if (mode || k) {
+      if (_azimuth_scaling_enabled_flag && k == 0) {
+        int contextR = (_precAzimuthStepDelta ? 4 : 0);
+        contextR += (multiplier ? 2 : 0);
+        contextR += _precSignR;
+        int ctxL = mode == 1 /* parent */;
+        _precAzimuthStepDelta = multiplier;
+        sign = _aed->decode(_ctxResRSign[ctxL][contextR]);
+        _precSignR = sign;
+      }
+      else {
+        sign = _aed->decode(_ctxSign[k]);
+      }
+    }
     residual[k] = sign ? -res : res;
   }
 
@@ -402,7 +416,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     auto pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
 
     int azimuthSpeed;
-    auto residual = decodeResidual(mode, pred[0], &azimuthSpeed);
+    auto residual = decodeResidual(mode, qphi, pred[0], &azimuthSpeed);
     if (!_geom_angular_mode_enabled_flag)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));

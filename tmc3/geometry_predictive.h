@@ -111,6 +111,10 @@ protected:
   AdaptiveBitModel _ctxResPhiIsOne[2];
   AdaptiveBitModel _ctxResPhiExpGolombPre[2][4];
   AdaptiveBitModel _ctxResPhiExpGolombSuf[2][4];
+
+  int              _precAzimuthStepDelta = 0;
+  int              _precSignR = 0;
+  AdaptiveBitModel _ctxResRSign[2][8];
 };
 
 //----------------------------------------------------------------------------
