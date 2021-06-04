@@ -750,36 +750,4 @@ findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
 
 //============================================================================
 
-int findLaserPrecise(
-  pcc::point_t point,
-  const int* thetaList,
-  const int* zList,
-  const int numTheta)
-{
-  if (numTheta == 1)
-    return 0;
-
-  int64_t xLidar = int64_t(point[0]) << 8;
-  int64_t yLidar = int64_t(point[1]) << 8;
-  int64_t rInv = irsqrt(xLidar * xLidar + yLidar * yLidar);
-
-  int lBest = 0;
-  int dBest = INT_MAX;
-
-  for (int l = 0; l < numTheta; l++, thetaList++) {
-    int zS3 = (point[2] << 3) + zList[l];
-    int theta32 =
-      zS3 >= 0 ? (zS3 * rInv) >> (14 + 3) : -((-zS3 * rInv) >> (14 + 3));
-    int d = std::abs(theta32 - *thetaList);
-    if (d < dBest) {
-      dBest = d;
-      lBest = l;
-    }
-  }
-
-  return lBest;
-}
-
-//============================================================================
-
 }  // namespace pcc

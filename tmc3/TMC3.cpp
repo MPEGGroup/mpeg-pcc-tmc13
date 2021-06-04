@@ -1709,7 +1709,11 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   // NB: because this is trying to emulate the input order, binning is disabled
   if (params->sortInputByAzimuth)
     sortByAzimuth(
-      pointCloud, 0, pointCloud.getPointCount(), 0., _angularOrigin);
+      pointCloud, 0, pointCloud.getPointCount(), 0., _angularOrigin,
+      params->encoder.gps.geom_angular_azimuth_scale_log2_minus11 + 12,
+      params->encoder.gps.geom_angular_azimuth_speed_minus1 + 1,
+      params->encoder.gps.angularTheta,
+      params->encoder.gps.angularZ);
 
   // Sanitise the input point cloud
   // todo(df): remove the following with generic handling of properties

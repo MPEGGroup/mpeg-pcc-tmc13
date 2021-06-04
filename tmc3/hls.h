@@ -36,6 +36,8 @@
 #pragma once
 
 #include "PCCMath.h"
+#include "PCCPointSet.h"
+
 #include <cstdint>
 #include <ostream>
 #include <vector>

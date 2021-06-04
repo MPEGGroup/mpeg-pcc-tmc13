@@ -210,8 +210,26 @@ void convertYCgCoRToGbr(int bitDepth, PCCPointSet3&);
 //============================================================================
 
 // Generate index order sorted by azimuth angle.
-std::vector<int32_t> orderByAzimuth(
-  PCCPointSet3&, int start, int end, int numDigit, Vec3<int32_t> origin);
+std::vector<int>
+orderByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin);
+
+std::vector<int>
+orderByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin,
+  const int32_t positionAzimuthScaleLog2,
+  const int32_t azimuthSpeed,
+  const std::vector<int32_t>& angularTheta,
+  const std::vector<int32_t>& angularZ
+  );
 
 std::vector<int32_t>
 orderByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin);
@@ -220,12 +238,26 @@ std::vector<int32_t> orderByLaserAngle(
   PCCPointSet3&, int start, int end, int numDigit, Vec3<int32_t> origin);
 
 // Sorts points according to azimuth angle.
-void sortByAzimuth(
-  PCCPointSet3&,
+void
+sortByAzimuth(
+  PCCPointSet3& cloud,
   int start,
   int end,
   double recipBinWidth,
   Vec3<int32_t> origin = 0);
+
+void
+sortByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin,
+  const int32_t positionAzimuthScaleLog2,
+  const int32_t azimuthSpeed,
+  const std::vector<int32_t>& angularTheta,
+  const std::vector<int32_t>& angularZ
+  );
 
 void sortByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin = 0);
 

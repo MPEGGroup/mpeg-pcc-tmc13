@@ -39,6 +39,7 @@
 #include "hls.h"
 #include "KDTreeVectorOfVectorsAdaptor.h"
 
+#include <array>
 #include <cstddef>
 #include <set>
 #include <vector>
@@ -1054,6 +1055,91 @@ orderByAzimuth(
 }
 
 //============================================================================
+
+std::vector<int>
+orderByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin,
+  const int32_t positionAzimuthScaleLog2,
+  const int32_t azimuthSpeed,
+  const std::vector<int32_t>& angularTheta,
+  const std::vector<int32_t>& angularZ)
+{
+  if (recipBinWidth != 0.) {
+    recipBinWidth *= azimuthSpeed;
+  }
+  // build a list of inxdexes to sort
+  auto pointCount = end - start;
+  std::vector<int> order(pointCount);
+  for (int i = 0; i < pointCount; i++)
+    order[i] = i;
+
+  int numLasers = angularZ.size();
+
+  const int kpi = 1<<positionAzimuthScaleLog2-1;
+  std::vector<point_t> lidarCoord(pointCount);
+  for (int i = 0; i < pointCount; i++) {
+    auto a = cloud[start + i] - origin;
+
+    int32_t rA = int32_t(hypot(a[0], a[1])*(1<<8) + 0.5);
+    double dphiA = (atan2(double(a[1]), double(a[0]))+M_PI);
+    if (recipBinWidth != 0.) {
+      dphiA = dphiA * recipBinWidth;
+    }
+    else {
+      dphiA = dphiA * kpi / M_PI / azimuthSpeed;
+    }
+    int32_t phiIndexA = dphiA + 0.5;
+    int32_t laserIndexA = findLaserPrecise(a, angularTheta.data(), angularZ.data(), numLasers);
+    lidarCoord[i] = {rA, phiIndexA, laserIndexA};
+  }
+
+
+  std::sort(order.begin(), order.end(), [&](int aIdx, int bIdx) {
+    auto a = lidarCoord[aIdx];
+    auto b = lidarCoord[bIdx];
+
+    return a[1] != b[1] ? a[1] < b[1]
+                        : a[2] != b[2] ? a[2] < b[2] : a[0] < b[0];
+  });
+
+  // now sort to minimize r-jump
+  std::vector<int32_t> lastR (numLasers);
+  for (int l = 0; l < numLasers; l++)
+    lastR[l] = 0;
+
+  int startRange = 0;
+  int32_t startPhiIndex = lidarCoord[order[0]][1];
+  int32_t startLaserIndex = lidarCoord[order[0]][2];
+  for (int i = 0; i < pointCount; i++) {
+    int32_t currentPhiIndex = lidarCoord[order[i]][1];
+    int32_t currentLaserIndex = lidarCoord[order[i]][2];
+    if (currentPhiIndex != startPhiIndex
+      || currentLaserIndex != startLaserIndex
+      || i == pointCount - 1 ) {
+      // range completed
+      int32_t minR = lidarCoord[order[startRange]][0];
+      int32_t maxR = lidarCoord[order[i-1]][0];
+
+      // minimize r-jump
+      if (std::abs(minR - lastR[startLaserIndex]) > std::abs(maxR - lastR[startLaserIndex]))
+        std::reverse(&order[startRange], &order[i]);
+
+      // update for next range
+      lastR[startLaserIndex] = lidarCoord[order[i-1]][0];
+      startPhiIndex = currentPhiIndex;
+      startLaserIndex = currentLaserIndex;
+      startRange = i;
+    }    // end if range completed
+  }
+
+  return order;
+}
+
+//============================================================================
 // Sorts according to azimuth.
 // \param recipBinWidth is the reciprocal bin width used in sorting.
 //        recipBinWidth = 0 disables binning.
@@ -1074,6 +1160,33 @@ sortByAzimuth(
     while (order[i] - start != i) {
       cloud.swapPoints(order[i], order[order[i] - start]);
       std::swap(order[i], order[order[i] - start]);
+    }
+  }
+}
+
+//============================================================================
+// Sort for LiDAR
+
+void
+sortByAzimuth(
+  PCCPointSet3& cloud,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin,
+  const int32_t positionAzimuthScaleLog2,
+  const int32_t azimuthSpeed,
+  const std::vector<int32_t>& angularTheta,
+  const std::vector<int32_t>& angularZ)
+{
+  auto pointCount = end - start;
+  auto order = orderByAzimuth(cloud, start, end, recipBinWidth, origin, positionAzimuthScaleLog2, azimuthSpeed, angularTheta, angularZ);
+
+  // inefficiently reorder the point cloud
+  for (int i = 0; i < pointCount; i++) {
+    while (order[i] != i) {
+      cloud.swapPoints(start + order[i], start + order[order[i]]);
+      std::swap(order[i], order[order[i]]);
     }
   }
 }

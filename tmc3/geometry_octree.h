@@ -331,29 +331,6 @@ OctreeAngPosScaler::scaleNs(Vec3<int32_t> pos) const
 
 //============================================================================
 
-class AzimuthalPhiZi {
-public:
-  AzimuthalPhiZi(int numLasers, const std::vector<int>& numPhi)
-    : _delta(numLasers), _invDelta(numLasers)
-  {
-    for (int laserIndex = 0; laserIndex < numLasers; laserIndex++) {
-      constexpr int k2pi = 6588397;  // 2**20 * 2 * pi
-      _delta[laserIndex] = k2pi / numPhi[laserIndex];
-      _invDelta[laserIndex] =
-        int64_t((int64_t(numPhi[laserIndex]) << 30) / k2pi);
-    }
-  }
-
-  const int delta(size_t idx) const { return _delta[idx]; }
-  const int64_t invDelta(size_t idx) const { return _invDelta[idx]; }
-
-private:
-  std::vector<int> _delta;
-  std::vector<int64_t> _invDelta;
-};
-
-//============================================================================
-
 struct OctreePlanarBuffer {
   static constexpr unsigned numBitsC = 14;
   static constexpr unsigned numBitsAb = 5;
@@ -456,11 +433,6 @@ inline int determineContextIndexForAngularPhiIDCM(int deltaPhi, int phiLRDiff)
 //----------------------------------------------------------------------------
 
 int findLaser(point_t point, const int* thetaList, const int numTheta);
-
-//----------------------------------------------------------------------------
-
-int findLaserPrecise(
-  point_t point, const int* thetaList, const int* zList, const int numTheta);
 
 //============================================================================
 

@@ -594,7 +594,62 @@ swap(PCCPointSet3& a, PCCPointSet3& b)
   a.swap(b);
 }
 
-//---------------------------------------------------------------------------
+//============================================================================
+
+static inline int findLaserPrecise(
+  pcc::point_t point,
+  const int* thetaList,
+  const int* zList,
+  const int numTheta)
+{
+  if (numTheta == 1)
+    return 0;
+
+  int64_t xLidar = int64_t(point[0]) << 8;
+  int64_t yLidar = int64_t(point[1]) << 8;
+  int64_t rInv = irsqrt(xLidar * xLidar + yLidar * yLidar);
+
+  int lBest = 0;
+  int dBest = std::numeric_limits<int>::max();
+
+  for (int l = 0; l < numTheta; l++, thetaList++) {
+    int zS3 = (point[2] << 3) + zList[l];
+    int theta32 =
+      zS3 >= 0 ? (zS3 * rInv) >> (14 + 3) : -((-zS3 * rInv) >> (14 + 3));
+    int d = std::abs(theta32 - *thetaList);
+    if (d < dBest) {
+      dBest = d;
+      lBest = l;
+    }
+  }
+
+  return lBest;
+}
+
+//============================================================================
+
+class AzimuthalPhiZi {
+public:
+  AzimuthalPhiZi(int numLasers, const std::vector<int>& numPhi)
+    : _delta(numLasers), _invDelta(numLasers)
+  {
+    for (int laserIndex = 0; laserIndex < numLasers; laserIndex++) {
+      constexpr int k2pi = 6588397;  // 2**20 * 2 * pi
+      _delta[laserIndex] = k2pi / numPhi[laserIndex];
+      _invDelta[laserIndex] =
+        int64_t((int64_t(numPhi[laserIndex]) << 30) / k2pi);
+    }
+  }
+
+  const int delta(size_t idx) const { return _delta[idx]; }
+  const int64_t invDelta(size_t idx) const { return _invDelta[idx]; }
+
+private:
+  std::vector<int> _delta;
+  std::vector<int64_t> _invDelta;
+};
+
+//============================================================================
 
 } /* namespace pcc */
 
