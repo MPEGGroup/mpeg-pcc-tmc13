@@ -179,6 +179,24 @@ public:
     Vec3<int> posXyz,
     Vec3<int> delta);
 
+  inline int32_t decodePointPositionZAngular(
+    const OctreeAngPosScaler& quant,
+    const Vec3<int>& nodeSizeLog2Rem,
+    const int* zLaser,
+    const int* thetaLaser,
+    int laserIdx,
+    Vec3<int>& posXyz,
+    int& deltaZ);
+
+  inline int32_t decodePointPositionZAngularExtension(
+    const Vec3<int>& angularOrigin,
+    const Vec3<int>& nodePos,
+    const int* zLaser,
+    const int* thetaLaser,
+    int laserIdx,
+    int maskz,
+    Vec3<int>& posXyz);
+
   bool decodeNodeQpOffsetsPresent();
   int decodeQpOffset();
 
@@ -199,7 +217,8 @@ public:
     int numLasers,
     OutputIt outputPoints);
 
-  int decodeThetaRes();
+  int decodeThetaRes(int prevThetaRes);
+  int decodeZRes();
 
   const GeometryOctreeContexts& getCtx() const { return *this; }
 
@@ -217,8 +236,14 @@ public:
   // Azimuthal buffer
   std::vector<int> _phiBuffer;
 
+  // last previously coded laser index residual for a given node laser index
+  std::vector<int> _prevLaserIndexResidual;
+
   // azimuthal elementary shifts
   AzimuthalPhiZi _phiZi;
+
+  // Octree extensions
+  bool _angularExtension;
 };
 
 //============================================================================
@@ -234,7 +259,9 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   , _arithmeticDecoder(arithmeticDecoder)
   , _planar(gps)
   , _phiBuffer(gps.numLasers(), 0x80000000)
+  , _prevLaserIndexResidual(gps.numLasers(), 0x00000000)
   , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
+  , _angularExtension(gps.octree_angular_extension_flag)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -950,7 +977,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
-  int laserIdx,
+  int nodeLaserIdx,
   const Vec3<int>& nodePos,
   Vec3<int> posXyz,
   Vec3<int> delta)
@@ -969,7 +996,11 @@ GeometryOctreeDecoder::decodePointPositionAngular(
     - angularOrigin[directAxis];
 
   // laser residual
-  laserIdx += decodeThetaRes();
+  int resLaser = decodeThetaRes(_prevLaserIndexResidual[nodeLaserIdx]);
+  int laserIdx = nodeLaserIdx + resLaser;
+
+  if (_angularExtension)
+    _prevLaserIndexResidual[nodeLaserIdx] = resLaser;
 
   // find predictor
   int phiNode = iatan2(posXyz[1], posXyz[0]);
@@ -1034,6 +1065,27 @@ GeometryOctreeDecoder::decodePointPositionAngular(
 
   // Since x and y are known,
   // r is known too and does not depend on the bit for z
+  if (_angularExtension)
+    delta[2] = decodePointPositionZAngularExtension(angularOrigin, nodePos,
+      zLaser, thetaLaser, laserIdx, maskz, posXyz);
+  else
+    delta[2] = decodePointPositionZAngular(
+      quant, nodeSizeLog2Rem, zLaser, thetaLaser, laserIdx, posXyz, delta[2]);
+
+  return delta;
+}
+
+
+int32_t
+GeometryOctreeDecoder::decodePointPositionZAngular(
+  const OctreeAngPosScaler& quant,
+  const Vec3<int>& nodeSizeLog2Rem,
+  const int* zLaser,
+  const int* thetaLaser,
+  int laserIdx,
+  Vec3<int>& posXyz,
+  int& deltaZ)
+{
   uint64_t xLidar = (int64_t(posXyz[0]) << 8) - 128;
   uint64_t yLidar = (int64_t(posXyz[1]) << 8) - 128;
   uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
@@ -1044,6 +1096,7 @@ GeometryOctreeDecoder::decodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIdx] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
+  int maskz = (1 << nodeSizeLog2Rem[2]) >> 1;
   int zShift = (rInv * quant.scaleEns(2, 1 << nodeSizeLog2Rem[2])) >> 18;
   for (int bitIdxZ = nodeSizeLog2Rem[2]; bitIdxZ > 0;
        bitIdxZ--, maskz >>= 1, zShift >>= 1) {
@@ -1063,13 +1116,41 @@ GeometryOctreeDecoder::decodePointPositionAngular(
       contextAngle += 2;
 
     auto& ctx = _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle];
-    delta[2] <<= 1;
-    delta[2] |= _arithmeticDecoder->decode(ctx);
-    if (delta[2] & 1)
-      posXyz[2] += scaledMaskZ;
+    deltaZ <<= 1;
+    deltaZ |= _arithmeticDecoder->decode(ctx);
+    if (deltaZ & 1)
+      deltaZ += scaledMaskZ;
   }
 
-  return delta;
+  return deltaZ;
+}
+
+int32_t
+GeometryOctreeDecoder::decodePointPositionZAngularExtension(
+  const Vec3<int>& angularOrigin,
+  const Vec3<int>& nodePos,
+  const int* zLaser,
+  const int* thetaLaser,
+  int laserIdx,
+  int maskz,
+  Vec3<int>& posXyz)
+{
+  uint64_t xLidar = (int64_t(posXyz[0]) << 8);
+  uint64_t yLidar = (int64_t(posXyz[1]) << 8);
+  uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
+  int64_t r = isqrt(r2);
+
+  // decode z
+  int64_t zRec26 = thetaLaser[laserIdx] * r;
+  zRec26 -= int64_t(zLaser[laserIdx]) << 23;
+  int32_t zRec = divExp2RoundHalfInf(zRec26, 26);
+
+  zRec = std::max(zRec, posXyz[2]);
+  zRec = std::min(zRec, posXyz[2] + (2*maskz -1));
+
+  int32_t zRes = decodeZRes();
+
+  return zRes + zRec + angularOrigin[2] - nodePos[2];
 }
 
 //-------------------------------------------------------------------------
@@ -1152,7 +1233,11 @@ GeometryOctreeDecoder::decodeDirectPosition(
     auto delta = (deltaPos[0] << nodeSizeLog2Rem);
     delta += (1 << nodeSizeLog2Rem) >> 1;
     delta = quant.scaleEns(delta);
-    laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
+    if (_angularExtension)
+      laserIdx =
+        findLaserPrecise(posNodeLidar + delta, thetaLaser, zLaser, numLasers);
+    else
+      laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
   }
 
   Vec3<int32_t> pos;
@@ -1175,20 +1260,44 @@ GeometryOctreeDecoder::decodeDirectPosition(
 //-------------------------------------------------------------------------
 
 int
-GeometryOctreeDecoder::decodeThetaRes()
+GeometryOctreeDecoder::decodeThetaRes(int prevThetaRes)
 {
-  if (!_arithmeticDecoder->decode(_ctxThetaRes[0]))
+  int ctx = prevThetaRes != 0;
+
+  if (!_arithmeticDecoder->decode(_ctxThetaRes[ctx][0]))
     return 0;
 
   int absVal = 1;
-  absVal += _arithmeticDecoder->decode(_ctxThetaRes[1]);
+  absVal += _arithmeticDecoder->decode(_ctxThetaRes[ctx][1]);
   if (absVal > 1)
-    absVal += _arithmeticDecoder->decode(_ctxThetaRes[2]);
+    absVal += _arithmeticDecoder->decode(_ctxThetaRes[ctx][2]);
   if (absVal == 3)
     absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
 
-  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
+  int ctxSign = (prevThetaRes>0) + 2*(prevThetaRes<0);
+  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign[ctxSign]);
   return sign ? -absVal : absVal;
+}
+
+
+//-------------------------------------------------------------------------
+
+int
+GeometryOctreeDecoder::decodeZRes()
+{
+  if (!_arithmeticDecoder->decode(_ctxZRes[0]))
+    return 0;
+
+  bool sign = _arithmeticDecoder->decode(_ctxZResSign);
+
+  int absVal = 1;
+  absVal += _arithmeticDecoder->decode(_ctxZRes[1]);
+  if (absVal > 1)
+    absVal += _arithmeticDecoder->decode(_ctxZRes[2]);
+  if (absVal == 3)
+    absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxZResExp);
+
+  return sign ? absVal : -absVal;
 }
 
 //-------------------------------------------------------------------------

@@ -536,6 +536,8 @@ struct GeometryParameterSet {
 
   // Quantize azimuth residuals in algular predictive geometry coder.
   bool azimuth_scaling_enabled_flag;
+  // Enable octree angular extension
+  bool octree_angular_extension_flag;
 };
 
 //============================================================================

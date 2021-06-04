@@ -697,6 +697,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.write(gps.azimuth_scaling_enabled_flag);
+    if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+      bs.write(gps.octree_angular_extension_flag);
   }
   bs.byteAlign();
 
@@ -828,12 +830,15 @@ parseGps(const PayloadBuffer& buf)
 
   gps.trisoup_enabled_flag = false;
   gps.azimuth_scaling_enabled_flag = false;
+  gps.octree_angular_extension_flag = false;
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.read(&gps.azimuth_scaling_enabled_flag);
+    if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+      bs.read(&gps.octree_angular_extension_flag);
   }
   bs.byteAlign();
 

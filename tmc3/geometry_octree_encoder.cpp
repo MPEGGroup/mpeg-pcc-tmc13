@@ -195,6 +195,25 @@ public:
     const int* thetaLaser,
     int numLasers);
 
+  inline void encodePointPositionZAngular(
+    const OctreeAngPosScaler& quant,
+    const Vec3<int>& nodeSizeLog2Rem,
+    const int* zLaser,
+    const int* thetaLaser,
+    int laserIdx,
+    Vec3<int>& posXyz,
+    const int& posZ);
+
+  inline void encodePointPositionZAngularExtension(
+    const Vec3<int>& angularOrigin,
+    const Vec3<int>& nodePos,
+    const int* zLaser,
+    const int* thetaLaser,
+    int laserIdx,
+    int maskz,
+    Vec3<int>& posXyz);
+
+
   void encodeNodeQpOffetsPresent(bool);
   void encodeQpOffset(int dqp);
 
@@ -216,7 +235,8 @@ public:
     const int* thetaLaser,
     int numLasers);
 
-  void encodeThetaRes(int ThetaRes);
+  void encodeThetaRes(int ThetaRes, int prevThetaRes);
+  void encodeZRes(int zRes);
 
   const GeometryOctreeContexts& getCtx() const { return *this; }
 
@@ -234,8 +254,14 @@ public:
   // Azimuthal buffer
   std::vector<int> _phiBuffer;
 
+  // last previously coded laser index residual for a given node laser index
+  std::vector<int> _prevLaserIndexResidual;
+
   // azimuthal elementary shifts
   AzimuthalPhiZi _phiZi;
+
+  // Octree extensions
+  bool _angularExtension;
 };
 
 //============================================================================
@@ -251,7 +277,9 @@ GeometryOctreeEncoder::GeometryOctreeEncoder(
   , _arithmeticEncoder(arithmeticEncoder)
   , _planar(gps)
   , _phiBuffer(gps.numLasers(), 0x80000000)
+  , _prevLaserIndexResidual(gps.numLasers(), 0x00000000)
   , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
+  , _angularExtension(gps.octree_angular_extension_flag)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -939,9 +967,20 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     quant.scaleEns(directAxis, pos[directAxis]) - angularOrigin[directAxis];
 
   // Laser
-  int laserIdx =
-    findLaser(quant.scaleEns(pos) - angularOrigin, thetaLaser, numLasers);
-  encodeThetaRes(laserIdx - nodeLaserIdx);
+  int laserIdx;
+
+  if (_angularExtension)
+    laserIdx = findLaserPrecise(
+      quant.scaleEns(pos) - angularOrigin, thetaLaser, zLaser, numLasers);
+  else
+    laserIdx =
+      findLaser(quant.scaleEns(pos) - angularOrigin, thetaLaser, numLasers);
+
+  int resLaser = laserIdx - nodeLaserIdx;
+  encodeThetaRes(resLaser,  _prevLaserIndexResidual[nodeLaserIdx]);
+
+  if (_angularExtension)
+    _prevLaserIndexResidual[nodeLaserIdx] = resLaser;
 
   // find predictor
   int phiNode = iatan2(posXyz[1], posXyz[0]);
@@ -1004,6 +1043,26 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 
   // Since x and y are known,
   // r is known too and does not depend on the bit for z
+  if (_angularExtension)
+    encodePointPositionZAngularExtension(angularOrigin, pos,
+      zLaser, thetaLaser, laserIdx, maskz, posXyz);
+  else
+    encodePointPositionZAngular(
+      quant, nodeSizeLog2Rem, zLaser, thetaLaser, laserIdx, posXyz, pos[2]);
+}
+
+//-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodePointPositionZAngular(
+  const OctreeAngPosScaler& quant,
+  const Vec3<int>& nodeSizeLog2Rem,
+  const int* zLaser,
+  const int* thetaLaser,
+  int laserIdx,
+  Vec3<int>& posXyz,
+  const int& posZ)
+{
   uint64_t xLidar = (int64_t(posXyz[0]) << 8) - 128;
   uint64_t yLidar = (int64_t(posXyz[1]) << 8) - 128;
   uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
@@ -1014,6 +1073,7 @@ GeometryOctreeEncoder::encodePointPositionAngular(
   int fixedThetaLaser =
     thetaLaser[laserIdx] + int(hr >= 0 ? -(hr >> 17) : ((-hr) >> 17));
 
+  int maskz = (1 << nodeSizeLog2Rem[2]) >> 1;
   int zShift = rInv * quant.scaleEns(2, 1 << nodeSizeLog2Rem[2]) >> 18;
   for (; maskz; maskz >>= 1, zShift >>= 1) {
     // determine non-corrected theta
@@ -1031,12 +1091,41 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     else if (thetaLaserDeltaBot < 0)
       contextAngle += 2;
 
-    int bit = !!(pos[2] & maskz);
+    int bit = !!(posZ & maskz);
     auto& ctx = _ctxPlanarPlaneLastIndexAngularIdcm[contextAngle];
     _arithmeticEncoder->encode(bit, ctx);
     if (bit)
       posXyz[2] += scaledMaskZ;
   }
+}
+
+//-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodePointPositionZAngularExtension(
+  const Vec3<int>& angularOrigin,
+  const Vec3<int>& nodePos,
+  const int* zLaser,
+  const int* thetaLaser,
+  int laserIdx,
+  int maskz,
+  Vec3<int>& posXyz)
+{
+  uint64_t xLidar = (int64_t(posXyz[0]) << 8);
+  uint64_t yLidar = (int64_t(posXyz[1]) << 8);
+  uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
+  int64_t r = isqrt(r2);
+
+  // encode z
+  int64_t zRec26 = thetaLaser[laserIdx] * r;
+  zRec26 -= int64_t(zLaser[laserIdx]) << 23;
+  int32_t zRec = divExp2RoundHalfInf(zRec26, 26);
+
+  zRec = std::max(zRec, posXyz[2]);
+  zRec = std::min(zRec, posXyz[2] + (2*maskz -1));
+
+  int32_t zRes = (nodePos[2] - angularOrigin[2]) - zRec ;
+  encodeZRes(zRes);
 }
 
 //-------------------------------------------------------------------------
@@ -1394,7 +1483,11 @@ GeometryOctreeEncoder::encodeDirectPosition(
     delta = (delta >> nodeSizeLog2Rem) << nodeSizeLog2Rem;
     delta += (1 << nodeSizeLog2Rem) >> 1;
     delta = quant.scaleEns(delta);
-    laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
+    if (_angularExtension)
+      laserIdx =
+        findLaserPrecise(posNodeLidar + delta, thetaLaser, zLaser, numLasers);
+    else
+      laserIdx = findLaser(posNodeLidar + delta, thetaLaser, numLasers);
   }
 
   // code points after planar
@@ -1411,20 +1504,41 @@ GeometryOctreeEncoder::encodeDirectPosition(
 //-------------------------------------------------------------------------
 
 void
-GeometryOctreeEncoder::encodeThetaRes(int thetaRes)
+GeometryOctreeEncoder::encodeThetaRes(int thetaRes, int prevThetaRes)
 {
-  _arithmeticEncoder->encode(thetaRes != 0, _ctxThetaRes[0]);
+  int ctx = prevThetaRes != 0;
+  _arithmeticEncoder->encode(thetaRes != 0, _ctxThetaRes[ctx][0]);
   if (!thetaRes)
     return;
 
   int absVal = std::abs(thetaRes);
-  _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[1]);
+  _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[ctx][1]);
   if (absVal)
-    _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[2]);
+    _arithmeticEncoder->encode(--absVal > 0, _ctxThetaRes[ctx][2]);
   if (absVal)
     _arithmeticEncoder->encodeExpGolomb(--absVal, 1, _ctxThetaResExp);
 
-  _arithmeticEncoder->encode(thetaRes < 0, _ctxThetaResSign);
+  int ctxSign = (prevThetaRes>0) + 2*(prevThetaRes<0);
+  _arithmeticEncoder->encode(thetaRes < 0, _ctxThetaResSign[ctxSign]);
+}
+
+//-------------------------------------------------------------------------
+
+void
+GeometryOctreeEncoder::encodeZRes(int zRes)
+{
+  _arithmeticEncoder->encode(zRes != 0, _ctxZRes[0]);
+  if (!zRes)
+    return;
+
+ _arithmeticEncoder->encode(zRes > 0, _ctxZResSign);
+
+  int absVal = std::abs(zRes);
+  _arithmeticEncoder->encode(--absVal > 0, _ctxZRes[1]);
+  if (absVal)
+    _arithmeticEncoder->encode(--absVal > 0, _ctxZRes[2]);
+  if (absVal)
+    _arithmeticEncoder->encodeExpGolomb(--absVal, 1, _ctxZResExp);
 }
 
 //-------------------------------------------------------------------------

@@ -932,6 +932,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.planar_buffer_disabled_flag, false,
     "Disable planar buffer (when angular mode is enabled)")
 
+  ("octreeAngularExtension",
+    params.encoder.gps.octree_angular_extension_flag, true,
+    "Enable extension for octree angular")
+
   ("predGeomAzimuthQuantization",
     params.encoder.gps.azimuth_scaling_enabled_flag, true,
     "Quantize azimuth according to radius in predictive geometry coding")

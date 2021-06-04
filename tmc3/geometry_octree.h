@@ -450,6 +450,11 @@ int determineContextAngleForPlanar(
 
 int findLaser(point_t point, const int* thetaList, const int numTheta);
 
+//----------------------------------------------------------------------------
+
+int findLaserPrecise(
+  point_t point, const int* thetaList, const int* zList, const int numTheta);
+
 //============================================================================
 
 class GeometryOctreeContexts {
@@ -473,9 +478,14 @@ protected:
   AdaptiveBitModel _ctxSameBitHighz[5];
 
   // residual laser index
-  AdaptiveBitModel _ctxThetaRes[3];
-  AdaptiveBitModel _ctxThetaResSign;
+  AdaptiveBitModel _ctxThetaRes[2][3];
+  AdaptiveBitModel _ctxThetaResSign[3];
   AdaptiveBitModel _ctxThetaResExp;
+
+  // residual z
+  AdaptiveBitModel _ctxZRes[3];
+  AdaptiveBitModel _ctxZResSign;
+  AdaptiveBitModel _ctxZResExp;
 
   AdaptiveBitModel _ctxQpOffsetAbsGt0;
   AdaptiveBitModel _ctxQpOffsetSign;
