@@ -424,8 +424,10 @@ write(const SequenceParameterSet& sps)
     bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.z());
   }
 
-  bs.writeUe(sps.seq_geom_scale.numerator);
-  bs.writeUe(sps.seq_geom_scale.denominator);
+  int seq_unit_numerator_minus1 = sps.seqGeomScale.numerator - 1;
+  int seq_unit_denominator_minus1 = sps.seqGeomScale.denominator - 1;
+  bs.writeUe(seq_unit_numerator_minus1);
+  bs.writeUe(seq_unit_denominator_minus1);
   bs.writeUn(1, sps.seq_geom_scale_unit_flag);
 
   bs.writeUe(sps.global_scale_mul_log2());
@@ -510,9 +512,14 @@ parseSps(const PayloadBuffer& buf)
     sps.seqBoundingBoxSize = seq_bounding_box_whd_minus1 + 1;
   }
 
-  bs.readUe(&sps.seq_geom_scale.numerator);
-  bs.readUe(&sps.seq_geom_scale.denominator);
+  int seq_unit_numerator_minus1;
+  int seq_unit_denominator_minus1;
+  bs.readUe(&seq_unit_numerator_minus1);
+  bs.readUe(&seq_unit_denominator_minus1);
   bs.readUn(1, &sps.seq_geom_scale_unit_flag);
+
+  sps.seqGeomScale.numerator = seq_unit_numerator_minus1 + 1;
+  sps.seqGeomScale.denominator = seq_unit_denominator_minus1 + 1;
 
   bs.readUe(&sps.global_scale_mul_log2());
   bs.readUe(&sps.global_scale_fp_bits());

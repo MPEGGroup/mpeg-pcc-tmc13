@@ -59,7 +59,7 @@ CloudFrame::setParametersFrom(
   this->geometry_axis_order = sps.geometry_axis_order;
   this->outputFpBits = fixedPointBits;
   this->outputOrigin = sps.seqBoundingBoxOrigin;
-  this->outputUnitLength = reciprocal(sps.seq_geom_scale);
+  this->outputUnitLength = reciprocal(sps.seqGeomScale);
   this->outputUnit = sps.seq_geom_scale_unit_flag;
   this->attrDesc = sps.attributeSets;
 }

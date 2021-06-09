@@ -427,7 +427,7 @@ PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
   //  - The user may define the relationship to the external coordinate system.
   //
   // NB: seq_geom_scale is the reciprocal of unit length
-  params->sps.seq_geom_scale = params->seqGeomScale / params->extGeomScale;
+  params->sps.seqGeomScale = params->seqGeomScale / params->extGeomScale;
 
   // Global scaling converts from the coded scale to the sequence scale
   // NB: globalScale is constrained, eg 1.1 is not representable
