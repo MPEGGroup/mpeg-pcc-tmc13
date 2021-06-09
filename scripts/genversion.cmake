@@ -7,7 +7,8 @@ if(NOT GIT_EXECUTABLE)
   set(VERSION ${VERSION_FALLBACK})
 else()
   execute_process(
-    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always --dirty=+dirty
+    COMMAND ${GIT_EXECUTABLE}
+      describe --first-parent --tags --long --always --dirty=+dirty
     OUTPUT_VARIABLE VERSION
     ERROR_QUIET
     OUTPUT_STRIP_TRAILING_WHITESPACE
