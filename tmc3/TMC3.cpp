@@ -1108,7 +1108,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable scalable attritube coding")
 
   ("max_neigh_range",
-    params_attr.aps.max_neigh_range, 5,
+    // NB: this is adjusted by minus 1 after the arguments are parsed
+    params_attr.aps.max_neigh_range_minus1, 5,
     "maximum nearest neighbour range for scalable lifting")
 
   ("qp",
@@ -1285,6 +1286,7 @@ sanitizeEncoderOpts(
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
+    attr_aps.max_neigh_range_minus1--;
   }
 
   // Config options are absolute, but signalling is relative

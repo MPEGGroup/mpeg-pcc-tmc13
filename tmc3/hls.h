@@ -715,7 +715,7 @@ struct AttributeParameterSet {
 
   //--- lifting parameters
   bool scalable_lifting_enabled_flag;
-  int max_neigh_range;
+  int max_neigh_range_minus1;
 
   // indicates that attribute coding should be performed in
   // pseudo-spherical domain
