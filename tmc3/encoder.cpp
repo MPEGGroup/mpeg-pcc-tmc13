@@ -493,6 +493,10 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_aps = params->aps[it.second];
     auto& attr_enc = params->attr[it.second];
 
+    // this encoder does not (yet) support variable length attributes
+    // todo(df): add variable length attribute support
+    attr_aps.raw_attr_variable_len_flag = 0;
+
     // sanitise any intra prediction skipping
     if (attr_aps.attr_encoding != AttributeEncoding::kPredictingTransform)
       attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;

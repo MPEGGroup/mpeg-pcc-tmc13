@@ -431,6 +431,7 @@ operator<<(std::ostream& out, const AttributeEncoding& val)
   case AttributeEncoding::kRAHTransform: out << "0 (RAHT)"; break;
   case AttributeEncoding::kPredictingTransform: out << "1 (Pred)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
+  case AttributeEncoding::kRaw: out << "3 (Raw)"; break;
   }
   return out;
 }

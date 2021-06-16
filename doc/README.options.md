@@ -674,6 +674,7 @@ Coding method to use for the current attribute:
   | 0     | Region Adaptive Hierarchical Transform (RAHT)              |
   | 1     | Hierarchical neighbourhood prediction                      |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
+  | 3     | Uncompressed (PCM)                                         |
 
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients

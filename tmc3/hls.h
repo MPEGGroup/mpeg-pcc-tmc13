@@ -133,6 +133,7 @@ enum class AttributeEncoding
   kRAHTransform = 0,
   kPredictingTransform = 1,
   kLiftingTransform = 2,
+  kRaw = 3,
 };
 
 //============================================================================
@@ -723,6 +724,9 @@ struct AttributeParameterSet {
 
   // (r, phi, laserid) scale factors for domain conversion
   Vec3<int> attr_coord_scale;
+
+  // Whether raw attribute are coded as fixed width or variable length.
+  bool raw_attr_variable_len_flag;
 };
 
 //============================================================================

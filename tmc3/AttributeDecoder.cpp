@@ -37,6 +37,7 @@
 
 #include "AttributeCommon.h"
 #include "DualLutCoder.h"
+#include "attribute_raw.h"
 #include "constants.h"
 #include "entropy.h"
 #include "hls.h"
@@ -200,6 +201,12 @@ AttributeDecoder::decode(
   AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud)
 {
+  if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
+    AttrRawDecoder::decode(
+      attr_desc, attr_aps, abh, payload, payloadLen, pointCloud);
+    return;
+  }
+
   QpSet qpSet = deriveQpSet(attr_desc, attr_aps, abh);
 
   PCCResidualsDecoder decoder(abh, ctxtMem);
@@ -226,6 +233,10 @@ AttributeDecoder::decode(
         attr_desc, attr_aps, abh, qpSet, geom_num_points_minus1,
         minGeomNodeSizeLog2, decoder, pointCloud);
       break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
+      break;
     }
   } else if (attr_desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
@@ -241,6 +252,10 @@ AttributeDecoder::decode(
       decodeColorsLift(
         attr_desc, attr_aps, abh, qpSet, geom_num_points_minus1,
         minGeomNodeSizeLog2, decoder, pointCloud);
+      break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
       break;
     }
   } else {

@@ -917,6 +917,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
+  if (aps.attr_encoding == AttributeEncoding::kRaw)
+    bs.write(aps.raw_attr_variable_len_flag);
+
   if (!aps.scalable_lifting_enabled_flag)
     bs.write(aps.spherical_coord_flag);
   if (aps.spherical_coord_flag) {
@@ -1021,6 +1024,9 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.raht_prediction_threshold1);
     }
   }
+
+  if (aps.attr_encoding == AttributeEncoding::kRaw)
+    bs.read(&aps.raw_attr_variable_len_flag);
 
   aps.spherical_coord_flag = false;
   if (!aps.scalable_lifting_enabled_flag)
