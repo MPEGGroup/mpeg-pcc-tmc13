@@ -1802,6 +1802,7 @@ parseAttrParamInventory(
 
   int num_attr_parameters;
   bs.readUe(&num_attr_parameters);
+  bs.byteAlign();
   for (auto i = 0; i < num_attr_parameters; i++)
     parseAttributeParameter(attr, bs, params);
 
