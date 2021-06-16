@@ -917,8 +917,10 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
-  bs.write(aps.spherical_coord_flag);
+  if (!aps.scalable_lifting_enabled_flag)
+    bs.write(aps.spherical_coord_flag);
   if (aps.spherical_coord_flag) {
+    assert(!aps.scalable_lifting_enabled_flag);
     for (int k = 0; k < 3; k++) {
       int attr_coord_scale_bits_minus1 = numBits(aps.attr_coord_scale[k]) - 1;
       bs.writeUn(5, attr_coord_scale_bits_minus1);
@@ -950,6 +952,7 @@ parseAps(const PayloadBuffer& buf)
   bs.readSe(&aps.aps_chroma_qp_offset);
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
+  aps.scalable_lifting_enabled_flag = false;
   aps.aps_slice_dist2_deltas_present_flag = false;
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
@@ -1019,7 +1022,9 @@ parseAps(const PayloadBuffer& buf)
     }
   }
 
-  bs.read(&aps.spherical_coord_flag);
+  aps.spherical_coord_flag = false;
+  if (!aps.scalable_lifting_enabled_flag)
+    bs.read(&aps.spherical_coord_flag);
   if (aps.spherical_coord_flag) {
     for (int k = 0; k < 3; k++) {
       int attr_coord_scale_bits_minus1;
