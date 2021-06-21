@@ -51,7 +51,8 @@ using namespace pcc;
 
 //============================================================================
 
-enum class OutputSystem {
+enum class OutputSystem
+{
   // Output after global scaling, don't convert to external system
   kConformance = 0,
 
@@ -134,12 +135,10 @@ public:
   // the output ply origin, scaled according to output coordinate system
   Vec3<double> outputOrigin(const CloudFrame& cloud) const;
 
-  void
-  scaleAttributesForInput(
+  void scaleAttributesForInput(
     const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
 
-  void
-  scaleAttributesForOutput(
+  void scaleAttributesForOutput(
     const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
 
 protected:
@@ -1846,8 +1845,7 @@ SequenceCodec::outputOrigin(const CloudFrame& frame) const
   switch (params->outputSystem) {
   case OutputSystem::kConformance: return 0.;
 
-  case OutputSystem::kExternal:
-    return frame.outputOrigin * outputScale(frame);
+  case OutputSystem::kExternal: return frame.outputOrigin * outputScale(frame);
   }
 }
 
@@ -1991,7 +1989,8 @@ template<typename Op>
 void
 scaleAttributes(
   const std::vector<AttributeDescription>& attrDescs,
-  PCCPointSet3& cloud, Op scaler)
+  PCCPointSet3& cloud,
+  Op scaler)
 {
   // todo(df): extend this to other attributes
   const AttributeDescription* attrDesc = findReflAttrDesc(attrDescs);

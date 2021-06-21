@@ -777,8 +777,7 @@ parseGps(const PayloadBuffer& buf)
     if (!gps.predgeom_enabled_flag) {
       int geom_angular_num_phi_per_turn0_minus1;
       bs.readUe(&geom_angular_num_phi_per_turn0_minus1);
-      gps.angularNumPhiPerTurn[0] =
-        geom_angular_num_phi_per_turn0_minus1 + 1;
+      gps.angularNumPhiPerTurn[0] = geom_angular_num_phi_per_turn0_minus1 + 1;
     }
 
     for (int i = 1; i <= geom_angular_num_lidar_lasers_minus1; i++) {

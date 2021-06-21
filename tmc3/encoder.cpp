@@ -154,8 +154,9 @@ PCCTMC3Encoder3::compress(
     params->sps.sps_bounding_box_offset_bits =
       numBits(params->sps.seqBoundingBoxOrigin.abs().max());
 
-    params->sps.sps_bounding_box_size_bits = bboxSizeDefined ?
-      numBits(params->sps.seqBoundingBoxSize.abs().max()) : 0;
+    params->sps.sps_bounding_box_size_bits = bboxSizeDefined
+      ? numBits(params->sps.seqBoundingBoxSize.abs().max())
+      : 0;
 
     // Determine the lidar head position in coding coordinate system
     params->gps.gpsAngularOrigin *= _srcToCodingScale;
@@ -506,7 +507,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     // dist2 is refined in the slice header
     //  - the encoder always writes them unless syntatically prohibited:
     attr_aps.aps_slice_dist2_deltas_present_flag =
-      attr_aps.lodParametersPresent() && !attr_aps.scalable_lifting_enabled_flag
+      attr_aps.lodParametersPresent()
+      && !attr_aps.scalable_lifting_enabled_flag
       && attr_aps.num_detail_levels_minus1
       && attr_aps.lod_decimation_type != LodDecimationMethod::kPeriodic;
 
