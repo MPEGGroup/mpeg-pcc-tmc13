@@ -83,12 +83,38 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
+### `--outputSystem=0|1`
+Controls the output scaling of the coded point cloud.
+
+  | Value | Description                 |
+  |:-----:| ----------------------------|
+  | 0     | Conformance output          |
+  | 1     | External co-ordinate system |
+
+The conformance output scales the coded point cloud to the sequence
+co-ordinate system.  The output point positions are not offset by the
+sequence origin.
+
+The external co-ordinate system output scales the point cloud to the
+defined external co-ordinate system (see `sequenceScale`, `externalScale`,
+and `outputUnitLength`).  The output point positions are offset by the
+sequence origin, appropriately scaled.
+
 ### `--outputUnitLength=REAL-VALUE`
 The length of the output point cloud unit vector.  Point clouds output by
 the encoder or decoder are rescaled to match this length.
 
 For example, `outputUnitLength=1000` outputs a point cloud with integer
 point positions representing millimetres.
+
+### `--outputPrecisionBits=INT-VALUE`
+The number of fractional bits to retain when scaling from the coding
+co-ordinate system to the sequence co-ordinate system.  The fractional
+bits are further retained when converting to the external co-ordinate
+system.
+
+The special value `outputPrecisionBits=-1` retains all fractional bits
+during the scaling process.
 
 ### `--convertPlyColourspace=0|1`
 Controls the conversion of ply RGB colour attributes to/from the
@@ -97,13 +123,6 @@ coding and after decoding.  When disabled (0), or if there is no
 converter available for the requested `colourMatrix`, no conversion
 happens; however the `colourMatrix` value is still written to the
 bitstream.
-
-### `--hack.reflectanceScale=0|1`
-Some input data uses 8-bit reflectance data scaled by 255 and represented
-using 16-bit attributes.  This option enables a conversion of 16-bit to
-8-bit at the encoder, and the corresponding conversion from 8-bit back to
-16-bit at the decoder.  If the original data has been scaled by 255, the
-conversion process is lossless.
 
 
 Decoder-specific options
@@ -187,19 +206,26 @@ For example, a point cloud coded with `sequenceScale=0.25` and
 NB: a decoder is not required to scale the sequence co-ordinate system to an
 external co-ordinate system prior to output.
 
-### `--seq_bounding_box_xyz0=x,y,z`
-Explicitly sets the origin of the sequence-level bounding box in
-unscaled integer coordinates.
+### `--autoSeqBbox=0|1`
+Automatically determine the sequence bounding box (`seqOrigin` and
+`seqSizeWhd`) using the first input frame.
 
-NB: This option has no effect if `seq_bounding_box_whd`=0,0,0.
+### `--seqOrigin=x,y,z`
+Sets the origin of the sequence bounding box.  The `seqOrigin` must be less
+than or equal to the lowest input point position.  The origin is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the origin according to `sequenceScale`.
 
-### `--seq_bounding_box_whd=w,h,d`
-Explicitly sets the size of the sequence-level bounding box in
-unscaled integer coordinates.
+This option has no effect when `autoSeqBbox=1`.
 
-When $w,h,d$ not equal to 0,0,0, the sequence-level bounding box
-origin is set according to `seq_bounding_box_xyz0`.  Otherwise,
-the sequence-level bounding box is determined by the encoder.
+### `--seqSizeWhd=w,h,d`
+Sets the size of the sequence bounding box.  The size is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the size according to `sequenceScale`.
+
+`seqSizeWhd=0,0,0` disables signalling the sequence bounding box size.
+
+This option has no effect when `autoSeqBbox=1`.
 
 ### `--mergeDuplicatedPoints=0|1`
 Controls the ability to code duplicate points.  When duplicate point
@@ -560,8 +586,8 @@ Requires `positionQuantisationEnabled=1`.
 Identical to `positionBaseQpFreqLog2`, but controls per-slice configuration.
 
 ### `--positionAzimuthScaleLog2=INT-VALUE`
-Number of bits used to represent predictive geometry azimuth angles.
-Requires `angularEnabled=1`.
+Number of additional bits used to represent predictive geometry azimuth
+angles.  Requires `angularEnabled=1`.
 
 ### `--positionRadiusInvScaleLog2=INT-VALUE`
 Degree of quantisation applied in the representation of angular predictive
@@ -628,16 +654,27 @@ chroma component bitdepth is N + 1.
 
 ### `--bitdepth=INT-VALUE`
 The bitdepth of the attribute data.  NB, this is not necessarily the
-same as the bitdepth of the PLY property.  
+same as the bitdepth of the PLY property.
+
+### `--attrScale=INT-VALUE` and `--attrOffset=INT-VALUE`
+Scale and offset used to interpret coded attribute values.
+
+The encoder derives the coded attribute value as $(attr - offset) / scale$.
+
+The encoder and decoder scale coded attributes for output as
+$attr × scale + offset$.
+
+NB: these parameters are only supported for reflectance attributes.
 
 ### `--transformType=0|1|2`
 Coding method to use for the current attribute:
 
   | Value | Description                                                |
   |:-----:| ---------------------------------------------------------- |
-  | 0     | Hierarchical neighbourhood prediction                      |
-  | 1     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 0     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 1     | Hierarchical neighbourhood prediction                      |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
+  | 3     | Uncompressed (PCM)                                         |
 
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients

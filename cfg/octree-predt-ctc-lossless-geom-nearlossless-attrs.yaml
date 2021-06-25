@@ -56,10 +56,7 @@ categories:
      #  - scale 16bit reflectance data to 8bit
      #  - use predicting transform for lossless conditions
      - convertPlyColourspace: 0
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
-     - transformType: 0
+     - transformType: 1
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
      -
@@ -89,6 +86,10 @@ categories:
            r04: 28
            r05: 34
        - bitdepth: 8
+       -
+         - !conditional '${reflectance8b16b_scale_factor}'
+         - attrOffset: 0
+         - attrScale: ${reflectance8b16b_scale_factor}
        - attribute: reflectance
 
      ##
@@ -104,6 +105,8 @@ categories:
            r05: 34
        - qpChromaOffset: 0
        - bitdepth: 8
+       - attrOffset: 0
+       - attrScale: 1
        - colourMatrix: 0
        - attribute: color
 
@@ -114,9 +117,6 @@ categories:
        - outputUnitLength: '${src-unit-metres}'
 
      - convertPlyColourspace: 0
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
 
     pcerrorflags:
      - dropdups: 2

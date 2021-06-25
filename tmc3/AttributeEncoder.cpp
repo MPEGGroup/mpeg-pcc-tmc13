@@ -36,6 +36,7 @@
 #include "AttributeEncoder.h"
 
 #include "DualLutCoder.h"
+#include "attribute_raw.h"
 #include "constants.h"
 #include "entropy.h"
 #include "io_hls.h"
@@ -470,6 +471,11 @@ AttributeEncoder::encode(
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
+  if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
+    AttrRawEncoder::encode(sps, desc, attr_aps, abh, pointCloud, payload);
+    return;
+  }
+
   // Encoders are able to modify the slice header:
   _abh = &abh;
 
@@ -497,6 +503,10 @@ AttributeEncoder::encode(
     case AttributeEncoding::kLiftingTransform:
       encodeReflectancesLift(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
+      break;
     }
   } else if (desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
@@ -510,6 +520,10 @@ AttributeEncoder::encode(
 
     case AttributeEncoding::kLiftingTransform:
       encodeColorsLift(desc, attr_aps, qpSet, pointCloud, encoder);
+      break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
       break;
     }
   } else {
@@ -659,6 +673,7 @@ AttributeEncoder::encodeReflectancesPred(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor);
@@ -971,6 +986,7 @@ AttributeEncoder::encodeColorsPred(
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleColor(desc, aps, pointCloud, _lods.indexes, predictor);

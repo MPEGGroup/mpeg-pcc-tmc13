@@ -110,12 +110,18 @@ PCCTMC3Encoder3::compress(
 
     // Determine input bounding box (for SPS metadata) if not manually set
     Box3<int> bbox;
-    if (params->sps.seqBoundingBoxSize == Vec3<int>{0})
+    if (params->autoSeqBbox)
       bbox = inputPointCloud.computeBoundingBox();
     else {
       bbox.min = params->sps.seqBoundingBoxOrigin;
       bbox.max = bbox.min + params->sps.seqBoundingBoxSize - 1;
     }
+
+    // Note whether the bounding box size is defined
+    // todo(df): set upper limit using level
+    bool bboxSizeDefined = params->sps.seqBoundingBoxSize > 0;
+    if (!bboxSizeDefined)
+      params->sps.seqBoundingBoxSize = (1 << 21) - 1;
 
     // Then scale the bounding box to match the reconstructed output
     for (int k = 0; k < 3; k++) {
@@ -145,11 +151,12 @@ PCCTMC3Encoder3::compress(
     }
 
     // Determine the number of bits to signal the bounding box
-    params->sps.sps_bounding_box_offset_bits_minus1 =
-      numBits(params->sps.seqBoundingBoxOrigin.abs().max()) - 1;
+    params->sps.sps_bounding_box_offset_bits =
+      numBits(params->sps.seqBoundingBoxOrigin.abs().max());
 
-    params->sps.sps_bounding_box_size_bits_minus1 =
-      numBits(params->sps.seqBoundingBoxSize.abs().max()) - 1;
+    params->sps.sps_bounding_box_size_bits = bboxSizeDefined
+      ? numBits(params->sps.seqBoundingBoxSize.abs().max())
+      : 0;
 
     // Determine the lidar head position in coding coordinate system
     params->gps.gpsAngularOrigin *= _srcToCodingScale;
@@ -166,10 +173,11 @@ PCCTMC3Encoder3::compress(
       int ry = std::max(std::abs(origin[1]), std::abs(maxY - origin[1]));
       int r = std::max(rx, ry);
       int twoPi = 25735;
-      int maxLaserIdx = params->gps.geom_angular_num_lidar_lasers() - 1;
+      int maxLaserIdx = params->gps.numLasers() - 1;
 
       if (params->gps.predgeom_enabled_flag) {
-        twoPi = 1 << params->gps.geom_angular_azimuth_scale_log2;
+        auto& gps = params->gps;
+        twoPi = 1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12);
         r >>= params->gps.geom_angular_radius_inv_scale_log2;
       }
 
@@ -201,7 +209,7 @@ PCCTMC3Encoder3::compress(
 
   // Configure output coud
   if (reconCloud) {
-    reconCloud->setParametersFrom(*_sps);
+    reconCloud->setParametersFrom(*_sps, params->outputFpBits);
     reconCloud->frameNum = _frameCounter;
   }
 
@@ -390,7 +398,8 @@ PCCTMC3Encoder3::compress(
 
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
-    scaleGeometry(reconCloud->cloud, _sps->globalScale);
+    scaleGeometry(
+      reconCloud->cloud, _sps->globalScale, reconCloud->outputFpBits);
 
   return 0;
 }
@@ -418,7 +427,7 @@ PCCTMC3Encoder3::deriveParameterSets(EncoderParams* params)
   //  - The user may define the relationship to the external coordinate system.
   //
   // NB: seq_geom_scale is the reciprocal of unit length
-  params->sps.seq_geom_scale = params->seqGeomScale / params->extGeomScale;
+  params->sps.seqGeomScale = params->seqGeomScale / params->extGeomScale;
 
   // Global scaling converts from the coded scale to the sequence scale
   // NB: globalScale is constrained, eg 1.1 is not representable
@@ -484,6 +493,10 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     auto& attr_aps = params->aps[it.second];
     auto& attr_enc = params->attr[it.second];
 
+    // this encoder does not (yet) support variable length attributes
+    // todo(df): add variable length attribute support
+    attr_aps.raw_attr_variable_len_flag = 0;
+
     // sanitise any intra prediction skipping
     if (attr_aps.attr_encoding != AttributeEncoding::kPredictingTransform)
       attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
@@ -496,8 +509,12 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
       attr_aps.maxNumDetailLevels() + 1);
 
     // dist2 is refined in the slice header
+    //  - the encoder always writes them unless syntatically prohibited:
     attr_aps.aps_slice_dist2_deltas_present_flag =
-      attr_aps.lodParametersPresent();
+      attr_aps.lodParametersPresent()
+      && !attr_aps.scalable_lifting_enabled_flag
+      && attr_aps.num_detail_levels_minus1
+      && attr_aps.lod_decimation_type != LodDecimationMethod::kPeriodic;
 
     // disable dist2 estimation when decimating with centroid sampler
     if (attr_aps.lod_decimation_type == LodDecimationMethod::kCentroid)

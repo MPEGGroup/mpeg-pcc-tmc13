@@ -935,7 +935,8 @@ computeNearestNeighbors(
 
     // Prune neighbours based upon max neigh range.
     if (aps.scalable_lifting_enabled_flag) {
-      int64_t maxDistance = 3ll * aps.max_neigh_range << 2 * lodIndex;
+      int maxNeighRange = aps.max_neigh_range_minus1 + 1;
+      int64_t maxDistance = 3ll * maxNeighRange << 2 * lodIndex;
       if (aps.lodNeighBias == 1) {
         predictor.pruneDistanceGt(maxDistance);
       } else {

@@ -101,10 +101,15 @@ PCCTMC3Decoder3::dectectFrameBoundary(const PayloadBuffer* buf)
   int frameCtrLsb;
 
   switch (buf->type) {
-  case PayloadType::kFrameBoundaryMarker:
+  case PayloadType::kFrameBoundaryMarker: {
     // the frame boundary data marker explcitly indicates a boundary
-    _attrDecoder.reset();
-    return true;
+    // However, this implementation doesn't flush the output, rather
+    // this happens naturally when the frame boundary is detected by
+    // a change in frameCtr.
+    auto fbm = parseFrameBoundaryMarker(*buf);
+    frameCtrLsb = fbm.fbdu_frame_ctr_lsb;
+    break;
+  }
 
   case PayloadType::kGeometryBrick: {
     activateParameterSets(parseGbhIds(*buf));
@@ -145,7 +150,7 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
   // todo: add other output scaling modes
   // NB: if accumCloud is reused for future inter-prediction, global scaling
   //     must be applied to a copy.
-  scaleGeometry(_outCloud.cloud, _sps->globalScale);
+  scaleGeometry(_outCloud.cloud, _sps->globalScale, _outCloud.outputFpBits);
 
   callback->onOutputCloud(_outCloud);
 
@@ -163,7 +168,7 @@ PCCTMC3Decoder3::startFrame()
   _outCloud.frameNum = _frameCtr;
 
   // the following could be set once when the SPS is discovered
-  _outCloud.setParametersFrom(*_sps);
+  _outCloud.setParametersFrom(*_sps, _params.outputFpBits);
 }
 
 //============================================================================
@@ -230,10 +235,8 @@ PCCTMC3Decoder3::decompress(
   }
 
   case PayloadType::kFrameBoundaryMarker:
-    // the frame boundary marker belongs to the end of the current frame.
-    // the same frame boundary will be detected at the start of the next frame.
-    // avoid outputing an empty cloud in this case.
-    _suppressOutput = true;
+    if (!_outputInitialized)
+      startFrame();
     return 0;
 
   case PayloadType::kGeometryBrick:

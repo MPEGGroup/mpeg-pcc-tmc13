@@ -130,9 +130,10 @@ std::ostream& operator<<(std::ostream& os, const AttributeLabel& label);
 
 enum class AttributeEncoding
 {
-  kPredictingTransform = 0,
-  kRAHTransform = 1,
+  kRAHTransform = 0,
+  kPredictingTransform = 1,
   kLiftingTransform = 2,
+  kRaw = 3,
 };
 
 //============================================================================
@@ -252,10 +253,8 @@ struct AttributeParameters {
 
   // attribute scaling
   bool scalingParametersPresent;
-  int attr_scale_bits;
-  int attr_scale;
+  int attr_scale_minus1;
   int attr_frac_bits;
-  int attr_offset_bits;
   int attr_offset;
 
   // soft default attribute values.
@@ -356,21 +355,21 @@ struct SequenceParameterSet {
   int level;
 
   // Number of bits used to code seqBoundingBoxOrigin
-  int sps_bounding_box_offset_bits_minus1;
+  int sps_bounding_box_offset_bits;
 
   // the bounding box origin (in stv axis order).
   Vec3<int> seqBoundingBoxOrigin;
 
   // Number of bits used to code seqBoundingBoxSize
-  int sps_bounding_box_size_bits_minus1;
+  int sps_bounding_box_size_bits;
 
   // the size of the bounding box (in stv axis order).
   Vec3<int> seqBoundingBoxSize;
 
   // A value describing the scaling of the source positions prior to encoding.
-  Rational seq_geom_scale;
+  Rational seqGeomScale;
 
-  // Indicates that units used to interpret seq_geom_scale.
+  // Indicates that units used to interpret seqGeomScale.
   ScaleUnit seq_geom_scale_unit_flag;
 
   // Represents a coded factorisation of a rational:
@@ -506,7 +505,7 @@ struct GeometryParameterSet {
   // (in stv axis order).
   Vec3<int> gpsAngularOrigin;
 
-  int geom_angular_num_lidar_lasers() const { return angularTheta.size(); }
+  int numLasers() const { return angularTheta.size(); }
 
   std::vector<int> angularTheta;
   std::vector<int> angularZ;
@@ -526,7 +525,7 @@ struct GeometryParameterSet {
   int geom_qp_offset_intvl_log2;
 
   // scale factor for azimuth in coding predictive geometry coding
-  int geom_angular_azimuth_scale_log2;
+  int geom_angular_azimuth_scale_log2_minus11;
   int geom_angular_azimuth_speed_minus1;
 
   // inverse scale factor for radius coding in predictive geometry coding
@@ -717,7 +716,7 @@ struct AttributeParameterSet {
 
   //--- lifting parameters
   bool scalable_lifting_enabled_flag;
-  int max_neigh_range;
+  int max_neigh_range_minus1;
 
   // indicates that attribute coding should be performed in
   // pseudo-spherical domain
@@ -725,6 +724,9 @@ struct AttributeParameterSet {
 
   // (r, phi, laserid) scale factors for domain conversion
   Vec3<int> attr_coord_scale;
+
+  // Whether raw attribute are coded as fixed width or variable length.
+  bool raw_attr_variable_len_flag;
 };
 
 //============================================================================
@@ -809,6 +811,13 @@ struct ConstantAttributeDataUnit {
   int constattr_geom_slice_id;
 
   std::vector<int> constattr_default_value;
+};
+
+//============================================================================
+
+struct FrameBoundaryMarker {
+  // Identifies the frame to be terminated
+  int fbdu_frame_ctr_lsb;
 };
 
 //============================================================================

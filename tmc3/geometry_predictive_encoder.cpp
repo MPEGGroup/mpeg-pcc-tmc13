@@ -158,7 +158,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
-  , _numLasers(gps.geom_angular_num_lidar_lasers())
+  , _numLasers(gps.numLasers())
   , _sphToCartesian(gps)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
@@ -664,7 +664,7 @@ generateGeomPredictionTreeAngular(
   Vec3<int32_t>* beginSph)
 {
   int32_t pointCount = std::distance(begin, end);
-  int32_t numLasers = gps.geom_angular_num_lidar_lasers();
+  int32_t numLasers = gps.numLasers();
 
   // the prediction tree, one node for each point
   std::vector<GNode> nodes(pointCount);
@@ -792,7 +792,6 @@ encodePredictiveGeometry(
   if (gps.geom_angular_mode_enabled_flag) {
     auto xyzBboxLog2 = gbh.rootNodeSizeLog2;
     auto rDivLog2 = gps.geom_angular_radius_inv_scale_log2;
-    auto azimuthBits = gps.geom_angular_azimuth_scale_log2;
 
     // first work out the maximum number of bits for the residual
     // NB: the slice coordinate system is used here: ie, minX|minY = 0
@@ -806,7 +805,7 @@ encodePredictiveGeometry(
     residualBits[0] = ceillog2(divExp2RoundHalfUp(int64_t(r), rDivLog2));
     residualBits[1] =
       ceillog2((gps.geom_angular_azimuth_speed_minus1 + 1) >> 1);
-    residualBits[2] = ceillog2(gps.geom_angular_num_lidar_lasers() - 1);
+    residualBits[2] = ceillog2(gps.numLasers() - 1);
 
     // the number of prefix bits required
     for (int k = 0; k < 3; k++)

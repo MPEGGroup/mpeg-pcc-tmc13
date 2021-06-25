@@ -51,6 +51,17 @@ using namespace pcc;
 
 //============================================================================
 
+enum class OutputSystem
+{
+  // Output after global scaling, don't convert to external system
+  kConformance = 0,
+
+  // Scale output to external coordinate system
+  kExternal = 1,
+};
+
+//----------------------------------------------------------------------------
+
 struct Parameters {
   bool isDecoder;
 
@@ -67,6 +78,12 @@ struct Parameters {
 
   // output mode for ply writing (binary or ascii)
   bool outputBinaryPly;
+
+  // Fractional fixed-point bits retained in conformance output
+  int outputFpBits;
+
+  // Output coordinate system to use
+  OutputSystem outputSystem;
 
   // when true, configure the encoder as if no attributes are specified
   bool disableAttributeCoding;
@@ -93,9 +110,6 @@ struct Parameters {
   // perform attribute colourspace conversion on ply input/output.
   bool convertColourspace;
 
-  // todo(df): this should be per-attribute
-  int reflectanceScale;
-
   // resort the input points by azimuth angle
   bool sortInputByAzimuth;
 };
@@ -116,7 +130,16 @@ public:
     PCCPointSet3& cloud);
 
   // determine the output ply scale factor
-  double outputScale(const CloudFrame& cloud);
+  double outputScale(const CloudFrame& cloud) const;
+
+  // the output ply origin, scaled according to output coordinate system
+  Vec3<double> outputOrigin(const CloudFrame& cloud) const;
+
+  void scaleAttributesForInput(
+    const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
+
+  void scaleAttributesForOutput(
+    const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud);
 
 protected:
   Parameters* params;
@@ -273,6 +296,12 @@ operator>>(std::istream& in, ScaleUnit& val)
 }
 }  // namespace pcc
 
+static std::istream&
+operator>>(std::istream& in, OutputSystem& val)
+{
+  return readUInt(in, val);
+}
+
 namespace pcc {
 static std::istream&
 operator>>(std::istream& in, ColourMatrix& val)
@@ -328,6 +357,16 @@ operator>>(std::istream& in, OctreeEncOpts::QpMethod& val)
   return readUInt(in, val);
 }
 }  // namespace pcc
+
+static std::ostream&
+operator<<(std::ostream& out, const OutputSystem& val)
+{
+  switch (val) {
+  case OutputSystem::kConformance: out << "0 (Conformance)"; break;
+  case OutputSystem::kExternal: out << "1 (External)"; break;
+  }
+  return out;
+}
 
 namespace pcc {
 static std::ostream&
@@ -389,9 +428,10 @@ static std::ostream&
 operator<<(std::ostream& out, const AttributeEncoding& val)
 {
   switch (val) {
-  case AttributeEncoding::kPredictingTransform: out << "0 (Pred)"; break;
-  case AttributeEncoding::kRAHTransform: out << "1 (RAHT)"; break;
+  case AttributeEncoding::kRAHTransform: out << "0 (RAHT)"; break;
+  case AttributeEncoding::kPredictingTransform: out << "1 (Pred)"; break;
   case AttributeEncoding::kLiftingTransform: out << "2 (Lift)"; break;
+  case AttributeEncoding::kRaw: out << "3 (Raw)"; break;
   }
   return out;
 }
@@ -577,13 +617,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.convertColourspace, true,
     "Convert ply colourspace according to attribute colourMatrix")
 
-  // general
-  // todo(df): this should be per-attribute
-  ("hack.reflectanceScale",
-    params.reflectanceScale, 1,
-    "scale factor to be applied to reflectance "
-    "pre encoding / post reconstruction")
-
   ("outputBinaryPly",
     params.outputBinaryPly, true,
     "Output ply files using binary (or ascii) format")
@@ -592,6 +625,17 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.outputUnitLength, 0.,
     "Length of reconstructed point cloud x,y,z unit vectors\n"
     " 0: use srcUnitLength")
+
+  ("outputScaling",
+    params.outputSystem, OutputSystem::kExternal,
+    "Output coordnate system scaling\n"
+    " 0: Conformance\n"
+    " 1: External")
+
+  ("outputPrecisionBits",
+    params.outputFpBits, -1,
+    "Fractional bits in conformance output (prior to external scaling)\n"
+    " 0: integer,  -1: automatic (full)")
 
   // This section controls all general geometry scaling parameters
   (po::Section("Coordinate system scaling"))
@@ -654,18 +698,25 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  3: (yzx)\n  4: (zyx)\n  5: (zxy)\n"
     "  6: (yxz)\n  7: (xyz)")
 
-  // NB: the underlying variable is in STV order.
-  //     Conversion happens during argument sanitization.
-  ("seq_bounding_box_xyz0",
-    params.encoder.sps.seqBoundingBoxOrigin, {0},
-    "Origin (x,y,z) of the sequence bounding box. "
-    "NB: seq_bounding_box_whd must be set for paramter to have an effect")
+  ("autoSeqBbox",
+    params.encoder.autoSeqBbox, true,
+    "Calculate seqOrigin and seqSizeWhd automatically.")
 
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
-  ("seq_bounding_box_whd",
+  ("seqOrigin",
+    params.encoder.sps.seqBoundingBoxOrigin, {0},
+    "Origin (x,y,z) of the sequence bounding box "
+    "(in input coordinate system). "
+    "Requires autoSeqBbox=0")
+
+  // NB: the underlying variable is in STV order.
+  //     Conversion happens during argument sanitization.
+  ("seqSizeWhd",
     params.encoder.sps.seqBoundingBoxSize, {0},
-    "seq_bounding_box_whd")
+    "Size of the sequence bounding box "
+    "(in input coordinate system). "
+    "Requires autoSeqBbox=0")
 
   ("mergeDuplicatedPoints",
     params.encoder.gps.geom_unique_points_flag, true,
@@ -881,8 +932,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Disable planar buffer (when angular mode is enabled)")
 
   ("positionAzimuthScaleLog2",
-    params.encoder.gps.geom_angular_azimuth_scale_log2, 17,
-    "Scale factor applied to azimuth angle in predictive geometry coding")
+    params.encoder.gps.geom_angular_azimuth_scale_log2_minus11, 5,
+    "Additional bits to represent azimuth angle in predictive geometry coding")
 
   // NB: this will be corrected to be minus 1 later
   ("positionAzimuthSpeed",
@@ -918,6 +969,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Encode the given attribute (NB, must appear after the"
     "following attribute parameters)")
 
+  // NB: the cli option sets +1, the minus1 will be applied later
+  ("attrScale",
+    params_attr.desc.params.attr_scale_minus1, 1,
+    "Scale factor used to interpret coded attribute values")
+
+  ("attrOffset",
+    params_attr.desc.params.attr_offset, 0,
+    "Offset used to interpret coded attribute values")
+
   ("bitdepth",
     params_attr.desc.bitdepth, 8,
     "Attribute bitdepth")
@@ -937,9 +997,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("transformType",
     params_attr.aps.attr_encoding, AttributeEncoding::kPredictingTransform,
     "Coding method to use for attribute:\n"
-    "  0: Hierarchical neighbourhood prediction\n"
-    "  1: Region Adaptive Hierarchical Transform (RAHT)\n"
-    "  2: Hierarichical neighbourhood prediction as lifting transform")
+    "  0: Region Adaptive Hierarchical Transform (RAHT)\n"
+    "  1: Hierarchical neighbourhood prediction\n"
+    "  2: Hierarchical neighbourhood prediction as lifting transform")
 
   ("rahtPredictionEnabled",
     params_attr.aps.raht_prediction_enabled_flag, true,
@@ -1049,7 +1109,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable scalable attritube coding")
 
   ("max_neigh_range",
-    params_attr.aps.max_neigh_range, 5,
+    // NB: this is adjusted by minus 1 after the arguments are parsed
+    params_attr.aps.max_neigh_range_minus1, 5,
     "maximum nearest neighbour range for scalable lifting")
 
   ("qp",
@@ -1149,6 +1210,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   // set default output units (this works for the decoder too)
   if (params.outputUnitLength <= 0.)
     params.outputUnitLength = params.encoder.srcUnitLength;
+  params.encoder.outputFpBits = params.outputFpBits;
+  params.decoder.outputFpBits = params.outputFpBits;
 
   if (!params.isDecoder)
     sanitizeEncoderOpts(params, err);
@@ -1218,9 +1281,13 @@ sanitizeEncoderOpts(
   params.encoder.gps.geom_angular_azimuth_speed_minus1--;
   params.encoder.gps.neighbour_avail_boundary_log2_minus1 =
     std::max(0, params.encoder.gps.neighbour_avail_boundary_log2_minus1 - 1);
+  for (auto& attr_sps : params.encoder.sps.attributeSets) {
+    attr_sps.params.attr_scale_minus1--;
+  }
   for (auto& attr_aps : params.encoder.aps) {
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
+    attr_aps.max_neigh_range_minus1--;
   }
 
   // Config options are absolute, but signalling is relative
@@ -1306,12 +1373,19 @@ sanitizeEncoderOpts(
     attrMeta.cicp_transfer_characteristics_idx = 2;
     attrMeta.cicp_video_full_range_flag = true;
     attrMeta.cicpParametersPresent = false;
-    attrMeta.attr_offset = 0;
-    attrMeta.attr_offset_bits = 0;
-    attrMeta.attr_scale = 1;
-    attrMeta.attr_scale_bits = 1;
     attrMeta.attr_frac_bits = 0;
     attrMeta.scalingParametersPresent = false;
+
+    // Enable scaling if a paramter has been set
+    //  - pre/post scaling is only currently supported for reflectance
+    attrMeta.scalingParametersPresent = attrMeta.attr_offset
+      || attrMeta.attr_scale_minus1 || attrMeta.attr_frac_bits;
+
+    // todo(df): remove this hack when scaling is generalised
+    if (it.first != "reflectance" && attrMeta.scalingParametersPresent) {
+      err.warn() << it.first << ": scaling not supported, disabling\n";
+      attrMeta.scalingParametersPresent = 0;
+    }
 
     if (it.first == "reflectance") {
       // Avoid wasting bits signalling chroma quant step size for reflectance
@@ -1387,6 +1461,9 @@ sanitizeEncoderOpts(
 
   // convert floating point values of Lasers' Theta and H to fixed point
   if (params.encoder.gps.geom_angular_mode_enabled_flag) {
+    if (params.encoder.numLasers == 0)
+      err.error() << "numLasers must be at least 1\n";
+
     for (auto val : params.encoder.lasersTheta) {
       int one = 1 << 18;
       params.encoder.gps.angularTheta.push_back(round(val * one));
@@ -1420,7 +1497,8 @@ sanitizeEncoderOpts(
     }
 
     if (params.encoder.gps.predgeom_enabled_flag) {
-      int maxSpeed = 1 << params.encoder.gps.geom_angular_azimuth_scale_log2;
+      auto& gps = params.encoder.gps;
+      int maxSpeed = 1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12);
       if (params.encoder.gps.geom_angular_azimuth_speed_minus1 + 1 > maxSpeed)
         err.error() << "positionAzimuthSpeed > max (" << maxSpeed << ")\n";
     }
@@ -1633,13 +1711,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   if (params->convertColourspace)
     convertFromGbr(params->encoder.sps.attributeSets, pointCloud);
 
-  if (params->reflectanceScale > 1 && pointCloud.hasReflectances()) {
-    const auto pointCount = pointCloud.getPointCount();
-    for (size_t i = 0; i < pointCount; ++i) {
-      int val = pointCloud.getReflectance(i) / params->reflectanceScale;
-      pointCloud.setReflectance(i, val);
-    }
-  }
+  scaleAttributesForInput(params->encoder.sps.attributeSets, pointCloud);
 
   // The reconstructed point cloud
   CloudFrame recon;
@@ -1685,7 +1757,7 @@ SequenceEncoder::onPostRecolour(const PCCPointSet3& cloud)
   // todo(df): don't allocate if conversion is not required
   PCCPointSet3 tmpCloud(cloud);
   CloudFrame frame;
-  frame.setParametersFrom(params->encoder.sps);
+  frame.setParametersFrom(params->encoder.sps, params->encoder.outputFpBits);
   frame.cloud = cloud;
   frame.frameNum = frameNum - params->firstFrameNum;
 
@@ -1756,11 +1828,28 @@ SequenceDecoder::onOutputCloud(const CloudFrame& frame)
 //============================================================================
 
 double
-SequenceCodec::outputScale(const CloudFrame& frame)
+SequenceCodec::outputScale(const CloudFrame& frame) const
 {
-  // The scaling converts from the frame's unit length to configured output.
-  // In terms of specification this is the external coordinate system.
-  return frame.outputUnitLength / params->outputUnitLength;
+  switch (params->outputSystem) {
+  case OutputSystem::kConformance: return 1.;
+
+  case OutputSystem::kExternal:
+    // The scaling converts from the frame's unit length to configured output.
+    // In terms of specification this is the external coordinate system.
+    return frame.outputUnitLength / params->outputUnitLength;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+Vec3<double>
+SequenceCodec::outputOrigin(const CloudFrame& frame) const
+{
+  switch (params->outputSystem) {
+  case OutputSystem::kConformance: return 0.;
+
+  case OutputSystem::kExternal: return frame.outputOrigin * outputScale(frame);
+  }
 }
 
 //----------------------------------------------------------------------------
@@ -1775,16 +1864,10 @@ SequenceCodec::writeOutputFrame(
   if (postInvScalePath.empty() && preInvScalePath.empty())
     return;
 
+  scaleAttributesForOutput(frame.attrDesc, cloud);
+
   if (params->convertColourspace)
     convertToGbr(frame.attrDesc, cloud);
-
-  if (params->reflectanceScale > 1 && cloud.hasReflectances()) {
-    const auto pointCount = cloud.getPointCount();
-    for (size_t i = 0; i < pointCount; ++i) {
-      int val = cloud.getReflectance(i) * params->reflectanceScale;
-      cloud.setReflectance(i, val);
-    }
-  }
 
   // the order of the property names must be determined from the sps
   ply::PropertyNameMap attrNames;
@@ -1799,8 +1882,8 @@ SequenceCodec::writeOutputFrame(
     ply::write(cloud, attrNames, 1.0, 0.0, filename, !params->outputBinaryPly);
   }
 
-  auto plyScale = outputScale(frame);
-  auto plyOrigin = frame.outputOrigin * plyScale;
+  auto plyScale = outputScale(frame) / (1 << frame.outputFpBits);
+  auto plyOrigin = outputOrigin(frame);
   std::string decName{expandNum(postInvScalePath, frameNum)};
   if (!ply::write(
         cloud, attrNames, plyScale, plyOrigin, decName,
@@ -1866,6 +1949,87 @@ convertFromGbr(
 
   default: break;
   }
+}
+
+//============================================================================
+
+const AttributeDescription*
+findReflAttrDesc(const std::vector<AttributeDescription>& attrDescs)
+{
+  // todo(df): don't assume that there is only one in the sps
+  for (const auto& desc : attrDescs) {
+    if (desc.attributeLabel == KnownAttributeLabel::kReflectance)
+      return &desc;
+  }
+  return nullptr;
+}
+
+//----------------------------------------------------------------------------
+
+struct AttrFwdScaler {
+  template<typename T>
+  T operator()(const AttributeParameters& params, T val) const
+  {
+    int scale = params.attr_scale_minus1 + 1;
+    return ((val - params.attr_offset) << params.attr_frac_bits) / scale;
+  }
+};
+
+//----------------------------------------------------------------------------
+
+struct AttrInvScaler {
+  template<typename T>
+  T operator()(const AttributeParameters& params, T val) const
+  {
+    int scale = params.attr_scale_minus1 + 1;
+    return ((val * scale) >> params.attr_frac_bits) + params.attr_offset;
+  }
+};
+
+//----------------------------------------------------------------------------
+
+template<typename Op>
+void
+scaleAttributes(
+  const std::vector<AttributeDescription>& attrDescs,
+  PCCPointSet3& cloud,
+  Op scaler)
+{
+  // todo(df): extend this to other attributes
+  const AttributeDescription* attrDesc = findReflAttrDesc(attrDescs);
+  if (!attrDesc || !attrDesc->params.scalingParametersPresent)
+    return;
+
+  auto& params = attrDesc->params;
+
+  // Parameters present, but nothing to do
+  bool unityScale = !params.attr_scale_minus1 && !params.attr_frac_bits;
+  if (unityScale && !params.attr_offset)
+    return;
+
+  const auto pointCount = cloud.getPointCount();
+  for (size_t i = 0; i < pointCount; ++i) {
+    auto& val = cloud.getReflectance(i);
+    val = scaler(params, val);
+  }
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceCodec::scaleAttributesForInput(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
+{
+  scaleAttributes(attrDescs, cloud, AttrFwdScaler());
+}
+
+//----------------------------------------------------------------------------
+
+void
+SequenceCodec::scaleAttributesForOutput(
+  const std::vector<AttributeDescription>& attrDescs, PCCPointSet3& cloud)
+{
+  scaleAttributes(attrDescs, cloud, AttrInvScaler());
 }
 
 //============================================================================

@@ -81,6 +81,9 @@ struct EncoderParams {
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
 
+  // Determine the sequence bonuding box using the first input frame
+  bool autoSeqBbox;
+
   // Length of the source point cloud unit vectors.
   double srcUnitLength;
 
@@ -96,6 +99,9 @@ struct EncoderParams {
   // Scale factor used to define the external coordinate system.
   //  P_ext = P_src * extGeomScale
   double extGeomScale;
+
+  // Number of fractional bits used in output position representation.
+  int outputFpBits;
 
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;

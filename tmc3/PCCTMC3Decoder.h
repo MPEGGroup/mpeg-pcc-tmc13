@@ -59,6 +59,9 @@ struct DecoderParams {
 
   // A maximum number of points to partially decode.
   int decodeMaxPoints;
+
+  // Number of fractional bits used in output position representation.
+  int outputFpBits;
 };
 
 //============================================================================

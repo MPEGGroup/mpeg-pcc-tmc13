@@ -58,10 +58,7 @@ categories:
      #  - use predicting transform for lossless conditions
      -
        - convertPlyColourspace: 1
-       -
-         - !conditional '${reflectance8b16b_scale_factor}'
-         - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
-       - transformType: 0
+       - transformType: 1
        - numberOfNearestNeighborsInPrediction: 3
        - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
        -
@@ -83,6 +80,10 @@ categories:
          - adaptivePredictionThreshold: 64
          - qp: 4
          - bitdepth: 8
+         -
+           - !conditional '${reflectance8b16b_scale_factor}'
+           - attrOffset: 0
+           - attrScale: ${reflectance8b16b_scale_factor}
          - attribute: reflectance
 
        ##
@@ -94,6 +95,8 @@ categories:
          - qpChromaOffset: 0
          - bitdepth: 8
          - colourMatrix: 8
+         - attrOffset: 0
+         - attrScale: 1
          - attribute: color
 
     decflags:
@@ -103,9 +106,6 @@ categories:
        - outputUnitLength: '${src-unit-metres}'
 
      - convertPlyColourspace: 1
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
 
     pcerrorflags:
      - dropdups: 2

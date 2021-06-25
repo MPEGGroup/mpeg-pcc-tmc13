@@ -3,7 +3,7 @@
  * party and contributor rights, including patent rights, and no such
  * rights are granted under this licence.
  *
- * Copyright (c) 2017-2021, ISO/IEC
+ * Copyright (c) 2021, ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,67 +33,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "attribute_raw.h"
 
-#include <vector>
-
-#include "PCCMath.h"
-#include "PCCPointSet.h"
-#include "hls.h"
+#include "BitWriter.h"
+#include "io_hls.h"
 
 namespace pcc {
 
 //============================================================================
-// Represents a frame in the encoder or decoder.
 
-struct CloudFrame {
-  // The value of the decoder's reconstructed FrameCtr for this frame.
-  int frameNum;
-
-  // Defines the ordering of the position components (eg, xyz vs zyx)
-  AxisOrder geometry_axis_order;
-
-  // The length of the output cloud's unit vector.
-  // The units of outputUnitLength is given by outputUnit.
-  //
-  // When outputUnit is ScaleUnit::kMetres, outputUnitLength is
-  // measured in metres.
-  //
-  // When outputUnit is ScaleUnit::kDimensionless, outputUnitLength is
-  // measured in units of an external coordinate system.
-  double outputUnitLength;
-
-  // The unit of the output cloud's unit vector
-  ScaleUnit outputUnit;
-
-  // The origin of the output cloud
-  // NB: this respects geometry_axis_order.
-  Vec3<int> outputOrigin;
-
-  // Number of fractional bits in representaiton of cloud.positions.
-  int outputFpBits;
-
-  // Descriptions of each attribute.  Attribute parameters in the description
-  // are only applicable to this frame -- they may change in a subsequent frame
-  std::vector<AttributeDescription> attrDesc;
-
-  // The output point cloud.  The coordinate system is defined by the
-  // other parameters in this structure.
-  // NB: Point positions respect geometry_axis_order.
-  PCCPointSet3 cloud;
-
-  // Determines parameters according to the sps.
-  void setParametersFrom(const SequenceParameterSet& sps, int fixedPointBits);
-};
-
-//============================================================================
-// Scale point cloud geometry by global scale factor
-
-void scaleGeometry(
+void
+AttrRawEncoder::encode(
+  const SequenceParameterSet& sps,
+  const AttributeDescription& desc,
+  const AttributeParameterSet& attr_aps,
+  AttributeBrickHeader& abh,
   PCCPointSet3& cloud,
-  const SequenceParameterSet::GlobalScale& globalScale,
-  int fixedPointFracBits);
+  PayloadBuffer* payload)
+{
+  write(sps, attr_aps, abh, payload);
+  auto bs = makeBitWriter(std::back_inserter(*payload));
+
+  // todo(df): add support for variable length coding
+  assert(!attr_aps.raw_attr_variable_len_flag);
+  int valueBits = desc.bitdepth;
+
+  // todo(df): update to correctly map attribute types
+  if (desc.attr_num_dimensions_minus1 == 0) {
+    for (size_t i = 0; i < cloud.getPointCount(); i++) {
+      bs.writeUn(valueBits, cloud.getReflectance(i));
+    }
+  } else if (desc.attr_num_dimensions_minus1 == 2) {
+    for (size_t i = 0; i < cloud.getPointCount(); i++) {
+      auto& value = cloud.getColor(i);
+      for (int c = 0; c < 3; c++)
+        bs.writeUn(valueBits, value[c]);
+    }
+  } else {
+    assert(
+      desc.attr_num_dimensions_minus1 == 0
+      || desc.attr_num_dimensions_minus1 == 2);
+  }
+
+  bs.byteAlign();
+}
 
 //============================================================================
 
-}  // namespace pcc
+} /* namespace pcc */

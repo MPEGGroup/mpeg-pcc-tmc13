@@ -3,7 +3,7 @@
  * party and contributor rights, including patent rights, and no such
  * rights are granted under this licence.
  *
- * Copyright (c) 2017-2021, ISO/IEC
+ * Copyright (c) 2021, ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,67 +33,60 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "attribute_raw.h"
 
-#include <vector>
-
-#include "PCCMath.h"
-#include "PCCPointSet.h"
-#include "hls.h"
+#include "BitReader.h"
+#include "io_hls.h"
 
 namespace pcc {
 
 //============================================================================
-// Represents a frame in the encoder or decoder.
 
-struct CloudFrame {
-  // The value of the decoder's reconstructed FrameCtr for this frame.
-  int frameNum;
+void
+AttrRawDecoder::decode(
+  const AttributeDescription& desc,
+  const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
+  const char* payload,
+  size_t payloadLen,
+  PCCPointSet3& cloud)
+{
+  auto bs = makeBitReader(payload, payload + payloadLen);
 
-  // Defines the ordering of the position components (eg, xyz vs zyx)
-  AxisOrder geometry_axis_order;
+  // todo(df): update PCCPointSet3 to support variable length attributes
+  int valueBits = desc.bitdepth;
 
-  // The length of the output cloud's unit vector.
-  // The units of outputUnitLength is given by outputUnit.
-  //
-  // When outputUnit is ScaleUnit::kMetres, outputUnitLength is
-  // measured in metres.
-  //
-  // When outputUnit is ScaleUnit::kDimensionless, outputUnitLength is
-  // measured in units of an external coordinate system.
-  double outputUnitLength;
+  // todo(df): update to correctly map attribute types
+  if (desc.attr_num_dimensions_minus1 == 0) {
+    for (size_t i = 0; i < cloud.getPointCount(); i++) {
+      if (aps.raw_attr_variable_len_flag) {
+        int raw_attr_component_length;
+        bs.readUn(8, &raw_attr_component_length);
+        valueBits = 8 * raw_attr_component_length;
+      }
+      bs.readUn(valueBits, &cloud.getReflectance(i));
+    }
+  } else if (desc.attr_num_dimensions_minus1 == 2) {
+    for (size_t i = 0; i < cloud.getPointCount(); i++) {
+      auto& value = cloud.getColor(i);
+      for (int c = 0; c < 3; c++) {
+        if (aps.raw_attr_variable_len_flag) {
+          int raw_attr_component_length;
+          bs.readUn(8, &raw_attr_component_length);
+          valueBits = 8 * raw_attr_component_length;
+        }
+        bs.readUn(valueBits, &value[c]);
+      }
+    }
+  } else {
+    assert(
+      desc.attr_num_dimensions_minus1 == 0
+      || desc.attr_num_dimensions_minus1 == 2);
+  }
 
-  // The unit of the output cloud's unit vector
-  ScaleUnit outputUnit;
-
-  // The origin of the output cloud
-  // NB: this respects geometry_axis_order.
-  Vec3<int> outputOrigin;
-
-  // Number of fractional bits in representaiton of cloud.positions.
-  int outputFpBits;
-
-  // Descriptions of each attribute.  Attribute parameters in the description
-  // are only applicable to this frame -- they may change in a subsequent frame
-  std::vector<AttributeDescription> attrDesc;
-
-  // The output point cloud.  The coordinate system is defined by the
-  // other parameters in this structure.
-  // NB: Point positions respect geometry_axis_order.
-  PCCPointSet3 cloud;
-
-  // Determines parameters according to the sps.
-  void setParametersFrom(const SequenceParameterSet& sps, int fixedPointBits);
-};
-
-//============================================================================
-// Scale point cloud geometry by global scale factor
-
-void scaleGeometry(
-  PCCPointSet3& cloud,
-  const SequenceParameterSet::GlobalScale& globalScale,
-  int fixedPointFracBits);
+  bs.byteAlign();
+}
 
 //============================================================================
 
-}  // namespace pcc
+} /* namespace pcc */
