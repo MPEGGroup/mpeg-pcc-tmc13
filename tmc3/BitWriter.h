@@ -37,8 +37,10 @@
 
 #include "PCCMisc.h"
 
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <type_traits>
 
 namespace pcc {
 
@@ -64,6 +66,8 @@ public:
   // endian).
   void writeSn(int num_bits, int64_t value);
 
+  void writeUe(int32_t value);
+
   void writeUe(uint32_t value);
 
   // NB: probably best to think twice before using this method
@@ -77,7 +81,10 @@ public:
       std::is_same<uint64_t, T>::value || std::is_same<int64_t, T>::value;
     static_assert(!use_writeUe64, "use explicit writeUe64()");
 
-    writeUe(uint32_t(value));
+    if (std::is_signed<T>::value)
+      writeUe(int32_t(value));
+    else
+      writeUe(uint32_t(value));
   }
 
   void writeSe(int32_t value);
@@ -173,6 +180,16 @@ BitWriter<OutputIt>::writeSn(int num_bits, int64_t value)
 {
   writeUn(num_bits, uint64_t(::llabs(value)));
   write(value < 0);
+}
+
+//----------------------------------------------------------------------------
+
+template<class OutputIt>
+void
+BitWriter<OutputIt>::writeUe(int32_t value)
+{
+  assert(value >= 0);
+  writeUe(uint32_t(value));
 }
 
 //----------------------------------------------------------------------------

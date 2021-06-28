@@ -35,8 +35,10 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <type_traits>
 
 namespace pcc {
 
@@ -74,6 +76,10 @@ public:
   void readUn(int num_bits, T* value)
   {
     *value = T(readUn(num_bits));
+
+    // Don't allow representation of negative values by via overflow
+    if (std::is_signed<T>::value)
+      assert(num_bits < 8 * sizeof(T));
   }
 
   template<typename T>
@@ -82,8 +88,19 @@ public:
     *value = T(readSn(num_bits));
   }
 
+  // NB: this is only enabled for signed types
   template<typename T>
-  void readUe(T* value)
+  typename std::enable_if<std::is_signed<T>::value>::type readUe(T* value)
+  {
+    *value = T(readUe());
+
+    // Don't allow representation of negative values by via overflow
+    assert(*value >= 0);
+  }
+
+  // NB: this is only enabled for types other than signed types
+  template<typename T>
+  typename std::enable_if<!std::is_signed<T>::value>::type readUe(T* value)
   {
     *value = T(readUe());
   }
