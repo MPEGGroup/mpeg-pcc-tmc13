@@ -1124,7 +1124,7 @@ write(
   if (gps.geom_scaling_enabled_flag) {
     bs.writeSe(gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
-      bs.writeUe(gbh.geom_qp_offset_intvl_log2_delta);
+      bs.writeSe(gbh.geom_qp_offset_intvl_log2_delta);
   }
 
   if (gps.trisoup_enabled_flag) {
@@ -1217,7 +1217,7 @@ parseGbh(
   if (gps.geom_scaling_enabled_flag) {
     bs.readSe(&gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
-      bs.readUe(&gbh.geom_qp_offset_intvl_log2_delta);
+      bs.readSe(&gbh.geom_qp_offset_intvl_log2_delta);
   }
 
   if (gps.trisoup_enabled_flag) {
