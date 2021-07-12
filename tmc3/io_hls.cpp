@@ -141,8 +141,9 @@ operator<<(std::ostream& os, const AttributeLabel& label)
   case KnownAttributeLabel::kColour: os << "color"; break;
   case KnownAttributeLabel::kReflectance: os << "reflectance"; break;
   case KnownAttributeLabel::kFrameIndex: os << "frame index"; break;
+  case KnownAttributeLabel::kFrameNumber: os << "frame number"; break;
   case KnownAttributeLabel::kMaterialId: os << "material id"; break;
-  case KnownAttributeLabel::kTransparency: os << "transparency"; break;
+  case KnownAttributeLabel::kOpacity: os << "opacity"; break;
   case KnownAttributeLabel::kNormal: os << "normal"; break;
   case KnownAttributeLabel::kOid: os << std::string(label.oid);
   default:
@@ -159,7 +160,7 @@ operator<<(std::ostream& os, const AttributeLabel& label)
 
 template<typename Bs>
 void
-writeAttrParamCicp(Bs& bs, const AttributeDescription& param)
+writeAttrParamCicp(Bs& bs, const AttributeParameters& param)
 {
   bs.writeUe(param.cicp_colour_primaries_idx);
   bs.writeUe(param.cicp_transfer_characteristics_idx);
@@ -172,7 +173,7 @@ writeAttrParamCicp(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamCicp(Bs& bs, AttributeDescription* param)
+parseAttrParamCicp(Bs& bs, AttributeParameters* param)
 {
   bs.readUe(&param->cicp_colour_primaries_idx);
   bs.readUe(&param->cicp_transfer_characteristics_idx);
@@ -186,10 +187,15 @@ parseAttrParamCicp(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
-writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
+writeAttrParamScaling(Bs& bs, const AttributeParameters& param)
 {
-  bs.writeUe(param.source_attr_offset_log2);
-  bs.writeUe(param.source_attr_scale_log2);
+  int attr_offset_bits = numBits(std::abs(param.attr_offset));
+  int attr_scale_bits = numBits(param.attr_scale_minus1);
+  bs.writeUe(attr_offset_bits);
+  bs.writeSn(attr_offset_bits, param.attr_offset);
+  bs.writeUe(attr_scale_bits);
+  bs.writeUn(attr_scale_bits, param.attr_scale_minus1);
+  bs.writeUe(param.attr_frac_bits);
   bs.byteAlign();
 }
 
@@ -197,10 +203,14 @@ writeAttrParamScaling(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamScaling(Bs& bs, AttributeDescription* param)
+parseAttrParamScaling(Bs& bs, AttributeParameters* param)
 {
-  bs.readUe(&param->source_attr_offset_log2);
-  bs.readUe(&param->source_attr_scale_log2);
+  int attr_offset_bits, attr_scale_bits;
+  bs.readUe(&attr_offset_bits);
+  bs.readSn(attr_offset_bits, &param->attr_offset);
+  bs.readUe(&attr_scale_bits);
+  bs.readUn(attr_scale_bits, &param->attr_scale_minus1);
+  bs.readUe(&param->attr_frac_bits);
   param->scalingParametersPresent = 1;
   bs.byteAlign();
 }
@@ -209,11 +219,12 @@ parseAttrParamScaling(Bs& bs, AttributeDescription* param)
 
 template<typename Bs>
 void
-writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
+writeAttrParamDefaultValue(
+  const AttributeDescription& desc, Bs& bs, const AttributeParameters& param)
 {
-  bs.writeUn(param.bitdepth, param.attr_default_value[0]);
-  for (int k = 1; k <= param.attr_num_dimensions_minus1; k++)
-    bs.writeUn(param.bitdepth, param.attr_default_value[k]);
+  bs.writeUn(desc.bitdepth, param.attr_default_value[0]);
+  for (int k = 1; k <= desc.attr_num_dimensions_minus1; k++)
+    bs.writeUn(desc.bitdepth, param.attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -221,13 +232,14 @@ writeAttrParamDefaultValue(Bs& bs, const AttributeDescription& param)
 
 template<typename Bs>
 void
-parseAttrParamDefaultValue(Bs& bs, AttributeDescription* param)
+parseAttrParamDefaultValue(
+  const AttributeDescription& desc, Bs& bs, AttributeParameters* param)
 {
-  param->attr_default_value.resize(param->attr_num_dimensions_minus1 + 1);
+  param->attr_default_value.resize(desc.attr_num_dimensions_minus1 + 1);
 
-  bs.readUn(param->bitdepth, &param->attr_default_value[0]);
-  for (int k = 1; k <= param->attr_num_dimensions_minus1; k++)
-    bs.readUn(param->bitdepth, &param->attr_default_value[k]);
+  bs.readUn(desc.bitdepth, &param->attr_default_value[0]);
+  for (int k = 1; k <= desc.attr_num_dimensions_minus1; k++)
+    bs.readUn(desc.bitdepth, &param->attr_default_value[k]);
   bs.byteAlign();
 }
 
@@ -284,6 +296,91 @@ parseAttrParamOpaque(
 }
 
 //============================================================================
+// NB: this writes all present parameters, whereas parse parses only one
+// The encoder works in a fixed order.  However, this is non-normative.
+
+template<typename T>
+void
+writeAttributeParameters(
+  const AttributeDescription& attr, T& bs, const AttributeParameters& params)
+{
+  int num_attr_parameters = params.numParams();
+  bs.writeUe(num_attr_parameters);
+  bs.byteAlign();
+
+  if (!params.attr_default_value.empty()) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamDefaultValue(attr, bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kDefaultValue;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamDefaultValue(attr, bs, params);
+  }
+
+  if (params.cicpParametersPresent) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamCicp(bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kCicp;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamCicp(bs, params);
+  }
+
+  if (params.scalingParametersPresent) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamScaling(bsCounter, params);
+
+    auto attr_param_type = AttributeParameterType::kScaling;
+    bs.writeUn(8, attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamScaling(bs, params);
+  }
+
+  for (const auto& param : params.opaqueParameters) {
+    int attr_param_len = 0;
+    auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
+    writeAttrParamOpaque(bsCounter, param);
+
+    bs.writeUn(8, param.attr_param_type);
+    bs.writeUn(8, attr_param_len);
+    writeAttrParamOpaque(bs, param);
+  }
+}
+
+//----------------------------------------------------------------------------
+
+template<typename T>
+void
+parseAttributeParameter(
+  const AttributeDescription& attr, T& bs, AttributeParameters& params)
+{
+  AttributeParameterType attr_param_type;
+  int attr_param_len;
+  bs.readUn(8, &attr_param_type);
+  bs.readUn(8, &attr_param_len);
+  // todo(df): check that all attr_param_len bytes are consumed
+  switch (attr_param_type) {
+    using Type = AttributeParameterType;
+  case Type::kCicp: parseAttrParamCicp(bs, &params); break;
+  case Type::kScaling: parseAttrParamScaling(bs, &params); break;
+  case Type::kDefaultValue:
+    parseAttrParamDefaultValue(attr, bs, &params);
+    break;
+
+  case Type::kItuT35:
+  case Type::kOid:
+  default:
+    params.opaqueParameters.emplace_back(
+      parseAttrParamOpaque(bs, attr_param_type, attr_param_len));
+  }
+}
+
+//============================================================================
 
 PayloadBuffer
 write(const SequenceParameterSet& sps)
@@ -301,35 +398,41 @@ write(const SequenceParameterSet& sps)
   bs.writeUn(8, sps.level);
   bs.writeUn(4, sps.sps_seq_parameter_set_id);
 
-  bool seq_bounding_box_present_flag = true;
-  bs.write(seq_bounding_box_present_flag);
-  if (seq_bounding_box_present_flag) {
+  bs.writeUn(5, sps.frame_ctr_bits);
+  bs.writeUn(5, sps.slice_tag_bits);
+
+  bs.writeUe(sps.sps_bounding_box_offset_bits);
+  if (auto bbOriginBits = sps.sps_bounding_box_offset_bits) {
     auto sps_bounding_box_offset_xyz =
       toXyz(sps.geometry_axis_order, sps.seqBoundingBoxOrigin);
 
-    bs.writeUe(sps.sps_bounding_box_offset_bits_minus1);
-    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.x());
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.y());
-      bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.z());
-    }
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.x());
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.y());
+    bs.writeSn(bbOriginBits, sps_bounding_box_offset_xyz.z());
 
     int seq_bounding_box_offset_log2_scale = 0;
     bs.writeUe(seq_bounding_box_offset_log2_scale);
-
-    auto seq_bounding_box_whd =
-      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize);
-
-    bs.writeUe(sps.sps_bounding_box_size_bits_minus1);
-    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.x());
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.y());
-      bs.writeUn(bbSizeBits, seq_bounding_box_whd.z());
-    }
   }
-  // todo(df): determine encoding of scale factor
-  bs.writeF(sps.seq_geom_scale);
+
+  bs.writeUe(sps.sps_bounding_box_size_bits);
+  if (auto bbSizeBits = sps.sps_bounding_box_size_bits) {
+    auto seq_bounding_box_size_minus1 =
+      toXyz(sps.geometry_axis_order, sps.seqBoundingBoxSize - 1);
+
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.x());
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.y());
+    bs.writeUn(bbSizeBits, seq_bounding_box_size_minus1.z());
+  }
+
+  int seq_unit_numerator_minus1 = sps.seqGeomScale.numerator - 1;
+  int seq_unit_denominator_minus1 = sps.seqGeomScale.denominator - 1;
+  bs.writeUe(seq_unit_numerator_minus1);
+  bs.writeUe(seq_unit_denominator_minus1);
   bs.writeUn(1, sps.seq_geom_scale_unit_flag);
+
+  bs.writeUe(sps.global_scale_mul_log2());
+  bs.writeUe(sps.global_scale_fp_bits());
+  bs.writeUn(sps.global_scale_fp_bits(), sps.global_scale_rem());
 
   int num_attribute_sets = int(sps.attributeSets.size());
   bs.writeUe(num_attribute_sets);
@@ -347,61 +450,9 @@ write(const SequenceParameterSet& sps)
     else
       writeOid(bs, label.oid);
 
-    // Encode all of the attribute parameters.  The encoder works
-    // in the fixed order descrbed here.  However this is non-normative.
-    int num_attribute_parameters = attr.opaqueParameters.size();
-    num_attribute_parameters += attr.cicpParametersPresent;
-    num_attribute_parameters += attr.scalingParametersPresent;
-    num_attribute_parameters += !attr.attr_default_value.empty();
-    bs.writeUn(5, num_attribute_parameters);
-    bs.byteAlign();
-
-    if (!attr.attr_default_value.empty()) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamDefaultValue(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kDefaultValue;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamDefaultValue(bs, attr);
-    }
-
-    if (attr.cicpParametersPresent) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamCicp(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kCicp;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamCicp(bs, attr);
-    }
-
-    if (attr.scalingParametersPresent) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamScaling(bsCounter, attr);
-
-      auto attr_param_type = AttributeParameterType::kScaling;
-      bs.writeUn(8, attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamScaling(bs, attr);
-    }
-
-    for (const auto& param : attr.opaqueParameters) {
-      int attr_param_len = 0;
-      auto bsCounter = makeBitWriter(InsertionCounter(&attr_param_len));
-      writeAttrParamOpaque(bsCounter, param);
-
-      bs.writeUn(8, param.attr_param_type);
-      bs.writeUn(8, attr_param_len);
-      writeAttrParamOpaque(bs, param);
-    }
+    writeAttributeParameters(attr, bs, attr.params);
   }
 
-  bs.writeUn(5, sps.frame_idx_bits);
-  bs.writeUn(5, sps.slice_tag_bits);
   bs.writeUn(3, sps.geometry_axis_order);
   bs.write(sps.cabac_bypass_stream_enabled_flag);
   bs.write(sps.entropy_continuation_enabled_flag);
@@ -430,34 +481,49 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(8, &sps.level);
   bs.readUn(4, &sps.sps_seq_parameter_set_id);
 
-  bool seq_bounding_box_present_flag = bs.read();
-  if (seq_bounding_box_present_flag) {
+  bs.readUn(5, &sps.frame_ctr_bits);
+  bs.readUn(5, &sps.slice_tag_bits);
+
+  sps.seqBoundingBoxOrigin = 0;
+  bs.readUe(&sps.sps_bounding_box_offset_bits);
+  if (auto bbOriginBits = sps.sps_bounding_box_offset_bits) {
     Vec3<int> seq_bounding_box_offset;
-    bs.readUe(&sps.sps_bounding_box_offset_bits_minus1);
-    if (auto bbOriginBits = sps.sps_bounding_box_offset_bits_minus1 + 1) {
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.x());
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.y());
-      bs.readSn(bbOriginBits, &seq_bounding_box_offset.z());
-    }
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.x());
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.y());
+    bs.readSn(bbOriginBits, &seq_bounding_box_offset.z());
 
     int seq_bounding_box_offset_log2_scale;
     bs.readUe(&seq_bounding_box_offset_log2_scale);
     seq_bounding_box_offset *= 1 << seq_bounding_box_offset_log2_scale;
 
-    Vec3<int> seq_bounding_box_whd;
-    bs.readUe(&sps.sps_bounding_box_size_bits_minus1);
-    if (auto bbSizeBits = sps.sps_bounding_box_size_bits_minus1 + 1) {
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.x());
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.y());
-      bs.readUn(bbSizeBits, &seq_bounding_box_whd.z());
-    }
-
-    // NB: these are in XYZ axis order until the SPS is converted to STV
+    // NB: this is in XYZ axis order until the SPS is converted to STV
     sps.seqBoundingBoxOrigin = seq_bounding_box_offset;
-    sps.seqBoundingBoxSize = seq_bounding_box_whd;
   }
-  bs.readF(&sps.seq_geom_scale);
+
+  sps.seqBoundingBoxSize = 0;
+  bs.readUe(&sps.sps_bounding_box_size_bits);
+  if (auto bbSizeBits = sps.sps_bounding_box_size_bits) {
+    Vec3<int> seq_bounding_box_whd_minus1;
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.x());
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.y());
+    bs.readUn(bbSizeBits, &seq_bounding_box_whd_minus1.z());
+
+    // NB: this is in XYZ axis order until the SPS is converted to STV
+    sps.seqBoundingBoxSize = seq_bounding_box_whd_minus1 + 1;
+  }
+
+  int seq_unit_numerator_minus1;
+  int seq_unit_denominator_minus1;
+  bs.readUe(&seq_unit_numerator_minus1);
+  bs.readUe(&seq_unit_denominator_minus1);
   bs.readUn(1, &sps.seq_geom_scale_unit_flag);
+
+  sps.seqGeomScale.numerator = seq_unit_numerator_minus1 + 1;
+  sps.seqGeomScale.denominator = seq_unit_denominator_minus1 + 1;
+
+  bs.readUe(&sps.global_scale_mul_log2());
+  bs.readUe(&sps.global_scale_fp_bits());
+  bs.readUn(sps.global_scale_fp_bits(), &sps.global_scale_rem());
 
   int num_attribute_sets = int(bs.readUe());
   for (int i = 0; i < num_attribute_sets; i++) {
@@ -480,31 +546,12 @@ parseSps(const PayloadBuffer& buf)
     }
 
     int num_attribute_parameters;
-    bs.readUn(5, &num_attribute_parameters);
+    bs.readUe(&num_attribute_parameters);
     bs.byteAlign();
-    for (int i = 0; i < num_attribute_parameters; i++) {
-      AttributeParameterType attr_param_type;
-      int attr_param_len;
-      bs.readUn(8, &attr_param_type);
-      bs.readUn(8, &attr_param_len);
-      // todo(df): check that all attr_param_len bytes are consumed
-      switch (attr_param_type) {
-        using Type = AttributeParameterType;
-      case Type::kCicp: parseAttrParamCicp(bs, &attr); break;
-      case Type::kScaling: parseAttrParamScaling(bs, &attr); break;
-      case Type::kDefaultValue: parseAttrParamDefaultValue(bs, &attr); break;
-
-      case Type::kItuT35:
-      case Type::kOid:
-      default:
-        attr.opaqueParameters.emplace_back(
-          parseAttrParamOpaque(bs, attr_param_type, attr_param_len));
-      }
-    }
+    for (int i = 0; i < num_attribute_parameters; i++)
+      parseAttributeParameter(attr, bs, attr.params);
   }
 
-  bs.readUn(5, &sps.frame_idx_bits);
-  bs.readUn(5, &sps.slice_tag_bits);
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
   bs.read(&sps.entropy_continuation_enabled_flag);
@@ -549,14 +596,12 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   bs.write(gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.writeUe(gps.gps_geom_box_log2_scale);
+
+  bs.write(gps.geom_unique_points_flag);
+
   bs.write(gps.predgeom_enabled_flag);
-
-  if (gps.predgeom_enabled_flag)
-    bs.write(gps.geom_unique_points_flag);
-
   if (!gps.predgeom_enabled_flag) {
     bs.write(gps.octree_point_count_list_present_flag);
-    bs.write(gps.geom_unique_points_flag);
 
     bs.writeUn(2, gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
@@ -597,25 +642,24 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     }
 
     if (gps.predgeom_enabled_flag) {
-      bs.writeUe(gps.geom_angular_azimuth_scale_log2);
+      bs.writeUe(gps.geom_angular_azimuth_scale_log2_minus11);
       bs.writeUe(gps.geom_angular_azimuth_speed_minus1);
       bs.writeUe(gps.geom_angular_radius_inv_scale_log2);
     }
 
-    bs.writeUe(gps.geom_angular_num_lidar_lasers());
-    if (gps.geom_angular_num_lidar_lasers()) {
-      int geom_angular_theta0 = gps.angularTheta[0];
-      int geom_angular_z0 = gps.angularZ[0];
-      bs.writeSe(geom_angular_theta0);
-      bs.writeSe(geom_angular_z0);
-      if (!gps.predgeom_enabled_flag) {
-        int geom_angular_num_phi_per_turn0_minus1 =
-          gps.angularNumPhiPerTurn[0] - 1;
-        bs.writeUe(geom_angular_num_phi_per_turn0_minus1);
-      }
+    int geom_angular_num_lidar_lasers_minus1 = gps.numLasers() - 1;
+    bs.writeUe(geom_angular_num_lidar_lasers_minus1);
+    int geom_angular_theta0 = gps.angularTheta[0];
+    int geom_angular_z0 = gps.angularZ[0];
+    bs.writeSe(geom_angular_theta0);
+    bs.writeSe(geom_angular_z0);
+    if (!gps.predgeom_enabled_flag) {
+      int geom_angular_num_phi_per_turn0_minus1 =
+        gps.angularNumPhiPerTurn[0] - 1;
+      bs.writeUe(geom_angular_num_phi_per_turn0_minus1);
     }
 
-    for (int i = 1; i < gps.geom_angular_num_lidar_lasers(); i++) {
+    for (int i = 1; i <= geom_angular_num_lidar_lasers_minus1; i++) {
       int geom_angular_theta_laser_diff =
         gps.angularTheta[i] - gps.geomAngularThetaPred(i);
 
@@ -651,11 +695,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   if (gps_extension_flag) {
     bs.write(gps.trisoup_enabled_flag);
 
-    if (gps.predgeom_enabled_flag) {
-      if (gps.geom_angular_mode_enabled_flag) {
-        bs.write(gps.predgeom_adaptive_azimuthal_quantization);
-      }
-    }
+    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+      bs.write(gps.azimuth_scaling_enabled_flag);
   }
   bs.byteAlign();
 
@@ -676,16 +717,15 @@ parseGps(const PayloadBuffer& buf)
   bs.read(&gps.geom_box_log2_scale_present_flag);
   if (!gps.geom_box_log2_scale_present_flag)
     bs.readUe(&gps.gps_geom_box_log2_scale);
-  bs.read(&gps.predgeom_enabled_flag);
 
-  if (gps.predgeom_enabled_flag)
-    bs.read(&gps.geom_unique_points_flag);
+  bs.read(&gps.geom_unique_points_flag);
 
   gps.geom_planar_mode_enabled_flag = false;
   gps.octree_point_count_list_present_flag = false;
+
+  bs.read(&gps.predgeom_enabled_flag);
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.octree_point_count_list_present_flag);
-    bs.read(&gps.geom_unique_points_flag);
 
     bs.readUn(2, &gps.inferred_direct_coding_mode);
     if (gps.inferred_direct_coding_mode)
@@ -729,31 +769,28 @@ parseGps(const PayloadBuffer& buf)
     }
 
     if (gps.predgeom_enabled_flag) {
-      bs.readUe(&gps.geom_angular_azimuth_scale_log2);
+      bs.readUe(&gps.geom_angular_azimuth_scale_log2_minus11);
       bs.readUe(&gps.geom_angular_azimuth_speed_minus1);
       bs.readUe(&gps.geom_angular_radius_inv_scale_log2);
     }
 
-    int geom_angular_num_lidar_lasers;
-    bs.readUe(&geom_angular_num_lidar_lasers);
-    gps.angularTheta.resize(geom_angular_num_lidar_lasers);
-    gps.angularZ.resize(geom_angular_num_lidar_lasers);
-    gps.angularNumPhiPerTurn.resize(geom_angular_num_lidar_lasers);
+    int geom_angular_num_lidar_lasers_minus1;
+    bs.readUe(&geom_angular_num_lidar_lasers_minus1);
+    gps.angularTheta.resize(geom_angular_num_lidar_lasers_minus1 + 1);
+    gps.angularZ.resize(geom_angular_num_lidar_lasers_minus1 + 1);
+    gps.angularNumPhiPerTurn.resize(geom_angular_num_lidar_lasers_minus1 + 1);
 
-    if (geom_angular_num_lidar_lasers) {
-      int& geom_angular_theta0 = gps.angularTheta[0];
-      int& geom_angular_z0 = gps.angularZ[0];
-      bs.readSe(&geom_angular_theta0);
-      bs.readSe(&geom_angular_z0);
-      if (!gps.predgeom_enabled_flag) {
-        int geom_angular_num_phi_per_turn0_minus1;
-        bs.readUe(&geom_angular_num_phi_per_turn0_minus1);
-        gps.angularNumPhiPerTurn[0] =
-          geom_angular_num_phi_per_turn0_minus1 + 1;
-      }
+    int& geom_angular_theta0 = gps.angularTheta[0];
+    int& geom_angular_z0 = gps.angularZ[0];
+    bs.readSe(&geom_angular_theta0);
+    bs.readSe(&geom_angular_z0);
+    if (!gps.predgeom_enabled_flag) {
+      int geom_angular_num_phi_per_turn0_minus1;
+      bs.readUe(&geom_angular_num_phi_per_turn0_minus1);
+      gps.angularNumPhiPerTurn[0] = geom_angular_num_phi_per_turn0_minus1 + 1;
     }
 
-    for (int i = 1; i < geom_angular_num_lidar_lasers; i++) {
+    for (int i = 1; i <= geom_angular_num_lidar_lasers_minus1; i++) {
       int geom_angular_theta_laser_diff;
       int geom_angular_z_laser_diff;
       bs.readSe(&geom_angular_theta_laser_diff);
@@ -790,15 +827,13 @@ parseGps(const PayloadBuffer& buf)
   }
 
   gps.trisoup_enabled_flag = false;
+  gps.azimuth_scaling_enabled_flag = false;
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
 
-    if (gps.predgeom_enabled_flag) {
-      if (gps.geom_angular_mode_enabled_flag) {
-        bs.read(&gps.predgeom_adaptive_azimuthal_quantization);
-      }
-    }
+    if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
+      bs.read(&gps.azimuth_scaling_enabled_flag);
   }
   bs.byteAlign();
 
@@ -833,10 +868,6 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   if (aps.lodParametersPresent()) {
     bs.writeUe(aps.num_pred_nearest_neighbours_minus1);
     bs.writeUe(aps.inter_lod_search_range);
-    bs.writeUe(aps.intra_lod_search_range);
-
-    bs.writeUe(aps.dist2);
-    bs.write(aps.aps_slice_dist2_deltas_present_flag);
 
     auto lod_neigh_bias_minus1 =
       toXyz(sps.geometry_axis_order, aps.lodNeighBias) - 1;
@@ -849,7 +880,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
 
     bs.write(aps.scalable_lifting_enabled_flag);
     if (aps.scalable_lifting_enabled_flag)
-      bs.writeUe(aps.max_neigh_range);
+      bs.writeUe(aps.max_neigh_range_minus1);
 
     if (!aps.scalable_lifting_enabled_flag) {
       bs.writeUe(aps.num_detail_levels_minus1);
@@ -864,6 +895,11 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
             bs.writeUe(lod_sampling_period_minus2);
           }
         }
+
+        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
+          bs.writeUe(aps.dist2);
+          bs.write(aps.aps_slice_dist2_deltas_present_flag);
+        }
       }
     }
   }
@@ -875,6 +911,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.write(aps.direct_avg_predictor_disabled_flag);
     }
     bs.writeUe(aps.intra_lod_prediction_skip_layers);
+    bs.writeUe(aps.intra_lod_search_range);
     bs.write(aps.inter_component_prediction_enabled_flag);
     bs.write(aps.pred_weight_blending_enabled_flag);
   }
@@ -887,8 +924,13 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
-  bs.write(aps.spherical_coord_flag);
+  if (aps.attr_encoding == AttributeEncoding::kRaw)
+    bs.write(aps.raw_attr_variable_len_flag);
+
+  if (!aps.scalable_lifting_enabled_flag)
+    bs.write(aps.spherical_coord_flag);
   if (aps.spherical_coord_flag) {
+    assert(!aps.scalable_lifting_enabled_flag);
     for (int k = 0; k < 3; k++) {
       int attr_coord_scale_bits_minus1 = numBits(aps.attr_coord_scale[k]) - 1;
       bs.writeUn(5, attr_coord_scale_bits_minus1);
@@ -896,8 +938,15 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
   }
 
-  bool aps_extension_flag = false;
+  // NB: bitstreams conforming to the first edition must set
+  // aps_extension_flag equal to 0.
+  bool aps_extension_flag = sps.profile.isDraftProfile();
   bs.write(aps_extension_flag);
+  if (aps_extension_flag) {
+    for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
+      bs.writeUe(aps.quant_neigh_weight[i]);
+  }
+
   bs.byteAlign();
 
   return buf;
@@ -920,14 +969,11 @@ parseAps(const PayloadBuffer& buf)
   bs.readSe(&aps.aps_chroma_qp_offset);
   bs.read(&aps.aps_slice_qp_deltas_present_flag);
 
+  aps.scalable_lifting_enabled_flag = false;
   aps.aps_slice_dist2_deltas_present_flag = false;
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.inter_lod_search_range);
-    bs.readUe(&aps.intra_lod_search_range);
-
-    bs.readUe(&aps.dist2);
-    bs.read(&aps.aps_slice_dist2_deltas_present_flag);
 
     Vec3<int> lod_neigh_bias_minus1;
     bs.readUe(&lod_neigh_bias_minus1.x());
@@ -941,7 +987,7 @@ parseAps(const PayloadBuffer& buf)
 
     bs.read(&aps.scalable_lifting_enabled_flag);
     if (aps.scalable_lifting_enabled_flag)
-      bs.readUe(&aps.max_neigh_range);
+      bs.readUe(&aps.max_neigh_range_minus1);
 
     aps.canonical_point_order_flag = false;
     if (!aps.scalable_lifting_enabled_flag) {
@@ -959,12 +1005,19 @@ parseAps(const PayloadBuffer& buf)
             aps.lodSamplingPeriod[idx] = lod_sampling_period_minus2 + 2;
           }
         }
+
+        aps.dist2 = 0;
+        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
+          bs.readUe(&aps.dist2);
+          bs.read(&aps.aps_slice_dist2_deltas_present_flag);
+        }
       }
     }
   }
 
   aps.pred_weight_blending_enabled_flag = false;
   aps.intra_lod_prediction_skip_layers = aps.kSkipAllLayers;
+  aps.quant_neigh_weight = 0;
   if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
     bs.readUe(&aps.max_num_direct_predictors);
     aps.adaptive_prediction_threshold = 0;
@@ -974,6 +1027,7 @@ parseAps(const PayloadBuffer& buf)
       bs.read(&aps.direct_avg_predictor_disabled_flag);
     }
     bs.readUe(&aps.intra_lod_prediction_skip_layers);
+    bs.readUe(&aps.intra_lod_search_range);
     bs.read(&aps.inter_component_prediction_enabled_flag);
     bs.read(&aps.pred_weight_blending_enabled_flag);
   }
@@ -986,7 +1040,12 @@ parseAps(const PayloadBuffer& buf)
     }
   }
 
-  bs.read(&aps.spherical_coord_flag);
+  if (aps.attr_encoding == AttributeEncoding::kRaw)
+    bs.read(&aps.raw_attr_variable_len_flag);
+
+  aps.spherical_coord_flag = false;
+  if (!aps.scalable_lifting_enabled_flag)
+    bs.read(&aps.spherical_coord_flag);
   if (aps.spherical_coord_flag) {
     for (int k = 0; k < 3; k++) {
       int attr_coord_scale_bits_minus1;
@@ -997,8 +1056,10 @@ parseAps(const PayloadBuffer& buf)
 
   bool aps_extension_flag = bs.read();
   if (aps_extension_flag) {
-    // todo(df): aps_extension_data;
-    assert(!aps_extension_flag);
+    if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+      for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
+        bs.readUe(&aps.quant_neigh_weight[i]);
+    }
   }
   bs.byteAlign();
 
@@ -1030,7 +1091,7 @@ write(
   bs.writeUn(3, gbh_reserved_zero_3bits);
   bs.writeUe(gbh.geom_slice_id);
   bs.writeUn(sps.slice_tag_bits, gbh.slice_tag);
-  bs.writeUn(sps.frame_idx_bits, gbh.frame_idx);
+  bs.writeUn(sps.frame_ctr_bits, gbh.frame_ctr_lsb);
 
   if (sps.entropy_continuation_enabled_flag) {
     bs.write(gbh.entropy_continuation_flag);
@@ -1075,21 +1136,12 @@ write(
         bs.writeUn(3, gbh.tree_lvl_coded_axis_list[i]);
 
     bs.writeUe(gbh.geom_stream_cnt_minus1);
-    if (gbh.geom_stream_cnt_minus1) {
-      bs.writeUn(6, gbh.geom_stream_len_bits);
-
-      // NB: the length of the last substream is not signalled
-      for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
-        bs.writeUn(gbh.geom_stream_len_bits, gbh.geom_stream_len[i]);
-    }
   }
 
   if (gps.geom_scaling_enabled_flag) {
     bs.writeSe(gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
       bs.writeUe(gbh.geom_qp_offset_intvl_log2_delta);
-    else
-      bs.writeUe(gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.trisoup_enabled_flag) {
@@ -1130,7 +1182,7 @@ parseGbh(
   bs.readUn(3, &gbh_reserved_zero_3bits);
   bs.readUe(&gbh.geom_slice_id);
   bs.readUn(sps.slice_tag_bits, &gbh.slice_tag);
-  bs.readUn(sps.frame_idx_bits, &gbh.frame_idx);
+  bs.readUn(sps.frame_ctr_bits, &gbh.frame_ctr_lsb);
 
   gbh.entropy_continuation_flag = false;
   if (sps.entropy_continuation_enabled_flag) {
@@ -1176,13 +1228,6 @@ parseGbh(
         bs.readUn(3, &gbh.tree_lvl_coded_axis_list[i]);
 
     bs.readUe(&gbh.geom_stream_cnt_minus1);
-    if (gbh.geom_stream_cnt_minus1) {
-      gbh.geom_stream_len.resize(gbh.geom_stream_cnt_minus1);
-
-      bs.readUn(6, &gbh.geom_stream_len_bits);
-      for (int i = 0; i < gbh.geom_stream_cnt_minus1; i++)
-        bs.readUn(gbh.geom_stream_len_bits, &gbh.geom_stream_len[i]);
-    }
   }
 
   gbh.geom_slice_qp_offset = 0;
@@ -1190,8 +1235,6 @@ parseGbh(
     bs.readSe(&gbh.geom_slice_qp_offset);
     if (gps.predgeom_enabled_flag)
       bs.readUe(&gbh.geom_qp_offset_intvl_log2_delta);
-    else
-      bs.readUe(&gbh.geom_octree_qp_offset_depth);
   }
 
   if (gps.trisoup_enabled_flag) {
@@ -1432,6 +1475,7 @@ parseAbh(
   bs.readUe(&abh.attr_sps_attr_idx);
   bs.readUe(&abh.attr_geom_slice_id);
 
+  abh.attr_dist2_delta = 0;
   if (aps.aps_slice_dist2_deltas_present_flag)
     bs.readSe(&abh.attr_dist2_delta);
 
@@ -1547,6 +1591,39 @@ parseConstantAttribute(
 
 //============================================================================
 
+void
+write(
+  const SequenceParameterSet& sps,
+  const FrameBoundaryMarker& fbm,
+  PayloadBuffer* buf)
+{
+  assert(buf->type == PayloadType::kFrameBoundaryMarker);
+  auto bs = makeBitWriter(std::back_inserter(*buf));
+
+  int fbdu_frame_ctr_lsb_bits = sps.frame_ctr_bits;
+  bs.writeUn(5, fbdu_frame_ctr_lsb_bits);
+  bs.writeUn(fbdu_frame_ctr_lsb_bits, fbm.fbdu_frame_ctr_lsb);
+  bs.byteAlign();
+}
+
+//----------------------------------------------------------------------------
+
+FrameBoundaryMarker
+parseFrameBoundaryMarker(const PayloadBuffer& buf)
+{
+  FrameBoundaryMarker fbm;
+  assert(buf.type == PayloadType::kFrameBoundaryMarker);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  int fbdu_frame_ctr_lsb_bits;
+  bs.readUn(5, &fbdu_frame_ctr_lsb_bits);
+  bs.readUn(fbdu_frame_ctr_lsb_bits, &fbm.fbdu_frame_ctr_lsb);
+
+  return fbm;
+}
+
+//============================================================================
+
 PayloadBuffer
 write(const SequenceParameterSet& sps, const TileInventory& inventory)
 {
@@ -1555,8 +1632,8 @@ write(const SequenceParameterSet& sps, const TileInventory& inventory)
 
   bs.writeUn(4, inventory.ti_seq_parameter_set_id);
 
-  bs.writeUn(5, inventory.ti_frame_idx_bits);
-  bs.writeUn(inventory.ti_frame_idx_bits, inventory.ti_frame_idx);
+  bs.writeUn(5, inventory.ti_frame_ctr_bits);
+  bs.writeUn(inventory.ti_frame_ctr_bits, inventory.ti_frame_ctr);
 
   int num_tiles = inventory.tiles.size();
   bs.writeUn(16, num_tiles);
@@ -1615,8 +1692,8 @@ parseTileInventory(const PayloadBuffer& buf)
 
   bs.readUn(4, &inventory.ti_seq_parameter_set_id);
 
-  bs.readUn(5, &inventory.ti_frame_idx_bits);
-  bs.readUn(inventory.ti_frame_idx_bits, &inventory.ti_frame_idx);
+  bs.readUn(5, &inventory.ti_frame_ctr_bits);
+  bs.readUn(inventory.ti_frame_ctr_bits, &inventory.ti_frame_ctr);
 
   int num_tiles;
   bs.readUn(16, &num_tiles);
@@ -1688,6 +1765,76 @@ convertXyzToStv(const SequenceParameterSet& sps, TileInventory* inventory)
 //============================================================================
 
 PayloadBuffer
+write(
+  const SequenceParameterSet& sps,
+  const AttributeParamInventoryHdr& inv,
+  const AttributeParameters& params)
+{
+  PayloadBuffer buf(PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitWriter(std::back_inserter(buf));
+
+  assert(inv.attr_param_seq_parameter_set_id == sps.sps_seq_parameter_set_id);
+  bs.writeUn(4, inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits = sps.frame_ctr_bits;
+  bs.writeUn(5, attr_param_frame_ctr_lsb_bits);
+  bs.writeUn(attr_param_frame_ctr_lsb_bits, inv.attr_param_frame_ctr_lsb);
+  bs.writeUe(inv.attr_param_sps_attr_idx);
+
+  assert(inv.attr_param_sps_attr_idx < sps.attributeSets.size());
+  auto& desc = sps.attributeSets[inv.attr_param_sps_attr_idx];
+  writeAttributeParameters(desc, bs, params);
+
+  return buf;
+}
+
+//----------------------------------------------------------------------------
+
+AttributeParamInventoryHdr
+parseAttrParamInventoryHdr(const PayloadBuffer& buf)
+{
+  AttributeParamInventoryHdr inv;
+  assert(buf.type == PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUn(4, &inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits;
+  bs.readUn(5, &attr_param_frame_ctr_lsb_bits);
+  bs.readUn(attr_param_frame_ctr_lsb_bits, &inv.attr_param_frame_ctr_lsb);
+  bs.readUe(&inv.attr_param_sps_attr_idx);
+
+  return inv;
+}
+
+//----------------------------------------------------------------------------
+
+AttributeParameters&
+parseAttrParamInventory(
+  const AttributeDescription& attr,
+  const PayloadBuffer& buf,
+  AttributeParameters& params)
+{
+  AttributeParamInventoryHdr inv;
+  assert(buf.type == PayloadType::kGeneralizedAttrParamInventory);
+  auto bs = makeBitReader(buf.begin(), buf.end());
+
+  bs.readUn(4, &inv.attr_param_seq_parameter_set_id);
+  int attr_param_frame_ctr_lsb_bits;
+  bs.readUn(5, &attr_param_frame_ctr_lsb_bits);
+  bs.readUn(attr_param_frame_ctr_lsb_bits, &inv.attr_param_frame_ctr_lsb);
+  bs.readUe(&inv.attr_param_sps_attr_idx);
+
+  int num_attr_parameters;
+  bs.readUe(&num_attr_parameters);
+  bs.byteAlign();
+  for (auto i = 0; i < num_attr_parameters; i++)
+    parseAttributeParameter(attr, bs, params);
+
+  return params;
+}
+
+//============================================================================
+
+PayloadBuffer
 write(const UserData& ud)
 {
   PayloadBuffer buf(PayloadType::kUserData);
@@ -1712,6 +1859,46 @@ parseUserData(const PayloadBuffer& buf)
   // todo(df): read the blob of userdata
 
   return ud;
+}
+
+//============================================================================
+// Helpers for Global scaling
+
+SequenceParameterSet::GlobalScale::GlobalScale(Rational x)
+{
+  // x must be representable using fixed point
+  if (popcntGt1(uint32_t(x.denominator)))
+    throw std::runtime_error("cannot convert Rational to GlobalScale");
+
+  // Direct conversion
+  denominatorLog2 = ilog2(uint32_t(x.numerator));
+  numeratorModDenominator = x.numerator - (1 << denominatorLog2);
+  numeratorMulLog2 = denominatorLog2 - ilog2(uint32_t(x.denominator));
+
+  // Simplify: remove powers of two from numeratorModDenominator
+  while (!(numeratorModDenominator & 1) && denominatorLog2) {
+    numeratorModDenominator >>= 1;
+    denominatorLog2--;
+  }
+}
+
+//----------------------------------------------------------------------------
+
+SequenceParameterSet::GlobalScale::operator Rational() const
+{
+  int numeratorPreMul = ((1 << denominatorLog2) + numeratorModDenominator);
+
+  // Simplify 2^numeratorMulLog2 / 2^denominatorLog2
+  int numeratorS = std::max(0, numeratorMulLog2 - denominatorLog2);
+  int denominatorS = denominatorLog2 - (numeratorMulLog2 - numeratorS);
+
+  // Simplify numeratorPreMul / 2^denominatorLog2
+  while (!(numeratorPreMul & 1) && denominatorS) {
+    numeratorPreMul >>= 1;
+    denominatorS--;
+  }
+
+  return Rational(numeratorPreMul << numeratorS, 1 << denominatorS);
 }
 
 //============================================================================

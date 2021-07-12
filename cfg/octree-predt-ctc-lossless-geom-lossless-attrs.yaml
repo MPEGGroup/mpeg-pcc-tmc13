@@ -6,10 +6,14 @@ categories:
     encflags:
      - mode: 0
 
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      # preserve lossless geometry property
      - mergeDuplicatedPoints: 0
-     - srcResolution: '$eval{ ${src-resolution} || 0 }'
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - positionQuantizationScale: 1
 
      ##
@@ -54,10 +58,7 @@ categories:
      #  - use predicting transform for lossless conditions
      -
        - convertPlyColourspace: 1
-       -
-         - !conditional '${reflectance8b16b_scale_factor}'
-         - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
-       - transformType: 0
+       - transformType: 1
        - numberOfNearestNeighborsInPrediction: 3
        - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
        -
@@ -79,6 +80,10 @@ categories:
          - adaptivePredictionThreshold: 64
          - qp: 4
          - bitdepth: 8
+         -
+           - !conditional '${reflectance8b16b_scale_factor}'
+           - attrOffset: 0
+           - attrScale: ${reflectance8b16b_scale_factor}
          - attribute: reflectance
 
        ##
@@ -90,15 +95,17 @@ categories:
          - qpChromaOffset: 0
          - bitdepth: 8
          - colourMatrix: 8
+         - attrOffset: 0
+         - attrScale: 1
          - attribute: color
 
     decflags:
      - mode: 1
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
-     - convertPlyColourspace: 1
      -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     - convertPlyColourspace: 1
 
     pcerrorflags:
      - dropdups: 2

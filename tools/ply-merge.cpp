@@ -236,7 +236,7 @@ runMerge(const Options& opts)
       srcClouds.emplace_back();
       auto& srcCloud = srcClouds.back();
       if (
-        !ply::read(srcName, propNames, srcCloud)
+        !ply::read(srcName, propNames, 1.0, srcCloud)
         || srcCloud.getPointCount() == 0) {
         throw runtime_error("failed to read input file: " + srcName);
       }
@@ -297,7 +297,7 @@ runSplit(const Options& opts)
 
     PCCPointSet3 srcCloud;
     if (
-      !ply::read(srcName, propNames, srcCloud)
+      !ply::read(srcName, propNames, 1.0, srcCloud)
       || srcCloud.getPointCount() == 0) {
       throw runtime_error("failed to read input file: " + srcName);
     }

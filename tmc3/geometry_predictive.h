@@ -91,7 +91,8 @@ protected:
 
   AdaptiveBitModel _ctxResidual2GtN[2][3];
   AdaptiveBitModel _ctxSign2[3];
-  AdaptiveBitModel _ctxEG2[3];
+  AdaptiveBitModel _ctxEG2Prefix[3][5];
+  AdaptiveBitModel _ctxEG2Suffix[3][4];
 
   AdaptiveBitModel _ctxQpOffsetAbsGt0;
   AdaptiveBitModel _ctxQpOffsetSign;
@@ -211,7 +212,7 @@ class SphericalToCartesian {
 public:
   SphericalToCartesian(const GeometryParameterSet& gps)
     : log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
-    , log2ScalePhi(gps.geom_angular_azimuth_scale_log2)
+    , log2ScalePhi(gps.geom_angular_azimuth_scale_log2_minus11 + 12)
     , tanThetaLaser(gps.angularTheta.data())
     , zLaser(gps.angularZ.data())
   {}
@@ -244,7 +245,7 @@ public:
   CartesianToSpherical(const GeometryParameterSet& gps)
     : sphToCartesian(gps)
     , log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
-    , scalePhi(1 << gps.geom_angular_azimuth_scale_log2)
+    , scalePhi(1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12))
     , numLasers(gps.angularTheta.size())
     , tanThetaLaser(gps.angularTheta.data())
     , zLaser(gps.angularZ.data())

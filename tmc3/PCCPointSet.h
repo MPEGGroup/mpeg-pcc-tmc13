@@ -242,6 +242,7 @@ public:
     withColors = false;
     withReflectances = false;
     withFrameIndex = false;
+    withLaserAngles = false;
   }
   PCCPointSet3(const PCCPointSet3&) = default;
   PCCPointSet3& operator=(const PCCPointSet3& rhs) = default;
@@ -254,9 +255,11 @@ public:
     swap(colors, other.colors);
     swap(reflectances, other.reflectances);
     swap(frameidx, other.frameidx);
+    swap(laserAngles, other.laserAngles);
     swap(withColors, other.withColors);
     swap(withReflectances, other.withReflectances);
     swap(withFrameIndex, other.withFrameIndex);
+    swap(withLaserAngles, other.withLaserAngles);
   }
 
   PointType operator[](const size_t index) const
@@ -345,6 +348,36 @@ public:
     frameidx.resize(0);
   }
 
+  int getLaserAngle(const size_t index) const
+  {
+    assert(index < laserAngles.size() && withLaserAngles);
+    return laserAngles[index];
+  }
+
+  int& getLaserAngle(const size_t index)
+  {
+    assert(index < laserAngles.size() && withLaserAngles);
+    return laserAngles[index];
+  }
+
+  void setLaserAngle(const size_t index, const int angle)
+  {
+    assert(index < laserAngles.size() && withLaserAngles);
+    laserAngles[index] = angle;
+  }
+
+  bool hasLaserAngles() const { return withLaserAngles; }
+  void addLaserAngles()
+  {
+    withLaserAngles = true;
+    resize(getPointCount());
+  }
+  void removeLaserAngles()
+  {
+    withLaserAngles = false;
+    laserAngles.resize(0);
+  }
+
   bool hasColors() const { return withColors; }
   void addColors()
   {
@@ -370,6 +403,13 @@ public:
       removeReflectances();
   }
 
+  void addRemoveAttributes(const PCCPointSet3& ref)
+  {
+    ref.hasColors() ? addColors() : removeColors();
+    ref.hasReflectances() ? addReflectances() : removeReflectances();
+    ref.hasLaserAngles() ? addLaserAngles() : removeLaserAngles();
+  }
+
   size_t getPointCount() const { return positions.size(); }
   void resize(const size_t size)
   {
@@ -382,6 +422,9 @@ public:
     }
     if (hasFrameIndex()) {
       frameidx.resize(size);
+    }
+    if (hasLaserAngles()) {
+      laserAngles.resize(size);
     }
   }
 
@@ -397,6 +440,9 @@ public:
     if (hasFrameIndex()) {
       frameidx.reserve(size);
     }
+    if (hasLaserAngles()) {
+      laserAngles.reserve(size);
+    }
   }
   void clear()
   {
@@ -404,6 +450,7 @@ public:
     colors.clear();
     reflectances.clear();
     frameidx.clear();
+    laserAngles.clear();
   }
 
   size_t removeDuplicatePointInQuantizedPoint(int minGeomNodeSizeLog2)
@@ -426,7 +473,7 @@ public:
   void append(const PCCPointSet3& src)
   {
     if (!getPointCount())
-      addRemoveAttributes(src.hasColors(), src.hasReflectances());
+      addRemoveAttributes(src);
 
     int dstEnd = positions.size();
     int srcSize = src.positions.size();
@@ -445,6 +492,11 @@ public:
       std::copy(
         src.reflectances.begin(), src.reflectances.end(),
         std::next(reflectances.begin(), dstEnd));
+
+    if (hasLaserAngles())
+      std::copy(
+        src.laserAngles.begin(), src.laserAngles.end(),
+        std::next(laserAngles.begin(), dstEnd));
   }
 
   void swapPoints(const size_t index1, const size_t index2)
@@ -457,6 +509,9 @@ public:
     }
     if (hasReflectances()) {
       std::swap(getReflectance(index1), getReflectance(index2));
+    }
+    if (hasLaserAngles()) {
+      std::swap(getLaserAngle(index1), getLaserAngle(index2));
     }
   }
 
@@ -516,6 +571,8 @@ private:
   bool withColors;
   bool withReflectances;
   bool withFrameIndex;
+  std::vector<int> laserAngles;
+  bool withLaserAngles;
 };
 
 //===========================================================================

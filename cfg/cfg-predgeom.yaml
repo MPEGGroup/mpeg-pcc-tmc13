@@ -16,6 +16,11 @@ encflags:
    - !conditional '${numLasers}'
    - predGeomAzimuthSortPrecision: 1024
 
+ -
+   - !conditional '"${group}" eq "cat3-fused"'
+   - predGeomSort: 4
+   - predGeomAzimuthSortPrecision: 0.05
+
 # the following are for specific configurations
 categories:
   lossless-geom-lossless-attrs: &predgeomlossless
@@ -23,9 +28,9 @@ categories:
      # configuration for angular predictive geometry
      -
        - !conditional '${numLasers}'
-       - positionAzimuthScaleLog2: 24
-       - positionAzimuthSpeed: '$eval{ ${pos_azimuth_speed} << 24 - 24 }'
-       - predgeomAttributesSphericalScalingLog2: 17
+       - positionAzimuthScaleLog2: 12
+       - positionAzimuthSpeed: '$eval{ (${pos_azimuth_speed}) >> 12 - 12 }'
+       - attrSphericalMaxLog2: 17
 
   # these conditions use the same config as earlier
   lossless-geom-lossy-attrs: *predgeomlossless
@@ -46,20 +51,20 @@ categories:
           r02: 7
           r01: 8
        - positionAzimuthScaleLog2:
-          r06: 24
-          r05: 23
-          r04: 21
-          r03: 20
-          r02: 19
-          r01: 19
+          r06: 12
+          r05: 11
+          r04: 9
+          r03: 8
+          r02: 7
+          r01: 7
        - positionAzimuthSpeed:
-          r06: '$eval{ ${pos_azimuth_speed} << 24 - 24 }'
-          r05: '$eval{ ${pos_azimuth_speed} + 1  >> -(23 - 24) }'
-          r04: '$eval{ ${pos_azimuth_speed} + 4  >> -(21 - 24) }'
-          r03: '$eval{ ${pos_azimuth_speed} + 8  >> -(20 - 24) }'
-          r02: '$eval{ ${pos_azimuth_speed} + 16 >> -(19 - 24) }'
-          r01: '$eval{ ${pos_azimuth_speed} + 16 >> -(19 - 24) }'
-       - predgeomAttributesSphericalScalingLog2:
+          r06: '$eval{ (${pos_azimuth_speed}) + 0  >> 12 - 12 }'
+          r05: '$eval{ (${pos_azimuth_speed}) + 1  >> 12 - 11 }'
+          r04: '$eval{ (${pos_azimuth_speed}) + 4  >> 12 - 9 }'
+          r03: '$eval{ (${pos_azimuth_speed}) + 8  >> 12 - 8 }'
+          r02: '$eval{ (${pos_azimuth_speed}) + 16 >> 12 - 7 }'
+          r01: '$eval{ (${pos_azimuth_speed}) + 16 >> 12 - 7 }'
+       - attrSphericalMaxLog2:
           r06: 17
           r05: 16
           r04: 14
@@ -68,10 +73,10 @@ categories:
           r01: 12
 
 sequences:
-  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '((33<<7) - 30)' }
-  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '((33<<7) - 30)' }
-  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '((33<<7) - 30)' }
-  qnxadas-junction-approach: { pos_azimuth_speed: '((364<<7) + 12)' }
-  qnxadas-junction-exit:     { pos_azimuth_speed: '((364<<7) + 12)' }
-  qnxadas-motorway-join:     { pos_azimuth_speed: '((364<<7) + 12)' }
-  qnxadas-navigating-bends:  { pos_azimuth_speed: '((364<<7) + 12)' }
+  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30' }
+  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30' }
+  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30' }
+  qnxadas-junction-approach: { pos_azimuth_speed: '(364<<7) + 12' }
+  qnxadas-junction-exit:     { pos_azimuth_speed: '(364<<7) + 12' }
+  qnxadas-motorway-join:     { pos_azimuth_speed: '(364<<7) + 12' }
+  qnxadas-navigating-bends:  { pos_azimuth_speed: '(364<<7) + 12' }

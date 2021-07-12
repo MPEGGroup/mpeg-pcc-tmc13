@@ -36,6 +36,7 @@
 #include "PCCMisc.h"
 #include "PCCMath.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -332,6 +333,75 @@ const uint16_t kDivApproxDivisor[256] = {
   285,   284,   283,   281,   280,   279,   278,  277,  276,  274,  273,  272,
   271,   270,   269,   268,   266,   265,   264,  263,  262,  261,  260,  259,
   258,   257,   256,   255};
+
+//============================================================================
+// Convert a floating point value to a rational representation
+
+template<typename T>
+static Rational
+fromReal(T val, int maxQ)
+{
+  if (val == T())
+    return Rational(0, 1);
+
+  // Find a best rational approximation in the interval ndL <= val <= ndH.
+  T ndL[2] = {std::nextafter(val, -std::numeric_limits<T>::infinity()), 1};
+  T ndH[2] = {std::nextafter(val, +std::numeric_limits<T>::infinity()), 1};
+
+  // pq is the state used in the calculation of the convergent P/Q using the
+  // recurrence formula applied to successive terms of a simple continued
+  // fraction.
+  int pq[2][2] = {{1, 0}, {0, 1}};
+
+  // Calculate the terms of the continued fractions of ndL and ndH.
+  // Calculation proceeds until the terms (aiL, aiH) diverge.
+  // The convergent P/Q is updated with each new term until the denominator
+  // hits a limit.
+  for (int i = 0; i < 10; i++) {
+    int aiL = int(ndL[0] / ndL[1]);
+    int aiH = int(ndH[0] / ndH[1]);
+
+    int ai = aiL == aiH ? aiL : std::min(aiL, aiH) + 1;
+
+    int p = ai * pq[0][0] + pq[1][0];
+    int q = ai * pq[0][1] + pq[1][1];
+
+    if (q > maxQ)
+      break;
+
+    pq[1][0] = pq[0][0];
+    pq[1][1] = pq[0][1];
+    pq[0][0] = p;
+    pq[0][1] = q;
+
+    if (aiL != aiH)
+      break;
+
+    auto remL = std::fmod(ndL[0], ndL[1]);
+    auto remH = std::fmod(ndH[0], ndH[1]);
+
+    ndL[0] = ndL[1];
+    ndL[1] = remL;
+    ndH[0] = ndH[1];
+    ndH[1] = remH;
+  }
+
+  return Rational(pq[0][0], pq[0][1]);
+}
+
+//----------------------------------------------------------------------------
+
+Rational::Rational(float val)
+{
+  *this = fromReal(val, 1 << 16);
+}
+
+//----------------------------------------------------------------------------
+
+Rational::Rational(double val)
+{
+  *this = fromReal(val, 1 << 16);
+}
 
 //============================================================================
 

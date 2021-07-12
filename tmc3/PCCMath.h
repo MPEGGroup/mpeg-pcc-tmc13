@@ -534,7 +534,37 @@ typedef DEPRECATED_MSVC Vec3<uint8_t> PCCColor3B DEPRECATED;
 template<typename T>
 using PCCVector3 DEPRECATED = Vec3<T>;
 
+//===========================================================================
+
+struct Rational {
+  int numerator;
+  int denominator;
+
+  Rational() : Rational(0, 1){};
+
+  Rational(int numerator) : Rational(numerator, 1){};
+
+  Rational(int numerator, int denominator)
+    : numerator(numerator), denominator(denominator)
+  {}
+
+  Rational(float val);
+  Rational(double val);
+
+  operator double() const { return double(numerator) / double(denominator); }
+
+  operator float() const { return float(numerator) / float(denominator); }
+};
+
 //---------------------------------------------------------------------------
+
+inline Rational
+reciprocal(const Rational x)
+{
+  return Rational(x.denominator, x.numerator);
+}
+
+//===========================================================================
 
 template<typename T>
 T
@@ -581,6 +611,16 @@ inline int64_t
 PCCClip(const int64_t& n, const int64_t& lower, const int64_t& upper)
 {
   return std::max(lower, std::min(n, upper));
+}
+
+//---------------------------------------------------------------------------
+// Integer division of @x by 2^shift, truncating towards zero.
+
+template<typename T>
+inline T
+divExp2(T x, int shift)
+{
+  return x >= 0 ? x >> shift : -(-x >> shift);
 }
 
 //---------------------------------------------------------------------------
@@ -670,28 +710,30 @@ divApprox(const int64_t a, const uint64_t b, const int32_t log2Scale)
 
 //---------------------------------------------------------------------------
 
-template <uint NIter=1>
+template<unsigned NIter = 1>
 inline int64_t
-invApproxRefined(const uint64_t b, int32_t& log2Scale)
+recipApprox(int64_t b, int32_t& log2Scale)
 {
   int log2ScaleOffset = 0;
-  int32_t log2bPlusOne = ilog2(b) + 1;
-  int64_t B = b;
+  int32_t log2bPlusOne = ilog2(uint64_t(b)) + 1;
+
   if (log2bPlusOne > 31) {
-    B >>= log2bPlusOne - 31;
+    b >>= log2bPlusOne - 31;
     log2ScaleOffset -= log2bPlusOne - 31;
-    log2bPlusOne = 31;
   }
+
   if (log2bPlusOne < 31) {
-    B <<= 31 - log2bPlusOne;
+    b <<= 31 - log2bPlusOne;
     log2ScaleOffset += 31 - log2bPlusOne;
-    log2bPlusOne = 31;
   }
-  int64_t invB = (0x2d2d2d2dLL<<31) - 0x1e1e1e1eLL*B >> 28; // 48/17 - 32/17*B with 28 bits decimal prec
-  for(uint i = 0; i < NIter; ++i)
-    invB = invB + (invB * ((1LL<<31) - (B * invB>>31))>>31);
-  log2Scale = (31<<1) - log2ScaleOffset;
-  return invB;
+
+  // Initial approximation: 48/17 - 32/17 * b with 28 bits decimal prec
+  int64_t bRecip = ((0x2d2d2d2dLL << 31) - 0x1e1e1e1eLL * b) >> 28;
+  for (unsigned i = 0; i < NIter; ++i)
+    bRecip += bRecip * ((1LL << 31) - (b * bRecip >> 31)) >> 31;
+
+  log2Scale = (31 << 1) - log2ScaleOffset;
+  return bRecip;
 }
 
 //---------------------------------------------------------------------------
@@ -745,7 +787,7 @@ isin0(const int32_t x, const int32_t log2Scale)
   const auto x0 = i0 << ds;
   const auto d1 = x - x0;
   assert(i0 <= (1 << kLog2ISineAngleScale) >> 2);
-  return kISine[i0] + (d1 * (kISine[i0 + 1] - kISine[i0]) + (b >> 1) >> ds);
+  return kISine[i0] + ((d1 * (kISine[i0 + 1] - kISine[i0]) + (b >> 1)) >> ds);
 }
 
 //---------------------------------------------------------------------------

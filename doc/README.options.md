@@ -83,10 +83,38 @@ If outputting non-integer point co-ordinates (eg, due to the output
 geometry scaling), the precision of the binary and ASCII versions are
 not identical.
 
-### `---outputResolution=REAL-VALUE`
-The output point clouds resolution in points per metre.  Decoded point
-clouds that indicate a coded resolution are rescaled to this output
-resolution.
+### `--outputSystem=0|1`
+Controls the output scaling of the coded point cloud.
+
+  | Value | Description                 |
+  |:-----:| ----------------------------|
+  | 0     | Conformance output          |
+  | 1     | External co-ordinate system |
+
+The conformance output scales the coded point cloud to the sequence
+co-ordinate system.  The output point positions are not offset by the
+sequence origin.
+
+The external co-ordinate system output scales the point cloud to the
+defined external co-ordinate system (see `sequenceScale`, `externalScale`,
+and `outputUnitLength`).  The output point positions are offset by the
+sequence origin, appropriately scaled.
+
+### `--outputUnitLength=REAL-VALUE`
+The length of the output point cloud unit vector.  Point clouds output by
+the encoder or decoder are rescaled to match this length.
+
+For example, `outputUnitLength=1000` outputs a point cloud with integer
+point positions representing millimetres.
+
+### `--outputPrecisionBits=INT-VALUE`
+The number of fractional bits to retain when scaling from the coding
+co-ordinate system to the sequence co-ordinate system.  The fractional
+bits are further retained when converting to the external co-ordinate
+system.
+
+The special value `outputPrecisionBits=-1` retains all fractional bits
+during the scaling process.
 
 ### `--convertPlyColourspace=0|1`
 Controls the conversion of ply RGB colour attributes to/from the
@@ -95,13 +123,6 @@ coding and after decoding.  When disabled (0), or if there is no
 converter available for the requested `colourMatrix`, no conversion
 happens; however the `colourMatrix` value is still written to the
 bitstream.
-
-### `--hack.reflectanceScale=0|1`
-Some input data uses 8-bit reflectance data scaled by 255 and represented
-using 16-bit attributes.  This option enables a conversion of 16-bit to
-8-bit at the encoder, and the corresponding conversion from 8-bit back to
-16-bit at the decoder.  If the original data has been scaled by 255, the
-conversion process is lossless.
 
 
 Decoder-specific options
@@ -122,77 +143,102 @@ point count metadata (see `pointCountMetadata`).
 Encoder-specific options
 ========================
 
-### `--srcResolution=REAL-VALUE`
-Resolution of the input point cloud in points per metre.  This value is
-used to derive the resolution of the coded point cloud.
+Co-ordinate systems and pre-scaling
+-----------------------------------
 
-If equal to zero, the input point cloud size is considered to be
-dimensionless.  In this case, the coded point cloud will indicate the
-dimensionless scale factor of the coded size to the input size.
+### `--srcUnit=0|1|metre`
+The physical unit used to interpret values of `srcUnitLength`.
 
-### `--positionQuantizationScale=REAL-FACTOR`
-Prior to encoding, scale the point cloud geometry by multiplying each
-co-ordinate by the real *FACTOR* and rounding to integer precision.  The
-scale factor is written to the bitstream and a decoder may use it to
-provide output at the original scale.
+  | Value   | Description    |
+  |:-------:| ---------------|
+  | 0       | dimensionless  |
+  | 1,metre | metre          |
 
-NB: when using trisoup geometry coding, use `triSoupIntToOrigScale`
-instead of this option.
+### `--srcUnitLength=REAL-VALUE`
+The length of the source point cloud unit vector.  This value is used to
+define the unit vector length of the sequence co-ordinate system.  It is
+not used to perform scaling by the encoder.
 
-### `--positionQuantizationScaleAdjustsDist2=0|1`
-This option simplifies the specification of the per-attribute `dist2`
-parameter.
+For example, `srcUnitLength=1000` and `srcUnit=metre` indicates that
+integer positions in the source point cloud represent millimetres.
 
-The squared distance threshold used for generating levels-of-detail in
-attribute coding is dependent on the point cloud density and is therefore
-affected by geometry quantization.  When this parameter is enabled,
-`dist2` values are scaled by `positionQuantizationScale` squared, thereby
-allowing `dist2` to be specified as an intrinsic property of the source
-sequence.
+### `--inputScale=REAL-VALUE`
+A scale factor applied to point positions in the source point cloud prior
+to integer conversion.  The `inputScale` changes the length of the source
+unit vectors (as set by `srcUnitLength`).
 
-### `--seq_bounding_box_xyz0=x,y,z`
-Explicitly sets the origin of the sequence-level bounding box in
-unscaled integer coordinates.
+For example, a point cloud may have a unit vector representing 1 metre
+(`srcUnitLength=1`) and contain points with a resolution of 1000 points per
+metre.  Since the codec can only represent integer positions, without input
+scaling, it is coded with a precision of one metre.
+Setting `inputScale=1000` will increase the precision to 1 millimetre.
 
-NB: This option has no effect if `seq_bounding_box_whd`=0,0,0.
+### `--codingScale=REAL-VALUE`
+A scale factor used to determine the length of the coding co-ordinate
+system unit vector.  The scale factor is relative to `inputScale`.  The
+input point cloud (after integer conversion) is scaled by `codingScale`
+and rounded to integer positions.
 
-### `--seq_bounding_box_whd=w,h,d`
-Explicitly sets the size of the sequence-level bounding box in
-unscaled integer coordinates.
+If `codingScale` is greater than `sequenceScale`, the encoder will set
+`codingScale=sequenceScale`.
 
-When $w,h,d$ not equal to 0,0,0, the sequence-level bounding box
-origin is set according to `seq_bounding_box_xyz0`.  Otherwise,
-the sequence-level bounding box is determined by the encoder.
+A decoder will scale the coded point cloud by `sequenceScale/codingScale`
+prior to output.
+
+### `--sequenceScale=REAL-VALUE`
+A scale factor used to determine the length of the sequence co-ordinate
+system unit vector.  The scale factor is relative to `inputScale`.  The
+input point cloud (after integer conversion) is scaled by the smallest of
+`sequenceScale` and `codingScale`.
+
+### `--externalScale=REAL-VALUE`
+A scale factor used to define the length of the sequence co-ordinate system
+when `srcUnit` is dimensionless.  The scale factor is relative to `inputScale`.
+The `externalScale` does not affect scaling of the input point cloud prior
+to coding.
+
+For example, a point cloud coded with `sequenceScale=0.25` and
+`externalScale=0.5` specifies that:
+
+- the input is scaled by 0.25 prior to coding, and
+- the decoder is informed that 1 sequence unit is equal to 2 external units.
+
+NB: a decoder is not required to scale the sequence co-ordinate system to an
+external co-ordinate system prior to output.
+
+### `--autoSeqBbox=0|1`
+Automatically determine the sequence bounding box (`seqOrigin` and
+`seqSizeWhd`) using the first input frame.
+
+### `--seqOrigin=x,y,z`
+Sets the origin of the sequence bounding box.  The `seqOrigin` must be less
+than or equal to the lowest input point position.  The origin is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the origin according to `sequenceScale`.
+
+This option has no effect when `autoSeqBbox=1`.
+
+### `--seqSizeWhd=w,h,d`
+Sets the size of the sequence bounding box.  The size is configured
+in the input co-ordinate system (after integer conversion).  The encoder
+will adjust the size according to `sequenceScale`.
+
+`seqSizeWhd=0,0,0` disables signalling the sequence bounding box size.
+
+This option has no effect when `autoSeqBbox=1`.
 
 ### `--mergeDuplicatedPoints=0|1`
 Controls the ability to code duplicate points.  When duplicate point
 merging is enabled, bitstream syntax related to duplicate points is
 disabled and a pre-filtering process is used to remove co-located points.
 
-### `--geometry_axis_order=INT-VALUE`
-Configures the order in which axes are internally coded.  Changing
-the axis order does not change the orientation of the reconstructed
-point cloud.
-
-  | Value | Coding order |
-  |:-----:| -------------|
-  | 0     | z, y, x      |
-  | 1     | x, y, z      |
-  | 2     | x, z, y      |
-  | 3     | y, z, x      |
-  | 4     | z, y, x      |
-  | 5     | z, x, y      |
-  | 6     | y, x, z      |
-  | 7     | x, y, z      |
-
-### `--disableAttributeCoding=0|1`
-This option instructs the encoder to ignore all options relating to
-attribute coding, as if they had never been configured.
-
 ### `--sortInputByAzimuth=0|1`
 Pre-sort the input point cloud according to azimuth angle with the
 origin `lidarHeadPosition`.  Pre-sorting occurs prior to tile/slice
 partitioning.
+
+Input partitioning (slices & tiles)
+-----------------------------------
 
 ### `--partitionMethod=0|2|3|4|5`
 Selects the partitioning method to map points to tiles and slices:
@@ -245,6 +291,30 @@ merge small slices together.
 ### `--tileSize=INT-VALUE`
 Tile dimension to use when performing initial partitioning.  A value of zero
 disables tile partitioning.
+
+
+General options
+---------------
+
+### `--geometry_axis_order=INT-VALUE`
+Configures the order in which axes are internally coded.  Changing
+the axis order does not change the orientation of the reconstructed
+point cloud.
+
+  | Value | Coding order |
+  |:-----:| -------------|
+  | 0     | z, y, x      |
+  | 1     | x, y, z      |
+  | 2     | x, z, y      |
+  | 3     | y, z, x      |
+  | 4     | z, y, x      |
+  | 5     | z, x, y      |
+  | 6     | y, x, z      |
+  | 7     | x, y, z      |
+
+### `--disableAttributeCoding=0|1`
+This option instructs the encoder to ignore all options relating to
+attribute coding, as if they had never been configured.
 
 ### `--enforceLevelLimits=0|1`
 Controls the enforcement of level limits by the encoder.  If a level
@@ -488,12 +558,13 @@ the number of generated points does not exceed the slice limit set by
 Point order used to construct predictive geometry trees.
 Requires `geomTreeType=1`.
 
- | Value | Description     |
- |:-----:| ----------------|
- | 0     | none            |
- | 1     | morton order    |
- | 2     | azimuth angle   |
- | 3     | radial distance |
+ | Value | Description                            |
+ |:-----:| -------------------------------------- |
+ | 0     | none                                   |
+ | 1     | morton order                           |
+ | 2     | azimuth angle                          |
+ | 3     | radial distance                        |
+ | 4     | source azimuth angle (ply: laserangle) |
 
 ### `--predGeomAzimuthSortPrecision=INT-VALUE`
 Controls the precision used in azimuthal sorting of points prior to
@@ -516,8 +587,8 @@ Requires `positionQuantisationEnabled=1`.
 Identical to `positionBaseQpFreqLog2`, but controls per-slice configuration.
 
 ### `--positionAzimuthScaleLog2=INT-VALUE`
-Number of bits used to represent predictive geometry azimuth angles.
-Requires `angularEnabled=1`.
+Number of additional bits used to represent predictive geometry azimuth
+angles.  Requires `angularEnabled=1`.
 
 ### `--positionRadiusInvScaleLog2=INT-VALUE`
 Degree of quantisation applied in the representation of angular predictive
@@ -528,6 +599,11 @@ Requires `angularEnabled=1`.
 Step size used to linearly model progression of per-laser azimuthal angles
 during angular predictive geometry coding.
 Requires `angularEnabled=1`.
+
+### `--predGeomAzimuthQuantization=1|0`
+Controls the use of radius dependent azimuth quantization in predictive
+geometry coding.
+Requires `angularEnabled=1` and `geomTreeType=1`.
 
 ### `--pointCountMetadata=0|1`
 Controls the addition of per octree layer point count metadata to each
@@ -584,16 +660,27 @@ chroma component bitdepth is N + 1.
 
 ### `--bitdepth=INT-VALUE`
 The bitdepth of the attribute data.  NB, this is not necessarily the
-same as the bitdepth of the PLY property.  
+same as the bitdepth of the PLY property.
+
+### `--attrScale=INT-VALUE` and `--attrOffset=INT-VALUE`
+Scale and offset used to interpret coded attribute values.
+
+The encoder derives the coded attribute value as $(attr - offset) / scale$.
+
+The encoder and decoder scale coded attributes for output as
+$attr × scale + offset$.
+
+NB: these parameters are only supported for reflectance attributes.
 
 ### `--transformType=0|1|2`
 Coding method to use for the current attribute:
 
   | Value | Description                                                |
   |:-----:| ---------------------------------------------------------- |
-  | 0     | Hierarchical neighbourhood prediction                      |
-  | 1     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 0     | Region Adaptive Hierarchical Transform (RAHT)              |
+  | 1     | Hierarchical neighbourhood prediction                      |
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
+  | 3     | Uncompressed (PCM)                                         |
 
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients
@@ -648,10 +735,11 @@ Applies to `transformType=2` and `attribute=color` only.
 
 ### `--intraLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours within the same level of detail.
+The value -1 configures a full-range search.
 
 ### `--interLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours between different levels of
-detail.
+detail.  The value -1 configures a full-range search.
 
 ### `--max_num_direct_predictors=INT-VALUE`
 Maximum number of nearest neighbour candidates used in direct
@@ -696,6 +784,17 @@ When equal to zero, an initial value is automatically determined.
 ### `--dist2PercentileEstimate=FLOAT-VALUE`
 Percentile of per-point nearest neighbour distances used to estimate `dist2`.
 
+### `--positionQuantizationScaleAdjustsDist2=0|1`
+Adjusts `dist2` according to `sequenceScale`.  This option simplifies the
+specification of the per-attribute `dist2` parameter.
+
+The squared distance threshold used for generating levels-of-detail in
+attribute coding is dependent on the point cloud density and is therefore
+affected by geometry quantization.  When this parameter is enabled,
+`dist2` values are scaled by `sequenceScale` squared, thereby
+allowing `dist2` to be specified as an intrinsic property of the source
+sequence.
+
 ### `--lodSubsamplingPeriod=INT-VALUE|INT-VALUE-LIST`
 A list of sampling periods used to generate successive levels of detail.
 
@@ -712,6 +811,18 @@ decoding order) is usable only with LoD attribute coding and
 ### `--spherical_coord_flag=0|1`
 Controls the conversion of point co-ordinates used in attribute coding from
 the Cartesian domain to a scaled spherical domain.
+
+### `--attrSphericalMaxLog2=INT-VALUE`
+Override spherical co-ordinate normalization factor.  This may be used to
+compensate any increased azimuth resolution when
+`predGeomAzimuthQuantization=1`.
+
+  | Value | Description                        |
+  |:-----:| ---------------------------------- |
+  | 0     | Automatic calculation              |
+  | 1     | Override max value                 |
+
+Applies when `angularEnabled=1` and `predGeomAzimuthQuantization=1`.
 
 ### `--lod_neigh_bias=INT-VALUE-LIST`
 A set of three bias factors corresponding to the first, second and third
@@ -736,6 +847,12 @@ level-of-detail or RAHT transform block.
 Attribute's per layer chroma QP offsets.  A layer is corresponds to a
 level-of-detail or RAHT transform block.
 Only applies when `attribute=colour`.
+
+### `--quantNeighWeight=INT-VALUE-LIST`
+Three factors used to derive quantization weights when `transformType=1`.
+The quantization weights are determined by recursively distributing each
+coefficient's weight to each of its neighbours, i, scaled by
+$\texttt{quantNeighWeight}[i] \div 256$.
 
 Attribute recolouring (encoder only)
 ------------------------------------

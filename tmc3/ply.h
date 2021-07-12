@@ -74,9 +74,14 @@ namespace ply {
     const std::string& fileName,
     bool asAscii);
 
+  ///
+  // Read @a pointCloud to a PLY file called @a fileName.
+  // Point positions are scaled by positionScale and converted to integers.
+  //
   bool read(
     const std::string& fileName,
     const PropertyNameMap& propertyNames,
+    double positionScale,
     PCCPointSet3& cloud);
 
   //============================================================================

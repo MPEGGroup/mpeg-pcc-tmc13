@@ -93,7 +93,7 @@ private:
   Vec3<int32_t> origin;
   int _numLasers;
   SphericalToCartesian _sphToCartesian;
-  bool _geomAdaptiveAzimuthalQuantization;
+  bool _azimuth_scaling_enabled_flag;
   int _geomAngularAzimuthSpeed;
 
   bool _geom_scaling_enabled_flag;
@@ -101,7 +101,7 @@ private:
   int _sliceQp;
   int _qpOffsetInterval;
 
-  int _geom_angular_azimuth_scale_log2;
+  int _azimuthTwoPiLog2;
 
   Vec3<int> _pgeom_resid_abs_log2_bits;
 
@@ -120,15 +120,15 @@ PredGeomDecoder::PredGeomDecoder(
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
   , origin()
-  , _numLasers(gps.geom_angular_num_lidar_lasers())
+  , _numLasers(gps.numLasers())
   , _sphToCartesian(gps)
-  , _geomAdaptiveAzimuthalQuantization(gps.predgeom_adaptive_azimuthal_quantization)
+  , _azimuth_scaling_enabled_flag(gps.azimuth_scaling_enabled_flag)
   , _geomAngularAzimuthSpeed(gps.geom_angular_azimuth_speed_minus1 + 1)
   , _geom_scaling_enabled_flag(gps.geom_scaling_enabled_flag)
   , _geom_qp_multiplier_log2(gps.geom_qp_multiplier_log2)
   , _sliceQp(0)
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
-  , _geom_angular_azimuth_scale_log2(gps.geom_angular_azimuth_scale_log2)
+  , _azimuthTwoPiLog2(gps.geom_angular_azimuth_scale_log2_minus11 + 12)
   , _minVal(gbh.pgeom_min_radius)
 {
   if (gps.geom_scaling_enabled_flag) {
@@ -160,13 +160,14 @@ PredGeomDecoder::decodeNumDuplicatePoints()
 int
 PredGeomDecoder::decodeNumChildren()
 {
-  int numChildren = _aed->decode(_ctxNumChildren[0]);
-  if (numChildren == 0) {
-    numChildren = 1 - _aed->decode(_ctxNumChildren[1]);
-    if (numChildren == 1)
-      numChildren = 2 + _aed->decode(_ctxNumChildren[2]);
+  int val = _aed->decode(_ctxNumChildren[0]);
+  if (val == 1) {
+    val += _aed->decode(_ctxNumChildren[1]);
+    if (val == 2)
+      val += _aed->decode(_ctxNumChildren[2]);
   }
-  return numChildren;
+
+  return val ^ 1;
 }
 
 //----------------------------------------------------------------------------
@@ -192,16 +193,16 @@ PredGeomDecoder::decodeResidual2()
       continue;
     }
 
-    auto sign = _aed->decode(_ctxSign2[k]);
-
     value += _aed->decode(_ctxResidual2GtN[1][k]);
     if (value == 1) {
-      residual[k] = sign ? 1 : -1;
+      auto sign = _aed->decode(_ctxSign2[k]);
+      residual[k] = sign ? -1 : 1;
       continue;
     }
 
-    value += _aed->decodeExpGolomb(0, _ctxEG2[k]);
-    residual[k] = sign ? value : -value;
+    value += _aed->decodeExpGolomb(0, _ctxEG2Prefix[k], _ctxEG2Suffix[k]);
+    auto sign = _aed->decode(_ctxSign2[k]);
+    residual[k] = sign ? -value : value;
   }
   return residual;
 }
@@ -217,12 +218,12 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (!_aed->decode(_ctxPhiGtN[0]))
     return 0;
 
-  const auto sign = _aed->decode(_ctxSignPhi);
-
   int value = 1;
   value += _aed->decode(_ctxPhiGtN[1]);
-  if (value == 1)
-    return sign ? 1 : -1;
+  if (value == 1) {
+    const auto sign = _aed->decode(_ctxSignPhi);
+    return sign ? -1 : 1;
+  }
 
   auto* ctxs = &_ctxResidualPhi[0] - 1;
   value = 1;
@@ -233,7 +234,8 @@ PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
   if (value == 7)
     value += _aed->decodeExpGolomb(0, _ctxEGPhi);
 
-  return sign ? (value + 2) : -(value + 2);
+  const auto sign = _aed->decode(_ctxSignPhi);
+  return sign ? -(value + 2) : (value + 2);
 }
 
 //----------------------------------------------------------------------------
@@ -242,12 +244,12 @@ int32_t
 PredGeomDecoder::decodeQpOffset()
 {
   int dqp = 0;
-  if (_aed->decode(_ctxQpOffsetAbsGt0)) {
-    int dqp_sign = _aed->decode(_ctxQpOffsetSign);
-    dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
-    dqp = dqp_sign ? dqp : -dqp;
-  }
-  return dqp;
+  if (!_aed->decode(_ctxQpOffsetAbsGt0))
+    return 0;
+
+  dqp = _aed->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+  int dqp_sign = _aed->decode(_ctxQpOffsetSign);
+  return dqp_sign ? -dqp : dqp;
 }
 
 //----------------------------------------------------------------------------
@@ -277,8 +279,6 @@ PredGeomDecoder::decodeResidual(int mode)
       continue;
     }
 
-    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 1;
-
     AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
     int32_t numBits = 1;
     for (int n = 0; n < _pgeom_resid_abs_log2_bits[k]; n++)
@@ -298,7 +298,9 @@ PredGeomDecoder::decodeResidual(int mode)
         res += _aed->decode() << i;
       }
     }
-    residual[k] = sign ? res : -res;
+
+    int sign = (mode || k) ? _aed->decode(_ctxSign[k]) : 0;
+    residual[k] = sign ? -res : res;
   }
 
   return residual;
@@ -350,13 +352,14 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
       if (mode >= 0)
         pred[1] += qphi * _geomAngularAzimuthSpeed;
 
-    if (_geom_angular_mode_enabled_flag && _geomAdaptiveAzimuthalQuantization) {
-      auto rec_radius_scaling = pred[0] + residual[0] << 3; // ~r*2*pi
-      if (!rec_radius_scaling) rec_radius_scaling = 1;
-      int32_t inv_r_logScale;
-      int64_t inv_r = invApproxRefined(rec_radius_scaling, inv_r_logScale);
-      residual[1] = residual[1] >= 0 ? residual[1] * inv_r >> inv_r_logScale - _geom_angular_azimuth_scale_log2
-                                     : -(-residual[1] * inv_r >> inv_r_logScale - _geom_angular_azimuth_scale_log2);
+    if (_azimuth_scaling_enabled_flag) {
+      auto r = (pred[0] + residual[0]) << 3;
+      if (!r)
+        r = 1;
+      int32_t rInvLog2Scale;
+      int64_t rInv = recipApprox(r, rInvLog2Scale);
+      residual[1] =
+        divExp2(residual[1] * rInv, rInvLog2Scale - _azimuthTwoPiLog2);
     }
 
     auto pos = pred + residual;
@@ -435,9 +438,9 @@ decodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomContexts& ctxtMem,
-  EntropyDecoder* aed)
+  EntropyDecoder& aed)
 {
-  PredGeomDecoder dec(gps, gbh, ctxtMem, aed);
+  PredGeomDecoder dec(gps, gbh, ctxtMem, &aed);
   dec.decode(
     gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph);
   ctxtMem = dec.getCtx();

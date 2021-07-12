@@ -123,15 +123,13 @@ schro_arith_decode_init (SchroArith * arith, SchroRdFn read_fn, void * read_fn_p
   arith->range[1] = 0xffff0000;
   arith->range_size = arith->range[1] - arith->range[0];
   arith->code = 0;
-  arith->cntr = 16;
+  arith->cntr = 1;
 
   arith->read = read_fn;
   arith->io_priv = read_fn_priv;
 
   arith->code = arith->read(arith->io_priv) << 24;
   arith->code |= arith->read(arith->io_priv) << 16;
-  arith->code |= arith->read(arith->io_priv) << 8;
-  arith->code |= arith->read(arith->io_priv);
 
   memcpy (arith->lut, (void *) lut_interleaved, 512 * sizeof (int16_t));
 }
@@ -160,6 +158,15 @@ schro_arith_encode_init (SchroArith * arith, SchroWrFn write_fn, void * write_fn
 void
 schro_arith_decode_flush (SchroArith * arith)
 {
+  // perform an extra renormalisation to match encoding
+  while (arith->range[1] <= 0x40000000) {
+    if (!--arith->cntr) {
+      arith->read(arith->io_priv);
+      arith->cntr = 8;
+    }
+
+    arith->range[1] <<= 1;
+  }
 }
 
 void

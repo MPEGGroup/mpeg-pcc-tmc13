@@ -179,6 +179,7 @@ public:
     Vec3<int> posXyz,
     Vec3<int> delta);
 
+  bool decodeNodeQpOffsetsPresent();
   int decodeQpOffset();
 
   bool decodeIsIdcm();
@@ -232,8 +233,8 @@ GeometryOctreeDecoder::GeometryOctreeDecoder(
   , _neighPattern64toR1(neighPattern64toR1(gps))
   , _arithmeticDecoder(arithmeticDecoder)
   , _planar(gps)
-  , _phiBuffer(gps.geom_angular_num_lidar_lasers(), 0x80000000)
-  , _phiZi(gps.geom_angular_num_lidar_lasers(), gps.angularNumPhiPerTurn)
+  , _phiBuffer(gps.numLasers(), 0x80000000)
+  , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -831,6 +832,27 @@ GeometryOctreeDecoder::decodeOccupancy(
 }
 
 //-------------------------------------------------------------------------
+
+bool
+GeometryOctreeDecoder::decodeNodeQpOffsetsPresent()
+{
+  return _arithmeticDecoder->decode();
+}
+
+//-------------------------------------------------------------------------
+
+int
+GeometryOctreeDecoder::decodeQpOffset()
+{
+  if (!_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0))
+    return 0;
+
+  int dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
+  int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
+  return dqp_sign ? -dqp : dqp;
+}
+
+//-------------------------------------------------------------------------
 // Decode a position of a point in a given volume.
 Vec3<int32_t>
 GeometryOctreeDecoder::decodePointPosition(
@@ -848,18 +870,6 @@ GeometryOctreeDecoder::decodePointPosition(
   }
 
   return delta;
-}
-
-int
-GeometryOctreeDecoder::decodeQpOffset()
-{
-  int dqp = 0;
-  if (_arithmeticDecoder->decode(_ctxQpOffsetAbsGt0)) {
-    int dqp_sign = _arithmeticDecoder->decode(_ctxQpOffsetSign);
-    dqp = _arithmeticDecoder->decodeExpGolomb(0, _ctxQpOffsetAbsEgl) + 1;
-    dqp = dqp_sign ? dqp : -dqp;
-  }
-  return dqp;
 }
 
 //-------------------------------------------------------------------------
@@ -1170,8 +1180,6 @@ GeometryOctreeDecoder::decodeThetaRes()
   if (!_arithmeticDecoder->decode(_ctxThetaRes[0]))
     return 0;
 
-  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
-
   int absVal = 1;
   absVal += _arithmeticDecoder->decode(_ctxThetaRes[1]);
   if (absVal > 1)
@@ -1179,7 +1187,8 @@ GeometryOctreeDecoder::decodeThetaRes()
   if (absVal == 3)
     absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxThetaResExp);
 
-  return sign ? absVal : -absVal;
+  bool sign = _arithmeticDecoder->decode(_ctxThetaResSign);
+  return sign ? -absVal : absVal;
 }
 
 //-------------------------------------------------------------------------
@@ -1219,7 +1228,7 @@ decodeGeometryOctree(
   int skipLastLayers,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
+  EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining)
 {
   // init main fifo
@@ -1252,7 +1261,7 @@ decodeGeometryOctree(
   uint32_t idcmEnableMaskInit = mkIdcmEnableMask(gps);
 
   // Lidar angles for planar prediction
-  const int numLasers = gps.geom_angular_num_lidar_lasers();
+  const int numLasers = gps.numLasers();
   const int* thetaLaser = gps.angularTheta.data();
   const int* zLaser = gps.angularZ.data();
 
@@ -1278,9 +1287,7 @@ decodeGeometryOctree(
   Vec3<uint32_t> posQuantBitMasks = 0xffffffff;
   int idcmQp = 0;
   int sliceQp = gbh.sliceQp(gps);
-  int numLvlsUntilQpOffset = 0;
-  if (gps.geom_scaling_enabled_flag)
-    numLvlsUntilQpOffset = gbh.geom_octree_qp_offset_depth + 1;
+  int nodeQpOffsetsSignalled = !gps.geom_scaling_enabled_flag;
 
   // generate the list of the node size for each level in the tree
   //  - starts with the smallest node and works up
@@ -1303,8 +1310,7 @@ decodeGeometryOctree(
 
   // NB: this needs to be after the root node size is determined to
   //     allocate the planar buffer
-  auto arithmeticDecoderIt = arithmeticDecoders.begin();
-  GeometryOctreeDecoder decoder(gps, gbh, ctxtMem, arithmeticDecoderIt->get());
+  GeometryOctreeDecoder decoder(gps, gbh, ctxtMem, &arithmeticDecoder);
 
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
@@ -1331,8 +1337,21 @@ decodeGeometryOctree(
     int codedAxesPrevLvl = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
     int codedAxesCurLvl = gbh.tree_lvl_coded_axis_list[depth];
 
+    // Determine if this is the level where node QPs are sent
+    bool nodeQpOffsetsPresent =
+      !nodeQpOffsetsSignalled && decoder.decodeNodeQpOffsetsPresent();
+
+    // record the node size when quantisation is signalled -- all subsequnt
+    // coded occupancy bits are quantised
+    // after the qp offset, idcm nodes do not receive special treatment
+    if (nodeQpOffsetsPresent) {
+      nodeQpOffsetsSignalled = true;
+      idcmQp = 0;
+      posQuantBitMasks = Vec3<uint32_t>((1 << nodeSizeLog2) - 1);
+    }
+
     // Idcm quantisation applies to child nodes before per node qps
-    if (--numLvlsUntilQpOffset > 0) {
+    if (!nodeQpOffsetsSignalled) {
       // If planar is enabled, the planar bits are not quantised (since
       // the planar mode is determined before quantisation)
       auto quantNodeSizeLog2 = nodeSizeLog2;
@@ -1351,23 +1370,16 @@ decodeGeometryOctree(
       posQuantBitMasks = Vec3<uint32_t>((1 << quantNodeSizeLog2) - 1);
     }
 
-    // record the node size when quantisation is signalled -- all subsequnt
-    // coded occupancy bits are quantised
-    // after the qp offset, idcm nodes do not receive special treatment
-    if (!numLvlsUntilQpOffset) {
-      idcmQp = 0;
-      posQuantBitMasks = Vec3<uint32_t>((1 << nodeSizeLog2) - 1);
-    }
-
     // save context state for parallel coding
     if (depth == maxDepth - 1 - gbh.geom_stream_cnt_minus1)
       if (gbh.geom_stream_cnt_minus1)
         savedState.reset(new GeometryOctreeDecoder(decoder));
 
-    // load context state for parallel coding starting one level later
+    // a new entropy stream starts one level after the context state is saved.
+    // restore the saved state and flush the arithmetic decoder
     if (depth > maxDepth - 1 - gbh.geom_stream_cnt_minus1) {
       decoder = *savedState;
-      decoder._arithmeticDecoder = (++arithmeticDecoderIt)->get();
+      arithmeticDecoder.flushAndRestart();
     }
 
     // reset the idcm eligibility mask at the start of each level to
@@ -1381,7 +1393,7 @@ decodeGeometryOctree(
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
 
-      if (numLvlsUntilQpOffset == 0) {
+      if (nodeQpOffsetsPresent) {
         node0.qp = sliceQp;
         node0.qp += decoder.decodeQpOffset() << gps.geom_qp_multiplier_log2;
       }
@@ -1646,10 +1658,10 @@ decodeGeometryOctree(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   decodeGeometryOctree(
-    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoders, nullptr);
+    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoder, nullptr);
 }
 
 //-------------------------------------------------------------------------
@@ -1661,11 +1673,11 @@ decodeGeometryOctreeScalable(
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoders,
+    gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoder,
     &nodes);
 
   if (minGeomNodeSizeLog2 > 0) {

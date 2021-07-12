@@ -42,8 +42,10 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
-#include "hls.h"
+#include "frame.h"
+#include "framectr.h"
 #include "geometry.h"
+#include "hls.h"
 
 namespace pcc {
 
@@ -57,6 +59,9 @@ struct DecoderParams {
 
   // A maximum number of points to partially decode.
   int decodeMaxPoints;
+
+  // Number of fractional bits used in output position representation.
+  int outputFpBits;
 };
 
 //============================================================================
@@ -86,11 +91,14 @@ public:
   //==========================================================================
 
 private:
+  void activateParameterSets(const AttributeParamInventoryHdr& gbh);
   void activateParameterSets(const GeometryBrickHeader& gbh);
   int decodeGeometryBrick(const PayloadBuffer& buf);
   void decodeAttributeBrick(const PayloadBuffer& buf);
   void decodeConstantAttribute(const PayloadBuffer& buf);
-  bool frameIdxChanged(const GeometryBrickHeader& gbh) const;
+  bool dectectFrameBoundary(const PayloadBuffer* buf);
+  void outputCurrentCloud(Callbacks* callback);
+  void startFrame();
 
   //==========================================================================
 
@@ -98,9 +106,15 @@ private:
   // Decoder specific parameters
   DecoderParams _params;
 
+  // Indicates that pointcloud output should be suppressed at a frame boundary
+  bool _suppressOutput;
+
   // Indicates that this is the start of a new frame.
   // NB: this is set to false quiet early in the decoding process
   bool _firstSliceInFrame;
+
+  // Indicates whether the output has been initialised
+  bool _outputInitialized;
 
   // Current identifier of payloads with the same geometry
   int _sliceId;
@@ -108,15 +122,20 @@ private:
   // Identifies the previous slice in bistream order
   int _prevSliceId;
 
-  // The last decoded frame_idx
-  int _currentFrameIdx;
+  // Cumulative frame counter
+  FrameCtr _frameCtr;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;
 
   // The point cloud currently being decoded
   PCCPointSet3 _currentPointCloud;
+
+  // The accumulated decoded slices
   PCCPointSet3 _accumCloud;
+
+  // The current output cloud
+  CloudFrame _outCloud;
 
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
@@ -149,8 +168,7 @@ private:
 
 class PCCTMC3Decoder3::Callbacks {
 public:
-  virtual void
-  onOutputCloud(const SequenceParameterSet&, const PCCPointSet3&) = 0;
+  virtual void onOutputCloud(const CloudFrame&) = 0;
 };
 
 //============================================================================

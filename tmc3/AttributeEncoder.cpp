@@ -35,8 +35,8 @@
 
 #include "AttributeEncoder.h"
 
-#include "ArithmeticCodec.h"
 #include "DualLutCoder.h"
+#include "attribute_raw.h"
 #include "constants.h"
 #include "entropy.h"
 #include "io_hls.h"
@@ -471,6 +471,11 @@ AttributeEncoder::encode(
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload)
 {
+  if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
+    AttrRawEncoder::encode(sps, desc, attr_aps, abh, pointCloud, payload);
+    return;
+  }
+
   // Encoders are able to modify the slice header:
   _abh = &abh;
 
@@ -498,6 +503,10 @@ AttributeEncoder::encode(
     case AttributeEncoding::kLiftingTransform:
       encodeReflectancesLift(desc, attr_aps, qpSet, pointCloud, encoder);
       break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
+      break;
     }
   } else if (desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
@@ -511,6 +520,10 @@ AttributeEncoder::encode(
 
     case AttributeEncoding::kLiftingTransform:
       encodeColorsLift(desc, attr_aps, qpSet, pointCloud, encoder);
+      break;
+
+    case AttributeEncoding::kRaw:
+      // Already handled
       break;
     }
   } else {
@@ -652,6 +665,11 @@ AttributeEncoder::encodeReflectancesPred(
   residual.resize(pointCount);
 
   int quantLayer = 0;
+
+  std::vector<int64_t> quantWeights;
+  computeQuantizationWeights(
+    _lods.predictors, quantWeights, aps.quant_neigh_weight);
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
@@ -660,6 +678,7 @@ AttributeEncoder::encodeReflectancesPred(
     const uint32_t pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor);
@@ -673,15 +692,21 @@ AttributeEncoder::encodeReflectancesPred(
       predictor.predictReflectance(pointCloud, _lods.indexes);
     const int64_t quantAttValue = reflectance;
     const int64_t quantPredAttValue = predictedReflectance;
+
+    int64_t qStep = quant[0].stepSize();
+    int64_t weight =
+      std::min(quantWeights[predictorIndex], qStep) >> kFixedPointWeightShift;
     const int64_t delta = quant[0].quantize(
-      (quantAttValue - quantPredAttValue) << kFixedPointAttributeShift);
+      ((quantAttValue - quantPredAttValue) * weight)
+      << kFixedPointAttributeShift);
     int32_t attValue0 = delta;
+    int64_t reconstructedDelta =
+      divExp2RoundHalfUp(quant[0].scale(delta), kFixedPointAttributeShift);
+    reconstructedDelta /= weight;
 
     if (predModeEligible)
       encodePredModeRefl(aps, predictor.predMode, attValue0);
 
-    const int64_t reconstructedDelta =
-      divExp2RoundHalfUp(quant[0].scale(delta), kFixedPointAttributeShift);
     const int64_t reconstructedQuantAttValue =
       quantPredAttValue + reconstructedDelta;
     const attr_t reconstructedReflectance =
@@ -960,6 +985,11 @@ AttributeEncoder::encodeColorsPred(
 
   int lod = 0;
   int quantLayer = 0;
+
+  std::vector<int64_t> quantWeights;
+  computeQuantizationWeights(
+    _lods.predictors, quantWeights, aps.quant_neigh_weight);
+
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
     if (predictorIndex == _lods.numPointsInLod[quantLayer]) {
@@ -972,6 +1002,7 @@ AttributeEncoder::encodeColorsPred(
     const auto pointIndex = _lods.indexes[predictorIndex];
     auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
     auto& predictor = _lods.predictors[predictorIndex];
+    predictor.predMode = 0;
 
     bool predModeEligible =
       predModeEligibleColor(desc, aps, pointCloud, _lods.indexes, predictor);
@@ -990,15 +1021,23 @@ AttributeEncoder::encodeColorsPred(
       const auto& q = quant[std::min(k, 1)];
       int64_t residual = color[k] - predictedColor[k];
 
-      int64_t residualQ = q.quantize(residual << kFixedPointAttributeShift);
+      int64_t qStep = q.stepSize();
+      int64_t weight = std::min(quantWeights[predictorIndex], qStep)
+        >> kFixedPointWeightShift;
+      int64_t residualQ =
+        q.quantize((residual * weight) << kFixedPointAttributeShift);
       int64_t residualR =
         divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+      residualR /= weight;
 
       if (aps.inter_component_prediction_enabled_flag && k > 0) {
         residual = residual - ((icpCoeff[k] * residual0 + 2) >> 2);
-        residualQ = q.quantize(residual << kFixedPointAttributeShift);
-        residualR = ((icpCoeff[k] * residual0 + 2) >> 2)
-          + divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+        residualQ =
+          q.quantize((residual * weight) << kFixedPointAttributeShift);
+        residualR =
+          divExp2RoundHalfUp(q.scale(residualQ), kFixedPointAttributeShift);
+        residualR /= weight;
+        residualR += ((icpCoeff[k] * residual0 + 2) >> 2);
       }
 
       if (k == 0)

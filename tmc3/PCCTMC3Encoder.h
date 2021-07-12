@@ -44,11 +44,12 @@
 #include "PayloadBuffer.h"
 #include "PCCMath.h"
 #include "PCCPointSet.h"
+#include "frame.h"
+#include "geometry.h"
 #include "geometry_params.h"
-#include "pointset_processing.h"
 #include "hls.h"
 #include "partitioning.h"
-#include "geometry.h"
+#include "pointset_processing.h"
 
 namespace pcc {
 
@@ -80,12 +81,27 @@ struct EncoderParams {
   // todo(df): this should go away
   std::map<std::string, int> attributeIdxMap;
 
-  // Resolution of the source point cloud points per metres.
-  // The value 0 indicates undefined.
-  float srcResolution;
+  // Determine the sequence bonuding box using the first input frame
+  bool autoSeqBbox;
 
-  // Quantisation scale factor for geometry pre-processing
-  float geomPreScale;
+  // Length of the source point cloud unit vectors.
+  double srcUnitLength;
+
+  // Scale factor used to define the coordinate system used for coding.
+  // This is the coordinate system where slicing is performed.
+  //  P_cod = P_src * codedGeomScale
+  double codedGeomScale;
+
+  // Scale factor used to define the sequence coordinate system.
+  //  P_seq = P_src * seqGeomScale
+  double seqGeomScale;
+
+  // Scale factor used to define the external coordinate system.
+  //  P_ext = P_src * extGeomScale
+  double extGeomScale;
+
+  // Number of fractional bits used in output position representation.
+  int outputFpBits;
 
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
@@ -122,7 +138,7 @@ struct EncoderParams {
 
   // precision expected for attributes after scaling with predgeom
   // and spherical coordinates
-  int predgeomAttributesSphericalScalingLog2;
+  int attrSphericalMaxLog2;
 };
 
 //============================================================================
@@ -142,20 +158,20 @@ public:
     const PCCPointSet3& inputPointCloud,
     EncoderParams* params,
     Callbacks*,
-    PCCPointSet3* reconstructedCloud = nullptr);
+    CloudFrame* reconstructedCloud = nullptr);
 
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
     const PCCPointSet3& originPartCloud,
     EncoderParams* params,
     Callbacks*,
-    PCCPointSet3* reconstructedCloud = nullptr);
+    CloudFrame* reconstructedCloud = nullptr);
 
   static void deriveParameterSets(EncoderParams* params);
   static void fixupParameterSets(EncoderParams* params);
 
 private:
-  void appendReconstructedPoints(PCCPointSet3* reconstructedCloud);
+  void appendSlice(PCCPointSet3& cloud);
 
   void encodeGeometryBrick(const EncoderParams*, PayloadBuffer* buf);
 
@@ -167,8 +183,18 @@ private:
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 
-  // Scale factor used to quantise geometry during pre-processing
-  float _geomPreScale;
+  // Scale factor used to decimate the input point cloud.
+  // Decimation is performed as if the input were scaled by
+  //   Round(P_src * inputDecimationScale)
+  // and duplicate points removed.
+  // todo: expose this parameter?
+  double _inputDecimationScale;
+
+  // Scale factor that defines coding coordinate system
+  double _srcToCodingScale;
+
+  // Sequence origin in terms of coding coordinate system
+  Vec3<int> _originInCodingCoords;
 
   // Position of the slice in the translated+scaled co-ordinate system.
   Vec3<int> _sliceOrigin;
@@ -197,7 +223,7 @@ private:
   int _tileId;
 
   // Current frame number.
-  // NB: only the log2_max_frame_idx LSBs are sampled for frame_idx
+  // NB: only the log2_max_frame_ctr LSBs are sampled for frame_ctr
   int _frameCounter;
 
   // Memorized context buffers

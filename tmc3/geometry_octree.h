@@ -526,7 +526,7 @@ void decodeGeometryOctree(
   int skipLastLayers,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders,
+  EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining);
 
 //============================================================================

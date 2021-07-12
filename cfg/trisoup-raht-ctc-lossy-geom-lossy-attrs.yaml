@@ -25,7 +25,7 @@ categories:
      # attribute coding (common options -- relies on option ordering)
      #  - use raht
      - convertPlyColourspace: 1
-     - transformType: 1
+     - transformType: 0
 
      ##
      # attribute coding -- colour

@@ -15,7 +15,7 @@ check_symbol_exists(getrusage sys/resource.h HAVE_GETRUSAGE)
 # Fallback to descriptive version if VCS unavailable
 #  NB: the "unconfirmed-" part refers to this being a fallback option
 #      and the reported version may or may not be accurate.
-set(VERSION_FALLBACK "unconfirmed-release-12.0")
+set(VERSION_FALLBACK "unconfirmed-release-14.0")
 set(VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
 set(VERSION_FILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/version.cpp.in)
 set(VERSION_CACHE_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.cache)
@@ -76,6 +76,7 @@ file(GLOB PROJECT_INC_FILES
   "PCCTMC3Encoder.h"
   "RAHT.h"
   "TMC3.h"
+  "attribute_raw.h"
   "colourspace.h"
   "coordinate_conversion.h"
   "constants.h"
@@ -84,6 +85,8 @@ file(GLOB PROJECT_INC_FILES
   "entropydirac.h"
   "entropyo3dgc.h"
   "entropyutils.h"
+  "frame.h"
+  "framectr.h"
   "geometry.h"
   "geometry_intra_pred.h"
   "geometry_octree.h"
@@ -104,7 +107,6 @@ file(GLOB PROJECT_INC_FILES
   "version.h"
   "../dependencies/nanoflann/*.hpp"
   "../dependencies/nanoflann/*.h"
-  "../dependencies/arithmetic-coding/inc/*.h"
   "../dependencies/program-options-lite/*.h"
   "../dependencies/schroedinger/schroarith.h"
 )
@@ -118,10 +120,13 @@ file(GLOB PROJECT_CPP_FILES
   "OctreeNeighMap.cpp"
   "RAHT.cpp"
   "TMC3.cpp"
+  "attribute_raw_decoder.cpp"
+  "attribute_raw_encoder.cpp"
   "coordinate_conversion.cpp"
   "decoder.cpp"
   "encoder.cpp"
   "entropydirac.cpp"
+  "frame.cpp"
   "geometry_intra_pred.cpp"
   "geometry_octree.cpp"
   "geometry_octree_decoder.cpp"
@@ -140,7 +145,6 @@ file(GLOB PROJECT_CPP_FILES
   "pointset_processing.cpp"
   "quantization.cpp"
   "tables.cpp"
-  "../dependencies/arithmetic-coding/src/*.cpp"
   "../dependencies/program-options-lite/*.cpp"
   "../dependencies/schroedinger/schroarith.c"
 )
@@ -154,7 +158,6 @@ include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/nanoflann"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/arithmetic-coding/inc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies/program-options-lite"
 )
 

@@ -97,6 +97,7 @@ public:
 
   using Base::decode;
   using Base::enableBypassStream;
+  using Base::flushAndRestart;
   using Base::setBuffer;
   using Base::start;
   using Base::stop;

@@ -6,6 +6,12 @@ categories:
     encflags:
      - mode: 0
 
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
      ##
      # geometry parameters (octree)
      #  - preserve lossless geometry property
@@ -13,8 +19,6 @@ categories:
      - mergeDuplicatedPoints: 0
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
-     - srcResolution: '$eval{ ${src-resolution} || 0 }'
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
      - positionQuantizationScale: 1
      -
        - !conditional '${numLasers}'
@@ -50,9 +54,6 @@ categories:
      #  - use lifting transform for lossy conditions
      #  - scale 16bit reflectance data to 8bit
      - convertPlyColourspace: 1
-     -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
      - transformType: 2
      - numberOfNearestNeighborsInPrediction: 3
      - levelOfDetailCount: '$eval{ ${seq_lod} || 12 }'
@@ -61,6 +62,9 @@ categories:
        - !conditional '"${group}" =~ m{^cat3}'
        - lodDecimator: 1
        - lod_neigh_bias: ${seq_lod_bias}
+     -
+       - !conditional '"${group}" eq "cat3-fused"'
+       - lodDecimator: 2
      -
        - !conditional '${numLasers}'
        - lod_neigh_bias: '1,1,1'
@@ -79,6 +83,10 @@ categories:
            r05: 28
            r06: 22
        - bitdepth: 8
+       -
+         - !conditional '${reflectance8b16b_scale_factor}'
+         - attrOffset: 0
+         - attrScale: ${reflectance8b16b_scale_factor}
        - attribute: reflectance
 
      ##
@@ -95,15 +103,17 @@ categories:
            r06: 22
        - qpChromaOffset: 0
        - bitdepth: 8
+       - attrOffset: 0
+       - attrScale: 1
        - attribute: color
 
     decflags:
      - mode: 1
-     - outputResolution: '$eval{ ${src-resolution} || 0 }'
-     - convertPlyColourspace: 1
      -
-       - !conditional '${reflectance8b16b_scale_factor}'
-       - hack.reflectanceScale: ${reflectance8b16b_scale_factor}
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     - convertPlyColourspace: 1
 
     pcerrorflags:
      - dropdups: 2

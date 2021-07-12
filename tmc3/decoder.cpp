@@ -67,7 +67,8 @@ void
 PCCTMC3Decoder3::init()
 {
   _firstSliceInFrame = true;
-  _currentFrameIdx = -1;
+  _outputInitialized = false;
+  _suppressOutput = 1;
   _sps = nullptr;
   _gps = nullptr;
   _spss.clear();
@@ -93,6 +94,85 @@ payloadStartsNewSlice(PayloadType type)
 
 //============================================================================
 
+bool
+PCCTMC3Decoder3::dectectFrameBoundary(const PayloadBuffer* buf)
+{
+  // This may be from either geometry brick or attr param inventory
+  int frameCtrLsb;
+
+  switch (buf->type) {
+  case PayloadType::kFrameBoundaryMarker: {
+    // the frame boundary data marker explcitly indicates a boundary
+    // However, this implementation doesn't flush the output, rather
+    // this happens naturally when the frame boundary is detected by
+    // a change in frameCtr.
+    auto fbm = parseFrameBoundaryMarker(*buf);
+    frameCtrLsb = fbm.fbdu_frame_ctr_lsb;
+    break;
+  }
+
+  case PayloadType::kGeometryBrick: {
+    activateParameterSets(parseGbhIds(*buf));
+    auto gbh = parseGbh(*_sps, *_gps, *buf, nullptr, nullptr);
+    frameCtrLsb = gbh.frame_ctr_lsb;
+    break;
+  }
+
+  case PayloadType::kGeneralizedAttrParamInventory: {
+    auto apih = parseAttrParamInventoryHdr(*buf);
+    activateParameterSets(apih);
+    // todo(conf): check lsb_bits is same as sps
+    frameCtrLsb = apih.attr_param_frame_ctr_lsb;
+    break;
+  }
+
+  // other data units don't indicate a boundary
+  default: return false;
+  }
+
+  auto bdry = _frameCtr.isDifferentFrame(frameCtrLsb, _sps->frame_ctr_bits);
+  _frameCtr.update(frameCtrLsb, _sps->frame_ctr_bits);
+
+  return bdry;
+}
+
+//============================================================================
+
+void
+PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
+{
+  if (_suppressOutput)
+    return;
+
+  std::swap(_outCloud.cloud, _accumCloud);
+
+  // Apply global scaling to output for integer conformance
+  // todo: add other output scaling modes
+  // NB: if accumCloud is reused for future inter-prediction, global scaling
+  //     must be applied to a copy.
+  scaleGeometry(_outCloud.cloud, _sps->globalScale, _outCloud.outputFpBits);
+
+  callback->onOutputCloud(_outCloud);
+
+  std::swap(_outCloud.cloud, _accumCloud);
+  _accumCloud.clear();
+}
+
+//============================================================================
+
+void
+PCCTMC3Decoder3::startFrame()
+{
+  _outputInitialized = true;
+  _firstSliceInFrame = true;
+  _outCloud.frameNum = _frameCtr;
+
+  // the following could be set once when the SPS is discovered
+  _outCloud.setParametersFrom(*_sps, _params.outputFpBits);
+}
+
+//============================================================================
+
 int
 PCCTMC3Decoder3::decompress(
   const PayloadBuffer* buf, PCCTMC3Decoder3::Callbacks* callback)
@@ -110,11 +190,20 @@ PCCTMC3Decoder3::decompress(
 
   if (!buf) {
     // flush decoder, output pending cloud if any
-    callback->onOutputCloud(*_sps, _accumCloud);
-    _accumCloud.clear();
+    outputCurrentCloud(callback);
     return 0;
   }
 
+  // process a frame boundary
+  //  - this may update FrameCtr
+  //  - this will activate the sps for GeometryBrick and AttrParamInventory
+  //  - after outputing the current frame, the output must be reinitialized
+  if (dectectFrameBoundary(buf)) {
+    outputCurrentCloud(callback);
+    _outputInitialized = false;
+  }
+
+  // process the buffer
   switch (buf->type) {
   case PayloadType::kSequenceParameterSet: {
     auto sps = parseSps(*buf);
@@ -145,27 +234,19 @@ PCCTMC3Decoder3::decompress(
     return 0;
   }
 
-  // the frame boundary marker flushes the current frame.
-  // NB: frame counter is reset to avoid outputing a runt point cloud
-  //     on the next slice.
   case PayloadType::kFrameBoundaryMarker:
-    // todo(df): if no sps is activated ...
-    callback->onOutputCloud(*_sps, _accumCloud);
-    _accumCloud.clear();
-    _currentFrameIdx = -1;
-    _attrDecoder.reset();
+    if (!_outputInitialized)
+      startFrame();
     return 0;
 
   case PayloadType::kGeometryBrick:
-    activateParameterSets(parseGbhIds(*buf));
-    if (frameIdxChanged(parseGbh(*_sps, *_gps, *buf, nullptr, nullptr))) {
-      callback->onOutputCloud(*_sps, _accumCloud);
-      _accumCloud.clear();
-      _firstSliceInFrame = true;
-    }
+    if (!_outputInitialized)
+      startFrame();
 
     // avoid accidents with stale attribute decoder on next slice
     _attrDecoder.reset();
+    // Avoid dropping an actual frame
+    _suppressOutput = false;
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
@@ -179,6 +260,17 @@ PCCTMC3Decoder3::decompress(
     //     conversion if it is used (it currently isn't).
     storeTileInventory(parseTileInventory(*buf));
     return 0;
+
+  case PayloadType::kGeneralizedAttrParamInventory: {
+    if (!_outputInitialized)
+      startFrame();
+
+    auto hdr = parseAttrParamInventoryHdr(*buf);
+    assert(hdr.attr_param_sps_attr_idx < int(_sps->attributeSets.size()));
+    auto& attrDesc = _outCloud.attrDesc[hdr.attr_param_sps_attr_idx];
+    parseAttrParamInventory(attrDesc, *buf, attrDesc.params);
+    return 0;
+  }
 
   case PayloadType::kUserData: parseUserData(*buf); return 0;
   }
@@ -225,19 +317,22 @@ PCCTMC3Decoder3::storeTileInventory(TileInventory&& inventory)
 
 //==========================================================================
 
-bool
-PCCTMC3Decoder3::frameIdxChanged(const GeometryBrickHeader& gbh) const
-{
-  // dont treat the first frame in the sequence as a frame boundary
-  if (_currentFrameIdx < 0)
-    return false;
-  return _currentFrameIdx != gbh.frame_idx;
-}
-
-//==========================================================================
-
 void
 PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
+{
+  // HACK: assume activation of the first SPS and GPS
+  // todo(df): parse brick header here for propper sps & gps activation
+  //  -- this is currently inconsistent between trisoup and octree
+  assert(!_spss.empty());
+  assert(!_gpss.empty());
+  _sps = &_spss.cbegin()->second;
+  _gps = &_gpss.cbegin()->second;
+}
+
+//--------------------------------------------------------------------------
+
+void
+PCCTMC3Decoder3::activateParameterSets(const AttributeParamInventoryHdr& hdr)
 {
   // HACK: assume activation of the first SPS and GPS
   // todo(df): parse brick header here for propper sps & gps activation
@@ -281,7 +376,6 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _prevSliceId = _sliceId;
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
-  _currentFrameIdx = _gbh.frame_idx;
 
   // sanity check for loss detection
   if (_gbh.entropy_continuation_flag) {
@@ -300,51 +394,30 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _currentPointCloud.resize(_gbh.footer.geom_num_points_minus1 + 1);
   if (hasColour) {
     auto it = std::find_if(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      _outCloud.attrDesc.cbegin(), _outCloud.attrDesc.cend(),
       [](const AttributeDescription& desc) {
         return desc.attributeLabel == KnownAttributeLabel::kColour;
       });
 
     Vec3<attr_t> defAttrVal = 1 << (it->bitdepth - 1);
-    if (!it->attr_default_value.empty())
+    if (!it->params.attr_default_value.empty())
       for (int k = 0; k < 3; k++)
-        defAttrVal[k] = it->attr_default_value[k];
+        defAttrVal[k] = it->params.attr_default_value[k];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setColor(i, defAttrVal);
   }
 
   if (hasReflectance) {
     auto it = std::find_if(
-      _sps->attributeSets.begin(), _sps->attributeSets.end(),
+      _outCloud.attrDesc.cbegin(), _outCloud.attrDesc.cend(),
       [](const AttributeDescription& desc) {
         return desc.attributeLabel == KnownAttributeLabel::kReflectance;
       });
     attr_t defAttrVal = 1 << (it->bitdepth - 1);
-    if (!it->attr_default_value.empty())
-      defAttrVal = it->attr_default_value[0];
+    if (!it->params.attr_default_value.empty())
+      defAttrVal = it->params.attr_default_value[0];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setReflectance(i, defAttrVal);
-  }
-
-  // add a dummy length value to simplify handling the last buffer
-  _gbh.geom_stream_len.push_back(buf.size());
-
-  std::vector<std::unique_ptr<EntropyDecoder>> arithmeticDecoders;
-  size_t bufRemaining = buf.size() - gbhSize - gbfSize;
-  const char* bufPtr = buf.data() + gbhSize;
-
-  for (int i = 0; i <= _gbh.geom_stream_cnt_minus1; i++) {
-    arithmeticDecoders.emplace_back(new EntropyDecoder);
-    auto& aec = arithmeticDecoders.back();
-
-    // NB: avoid reading beyond the end of the data unit
-    int bufLen = std::min(bufRemaining, _gbh.geom_stream_len[i]);
-
-    aec->setBuffer(bufLen, bufPtr);
-    aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
-    aec->start();
-    bufPtr += bufLen;
-    bufRemaining -= bufLen;
   }
 
   // Calculate a tree level at which to stop
@@ -363,24 +436,26 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     }
   }
 
+  EntropyDecoder aec;
+  aec.setBuffer(buf.size() - gbhSize - gbfSize, buf.data() + gbhSize);
+  aec.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+  aec.start();
+
   if (_gps->predgeom_enabled_flag)
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom,
-      arithmeticDecoders[0].get());
+      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom, aec);
   else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
-        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
-        arithmeticDecoders);
+        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
-        *_ctxtMemOctreeGeom, arithmeticDecoders);
+        *_ctxtMemOctreeGeom, aec);
     }
   } else {
     decodeGeometryTrisoup(
-      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom,
-      arithmeticDecoders);
+      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
   }
 
   // At least the first slice's geometry has been decoded
@@ -518,13 +593,13 @@ PCCTMC3Decoder3::decodeConstantAttribute(const PayloadBuffer& buf)
   if (label == KnownAttributeLabel::kColour) {
     Vec3<attr_t> defAttrVal;
     for (int k = 0; k < 3; k++)
-      defAttrVal[k] = attrDesc.attr_default_value[k];
+      defAttrVal[k] = attrDesc.params.attr_default_value[k];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setColor(i, defAttrVal);
   }
 
   if (label == KnownAttributeLabel::kReflectance) {
-    attr_t defAttrVal = attrDesc.attr_default_value[0];
+    attr_t defAttrVal = attrDesc.params.attr_default_value[0];
     for (int i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud.setReflectance(i, defAttrVal);
   }

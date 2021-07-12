@@ -3,7 +3,7 @@
  * party and contributor rights, including patent rights, and no such
  * rights are granted under this licence.
  *
- * Copyright (c) 2020, ISO/IEC
+ * Copyright (c) 2017-2021, ISO/IEC
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,89 +33,66 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "coordinate_conversion.h"
+#pragma once
 
-#include "geometry_octree.h"
+#include <vector>
+
+#include "PCCMath.h"
+#include "PCCPointSet.h"
+#include "hls.h"
 
 namespace pcc {
 
 //============================================================================
+// Represents a frame in the encoder or decoder.
 
-Box3<int>
-convertXyzToRpl(
-  Vec3<int> laserOrigin,
-  const int* laserThetaList,
-  int numTheta,
-  const Vec3<int>* begin,
-  const Vec3<int>* end,
-  Vec3<int>* dst)
-{
-  Box3<int> bbox(INT32_MAX, INT32_MIN);
+struct CloudFrame {
+  // The value of the decoder's reconstructed FrameCtr for this frame.
+  int frameNum;
 
-  for (auto it = begin; it != end; it++, dst++) {
-    auto pos = *it - laserOrigin;
-    auto laser = findLaser(pos, laserThetaList, numTheta);
+  // Defines the ordering of the position components (eg, xyz vs zyx)
+  AxisOrder geometry_axis_order;
 
-    int64_t xLaser = pos[0] << 8;
-    int64_t yLaser = pos[1] << 8;
-    (*dst)[0] = isqrt(xLaser * xLaser + yLaser * yLaser) >> 8;
-    (*dst)[1] = (iatan2(yLaser, xLaser) + 3294199) >> 8;
-    (*dst)[2] = laser;
+  // The length of the output cloud's unit vector.
+  // The units of outputUnitLength is given by outputUnit.
+  //
+  // When outputUnit is ScaleUnit::kMetres, outputUnitLength is
+  // measured in metres.
+  //
+  // When outputUnit is ScaleUnit::kDimensionless, outputUnitLength is
+  // measured in units of an external coordinate system.
+  double outputUnitLength;
 
-    bbox.insert(*dst);
-  }
+  // The unit of the output cloud's unit vector
+  ScaleUnit outputUnit;
 
-  return bbox;
-}
+  // The origin of the output cloud
+  // NB: this respects geometry_axis_order.
+  Vec3<int> outputOrigin;
 
-//----------------------------------------------------------------------------
+  // Number of fractional bits in representaiton of cloud.positions.
+  int outputFpBits;
 
-Vec3<int>
-normalisedAxesWeights(Box3<int>& bbox, int forcedMaxLog2)
-{
-  auto width = bbox.max - bbox.min + 1;
-  auto maxWidth = width.max();
+  // Descriptions of each attribute.  Attribute parameters in the description
+  // are only applicable to this frame -- they may change in a subsequent frame
+  std::vector<AttributeDescription> attrDesc;
 
-  // Otherwise morton code would overflow
-  assert(maxWidth < 1 << (21 + 8));
+  // The output point cloud.  The coordinate system is defined by the
+  // other parameters in this structure.
+  // NB: Point positions respect geometry_axis_order.
+  PCCPointSet3 cloud;
 
-  bool underflow = false;
-  if (forcedMaxLog2 > 0) {
-    for (int k = 0; k < 3; k++)
-      if (width[k] > 1 << (forcedMaxLog2 + 8)) {
-        std::cerr << "Warning: normalizedAxesWeight[" << k << "] underflow\n";
-        underflow = true;
-      }
+  // Determines parameters according to the sps.
+  void setParametersFrom(const SequenceParameterSet& sps, int fixedPointBits);
+};
 
-    while (maxWidth > 1 << (forcedMaxLog2 + 8))
-      ++forcedMaxLog2;
+//============================================================================
+// Scale point cloud geometry by global scale factor
 
-    if (underflow)
-      std::cerr << "Using " << forcedMaxLog2 << " scaling instead\n";
-    maxWidth = 1 << forcedMaxLog2;
-  }
-
-  maxWidth = std::min(1 << 21, maxWidth);
-
-  Vec3<int> axesWeight;
-  for (int k = 0; k < 3; k++)
-    axesWeight[k] = (maxWidth << 8) / width[k];
-
-  return axesWeight;
-}
-
-//----------------------------------------------------------------------------
-
-void
-offsetAndScale(
-  const Vec3<int>& minPos,
-  const Vec3<int>& axisWeight,
-  Vec3<int>* begin,
-  Vec3<int>* end)
-{
-  for (auto it = begin; it != end; it++)
-    *it = times((*it - minPos), axisWeight) + (1 << 7) >> 8;
-}
+void scaleGeometry(
+  PCCPointSet3& cloud,
+  const SequenceParameterSet::GlobalScale& globalScale,
+  int fixedPointFracBits);
 
 //============================================================================
 

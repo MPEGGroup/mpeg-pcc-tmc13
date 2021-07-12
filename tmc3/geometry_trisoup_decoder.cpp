@@ -93,16 +93,13 @@ decodeGeometryTrisoup(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMemOctree,
-  std::vector<std::unique_ptr<EntropyDecoder>>& arithmeticDecoders)
+  EntropyDecoder& arithmeticDecoder)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   // todo(df): pass trisoup node size rather than 0?
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
-    gps, gbh, 0, pointCloud, ctxtMemOctree, arithmeticDecoders, &nodes);
-
-  // resume decoding with the last decoder
-  auto arithmeticDecoder = arithmeticDecoders.back().get();
+    gps, gbh, 0, pointCloud, ctxtMemOctree, arithmeticDecoder, &nodes);
 
   int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
 
@@ -110,7 +107,7 @@ decodeGeometryTrisoup(
   AdaptiveBitModel ctxTempSeg;
   std::vector<bool> segind;
   for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
-    bool c = !!(arithmeticDecoder->decode(ctxTempSeg));
+    bool c = !!(arithmeticDecoder.decode(ctxTempSeg));
     segind.push_back(c);
     numVertices += c;
   }
@@ -120,7 +117,7 @@ decodeGeometryTrisoup(
   for (int i = 0; i < numVertices; i++) {
     uint8_t c = 0;
     for (int b = gbh.trisoupNodeSizeLog2(gps); b > 0; b--)
-      c = (c << 1) | arithmeticDecoder->decode();
+      c = (c << 1) | arithmeticDecoder.decode();
     vertices.push_back(c);
   }
 
@@ -164,52 +161,29 @@ truncate(const Vec3<int64_t> in, const int32_t offset)
 }
 
 //---------------------------------------------------------------------------
-// An integer approximation of atan2().
-// x, y, and the returned result are fixed-point integers with
-// kTrisoupFpBits fractional bits
 
 int32_t
-trisoupAtan2(int32_t x, int32_t y)
+trisoupVertexArc(int32_t x, int32_t y, int32_t halfWidth)
 {
-  assert(x != 0 && y != 0);
-  if (y == 0) {
-    if (x < 0)
-      return 804;  // PI * (1<< kTrisoupFpBits)
-    else
-      return 0;
-  } else if (x == 0) {
-    if (y > 0)
-      return 402;  // (PI/2)   * (1<< kTrisoupFpBits)
-    else
-      return 1206;  // (PI*3/2) * (1<< kTrisoupFpBits)
-  } else {
-    int idx = 0;
-    int z = abs((y << 8) / x);  //rad is calc in (x>0 && y>0) domain
-    if (z <= 256) {             //1<<kTrisoupFpBits
-      idx = z / 12;             //0.05<<kTrisoupFpBits
-    } else {
-      idx = z > 40 ? 40 : z;
+  int32_t score;
+
+  if (x >= halfWidth) {
+    score = y;
+    if (y < 0) {
+      score += (halfWidth * 8);
     }
-
-    static const int kAtanLut[41] = {
-      0,   12,  25,  38,  50,  62,  74,  86,  97,  108, 118, 128, 138, 147,
-      156, 164, 172, 180, 187, 194, 201, 283, 319, 339, 351, 359, 365, 370,
-      373, 376, 378, 380, 382, 383, 385, 386, 387, 387, 388, 389, 389};
-    int atan = kAtanLut[idx];
-
-    //offset
-    if (x < 0 && y > 0)
-      atan += 402;  // + PI/2
-    else if (x < 0 && y < 0)
-      atan += 804;  // + PI
-    else if (x > 0 && y < 0)
-      atan += 1206;  // + PI*3/2
-    return atan;
+  } else if (y >= halfWidth) {
+    score = -x + (halfWidth * 2);
+  } else if (x <= -halfWidth) {
+    score = -y + (halfWidth * 4);
+  } else {
+    score = x + (halfWidth * 6);
   }
+
+  return score;
 }
 
 //---------------------------------------------------------------------------
-
 bool
 boundaryinsidecheck(const Vec3<int32_t> a, const int bbsize)
 {
@@ -427,27 +401,25 @@ decodeTrisoupCommon(
     if (leafVertices.size() < 3)
       continue;
 
-    // Compute mean of leaf vertices.
-    Vec3<int32_t> blockCentroid = 0;
-    for (int j = 0; j < leafVertices.size(); j++) {
-      blockCentroid += leafVertices[j].pos;
-    }
-    blockCentroid /= (int32_t)leafVertices.size();
-
-    // Compute variance of each component of leaf vertices.
-    Vec3<int32_t> SS = 0;
-    for (int j = 0; j < leafVertices.size(); j++) {
-      Vec3<int32_t> S = leafVertices[j].pos - blockCentroid;
-      SS += times(S, S) >> kTrisoupFpBits;
+    // Determine dominant axis
+    Vec3<int32_t> minPos = leafVertices[0].pos;
+    Vec3<int32_t> maxPos = leafVertices[0].pos;
+    for (int j = 1; j < leafVertices.size(); j++) {
+      for (int k = 0; k < 3; k++) {
+        if (leafVertices[j].pos[k] > maxPos[k])
+          maxPos[k] = leafVertices[j].pos[k];
+        else if (leafVertices[j].pos[k] < minPos[k])
+          minPos[k] = leafVertices[j].pos[k];
+      }
     }
 
-    // Dominant axis is the coordinate minimizing the variance.
-    int32_t minSS = SS[0];
+    Vec3<int32_t> diffMaxMin = maxPos - minPos;
+    int32_t minDiff = diffMaxMin[0];
     int32_t dominantAxis = 0;
-    for (int32_t j = 1; j < 3; j++) {
-      if (minSS > SS[j]) {
-        minSS = SS[j];
-        dominantAxis = j;
+    for (int k = 1; k < 3; k++) {
+      if (diffMaxMin[k] < minDiff) {
+        minDiff = diffMaxMin[k];
+        dominantAxis = k;
       }
     }
 
@@ -459,20 +431,21 @@ decodeTrisoupCommon(
     Vec3<int32_t> blockCenter = {bc[0] << kTrisoupFpBits,
                                  bc[1] << kTrisoupFpBits,
                                  bc[2] << kTrisoupFpBits};
+    int32_t halfWidth = (blockWidth / 2) << kTrisoupFpBits;
     for (int j = 0; j < leafVertices.size(); j++) {
-      Vec3<int32_t> S = leafVertices[j].pos - blockCenter;
+      Vec3<int32_t> s = leafVertices[j].pos - blockCenter;
       switch (dominantAxis) {
       case 0:  // dominant axis is X so project into YZ plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[2], S[1]);
-        leafVertices[j].tiebreaker = S[0];
+        leafVertices[j].theta = trisoupVertexArc(s[2], s[1], halfWidth);
+        leafVertices[j].tiebreaker = s[0];
         break;
       case 1:  // dominant axis is Y so project into XZ plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[2], S[0]);
-        leafVertices[j].tiebreaker = S[1];
+        leafVertices[j].theta = trisoupVertexArc(s[2], s[0], halfWidth);
+        leafVertices[j].tiebreaker = s[1];
         break;
       case 2:  // dominant axis is Z so project into XY plane
-        leafVertices[j].theta = (int32_t)trisoupAtan2(S[1], S[0]);
-        leafVertices[j].tiebreaker = S[2];
+        leafVertices[j].theta = trisoupVertexArc(s[1], s[0], halfWidth);
+        leafVertices[j].tiebreaker = s[2];
         break;
       }
     }

@@ -81,12 +81,16 @@ struct SrcMappedPointSet {
 //============================================================================
 // Subsample a point cloud, retaining unique points only.
 // Uniqueness is assessed by quantising each position by a multiplicative
-// @scaleFactor.  Output points are not quantised, only translated by -@offset.
+// @sampleScale.  Output points are quantised by @quantScale with rounding,
+// and translated by -@offset.
 //
 // NB: attributes are not processed.
 
 SrcMappedPointSet samplePositionsUniq(
-  const float scaleFactor, const Vec3<int> offset, const PCCPointSet3& src);
+  float sampleScale,
+  float quantScale,
+  Vec3<int> offset,
+  const PCCPointSet3& src);
 
 //============================================================================
 // Quantise the geometry of a point cloud, retaining unique points only.
@@ -212,6 +216,9 @@ std::vector<int32_t> orderByAzimuth(
 std::vector<int32_t>
 orderByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin);
 
+std::vector<int32_t> orderByLaserAngle(
+  PCCPointSet3&, int start, int end, int numDigit, Vec3<int32_t> origin);
+
 // Sorts points according to azimuth angle.
 void sortByAzimuth(
   PCCPointSet3&,
@@ -221,6 +228,13 @@ void sortByAzimuth(
   Vec3<int32_t> origin = 0);
 
 void sortByRadius(PCCPointSet3&, int start, int end, Vec3<int32_t> origin = 0);
+
+void sortByLaserAngle(
+  PCCPointSet3&,
+  int start,
+  int end,
+  double recipBinWidth,
+  Vec3<int32_t> origin = 0);
 
 //============================================================================
 
