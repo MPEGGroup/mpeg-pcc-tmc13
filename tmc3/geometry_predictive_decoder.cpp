@@ -78,7 +78,7 @@ private:
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   int32_t decodeResPhi(int predIdx, int boundPhi);
-  Vec3<int32_t> decodeResidual(int mode, int rPred);
+  Vec3<int32_t> decodeResidual(int mode, int rPred, int *azimuthSpeed);
   Vec3<int32_t> decodeResidual2();
   int32_t decodePhiMultiplier(GPredicter::Mode mode);
   int32_t decodeQpOffset();
@@ -303,10 +303,11 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual(int mode, int rPred)
+PredGeomDecoder::decodeResidual(int mode, int rPred, int* azimuthSpeed)
 {
   Vec3<int32_t> residual;
 
+  *azimuthSpeed = _geomAngularAzimuthSpeed;
   for (int k = 0, ctxIdx = 0; k < 3; ++k) {
     // The last component (delta laseridx) isn't coded if there is one laser
     if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2) {
@@ -319,6 +320,14 @@ PredGeomDecoder::decodeResidual(int mode, int rPred)
       auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
       int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
       residual[1] = decodeResPhi(mode, phiBound);
+      if (r && !phiBound) {
+        const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
+        int32_t speedTimesR32 = speedTimesR;
+        while (speedTimesR32 < pi) {
+          speedTimesR32 <<= 1;
+          *azimuthSpeed <<= 1;
+        }
+      }
       continue;
     }
 
@@ -392,18 +401,21 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
 
     auto pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
 
-    auto residual = decodeResidual(mode, pred[0]);
+    int azimuthSpeed;
+    auto residual = decodeResidual(mode, pred[0], &azimuthSpeed);
     if (!_geom_angular_mode_enabled_flag)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
 
-    if (_geom_angular_mode_enabled_flag)
+    if (_geom_angular_mode_enabled_flag && !_azimuth_scaling_enabled_flag)
       if (mode >= 0)
         pred[1] += qphi * _geomAngularAzimuthSpeed;
 
     if (_azimuth_scaling_enabled_flag) {
       auto r = (pred[0] + residual[0]) << 3;
-      if (!r)
+      if (r)
+        pred[1] += qphi * azimuthSpeed;
+      else
         r = 1;
       int32_t rInvLog2Scale;
       int64_t rInv = recipApprox(r, rInvLog2Scale);

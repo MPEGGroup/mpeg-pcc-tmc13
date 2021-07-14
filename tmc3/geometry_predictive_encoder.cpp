@@ -569,6 +569,7 @@ PredGeomEncoder::encodeTree(
 
     // mode decision to pick best prediction from available set
     int qphi = 0;
+    auto azimuthSpeed = _geomAngularAzimuthSpeed;
     std::bitset<4> unusable;
     for (int iMode = 0; iMode < 4; iMode++) {
       GPredicter::Mode mode = GPredicter::Mode(iMode);
@@ -597,17 +598,25 @@ PredGeomEncoder::encodeTree(
           // Quantize phi by 8r/2^n
           auto r = (pred[0] + residual[0]) << 3;
 
+          azimuthSpeed = _geomAngularAzimuthSpeed;
           qphi = 0;
-          auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
+          auto speedTimesR = int64_t(azimuthSpeed) * r;
           int phiBound = divExp2RoundHalfInf(
             speedTimesR, _azimuthTwoPiLog2 + 1);
           if (r) {
-            qphi = residual[1] >= 0
-              ? (residual[1] + (_geomAngularAzimuthSpeed >> 1))
-                / _geomAngularAzimuthSpeed
-              : -(-residual[1] + (_geomAngularAzimuthSpeed >> 1))
-                / _geomAngularAzimuthSpeed;
-            pred[1] += qphi * _geomAngularAzimuthSpeed;
+            if (!phiBound) {
+              const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
+              int32_t speedTimesR32 = speedTimesR;
+              while (speedTimesR32 < pi) {
+                speedTimesR32 <<= 1;
+                azimuthSpeed <<= 1;
+              }
+            }
+            qphi = residual[1] >= 0 ? (residual[1] + (azimuthSpeed >> 1))
+                / azimuthSpeed
+                                    : -(-residual[1] + (azimuthSpeed >> 1))
+                / azimuthSpeed;
+            pred[1] += qphi * azimuthSpeed;
             residual[1] = point[1] - pred[1];
             while (residual[1] < -1<<(_azimuthTwoPiLog2-1))
               residual[1] += (1<<_azimuthTwoPiLog2)+1;
