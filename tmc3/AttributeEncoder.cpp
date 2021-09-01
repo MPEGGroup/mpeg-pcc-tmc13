@@ -659,10 +659,6 @@ AttributeEncoder::encodeReflectancesPred(
   const int64_t clipMax = (1ll << desc.bitdepth) - 1;
   PCCResidualsEntropyEstimator context;
   int zeroRunAcc = 0;
-  std::vector<int> zerorun;
-  zerorun.reserve(pointCount);
-  std::vector<uint32_t> residual;
-  residual.resize(pointCount);
 
   int quantLayer = 0;
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -704,28 +700,15 @@ AttributeEncoder::encodeReflectancesPred(
     if (!attValue0)
       ++zeroRunAcc;
     else {
-      zerorun.push_back(zeroRunAcc);
+      encoder.encodeRunLength(zeroRunAcc);
+      encoder.encode(attValue0);
       zeroRunAcc = 0;
     }
-    residual[predictorIndex] = attValue0;
     pointCloud.setReflectance(pointIndex, reconstructedReflectance);
     encoder.resStatUpdateRefl(attValue0);
   }
   if (zeroRunAcc)
-    zerorun.push_back(zeroRunAcc);
-
-  int runIdx = 0;
-  int zeroRunRem = 0;
-  for (size_t predictorIndex = 0; predictorIndex < pointCount;
-       ++predictorIndex) {
-    if (--zeroRunRem < 0) {
-      zeroRunRem = zerorun[runIdx++];
-      encoder.encodeRunLength(zeroRunRem);
-    }
-
-    if (!zeroRunRem)
-      encoder.encode(residual[predictorIndex]);
-  }
+    encoder.encodeRunLength(zeroRunAcc);
 }
 
 //----------------------------------------------------------------------------
@@ -961,11 +944,6 @@ AttributeEncoder::encodeColorsPred(
   Vec3<int32_t> values;
   PCCResidualsEntropyEstimator context;
   int zeroRunAcc = 0;
-  std::vector<int> zerorun;
-  std::vector<int32_t> residual[3];
-  for (int i = 0; i < 3; i++) {
-    residual[i].resize(pointCount);
-  }
 
   bool icpPresent = _abh->icpPresent(desc, aps);
   if (icpPresent)
@@ -1034,33 +1012,13 @@ AttributeEncoder::encodeColorsPred(
     if (!values[0] && !values[1] && !values[2]) {
       ++zeroRunAcc;
     } else {
-      zerorun.push_back(zeroRunAcc);
+      encoder.encodeRunLength(zeroRunAcc);
+      encoder.encode(values[0], values[1], values[2]);
       zeroRunAcc = 0;
-    }
-
-    for (int i = 0; i < 3; i++) {
-      residual[i][predictorIndex] = values[i];
     }
   }
   if (zeroRunAcc)
-    zerorun.push_back(zeroRunAcc);
-
-  int runIdx = 0;
-  int zeroRunRem = 0;
-  for (size_t predictorIndex = 0; predictorIndex < pointCount;
-       ++predictorIndex) {
-    if (--zeroRunRem < 0) {
-      zeroRunRem = zerorun[runIdx++];
-      encoder.encodeRunLength(zeroRunRem);
-    }
-
-    if (!zeroRunRem) {
-      for (size_t k = 0; k < 3; k++)
-        values[k] = residual[k][predictorIndex];
-
-      encoder.encode(values[0], values[1], values[2]);
-    }
-  }
+    encoder.encodeRunLength(zeroRunAcc);
 }
 
 //----------------------------------------------------------------------------
