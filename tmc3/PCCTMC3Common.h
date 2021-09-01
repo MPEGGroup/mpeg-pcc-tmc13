@@ -586,7 +586,7 @@ computeNearestNeighbors(
   int32_t startIndex,
   int32_t endIndex,
   int32_t lodIndex,
-  std::vector<uint32_t>& indexes,
+  const std::vector<uint32_t>& indexes,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
@@ -702,7 +702,6 @@ computeNearestNeighbors(
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const int32_t pointIndex = pv.index;
     const auto bpoint = biasedPos[index];
-    indexes[i] = pointIndex;
     auto& predictor = predictors[--predIndex];
     pointIndexToPredictorIndex[pointIndex] = predIndex;
 
@@ -1320,9 +1319,6 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
   bool concatenateLayers = aps.scalable_lifting_enabled_flag;
-  std::vector<uint32_t> indexesOfSubsample;
-  if (concatenateLayers)
-    indexesOfSubsample.reserve(pointCount);
 
   std::vector<Box3<int32_t>> bBoxes;
 
@@ -1348,18 +1344,11 @@ buildPredictorsFast(
     const int32_t endIndex = indexes.size();
 
     if (concatenateLayers) {
-      indexesOfSubsample.resize(endIndex);
       if (startIndex != endIndex) {
-        for (int32_t i = startIndex; i < endIndex; i++)
-          indexesOfSubsample[i] = indexes[i];
-
         int32_t numOfPointInSkipped = geom_num_points_minus1 + 1 - pointCount;
         if (endIndex - startIndex <= startIndex + numOfPointInSkipped) {
           concatenateLayers = false;
         } else {
-          for (int32_t i = 0; i < startIndex; i++)
-            indexes[i] = indexesOfSubsample[i];
-
           // reset predIndex
           predIndex = pointCount;
           for (int lod = 0; lod < lodIndex - minGeomNodeSizeLog2; lod++) {
@@ -1388,6 +1377,11 @@ buildPredictorsFast(
     std::swap(retained, input);
   }
   std::reverse(indexes.begin(), indexes.end());
+
+  // convert indexes from packedVoxel index to cloud index
+  for (auto& index : indexes)
+    index = packedVoxel[index].index;
+
   updatePredictors(pointIndexToPredictorIndex, predictors);
   std::reverse(
     numberOfPointsPerLevelOfDetail.begin(),
