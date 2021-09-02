@@ -40,15 +40,118 @@
 #include "PCCPointSet.h"
 #include "constants.h"
 #include "hls.h"
+#include "idxiterator.h"
 
 #include "nanoflann.hpp"
 
 #include <cstdint>
 #include <cstddef>
+#include <iterator>
 #include <memory>
 #include <vector>
 
 namespace pcc {
+
+//============================================================================
+
+namespace LodOrder {
+  class CoarsestToFinest;
+  class FinestToCoarsest;
+};  // namespace LodOrder
+
+//----------------------------------------------------------------------------
+
+class LodOrder::CoarsestToFinest {
+public:
+  using const_iterator = IdxIterator;
+  using iterator = const_iterator;
+
+  CoarsestToFinest(size_t lodCnt) : _lodCnt(lodCnt) {}
+  iterator begin() const { return iterator(0); }
+  iterator end() const { return iterator(_lodCnt); }
+
+private:
+  size_t _lodCnt;
+};
+
+//----------------------------------------------------------------------------
+
+class LodOrder::FinestToCoarsest {
+public:
+  using const_iterator = std::reverse_iterator<IdxIterator>;
+  using iterator = const_iterator;
+
+  FinestToCoarsest(size_t lodCnt) : _lodCnt(lodCnt) {}
+  iterator begin() const { return iterator(_lodCnt); }
+  iterator end() const { return iterator(0); }
+
+private:
+  size_t _lodCnt;
+};
+
+//============================================================================
+// Represents a range of coefficient indexes in a particular detail level.
+//
+// begin() always refers to the first coefficent in the lod = '[' below.
+// end() always refers to one past the last coefficient in the lod = ')' below.
+//
+// lod2     : |---------------------------------------------|
+//  `coeffs : [-------------------------------)
+// lod1     :                                 |-------------|
+//  `coeffs :                                 [---------)
+// lod0     :                                           [---|
+//  `coeffs :                                           [----)
+//
+// This implementation assumes that the end of the coarsest lod (lod=0) is
+// at index 0 of the underlying array and that the first coefficient of the
+// finest lod is at the end of the underlying array.
+
+class LodCoeffIdxRange {
+public:
+  using const_iterator = IdxIterator;
+  using reverse_const_iterator = std::reverse_iterator<IdxIterator>;
+  using iterator = const_iterator;
+  using reverse_iterator = reverse_const_iterator;
+
+  // The index range of coefficients in the lod-th detail level.
+  // lod=0 is the coarsest LoD.
+  //
+  // NB: lodSizes and lod are in the opposite order to the spec's convention.
+  LodCoeffIdxRange(const std::vector<uint32_t>& lodSizes, int lod)
+  {
+    _end = lod ? lodSizes[lod - 1] : 0;
+    _begin = lodSizes[lod];
+  }
+
+  // Explicit range of underlying indexes
+  LodCoeffIdxRange(size_t begin, size_t end) : _begin(begin), _end(end) {}
+
+  // A reverse iterator to the one-past-the-last index in the range
+  iterator rbegin() const { return iterator(_end); }
+
+  // A reverse iterator to the first index in the range
+  iterator rend() const { return iterator(_begin); }
+
+  // An iterator to the first index in the range
+  reverse_iterator begin() const { return reverse_iterator(_begin); }
+
+  // An iterator to the one-past-the-last index in the range
+  reverse_iterator end() const { return reverse_iterator(_end); }
+
+  // True if idx is in a finer LoD than the this range.
+  bool isFinerLodThan(size_t idx) const { return idx <= _end; }
+
+  // The range of points in the next (coarser) lod.
+  LodCoeffIdxRange nextCoarserLodRange() const
+  {
+    // The coarsest LoD starts at 0.
+    return LodCoeffIdxRange(_end, 0);
+  }
+
+private:
+  size_t _begin;
+  size_t _end;
+};
 
 //============================================================================
 // Hierachichal bounding boxes.
@@ -366,22 +469,25 @@ template<typename T>
 void
 PCCLiftPredict(
   const std::vector<PCCPredictor>& predictors,
-  const size_t startIndex,
-  const size_t endIndex,
+  const LodCoeffIdxRange& coeffRange,
   const bool direct,
   std::vector<T>& attributes)
 {
-  const size_t predictorCount = endIndex - startIndex;
-  for (size_t index = 0; index < predictorCount; ++index) {
-    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
+  // NB: in lifting, the traversal order within a layer does not matter
+  // since there are no intra-layer dependencies.
+  for (auto predictorIndex : coeffRange) {
     const auto& predictor = predictors[predictorIndex];
     auto& attribute = attributes[predictorIndex];
     T predicted(T(0));
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
       const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
       const uint32_t weight = predictor.neighbors[i].weight;
-      assert(neighborPredIndex < startIndex);
       predicted += weight * attributes[neighborPredIndex];
+
+      // When predicting, there shall be no dependencies between coefficients
+      // in the same detail level.  Ie, all prediction must be from a coarser
+      // detail level.
+      assert(coeffRange.isFinerLodThan(neighborPredIndex));
     }
     predicted = divExp2RoundHalfInf(predicted, kFixedPointWeightShift);
     if (direct) {
@@ -399,21 +505,16 @@ void
 PCCLiftUpdate(
   const std::vector<PCCPredictor>& predictors,
   const std::vector<uint64_t>& quantizationWeights,
-  const size_t startIndex,
-  const size_t endIndex,
+  const LodCoeffIdxRange& coeffRange,
   const bool direct,
   std::vector<T>& attributes)
 {
-  std::vector<uint64_t> updateWeights;
-  updateWeights.resize(startIndex, uint64_t(0));
-  std::vector<T> updates;
-  updates.resize(startIndex);
-  for (size_t index = 0; index < startIndex; ++index) {
-    updates[index] = int64_t(0);
-  }
-  const size_t predictorCount = endIndex - startIndex;
-  for (size_t index = 0; index < predictorCount; ++index) {
-    const size_t predictorIndex = predictorCount - index - 1 + startIndex;
+  std::vector<uint64_t> updateWeights(predictors.size(), 0);
+  std::vector<T> updates(predictors.size(), 0);
+
+  // NB: in lifting, the traversal order within a layer does not matter
+  // since there are no intra-layer dependencies.
+  for (auto predictorIndex : coeffRange) {
     const auto& predictor = predictors[predictorIndex];
     const auto currentQuantWeight = quantizationWeights[predictorIndex];
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
@@ -421,13 +522,13 @@ PCCLiftUpdate(
       const auto weight = divExp2RoundHalfInf(
         predictor.neighbors[i].weight * currentQuantWeight,
         kFixedPointWeightShift);
-      assert(neighborPredIndex < startIndex);
       updateWeights[neighborPredIndex] += weight;
       updates[neighborPredIndex] += weight * attributes[predictorIndex];
     }
   }
-  for (size_t predictorIndex = 0; predictorIndex < startIndex;
-       ++predictorIndex) {
+
+  // updates apply to the subsequent detail levels
+  for (auto predictorIndex : coeffRange.nextCoarserLodRange()) {
     const uint32_t sumWeights = updateWeights[predictorIndex];
     if (sumWeights) {
       auto& update = updates[predictorIndex];
@@ -445,25 +546,28 @@ PCCLiftUpdate(
 //---------------------------------------------------------------------------
 
 inline void
-PCCComputeQuantizationWeights(
+computeQuantizationWeights(
+  const std::vector<uint32_t>& numPointsInLod,
   const std::vector<PCCPredictor>& predictors,
   std::vector<uint64_t>& quantizationWeights)
 {
   const size_t pointCount = predictors.size();
-  quantizationWeights.resize(pointCount);
-  for (size_t i = 0; i < pointCount; ++i) {
-    quantizationWeights[i] = (1 << kFixedPointWeightShift);
-  }
-  for (size_t i = 0; i < pointCount; ++i) {
-    const size_t predictorIndex = pointCount - i - 1;
-    const auto& predictor = predictors[predictorIndex];
-    const auto currentQuantWeight = quantizationWeights[predictorIndex];
-    for (size_t j = 0; j < predictor.neighborCount; ++j) {
-      const size_t neighborPredIndex = predictor.neighbors[j].predictorIndex;
-      const auto weight = predictor.neighbors[j].weight;
-      auto& neighborQuantWeight = quantizationWeights[neighborPredIndex];
-      neighborQuantWeight += divExp2RoundHalfInf(
-        weight * currentQuantWeight, kFixedPointWeightShift);
+  quantizationWeights.assign(pointCount, 1 << kFixedPointWeightShift);
+
+  // NB: the traversal order withn an LoD doesn't matter as there are no
+  // intra-LoD dependencies.
+  const size_t lodCount = numPointsInLod.size();
+  for (auto lod : LodOrder::FinestToCoarsest(lodCount)) {
+    for (auto coeffIdx : LodCoeffIdxRange(numPointsInLod, lod)) {
+      const auto& predictor = predictors[coeffIdx];
+      const auto currentQuantWeight = quantizationWeights[coeffIdx];
+      for (size_t j = 0; j < predictor.neighborCount; ++j) {
+        const size_t neighborPredIndex = predictor.neighbors[j].predictorIndex;
+        const auto weight = predictor.neighbors[j].weight;
+        auto& neighborQuantWeight = quantizationWeights[neighborPredIndex];
+        neighborQuantWeight += divExp2RoundHalfInf(
+          weight * currentQuantWeight, kFixedPointWeightShift);
+      }
     }
   }
 }
@@ -472,36 +576,29 @@ PCCComputeQuantizationWeights(
 
 inline void
 computeQuantizationWeightsScalable(
+  const std::vector<uint32_t>& numPointsInLod,
   const std::vector<PCCPredictor>& predictors,
-  const std::vector<uint32_t>& numberOfPointsPerLOD,
   size_t numPoints,
   int32_t minGeomNodeSizeLog2,
   std::vector<uint64_t>& quantizationWeights)
 {
   const size_t pointCount = predictors.size();
   quantizationWeights.resize(pointCount);
-  for (size_t i = 0; i < pointCount; ++i) {
-    quantizationWeights[i] = (1 << kFixedPointWeightShift);
-  }
 
-  const size_t lodCount = numberOfPointsPerLOD.size();
-  for (size_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
-    const size_t startIndex =
-      (lodIndex == 0) ? 0 : numberOfPointsPerLOD[lodIndex - 1];
-    const size_t endIndex = numberOfPointsPerLOD[lodIndex];
-    const uint64_t currentQuantWeight =
-      (numPoints / numberOfPointsPerLOD[lodIndex]) << kFixedPointWeightShift;
-
-    const size_t predictorCount = endIndex - startIndex;
-    for (size_t index = 0; index < predictorCount; ++index) {
-      const size_t predictorIndex = index + startIndex;
-
-      if (!minGeomNodeSizeLog2 && (lodIndex == lodCount - 1)) {
-        quantizationWeights[predictorIndex] = (1 << kFixedPointWeightShift);
-      } else {
-        quantizationWeights[predictorIndex] = currentQuantWeight;
-      }
+  const size_t lodCount = numPointsInLod.size();
+  for (auto lod : LodOrder::CoarsestToFinest(lodCount)) {
+    // The finest lod uses weight = 256.
+    if (!minGeomNodeSizeLog2 && lod == lodCount - 1) {
+      for (auto coeffIdx : LodCoeffIdxRange(numPointsInLod, lod))
+        quantizationWeights[coeffIdx] = 1 << kFixedPointWeightShift;
+      continue;
     }
+
+    const uint64_t quantWeight = (numPoints / numPointsInLod[lod])
+      << kFixedPointWeightShift;
+
+    for (auto coeffIdx : LodCoeffIdxRange(numPointsInLod, lod))
+      quantizationWeights[coeffIdx] = quantWeight;
   }
 }
 

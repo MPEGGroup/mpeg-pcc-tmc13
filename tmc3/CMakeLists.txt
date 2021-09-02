@@ -94,6 +94,7 @@ file(GLOB PROJECT_INC_FILES
   "geometry_predictive.h"
   "geometry_trisoup.h"
   "hls.h"
+  "idxiterator.h"
   "io_hls.h"
   "io_tlv.h"
   "osspecific.h"
