@@ -103,8 +103,8 @@ private:
 //  `coeffs :                                           [----)
 //
 // This implementation assumes that the end of the coarsest lod (lod=0) is
-// at index 0 of the underlying array and that the first coefficient of the
-// finest lod is at the end of the underlying array.
+// at the end of the underlying array and that the first coefficient of the
+// finest lod is at the start of the underlying array.
 
 class LodCoeffIdxRange {
 public:
@@ -119,33 +119,35 @@ public:
   // NB: lodSizes and lod are in the opposite order to the spec's convention.
   LodCoeffIdxRange(const std::vector<uint32_t>& lodSizes, int lod)
   {
-    _end = lod ? lodSizes[lod - 1] : 0;
-    _begin = lodSizes[lod];
+    auto pointCount = lodSizes.back();
+    _begin = pointCount - lodSizes[lod];
+    _end = pointCount - (lod ? lodSizes[lod - 1] : 0);
   }
 
   // Explicit range of underlying indexes
   LodCoeffIdxRange(size_t begin, size_t end) : _begin(begin), _end(end) {}
 
-  // A reverse iterator to the one-past-the-last index in the range
-  iterator rbegin() const { return iterator(_end); }
-
-  // A reverse iterator to the first index in the range
-  iterator rend() const { return iterator(_begin); }
-
   // An iterator to the first index in the range
-  reverse_iterator begin() const { return reverse_iterator(_begin); }
+  iterator begin() const { return iterator(_begin); }
 
   // An iterator to the one-past-the-last index in the range
-  reverse_iterator end() const { return reverse_iterator(_end); }
+  iterator end() const { return iterator(_end); }
+
+  // A reverse iterator to the one-past-the-last index in the range
+  reverse_iterator rbegin() const { return reverse_iterator(_end); }
+
+  // A reverse iterator to the first index in the range
+  reverse_iterator rend() const { return reverse_iterator(_begin); }
 
   // True if idx is in a finer LoD than the this range.
-  bool isFinerLodThan(size_t idx) const { return idx <= _end; }
+  bool isFinerLodThan(size_t idx) const { return idx >= _end; }
 
   // The range of points in the next (coarser) lod.
-  LodCoeffIdxRange nextCoarserLodRange() const
+  // \param numPoints  the number of points in the finest LoD
+  LodCoeffIdxRange nextCoarserLodRange(size_t numPoints) const
   {
-    // The coarsest LoD starts at 0.
-    return LodCoeffIdxRange(_end, 0);
+    // The coarsest LoD ends at numPoints-1.
+    return LodCoeffIdxRange(_end, numPoints);
   }
 
 private:
@@ -528,7 +530,7 @@ PCCLiftUpdate(
   }
 
   // updates apply to the subsequent detail levels
-  for (auto predictorIndex : coeffRange.nextCoarserLodRange()) {
+  for (auto predictorIndex : coeffRange.nextCoarserLodRange(updates.size())) {
     const uint32_t sumWeights = updateWeights[predictorIndex];
     if (sumWeights) {
       auto& update = updates[predictorIndex];
@@ -686,7 +688,6 @@ computeNearestNeighbors(
   const std::vector<uint32_t>& indexes,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
-  int32_t& predIndex,
   MortonIndexMap3d& atlas)
 {
   constexpr auto searchRangeNear = 2;
@@ -799,8 +800,8 @@ computeNearestNeighbors(
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
     const int32_t pointIndex = pv.index;
     const auto bpoint = biasedPos[index];
-    auto& predictor = predictors[--predIndex];
-    pointIndexToPredictorIndex[pointIndex] = predIndex;
+    auto& predictor = predictors[i];
+    pointIndexToPredictorIndex[pointIndex] = i;
 
     if (retainedSize) {
       while (j < retainedSize - 1
@@ -1425,7 +1426,6 @@ buildPredictorsFast(
   atlas.init();
 
   auto maxNumDetailLevels = aps.maxNumDetailLevels();
-  int32_t predIndex = int32_t(pointCount);
   for (auto lodIndex = minGeomNodeSizeLog2;
        !input.empty() && lodIndex < maxNumDetailLevels; ++lodIndex) {
     const int32_t startIndex = indexes.size();
@@ -1446,8 +1446,6 @@ buildPredictorsFast(
         if (endIndex - startIndex <= startIndex + numOfPointInSkipped) {
           concatenateLayers = false;
         } else {
-          // reset predIndex
-          predIndex = pointCount;
           for (int lod = 0; lod < lodIndex - minGeomNodeSizeLog2; lod++) {
             int divided_startIndex =
               pointCount - numberOfPointsPerLevelOfDetail[lod];
@@ -1457,7 +1455,7 @@ buildPredictorsFast(
             computeNearestNeighbors(
               aps, abh, packedVoxel, retained, divided_startIndex,
               divided_endIndex, lod + minGeomNodeSizeLog2, indexes, predictors,
-              pointIndexToPredictorIndex, predIndex, atlas);
+              pointIndexToPredictorIndex, atlas);
           }
         }
       }
@@ -1465,7 +1463,7 @@ buildPredictorsFast(
 
     computeNearestNeighbors(
       aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex, indexes,
-      predictors, pointIndexToPredictorIndex, predIndex, atlas);
+      predictors, pointIndexToPredictorIndex, atlas);
 
     if (!retained.empty()) {
       numberOfPointsPerLevelOfDetail.push_back(retained.size());
@@ -1473,7 +1471,6 @@ buildPredictorsFast(
     input.resize(0);
     std::swap(retained, input);
   }
-  std::reverse(indexes.begin(), indexes.end());
 
   // convert indexes from packedVoxel index to cloud index
   for (auto& index : indexes)
