@@ -964,52 +964,54 @@ computeNearestNeighbors(
     }
 
     if (lodIndex >= aps.intra_lod_prediction_skip_layers) {
-      const int32_t k00 = i + 1;
-      const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
-      for (int32_t k = k00; k <= k01; ++k) {
+      const int32_t fstNear = i - 1;
+      const int32_t lstNear = std::max(startIndex, fstNear - searchRangeNear);
+      for (int32_t k = fstNear; k >= lstNear; --k) {
         updateNearestNeigh(
           bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
           minDistances);
       }
-      const int32_t k0 = k01 + 1 - startIndex;
-      const int32_t k1 =
-        std::min(endIndex - 1, k00 + rangeIntraLod) - startIndex;
 
-      // search k0...k1
-      const int32_t b21 = k1 >> bucketSize2Log2;
-      const int32_t b20 = k0 >> bucketSize2Log2;
-      const int32_t b11 = k1 >> bucketSize1Log2;
-      const int32_t b10 = k0 >> bucketSize1Log2;
-      const int32_t b01 = k1 >> bucketSize0Log2;
-      const int32_t b00 = k0 >> bucketSize0Log2;
-      for (int32_t b2 = b20; b2 <= b21; ++b2) {
+      // NB: bounding boxe indexes are relative to startIndex
+      const int32_t fstFar = lstNear - 1 - startIndex;
+      const int32_t lstFar = std::max(0, fstFar - rangeIntraLod);
+
+      // search fstFar..lstFar
+      const int32_t fstB2 = fstFar >> bucketSize2Log2;
+      const int32_t fstB1 = fstFar >> bucketSize1Log2;
+      const int32_t fstB0 = fstFar >> bucketSize0Log2;
+      const int32_t lstB2 = lstFar >> bucketSize2Log2;
+      const int32_t lstB1 = lstFar >> bucketSize1Log2;
+      const int32_t lstB0 = lstFar >> bucketSize0Log2;
+      for (int32_t b2 = fstB2; b2 >= lstB2; --b2) {
         if (
           localIndexes[2] != -1
           && hIntraBBoxes.bBox(b2, 2).getDist1(bpoint) >= minDistances[2])
           continue;
 
-        const auto alignedIndex1 = b2 << bucketSizeLog2;
-        const auto start1 = std::max(b10, alignedIndex1);
-        const auto end1 = std::min(b11, alignedIndex1 + bucketSizeMinus1);
-        for (int32_t b1 = start1; b1 <= end1; ++b1) {
+        // only search the b1 boxes within b2
+        const auto b1OfB2 = b2 << bucketSizeLog2;
+        const auto end1 = std::max(lstB1, b1OfB2);
+        const auto start1 = std::min(fstB1, b1OfB2 + bucketSizeMinus1);
+        for (int32_t b1 = start1; b1 >= end1; --b1) {
           if (
             localIndexes[2] != -1
             && hIntraBBoxes.bBox(b1, 1).getDist1(bpoint) >= minDistances[2])
             continue;
 
-          const auto alignedIndex0 = b1 << bucketSizeLog2;
-          const auto start0 = std::max(b00, alignedIndex0);
-          const auto end0 = std::min(b01, alignedIndex0 + bucketSizeMinus1);
-          for (int32_t b0 = start0; b0 <= end0; ++b0) {
+          const auto b0OfB1 = b1 << bucketSizeLog2;
+          const auto end0 = std::max(lstB0, b0OfB1);
+          const auto start0 = std::min(fstB0, b0OfB1 + bucketSizeMinus1);
+          for (int32_t b0 = start0; b0 >= end0; --b0) {
             if (
               localIndexes[2] != -1
               && hIntraBBoxes.bBox(b0, 0).getDist1(bpoint) >= minDistances[2])
               continue;
 
-            const int32_t alignedIndex = b0 << bucketSizeLog2;
-            const int32_t h0 = std::max(k0, alignedIndex);
-            const int32_t h1 = std::min(k1, alignedIndex + bucketSizeMinus1);
-            for (int32_t h = h0; h <= h1; ++h) {
+            const int32_t idxOfB0 = b0 << bucketSizeLog2;
+            const int32_t last = std::max(lstFar, idxOfB0);
+            const int32_t first = std::min(fstFar, idxOfB0 + bucketSizeMinus1);
+            for (int32_t h = first; h >= last; --h) {
               const int32_t k = startIndex + h;
               updateNearestNeigh(
                 bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,

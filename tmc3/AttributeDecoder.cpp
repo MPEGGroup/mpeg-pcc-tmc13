@@ -337,7 +337,7 @@ AttributeDecoder::decodeReflectancesPred(
     int quantLayer = std::min(int(qpSet.layers.size()) - 1, int(lod));
 
     auto coeffRange = LodCoeffIdxRange(_lods.numPointsInLod, lod);
-    for (auto predictorIndex : inReverse(coeffRange)) {
+    for (auto predictorIndex : coeffRange) {
       const uint32_t pointIndex = _lods.indexes[predictorIndex];
       auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
       auto& predictor = _lods.predictors[predictorIndex];
@@ -441,7 +441,7 @@ AttributeDecoder::decodeColorsPred(
     auto icpCoeff = icpPresent ? abh.icpCoeffs[lod] : 0;
 
     auto coeffRange = LodCoeffIdxRange(_lods.numPointsInLod, lod);
-    for (auto predictorIndex : inReverse(coeffRange)) {
+    for (auto predictorIndex : coeffRange) {
       const uint32_t pointIndex = _lods.indexes[predictorIndex];
       auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
       auto& predictor = _lods.predictors[predictorIndex];
@@ -645,7 +645,7 @@ AttributeDecoder::decodeColorsLift(
       lastCompPredCoeff = abh.attrLcpCoeffs[lod];
 
     auto coeffRange = LodCoeffIdxRange(_lods.numPointsInLod, lod);
-    for (auto predictorIndex : inReverse(coeffRange)) {
+    for (auto predictorIndex : coeffRange) {
       const uint32_t pointIndex = _lods.indexes[predictorIndex];
       auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
@@ -730,7 +730,7 @@ AttributeDecoder::decodeReflectancesLift(
     int quantLayer = std::min(int(qpSet.layers.size()) - 1, int(lod));
 
     auto coeffRange = LodCoeffIdxRange(_lods.numPointsInLod, lod);
-    for (auto predictorIndex : inReverse(coeffRange)) {
+    for (auto predictorIndex : coeffRange) {
       const uint32_t pointIndex = _lods.indexes[predictorIndex];
       auto quant = qpSet.quantizers(pointCloud[pointIndex], quantLayer);
 
