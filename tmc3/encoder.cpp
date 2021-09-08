@@ -513,8 +513,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     attr_aps.aps_slice_dist2_deltas_present_flag =
       attr_aps.lodParametersPresent()
       && !attr_aps.scalable_lifting_enabled_flag
-      && attr_aps.num_detail_levels_minus1
-      && attr_aps.lod_decimation_type != LodDecimationMethod::kPeriodic;
+      && attr_aps.num_detail_levels_minus1;
 
     // If the lod search ranges are negative, use a full-range search
     // todo(df): lookup level limit

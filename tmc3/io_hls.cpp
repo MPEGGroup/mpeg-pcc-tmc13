@@ -889,10 +889,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
           }
         }
 
-        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
-          bs.writeUe(aps.dist2);
-          bs.write(aps.aps_slice_dist2_deltas_present_flag);
-        }
+        bs.writeUe(aps.dist2);
+        bs.write(aps.aps_slice_dist2_deltas_present_flag);
       }
     }
   }
@@ -992,11 +990,8 @@ parseAps(const PayloadBuffer& buf)
           }
         }
 
-        aps.dist2 = 0;
-        if (aps.lod_decimation_type != LodDecimationMethod::kPeriodic) {
-          bs.readUe(&aps.dist2);
-          bs.read(&aps.aps_slice_dist2_deltas_present_flag);
-        }
+        bs.readUe(&aps.dist2);
+        bs.read(&aps.aps_slice_dist2_deltas_present_flag);
       }
     }
   }
