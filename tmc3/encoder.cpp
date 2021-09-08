@@ -692,7 +692,9 @@ PCCTMC3Encoder3::compressPartition(
       Box3<int> bboxRpl;
       if (_gps->predgeom_enabled_flag) {
         altPositions = _posSph;
-        bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
+        // Don't add latency by calculating the true minimum of _posSph
+        auto pi = 1 << (_gps->geom_angular_azimuth_scale_log2_minus11 + 11);
+        bboxRpl.min = {0, -pi, 0};
       } else {
         altPositions.resize(pointCloud.getPointCount());
 
