@@ -730,6 +730,7 @@ Applies to `transformType=2` and `attribute=color` only.
 ### `--intraLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours within the same level of detail.
 The value -1 configures a full-range search.
+The value 0 disables the intra level of detail search.
 
 ### `--interLoDSearchRange=INT-VALUE`
 Buffer range searched for nearest neighbours between different levels of

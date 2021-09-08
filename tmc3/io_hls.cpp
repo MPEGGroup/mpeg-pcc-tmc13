@@ -901,8 +901,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUn(8, aps.adaptive_prediction_threshold);
       bs.write(aps.direct_avg_predictor_disabled_flag);
     }
-    bs.writeUe(aps.intra_lod_prediction_skip_layers);
     bs.writeUe(aps.intra_lod_search_range);
+    if (aps.intra_lod_search_range)
+      bs.writeUe(aps.intra_lod_prediction_skip_layers);
     bs.write(aps.inter_component_prediction_enabled_flag);
     bs.write(aps.pred_weight_blending_enabled_flag);
   }
@@ -1006,8 +1007,9 @@ parseAps(const PayloadBuffer& buf)
       bs.readUn(8, &aps.adaptive_prediction_threshold);
       bs.read(&aps.direct_avg_predictor_disabled_flag);
     }
-    bs.readUe(&aps.intra_lod_prediction_skip_layers);
     bs.readUe(&aps.intra_lod_search_range);
+    if (aps.intra_lod_search_range)
+      bs.readUe(&aps.intra_lod_prediction_skip_layers);
     bs.read(&aps.inter_component_prediction_enabled_flag);
     bs.read(&aps.pred_weight_blending_enabled_flag);
   }

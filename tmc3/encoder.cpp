@@ -502,6 +502,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
       attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
     if (attr_aps.intra_lod_prediction_skip_layers < 0)
       attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
+    if (attr_aps.intra_lod_search_range == 0)
+      attr_aps.intra_lod_prediction_skip_layers = attr_aps.kSkipAllLayers;
 
     // avoid signalling overly large values
     attr_aps.intra_lod_prediction_skip_layers = std::min(
@@ -523,7 +525,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     if (attr_aps.intra_lod_search_range < 0)
       attr_aps.intra_lod_search_range = 1100000;
 
-    // If all intra prediction layers are skipped, don't signal a search range
+    // If all intra prediction layers are skipped, use more efficent signalling
     if (
       attr_aps.intra_lod_prediction_skip_layers
       > attr_aps.maxNumDetailLevels())

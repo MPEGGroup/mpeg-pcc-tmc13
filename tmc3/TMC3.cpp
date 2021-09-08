@@ -1027,7 +1027,8 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("intraLodSearchRange",
     params_attr.aps.intra_lod_search_range, -1,
     "Intra LoD nearest neighbor search range\n"
-    " -1: Full-range")
+    " -1: Full-range\n"
+    "  0: Disabled")
 
   ("interLodSearchRange",
     params_attr.aps.inter_lod_search_range, -1,
@@ -1441,6 +1442,7 @@ sanitizeEncoderOpts(
 
     if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform) {
       attr_aps.adaptive_prediction_threshold = 0;
+      attr_aps.intra_lod_search_range = 0;
       attr_aps.intra_lod_prediction_skip_layers = -1;
     }
 
@@ -1581,12 +1583,16 @@ sanitizeEncoderOpts(
                        "canonicalPointOrder must be 0\n";
       }
 
-      if (
-        attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform
-        && lod == 0 && attr_aps.intra_lod_prediction_skip_layers != 0) {
-        err.error()
-          << "when transformType == 0 (Pred) and levelOfDetailCount == 0, "
-             "intraLodPredictionSkipLayers must be 0\n";
+      if (attr_aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+        if (lod == 0 && attr_aps.intra_lod_prediction_skip_layers != 0)
+          err.error(it.first)
+            << "when transformType == 0 (Pred) and levelOfDetailCount == 0, "
+               "intraLodPredictionSkipLayers must be 0\n";
+
+        if (lod == 0 && attr_aps.intra_lod_search_range == 0)
+          err.error(it.first)
+            << "when transformType == 0 (Pred) and levelOfDetailCount == 0, "
+               "intraLodSearchRange must not be 0\n";
       }
 
       if (
