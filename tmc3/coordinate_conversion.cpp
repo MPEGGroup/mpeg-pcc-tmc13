@@ -92,8 +92,11 @@ offsetAndScale(
   Vec3<int>* begin,
   Vec3<int>* end)
 {
-  for (auto it = begin; it != end; it++)
-    *it = times((*it - minPos), axisWeight) + (1 << 7) >> 8;
+  for (auto it = begin; it != end; it++) {
+    auto sph = times((*it - minPos), axisWeight) + (1 << 7) >> 8;
+    for (int k = 0; k < 3; k++)
+      (*it)[k] = std::max(0, sph[k]);
+  }
 }
 
 //============================================================================
