@@ -174,43 +174,33 @@ FrequentSymbolCache<_cacheSize, _alphabetSize>::pushSymbol(int symbol)
 //============================================================================
 // :: Entropy coding
 
-template<bool _limitedContextMode>
-DualLutCoder<_limitedContextMode>::DualLutCoder() : DualLutCoder(nullptr)
+DualLutCoder::DualLutCoder() : DualLutCoder(nullptr)
 {}
 
-template<>
-DualLutCoder<true>::DualLutCoder(const uint8_t initTable[32])
+DualLutCoder::DualLutCoder(const uint8_t initTable[32])
   : _adaptiveLut(1024, 1024, initTable)
-{}
-
-template<>
-DualLutCoder<false>::DualLutCoder(const uint8_t initTable[32])
-  : _adaptiveLut(0x33333333, 1 << 24, initTable)
 {}
 
 //----------------------------------------------------------------------------
 
-template<bool _limitedContextMode>
 void
-DualLutCoder<_limitedContextMode>::init(const uint8_t initTable[32])
+DualLutCoder::init(const uint8_t initTable[32])
 {
   _adaptiveLut.init(initTable);
 }
 
 //----------------------------------------------------------------------------
 
-template<bool _limitedContextMode>
 void
-DualLutCoder<_limitedContextMode>::resetLut()
+DualLutCoder::resetLut()
 {
   _adaptiveLut.reset();
 }
 
 //----------------------------------------------------------------------------
 
-template<>
 void
-DualLutCoder<true>::encodeFrequencySortedLutIndex(
+DualLutCoder::encodeFrequencySortedLutIndex(
   int index, EntropyEncoder* entropy)
 {
   bool b4 = index & 1;
@@ -249,23 +239,8 @@ DualLutCoder<true>::encodeFrequencySortedLutIndex(
 
 //----------------------------------------------------------------------------
 
-template<>
 void
-DualLutCoder<false>::encodeFrequencySortedLutIndex(
-  int index, EntropyEncoder* entropy)
-{
-  entropy->encode((index >> 4) & 1, _ctxLutIndex[0]);
-  entropy->encode((index >> 3) & 1, _ctxLutIndex[1 + (index >> 4)]);
-  entropy->encode((index >> 2) & 1, _ctxLutIndex[3 + (index >> 3)]);
-  entropy->encode((index >> 1) & 1, _ctxLutIndex[7 + (index >> 2)]);
-  entropy->encode((index >> 0) & 1, _ctxLutIndex[15 + (index >> 1)]);
-}
-
-//----------------------------------------------------------------------------
-
-template<bool _limitedContextMode>
-void
-DualLutCoder<_limitedContextMode>::encode(int value, EntropyEncoder* entropy)
+DualLutCoder::encode(int value, EntropyEncoder* entropy)
 {
   // One of three coding methods are used:
   //  - Encode position in LUT (if present)
@@ -306,9 +281,8 @@ DualLutCoder<_limitedContextMode>::encode(int value, EntropyEncoder* entropy)
 
 //----------------------------------------------------------------------------
 
-template<>
 int
-DualLutCoder<true>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
+DualLutCoder::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
 {
   bool b0, b1, b2, b3, b4;
 
@@ -341,25 +315,8 @@ DualLutCoder<true>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
 
 //----------------------------------------------------------------------------
 
-template<>
 int
-DualLutCoder<false>::decodeFrequencySortedLutIndex(EntropyDecoder* entropy)
-{
-  int index = 0;
-  index = (index << 1) | entropy->decode(_ctxLutIndex[0]);
-  index = (index << 1) | entropy->decode(_ctxLutIndex[1 + index]);
-  index = (index << 1) | entropy->decode(_ctxLutIndex[3 + index]);
-  index = (index << 1) | entropy->decode(_ctxLutIndex[7 + index]);
-  index = (index << 1) | entropy->decode(_ctxLutIndex[15 + index]);
-
-  return index;
-}
-
-//----------------------------------------------------------------------------
-
-template<bool _limitedContextMode>
-int
-DualLutCoder<_limitedContextMode>::decode(EntropyDecoder* entropy)
+DualLutCoder::decode(EntropyDecoder* entropy)
 {
   int symbol;
 
@@ -391,11 +348,6 @@ DualLutCoder<_limitedContextMode>::decode(EntropyDecoder* entropy)
 
   return symbol;
 }
-
-//============================================================================
-
-template class DualLutCoder<true>;
-template class DualLutCoder<false>;
 
 //============================================================================
 

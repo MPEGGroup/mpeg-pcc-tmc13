@@ -496,7 +496,7 @@ protected:
   CtxMapOctreeOccupancy _ctxIdxMaps[18];
 
   // For bytewise occupancy coding
-  DualLutCoder<true> _bytewiseOccupancyCoder[10];
+  DualLutCoder _bytewiseOccupancyCoder[10];
 };
 
 //----------------------------------------------------------------------------

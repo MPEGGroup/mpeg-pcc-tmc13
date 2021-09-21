@@ -177,13 +177,11 @@ private:
 
 //============================================================================
 
-template<bool _limitedContextMode>
 class DualLutCoder {
   static const int kLog2CacheSize = 4;
   static const int kCacheSize = 1 << kLog2CacheSize;
   static const int kLog2LutSize = 5;
   static const int kLutSize = 1 << kLog2LutSize;
-  static const int kNumLutContexts = _limitedContextMode ? 5 : 31;
 
 public:
   DualLutCoder();
@@ -205,15 +203,13 @@ private:
 
   int decodeFrequencySortedLutIndex(EntropyDecoder* entropy);
 
-  //  bool _limitedContextMode;
-
   FrequentSymbolCache<kCacheSize, 256> _cache;
   FrequencySortingLut<kLutSize, 256> _adaptiveLut;
 
   AdaptiveBitModelFast _ctxLutHit;
   AdaptiveBitModelFast _ctxCacheHit;
   AdaptiveBitModelFast _ctxSymbolBit;
-  AdaptiveBitModelFast _ctxLutIndex[kNumLutContexts];
+  AdaptiveBitModelFast _ctxLutIndex[5];
 };
 
 //============================================================================
