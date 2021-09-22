@@ -133,12 +133,6 @@ deriveQpSet(
   // bitdepth.
   qpset.maxQp = 51 + 6 * (attrDesc.bitdepth - 8);
 
-  // the lifting transform has extra fractional bits that equate to
-  // increasing the QP.
-  qpset.fixedPointQpOffset = 0;
-  if (attr_aps.attr_encoding == AttributeEncoding::kLiftingTransform)
-    qpset.fixedPointQpOffset = (kFixedPointWeightShift / 2) * 6;
-
   return qpset;
 }
 
@@ -149,9 +143,6 @@ QpSet::quantizers(int qpLayer, Qps qpOffset) const
 {
   int qp0 = PCCClip(layers[qpLayer][0] + qpOffset[0], 4, maxQp);
   int qp1 = PCCClip(layers[qpLayer][1] + qpOffset[1] + qp0, 4, maxQp);
-  qp0 = qp0 + fixedPointQpOffset;
-  qp1 = qp1 + fixedPointQpOffset;
-
   return {Quantizer(qp0), Quantizer(qp1)};
 }
 

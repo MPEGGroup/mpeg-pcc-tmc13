@@ -1219,17 +1219,17 @@ AttributeEncoder::encodeColorsLift(
 
       const int64_t iQuantWeight = irsqrt(weights[predictorIndex]);
       const int64_t quantWeight =
-        (weights[predictorIndex] * iQuantWeight + (1ull << 39)) >> 40;
+        divExp2RoundHalfUp(weights[predictorIndex] * iQuantWeight, 44);
 
       auto& color = colors[predictorIndex];
       int values[3];
       values[0] = quant[0].quantize(color[0] * quantWeight);
       int64_t scaled = quant[0].scale(values[0]);
-      color[0] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+      color[0] = divExp2RoundHalfInf(scaled * iQuantWeight, 36);
 
       values[1] = quant[1].quantize(color[1] * quantWeight);
       scaled = quant[1].scale(values[1]);
-      color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+      color[1] = divExp2RoundHalfInf(scaled * iQuantWeight, 36);
 
       color[2] -= (lastCompPredCoeff * color[1]) >> 2;
       scaled *= lastCompPredCoeff;
@@ -1237,7 +1237,7 @@ AttributeEncoder::encodeColorsLift(
 
       values[2] = quant[1].quantize(color[2] * quantWeight);
       scaled += quant[1].scale(values[2]);
-      color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 40);
+      color[2] = divExp2RoundHalfInf(scaled * iQuantWeight, 36);
 
       if (!values[0] && !values[1] && !values[2])
         ++zeroRun;

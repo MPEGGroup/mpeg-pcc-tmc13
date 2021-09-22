@@ -123,7 +123,6 @@ struct QpSet {
   QpLayers layers;
   QpRegionList regions;
   int maxQp;
-  int fixedPointQpOffset;
 
   // Derive the quantizers at a given layer after applying qpOffset
   Quantizers quantizers(int qpLayer, Qps qpOffset) const;
