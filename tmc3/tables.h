@@ -94,7 +94,7 @@ extern const int8_t kOccBitCodingOrder[8];
 extern const uint8_t kCtxMapOctreeOccupancyDelta[16];
 
 // LUT initialisation table
-extern const uint8_t kDualLutOccupancyCoderInit[10][32];
+extern const uint8_t kDualLutOccupancyCoderInit[9][32];
 
 //============================================================================
 // Mapping of (x,y,z) components to 3D Morton code.
