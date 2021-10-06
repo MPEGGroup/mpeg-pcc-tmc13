@@ -254,7 +254,7 @@ GeometryOctreeEncoder::GeometryOctreeEncoder(
   , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 9; i++)
       _bytewiseOccupancyCoder[i].init(kDualLutOccupancyCoderInit[i]);
   }
 }
@@ -264,9 +264,8 @@ GeometryOctreeEncoder::GeometryOctreeEncoder(
 void
 GeometryOctreeEncoder::beginOctreeLevel(const Vec3<int>& planarDepth)
 {
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 9; i++)
     _bytewiseOccupancyCoder[i].resetLut();
-  }
 
   _planar.initPlanes(planarDepth);
 }
@@ -740,7 +739,7 @@ GeometryOctreeEncoder::encodeOccupancyBytewise(
   int neighPattern, int mappedOccupancy)
 {
   // code occupancy using the neighbour configuration context
-  // with reduction from 64 states to 10 (or 6).
+  // with reduction from 64 states to 9 (or 6).
   int neighPatternR1 = _neighPattern64toR1[neighPattern];
   auto& bytewiseCoder = _bytewiseOccupancyCoder[neighPatternR1];
   bytewiseCoder.encode(mappedOccupancy, _arithmeticEncoder);
