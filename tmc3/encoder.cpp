@@ -700,10 +700,14 @@ PCCTMC3Encoder3::compressPartition(
         altPositions.resize(pointCloud.getPointCount());
 
         auto laserOrigin = _gbh.geomAngularOrigin(*_gps);
-        bboxRpl = convertXyzToRpl(
+        convertXyzToRpl(
           laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
           &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
           altPositions.data());
+
+        // Don't add latency by calculating the true minimum of _posSph
+        // NB: convertXyzToRpl adds pi offset to phi.
+        bboxRpl.min = {0, 0, 0};
       }
 
       offsetAndScale(
