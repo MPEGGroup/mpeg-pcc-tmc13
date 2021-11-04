@@ -775,14 +775,14 @@ GeometryOctreeEncoder::encodeOccupancy(
     if (singleChild) {
       // no siblings => encode index = (z,y,x) not 8bit pattern
       // if mask is not zero, then planar, then child z known from plane index
-      if (!planarMaskZ)
-        _arithmeticEncoder->encode(!!(occupancy & 0xaa));
+      if (!planarMaskX)
+        _arithmeticEncoder->encode(!!(occupancy & 0xf0));
 
       if (!planarMaskY)
         _arithmeticEncoder->encode(!!(occupancy & 0xcc));
 
-      if (!planarMaskX)
-        _arithmeticEncoder->encode(!!(occupancy & 0xf0));
+      if (!planarMaskZ)
+        _arithmeticEncoder->encode(!!(occupancy & 0xaa));
 
       return;
     }

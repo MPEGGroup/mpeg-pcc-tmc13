@@ -759,21 +759,21 @@ GeometryOctreeDecoder::decodeOccupancy(
     }
 
     if (singleChild) {
-      uint32_t cnt;
-      if (!planarMaskZ)
-        cnt = _arithmeticDecoder->decode();
+      uint32_t cnt = 0;
+      if (!planarMaskX)
+        cnt |= _arithmeticDecoder->decode() << 2;
       else
-        cnt = (planarMaskZ & 1);
+        cnt |= (planarMaskX & 1) << 2;
 
       if (!planarMaskY)
         cnt |= _arithmeticDecoder->decode() << 1;
       else
         cnt |= (planarMaskY & 1) << 1;
 
-      if (!planarMaskX)
-        cnt |= _arithmeticDecoder->decode() << 2;
+      if (!planarMaskZ)
+        cnt |= _arithmeticDecoder->decode();
       else
-        cnt |= (planarMaskX & 1) << 2;
+        cnt |= (planarMaskZ & 1);
 
       occupancy = 1 << cnt;
       return occupancy;
