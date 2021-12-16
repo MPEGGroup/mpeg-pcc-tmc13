@@ -281,18 +281,18 @@ PCCResidualsEncoder::encode(int32_t value0, int32_t value1, int32_t value2)
   int b2 = (mag2 == 0);
   int b3 = (mag2 <= 1);
   encodeSymbol(mag1, 0, 0, 1);
+  if (mag1)
+    arithmeticEncoder.encode(value1 < 0);
+
   encodeSymbol(mag2, 1 + b0, 1 + b1, 1);
+  if (mag2)
+    arithmeticEncoder.encode(value2 < 0);
 
   auto mag0minusX = b0 && b2 ? mag0 - 1 : mag0;
   assert(mag0minusX >= 0);
   encodeSymbol(mag0minusX, 3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 0);
-
   if (mag0)
     arithmeticEncoder.encode(value0 < 0);
-  if (mag1)
-    arithmeticEncoder.encode(value1 < 0);
-  if (mag2)
-    arithmeticEncoder.encode(value2 < 0);
 }
 
 //----------------------------------------------------------------------------

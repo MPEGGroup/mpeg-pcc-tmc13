@@ -145,20 +145,19 @@ PCCResidualsDecoder::decode(int32_t value[3])
   value[1] = decodeSymbol(0, 0, 1);
   int b0 = value[1] == 0;
   int b1 = value[1] <= 1;
+  if (value[1] && arithmeticDecoder.decode())
+    value[1] = -value[1];
+
   value[2] = decodeSymbol(1 + b0, 1 + b1, 1);
   int b2 = value[2] == 0;
   int b3 = value[2] <= 1;
-  value[0] = decodeSymbol(3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 0);
-
-  if (b0 && b2)
-    value[0] += 1;
-
-  if (value[0] && arithmeticDecoder.decode())
-    value[0] = -value[0];
-  if (value[1] && arithmeticDecoder.decode())
-    value[1] = -value[1];
   if (value[2] && arithmeticDecoder.decode())
     value[2] = -value[2];
+
+  value[0] = decodeSymbol(3 + (b0 << 1) + b2, 3 + (b1 << 1) + b3, 0);
+  value[0] += (b0 && b2);
+  if (value[0] && arithmeticDecoder.decode())
+    value[0] = -value[0];
 }
 
 //----------------------------------------------------------------------------
