@@ -114,6 +114,7 @@ public:
   void encodePredIdx(int predIdx);
   void encodeResidual(const Vec3<int32_t>& residual, int iMode, int multiplier, int rPred, int predIdx);
   void encodeResPhi(int32_t resPhi, int predIdx, int boundPhi);
+  void encodeResR(int32_t resR, int multiplier, int predIdx);
   void encodeResidual2(const Vec3<int32_t>& residual);
   void encodePhiMultiplier(const int32_t multiplier);
   void encodeQpOffset(int dqp);
@@ -130,9 +131,8 @@ public:
 
   float estimateResPhi(int32_t resPhi, int predIdx, int boundPhi);
 
-
-  float
-  estimateBits(GPredicter::Mode mode, int predIdx, const Vec3<int32_t>& residual, int qphi, int rPred);
+  float estimateResR(int32_t resR, int multiplier, int predIdx);
+  float estimateBits(GPredicter::Mode mode, int predIdx, const Vec3<int32_t>& residual, int qphi, int rPred);
 
   const PredGeomContexts& getCtx() const { return *this; }
 
@@ -251,6 +251,39 @@ PredGeomEncoder::encodePredIdx(int predIdx)
   if (predIdx < NPredDelta)
     _aec->encode(0, _ctxPredIdx[predIdx]);
 }
+//----------------------------------------------------------------------------
+void
+PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx)
+{
+  // encode isZero
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero);
+  if (!resR)
+    return;
+
+  // encode sign
+  int ctxR =
+    (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
+  int ctxL = predIdx == 0 /* parent */;
+  _aec->encode(resR < 0, _ctxResRSign[ctxL][ctxR]);
+  _precSignR = resR < 0;
+  _precAzimuthStepDelta = multiplier;
+
+  // encode isOne
+  resR = std::abs(resR) - 1;
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne);
+  if (!resR)
+    return;
+
+  // encode IsTwo
+  resR = std::abs(resR) - 1;
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo);
+  if (!resR)
+    return;
+
+  // encode residual by expGolomb k=2
+  _aec->encodeExpGolomb(
+    resR - 1, 2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+}
 
 //-------------------------------------------------------------------------
 
@@ -287,6 +320,7 @@ PredGeomEncoder::encodeResPhi(int32_t resPhi, int predIdx, int boundPhi)
     resPhi - 1, 1,
     _ctxResPhiExpGolombPre[boundPhi - 3 > 6],
     _ctxResPhiExpGolombSuf[boundPhi - 3 > 6]);
+
 }
 
 //-------------------------------------------------------------------------
@@ -357,24 +391,65 @@ PredGeomEncoder::estimateResPhi(
 }
 
 //----------------------------------------------------------------------------
+float
+PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx)
+{
+  float bits = 0.;
+  //encode isZero
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero);
+  if (!resR)
+    return bits;
+
+  // encode sign
+  int ctxR =
+    (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
+  int ctxL = predIdx == 0 /* parent */;
+  bits += estimate(resR < 0, _ctxResRSign[ctxL][ctxR]);
+
+  // encode isOne
+  resR = std::abs(resR) - 1;
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne);
+  if (!resR)
+    return bits;
+
+  // encode IsTwo
+  resR = std::abs(resR) - 1;
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo);
+  if (!resR)
+    return bits;
+
+  // encode residual by expGolomb k=2
+  bits += estimateExpGolomb(
+    resR - 1, 2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+
+  return bits;
+}
+
+//----------------------------------------------------------------------------
 
 void
 PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode, int multiplier, int rPred, int predIdx)
 {
-  for (int k = 0, ctxIdx = 0; k < 3; k++) {
+  int k = 0;
+
+  if (_azimuth_scaling_enabled_flag) {
+    // N.B. mode is always 1 with _azimuth_scaling_enabled_flag
+    encodeResR(residual[0], multiplier, predIdx);
+
+    int r = rPred + residual[0] << 3;
+    auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
+    int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
+    encodeResPhi(residual[1], predIdx, phiBound);
+    k = 2;
+  }
+
+  for (int ctxIdx = 0; k < 3; k++) {
     // The last component (delta laseridx) isn't coded if there is one laser
     if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2)
       continue;
 
-    if (_azimuth_scaling_enabled_flag && k == 1) {
-      int r = rPred + residual[0] << 3;
-      auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
-      int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
-      encodeResPhi(residual[1], predIdx, phiBound);
-      continue;
-    }
-
     const auto res = residual[k];
+
     _aec->encode(res != 0, _ctxResGt0[k]);
     if (!res)
       continue;
@@ -397,21 +472,11 @@ PredGeomEncoder::encodeResidual(const Vec3<int32_t>& residual, int iMode, int mu
       _aec->encode((value >> i) & 1);
 
     if (iMode || k) {
-      if (_azimuth_scaling_enabled_flag && k == 0) {
-        int contextR = (_precAzimuthStepDelta ? 4 : 0);
-        contextR += (multiplier ? 2 : 0);
-        contextR += _precSignR;
-        int ctxL = predIdx == 0 /* parent */;
-        _precAzimuthStepDelta = multiplier;
-        _aec->encode(res < 0, _ctxResRSign[ctxL][contextR]);
-        _precSignR = res < 0;
-      }
-      else {
-        _aec->encode(res < 0, _ctxSign[k]);
-      }
+      _aec->encode(res < 0, _ctxSign[k]);
     }
   }
 }
+
 
 //----------------------------------------------------------------------------
 
@@ -524,35 +589,33 @@ PredGeomEncoder::estimateBits(
     }
   }
 
-  for (int k = 0, ctxIdx = 0; k < 3; k++) {
+  int k = 0;
+
+  if (_azimuth_scaling_enabled_flag) {
+
+    bits += estimateResR(residual[0], multiplier, predIdx);
+
+    int r = rPred + residual[0] << 3;
+    auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
+    int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
+    bits += estimateResPhi(residual[1], predIdx, phiBound);
+
+    k = 2;
+  }
+
+  for (int ctxIdx = 0; k < 3; k++) {
     // The last component (delta laseridx) isn't coded if there is one laser
     if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2)
       continue;
 
-    if (_azimuth_scaling_enabled_flag && k == 1) {
-      int r = rPred + residual[0] << 3;
-      auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
-      int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
-      bits += estimateResPhi(residual[1], predIdx, phiBound);
-      continue;
-    }
-
     const auto res = residual[k];
+
     bits += estimate(res != 0, _ctxResGt0[k]);
     if (res == 0)
       continue;
 
     if (iMode > 0 || k) {
-      if (_azimuth_scaling_enabled_flag && k == 0) {
-        int contextR = (_precAzimuthStepDelta ? 4 : 0);
-        contextR += (multiplier ? 2 : 0);
-        contextR += _precSignR;
-        int ctxL = predIdx == 0 /* parent */;
-        bits += estimate(res < 0, _ctxResRSign[ctxL][contextR]);
-      }
-      else {
-        bits += estimate(res < 0, _ctxSign[k]);
-      }
+      bits += estimate(res < 0, _ctxSign[k]);
     }
 
     int32_t value = abs(res) - 1;
@@ -570,7 +633,6 @@ PredGeomEncoder::estimateBits(
 
     bits += std::max(0, numBits - 1);
   }
-
   return bits;
 }
 

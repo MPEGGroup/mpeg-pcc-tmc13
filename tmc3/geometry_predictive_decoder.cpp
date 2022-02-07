@@ -79,6 +79,7 @@ private:
   GPredicter::Mode decodePredMode();
   int decodePredIdx();
   int32_t decodeResPhi(int predIdx, int boundPhi);
+  int32_t decodeResR(int multiplier, int predIdx);
   Vec3<int32_t> decodeResidual(int mode, int multiplier, int rPred, int *azimuthSpeed, int predIdx);
   Vec3<int32_t> decodeResidual2();
   int32_t decodePhiMultiplier(GPredicter::Mode mode);
@@ -314,7 +315,39 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
 
   return sign ? +resPhi : -resPhi;
 }
+//----------------------------------------------------------------------------
+int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx)
+{
+  // decode isZero
+  int bit = _aed->decode(_ctxResRIsZero);
+  if (bit)
+    return 0;
 
+  // decode sign
+  int sign = 0;
+  int ctxR =
+    (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
+  int ctxL = predIdx == 0 /* parent */;
+  sign = _aed->decode(_ctxResRSign[ctxL][ctxR]);
+  _precSignR = sign;
+  _precAzimuthStepDelta = multiplier;
+
+  // decode isOne
+  bit = _aed->decode(_ctxResRIsOne);
+  if (bit)
+    return sign ? -1 : +1;
+
+  // decode IsTwo
+  bit = _aed->decode(_ctxResRIsTwo);
+  if (bit)
+    return sign ? -2 : +2;
+
+  // decode residual by expGolomb k=2
+  int resR = 3 + _aed->decodeExpGolomb(
+    2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+
+  return sign ? -resR : +resR;
+}
 //----------------------------------------------------------------------------
 
 Vec3<int32_t>
@@ -323,26 +356,32 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
   Vec3<int32_t> residual;
 
   *azimuthSpeed = _geomAngularAzimuthSpeed;
-  for (int k = 0, ctxIdx = 0; k < 3; ++k) {
+
+  int k = 0;
+
+  if (_azimuth_scaling_enabled_flag) {
+    // N.B. mode is always 1 with _azimuth_scaling_enabled_flag
+    residual[0] = decodeResR(multiplier, predIdx);
+
+    int r = rPred + residual[0] << 3;
+    auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
+    int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
+    residual[1] = decodeResPhi(predIdx, phiBound);
+    if (r && !phiBound) {
+      const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
+      int32_t speedTimesR32 = speedTimesR;
+      while (speedTimesR32 < pi) {
+        speedTimesR32 <<= 1;
+        *azimuthSpeed <<= 1;
+      }
+    }
+    k = 2;
+  }
+
+  for (int ctxIdx = 0; k < 3; ++k) {
     // The last component (delta laseridx) isn't coded if there is one laser
     if (_geom_angular_mode_enabled_flag && _numLasers == 1 && k == 2) {
       residual[k] = 0;
-      continue;
-    }
-
-    if (_azimuth_scaling_enabled_flag && k == 1) {
-      int r = rPred + residual[0] << 3;
-      auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
-      int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
-      residual[1] = decodeResPhi(predIdx, phiBound);
-      if (r && !phiBound) {
-        const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
-        int32_t speedTimesR32 = speedTimesR;
-        while (speedTimesR32 < pi) {
-          speedTimesR32 <<= 1;
-          *azimuthSpeed <<= 1;
-        }
-      }
       continue;
     }
 
@@ -373,18 +412,7 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
 
     int sign = 0;
     if (mode || k) {
-      if (_azimuth_scaling_enabled_flag && k == 0) {
-        int contextR = (_precAzimuthStepDelta ? 4 : 0);
-        contextR += (multiplier ? 2 : 0);
-        contextR += _precSignR;
-        int ctxL = predIdx == 0 /* parent */;
-        _precAzimuthStepDelta = multiplier;
-        sign = _aed->decode(_ctxResRSign[ctxL][contextR]);
-        _precSignR = sign;
-      }
-      else {
-        sign = _aed->decode(_ctxSign[k]);
-      }
+      sign = _aed->decode(_ctxSign[k]);
     }
     residual[k] = sign ? -res : res;
   }
