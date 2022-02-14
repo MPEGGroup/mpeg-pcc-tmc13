@@ -419,8 +419,7 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx)
     return bits;
 
   // encode residual by expGolomb k=2
-  bits += estimateExpGolomb(
-    resR - 1, 2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+  bits += std::max(3, (ilog2(uint32_t(resR + 4)) << 1) - 1);
 
   return bits;
 }
