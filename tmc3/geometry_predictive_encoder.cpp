@@ -255,34 +255,35 @@ PredGeomEncoder::encodePredIdx(int predIdx)
 void
 PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx)
 {
+  int ctxL = predIdx == 0 /* parent */;
+
   // encode isZero
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxL]);
   if (!resR)
     return;
 
   // encode sign
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
-  int ctxL = predIdx == 0 /* parent */;
   _aec->encode(resR < 0, _ctxResRSign[ctxL][ctxR]);
   _precSignR = resR < 0;
   _precAzimuthStepDelta = multiplier;
 
   // encode isOne
   resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxL]);
   if (!resR)
     return;
 
   // encode IsTwo
   resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxL]);
   if (!resR)
     return;
 
   // encode residual by expGolomb k=2
   _aec->encodeExpGolomb(
-    resR - 1, 2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+    resR - 1, 2, _ctxResRExpGolombPre[ctxL], _ctxResRExpGolombSuf[ctxL]);
 }
 
 //-------------------------------------------------------------------------
@@ -395,26 +396,27 @@ float
 PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx)
 {
   float bits = 0.;
+  int ctxL = predIdx == 0 /* parent */;
+
   //encode isZero
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxL]);
   if (!resR)
     return bits;
 
   // encode sign
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
-  int ctxL = predIdx == 0 /* parent */;
   bits += estimate(resR < 0, _ctxResRSign[ctxL][ctxR]);
 
   // encode isOne
   resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxL]);
   if (!resR)
     return bits;
 
   // encode IsTwo
   resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxL]);
   if (!resR)
     return bits;
 

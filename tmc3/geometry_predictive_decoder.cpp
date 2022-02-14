@@ -318,8 +318,10 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
 //----------------------------------------------------------------------------
 int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx)
 {
+  int ctxL = predIdx == 0 /* parent */;
+
   // decode isZero
-  int bit = _aed->decode(_ctxResRIsZero);
+  int bit = _aed->decode(_ctxResRIsZero[ctxL]);
   if (bit)
     return 0;
 
@@ -327,24 +329,23 @@ int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx)
   int sign = 0;
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
-  int ctxL = predIdx == 0 /* parent */;
   sign = _aed->decode(_ctxResRSign[ctxL][ctxR]);
   _precSignR = sign;
   _precAzimuthStepDelta = multiplier;
 
   // decode isOne
-  bit = _aed->decode(_ctxResRIsOne);
+  bit = _aed->decode(_ctxResRIsOne[ctxL]);
   if (bit)
     return sign ? -1 : +1;
 
   // decode IsTwo
-  bit = _aed->decode(_ctxResRIsTwo);
+  bit = _aed->decode(_ctxResRIsTwo[ctxL]);
   if (bit)
     return sign ? -2 : +2;
 
   // decode residual by expGolomb k=2
   int resR = 3 + _aed->decodeExpGolomb(
-    2, _ctxResRExpGolombPre, _ctxResRExpGolombSuf);
+    2, _ctxResRExpGolombPre[ctxL], _ctxResRExpGolombSuf[ctxL]);
 
   return sign ? -resR : +resR;
 }
