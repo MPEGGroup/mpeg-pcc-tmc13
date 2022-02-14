@@ -256,9 +256,10 @@ void
 PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx)
 {
   int ctxL = predIdx == 0 /* parent */;
+  int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   // encode isZero
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxL]);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxLR]);
   if (!resR)
     return;
 
@@ -271,19 +272,19 @@ PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx)
 
   // encode isOne
   resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxL]);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxLR]);
   if (!resR)
     return;
 
   // encode IsTwo
   resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxL]);
+  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxLR]);
   if (!resR)
     return;
 
   // encode residual by expGolomb k=2
   _aec->encodeExpGolomb(
-    resR - 1, 2, _ctxResRExpGolombPre[ctxL], _ctxResRExpGolombSuf[ctxL]);
+    resR - 1, 2, _ctxResRExpGolombPre[ctxLR], _ctxResRExpGolombSuf[ctxLR]);
 }
 
 //-------------------------------------------------------------------------
@@ -397,9 +398,10 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx)
 {
   float bits = 0.;
   int ctxL = predIdx == 0 /* parent */;
+  int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   //encode isZero
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxL]);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero[ctxLR]);
   if (!resR)
     return bits;
 
@@ -410,13 +412,13 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx)
 
   // encode isOne
   resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxL]);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne[ctxLR]);
   if (!resR)
     return bits;
 
   // encode IsTwo
   resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxL]);
+  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo[ctxLR]);
   if (!resR)
     return bits;
 
