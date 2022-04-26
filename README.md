@@ -71,3 +71,29 @@ mpeg-pcc-tmc13$ make -f $PWD/scripts/Makefile.tmc13-step \
   [md5sum]  Ford_01_vox1mm-0100.ply.bin.decoded.ply.md5
   [metric]  Ford_01_vox1mm-0100.ply.bin.decoded.ply.pc_error <- Ford_01_vox1mm-0100.ply.bin.decoded.ply
 ```
+
+## InterEM (inter prediction)
+
+This section provides description of the macros and configurations associated with integrated InterEM with EE13.51v3. This code contains inter tools predictive tree geometry coding. 
+
+Common encoder configuration parameters that are to be set (as default) for inter prediction (predtree) as follows:
+- randomAccessPeriod : 8
+
+Other than parameters already included in the cfg files, the following variables may be set for various configurations:
+
+### Intra prediction
+- interPredictionEnabled: 0
+- globalMotionEnabled: 0
+
+### Inter prediction (without global motion compensation)
+- interPredictionEnabled: 1
+- globalMotionEnabled: 0
+
+### Inter prediction (with global motion compensation)
+- interPredictionEnabled: 1
+- globalMotionEnabled: 1
+- motionVectorPath: PATH_TO_MOTION_VECTOR_FILE
+
+For MPEG sequences, the motion vector files (currently identity) are included in the GMFiles/ folder. 
+
+
