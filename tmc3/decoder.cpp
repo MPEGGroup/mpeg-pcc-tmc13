@@ -377,6 +377,14 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceId = _gbh.geom_slice_id;
   _sliceOrigin = _gbh.geomBoxOrigin;
 
+  if (_frameCtr == 0) {
+  } else if (_firstSliceInFrame) {
+    if (_gps->globalMotionEnabled)
+      _refFrameSph.setMotionParams(
+        _gbh.gm_thresh, _gbh.gm_matrix, _gbh.gm_trans);
+    _refFrameSph.updateFrame(*_gps);
+  }
+
   // sanity check for loss detection
   if (_gbh.entropy_continuation_flag) {
     assert(!_firstSliceInFrame);
@@ -441,10 +449,12 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   aec.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
   aec.start();
 
-  if (_gps->predgeom_enabled_flag)
+  if (_gps->predgeom_enabled_flag) {
+    _refFrameSph.setInterEnabled(_gbh.interPredictionEnabledFlag);
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, &_posSph, *_ctxtMemPredGeom, aec);
-  else if (!_gps->trisoup_enabled_flag) {
+      *_gps, _gbh, _currentPointCloud, &_posSph, _refFrameSph,
+      *_ctxtMemPredGeom, aec);
+  } else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
         *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
@@ -457,6 +467,10 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     decodeGeometryTrisoup(
       *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
   }
+
+  if (_gps->interPredictionEnabledFlag)
+    if (_gps->predgeom_enabled_flag)
+      _refFrameSph.insert(_posSph);
 
   // At least the first slice's geometry has been decoded
   _firstSliceInFrame = false;

@@ -542,6 +542,10 @@ struct GeometryParameterSet {
   bool octree_angular_extension_flag;
   // Radius residual threshold to add new predictor in the prediction list
   int predgeom_radius_threshold_for_pred_list;
+  // Enable inter prediction
+  bool interPredictionEnabledFlag;
+  int interAzimScaleLog2;
+  bool globalMotionEnabled;
 };
 
 //============================================================================
@@ -647,6 +651,13 @@ struct GeometryBrickHeader {
 
   // minimum radius for predictive geometry coding with angular mode
   int pgeom_min_radius;
+
+  // Enable inter prediction
+  bool interPredictionEnabledFlag;
+
+  std::vector<int> gm_matrix;
+  Vec3<int> gm_trans;
+  std::pair<int, int> gm_thresh;
 };
 
 //============================================================================

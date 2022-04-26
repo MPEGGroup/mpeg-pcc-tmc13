@@ -63,13 +63,15 @@ public:
   int decode(
     int numPoints,
     Vec3<int32_t>* outputPoints,
-    std::vector<Vec3<int32_t>>* reconSphPos);
+    std::vector<Vec3<int32_t>>* reconSphPos,
+    PredGeomPredictor& refFrameSph);
 
   /**
    * decodes a single predictive geometry tree.
    * @returns the number of points decoded.
    */
-  int decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB);
+  int decodeTree(
+    Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph);
 
   const PredGeomContexts& getCtx() const { return *this; }
 
@@ -78,11 +80,21 @@ private:
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   int decodePredIdx();
-  int32_t decodeResPhi(int predIdx, int boundPhi);
-  int32_t decodeResR(int multiplier, int predIdx);
-  Vec3<int32_t> decodeResidual(int mode, int multiplier, int rPred, int *azimuthSpeed, int predIdx);
+  int32_t decodeResPhi(int predIdx, int boundPhi, bool interFlag);
+  int32_t decodeResR(int multiplier, int predIdx, const bool interFlag);
+
+  Vec3<int32_t> decodeResidual(
+    int mode,
+    int multiplier,
+    int rPred,
+    int* azimuthSpeed,
+    int predIdx,
+    bool interFlag);
+
   Vec3<int32_t> decodeResidual2();
-  int32_t decodePhiMultiplier(GPredicter::Mode mode);
+  int32_t decodePhiMultiplier(GPredicter::Mode mode, bool interFlag);
+  bool decodeInterFlag(const uint8_t interFlagBuffer);
+  bool decodeRefNodeFlag();
   int32_t decodeQpOffset();
   bool decodeEndOfTreesFlag();
 
@@ -227,32 +239,50 @@ PredGeomDecoder::decodeResidual2()
 //----------------------------------------------------------------------------
 
 int32_t
-PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode)
+PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode, const bool interFlag)
 {
   if (!_geom_angular_mode_enabled_flag)
     return 0;
 
-  if (!_aed->decode(_ctxPhiGtN[0]))
+  int interCtxIdx = interFlag ? 1 : 0;
+  if (!_aed->decode(_ctxPhiGtN[interCtxIdx][0]))
     return 0;
 
   int value = 1;
-  value += _aed->decode(_ctxPhiGtN[1]);
+  value += _aed->decode(_ctxPhiGtN[interCtxIdx][1]);
   if (value == 1) {
-    const auto sign = _aed->decode(_ctxSignPhi);
+    const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
     return sign ? -1 : 1;
   }
 
-  auto* ctxs = &_ctxResidualPhi[0] - 1;
+  auto* ctxs = &_ctxResidualPhi[interCtxIdx][0] - 1;
   value = 1;
   for (int n = 3; n > 0; n--)
     value = (value << 1) | _aed->decode(ctxs[value]);
   value ^= 1 << 3;
 
   if (value == 7)
-    value += _aed->decodeExpGolomb(0, _ctxEGPhi);
+    value += _aed->decodeExpGolomb(0, _ctxEGPhi[interCtxIdx]);
 
-  const auto sign = _aed->decode(_ctxSignPhi);
+  const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
   return sign ? -(value + 2) : (value + 2);
+}
+
+//----------------------------------------------------------------------------
+bool
+PredGeomDecoder::decodeInterFlag(const uint8_t interFlagBuffer)
+{
+  uint8_t interFlagCtxIdx =
+    interFlagBuffer & PredGeomDecoder::interFlagBufferMask;
+  return _aed->decode(_ctxInterFlag[interFlagCtxIdx]) ? true : false;
+}
+
+//----------------------------------------------------------------------------
+
+bool
+PredGeomDecoder::decodeRefNodeFlag()
+{
+  return _aed->decode(_ctxRefNodeFlag) ? true : false;
 }
 
 //----------------------------------------------------------------------------
@@ -280,26 +310,28 @@ PredGeomDecoder::decodeEndOfTreesFlag()
 //-------------------------------------------------------------------------
 
 int32_t
-PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
+PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag)
 {
   if (boundPhi == 0)
     return 0;
+  int interCtxIdx = interFlag ? 1 : 0;
+
 
   int ctxL = predIdx ? 1 : 0;
   // encode isZero
-  int bit = _aed->decode(_ctxResPhiIsZero[ctxL]);
+  int bit = _aed->decode(_ctxResPhiIsZero[interCtxIdx][ctxL]);
   if (bit)
     return 0;
 
   // encode sign
-  int sign = _aed->decode(_ctxResPhiSign[ctxL][_resPhiOldSign]);
-  _resPhiOldSign = sign ? 1 : 0;
+  int sign = _aed->decode(_ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
+  _resPhiOldSign = interFlag ? 2 : (sign ? 1 : 0);
 
   if (boundPhi == 1)
     return sign ? +1 : -1;
 
   // encode isOne
-  bit = _aed->decode(_ctxResPhiIsOne[ctxL]);
+  bit = _aed->decode(_ctxResPhiIsOne[interCtxIdx][ctxL]);
   if (bit)
     return sign ? +1 : -1;
 
@@ -308,21 +340,21 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi)
 
   // encode residual by expGolomb k=1
   int resPhi = 2 + _aed->decodeExpGolomb(
-    1,
-    _ctxResPhiExpGolombPre[boundPhi - 3 > 6],
-    _ctxResPhiExpGolombSuf[boundPhi - 3 > 6]
+    1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
+      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]
     );
 
   return sign ? +resPhi : -resPhi;
 }
 //----------------------------------------------------------------------------
-int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx)
+int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, const bool interFlag)
 {
+  const int interCtx = interFlag;
   int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   // decode isZero
-  int bit = _aed->decode(_ctxResRIsZero[ctxLR]);
+  int bit = _aed->decode(_ctxResRIsZero[interCtx][ctxLR]);
   if (bit)
     return 0;
 
@@ -330,32 +362,35 @@ int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx)
   int sign = 0;
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
-  sign = _aed->decode(_ctxResRSign[ctxL][ctxR]);
+  sign = _aed->decode(_ctxResRSign[interCtx ? 2 : prevInterFlag]
+                                  [ctxL][ctxR]);
   _precSignR = sign;
   _precAzimuthStepDelta = multiplier;
+  prevInterFlag = interFlag;
 
   // decode isOne
-  bit = _aed->decode(_ctxResRIsOne[ctxLR]);
+  bit = _aed->decode(_ctxResRIsOne[interCtx][ctxLR]);
   if (bit)
     return sign ? -1 : +1;
 
   // decode IsTwo
-  bit = _aed->decode(_ctxResRIsTwo[ctxLR]);
+  bit = _aed->decode(_ctxResRIsTwo[interCtx][ctxLR]);
   if (bit)
     return sign ? -2 : +2;
 
   // decode residual by expGolomb k=2
   int resR = 3 + _aed->decodeExpGolomb(
-    2, _ctxResRExpGolombPre[ctxLR], _ctxResRExpGolombSuf[ctxLR]);
+      2, _ctxResRExpGolombPre[interCtx][ctxLR],
+      _ctxResRExpGolombSuf[interCtx][ctxLR]);
 
   return sign ? -resR : +resR;
 }
 //----------------------------------------------------------------------------
-
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimuthSpeed, int predIdx)
+PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimuthSpeed, int predIdx, const bool interFlag)
 {
   Vec3<int32_t> residual;
+  int interCtxIdx = interFlag ? 1 : 0;
 
   *azimuthSpeed = _geomAngularAzimuthSpeed;
 
@@ -363,12 +398,12 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
 
   if (_azimuth_scaling_enabled_flag) {
     // N.B. mode is always 1 with _azimuth_scaling_enabled_flag
-    residual[0] = decodeResR(multiplier, predIdx);
+    residual[0] = decodeResR(multiplier, predIdx, interFlag);
 
     int r = rPred + residual[0] << 3;
     auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
     int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
-    residual[1] = decodeResPhi(predIdx, phiBound);
+    residual[1] = decodeResPhi(predIdx, phiBound, interFlag);
     if (r && !phiBound) {
       const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
       int32_t speedTimesR32 = speedTimesR;
@@ -387,12 +422,12 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
       continue;
     }
 
-    if (!_aed->decode(_ctxResGt0[k])) {
+    if (!_aed->decode(_ctxResGt0[interCtxIdx][k])) {
       residual[k] = 0;
       continue;
     }
 
-    AdaptiveBitModel* ctxs = &_ctxNumBits[ctxIdx][k][0] - 1;
+    AdaptiveBitModel* ctxs = &_ctxNumBits[interCtxIdx][ctxIdx][k][0] - 1;
     int32_t numBits = 1;
     for (int n = 0; n < _pgeom_resid_abs_log2_bits[k]; n++)
       numBits = (numBits << 1) | _aed->decode(ctxs[numBits]);
@@ -413,8 +448,10 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
     }
 
     int sign = 0;
+
     if (mode || k) {
-      sign = _aed->decode(_ctxSign[k]);
+      sign = _aed->decode(_ctxSign[interCtxIdx][k]);
+
     }
     residual[k] = sign ? -res : res;
   }
@@ -425,11 +462,15 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
 //----------------------------------------------------------------------------
 
 int
-PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
+PredGeomDecoder::decodeTree(
+  Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph)
 {
   QuantizerGeom quantizer(_sliceQp);
   int nodesUntilQpOffset = 0;
   int nodeCount = 0;
+  int prevNodeIdx = -1;
+  uint8_t interFlagBuffer = 0;
+
   _stack.push_back(-1);
 
   const int NPred = NPredDelta;
@@ -439,6 +480,7 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
   while (!_stack.empty()) {
     auto parentNodeIdx = _stack.back();
     _stack.pop_back();
+    bool isInterEnabled = refFrameSph.isInterEnabled() && prevNodeIdx >= 0;
 
     if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
       int qpOffset = decodeQpOffset() << _geom_qp_multiplier_log2;
@@ -455,32 +497,58 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     if (!_geom_unique_points_flag)
       numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
+
+    bool interFlag = false, refNodeFlag = false;
+    if (isInterEnabled)
+      interFlag = decodeInterFlag(interFlagBuffer);
+    if (interFlag)
+      refNodeFlag = decodeRefNodeFlag();
+
     auto mode = GPredicter::Mode(1);
     int predIdx = 0;
-    if (_azimuth_scaling_enabled_flag)
-      predIdx = decodePredIdx();
-    else
-      mode = decodePredMode();
-    int qphi = decodePhiMultiplier(mode);
+    if (!interFlag)
+      if (_azimuth_scaling_enabled_flag)
+        predIdx = decodePredIdx();
+      else
+        mode = decodePredMode();
+    int qphi = decodePhiMultiplier(mode, interFlag);
 
-    auto predicter = makePredicter(curNodeIdx, mode, _minVal, [&](int idx) {
-      return _nodeIdxToParentIdx[idx];
-    });
+    point_t pred;
+    if (!interFlag || prevNodeIdx == -1) {
+      auto predicter = makePredicter(curNodeIdx, mode, _minVal, [&](int idx) {
+        return _nodeIdxToParentIdx[idx];
+      });
 
-    auto pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
+      pred = predicter.predict(outA, mode, _geom_angular_mode_enabled_flag);
 
-    if (_azimuth_scaling_enabled_flag && predIdx > 0) {
-      pred[0] = preds[predIdx][0];
-      auto deltaPhi = pred[1] - preds[predIdx][1];
-      pred[1] = preds[predIdx][1];
-      if (deltaPhi >= _geomAngularAzimuthSpeed || deltaPhi <= -_geomAngularAzimuthSpeed) {
-        int qphi0 = divApprox(int64_t(deltaPhi), _geomAngularAzimuthSpeed, 0);
-        pred[1] += qphi0 * _geomAngularAzimuthSpeed;
+      if (_azimuth_scaling_enabled_flag && predIdx > 0) {
+        pred[0] = preds[predIdx][0];
+        auto deltaPhi = pred[1] - preds[predIdx][1];
+        pred[1] = preds[predIdx][1];
+        if (
+          deltaPhi >= _geomAngularAzimuthSpeed
+          || deltaPhi <= -_geomAngularAzimuthSpeed) {
+          int qphi0 =
+            divApprox(int64_t(deltaPhi), _geomAngularAzimuthSpeed, 0);
+          pred[1] += qphi0 * _geomAngularAzimuthSpeed;
+        }
       }
+    } else {
+      auto prevPos = outA[prevNodeIdx];
+      std::pair<bool, point_t> interPred;
+      if (!refNodeFlag)
+        interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
+      else
+        interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
+      assert(interPred.first);
+      pred = interPred.second;
     }
 
     int azimuthSpeed;
-    auto residual = decodeResidual(mode, qphi, pred[0], &azimuthSpeed, predIdx);
+
+    auto residual =
+      decodeResidual(mode, qphi, pred[0], &azimuthSpeed, predIdx, interFlag);
+
     if (!_geom_angular_mode_enabled_flag)
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
@@ -500,14 +568,13 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
       residual[1] =
         divExp2(residual[1] * rInv, rInvLog2Scale - _azimuthTwoPiLog2);
     }
-
     auto pos = pred + residual;
 
     if (_azimuth_scaling_enabled_flag) {
-      if (pos[1] < -1<<(_azimuthTwoPiLog2-1))
-        pos[1] += (1<<_azimuthTwoPiLog2)+1;
-      if (pos[1] > 1<<(_azimuthTwoPiLog2-1))
-        pos[1] -= (1<<_azimuthTwoPiLog2)+1;
+      if (pos[1] < -1 << (_azimuthTwoPiLog2 - 1))
+        pos[1] += (1 << _azimuthTwoPiLog2) + 1;
+      if (pos[1] > 1 << (_azimuthTwoPiLog2 - 1))
+        pos[1] -= (1 << _azimuthTwoPiLog2) + 1;
     }
 
     if (!_geom_angular_mode_enabled_flag)
@@ -516,8 +583,10 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
     outA[curNodeIdx] = pos;
 
     if (_azimuth_scaling_enabled_flag) {
-      bool flagNewObject = std::abs(residual[0]) > _thObj;
-      int predBIdx = flagNewObject ? NPred-1 : predIdx;
+      bool flagNewObject =
+        (interFlag ? std::abs(pos[0] - preds[0][0]) : std::abs(residual[0]))
+        > _thObj;
+      int predBIdx = flagNewObject ? NPred - 1 : predIdx;
       for (int i = predBIdx; i > 0; i--)
         preds[i] = preds[i - 1];
       preds[0][0] = pos[0];
@@ -545,6 +614,9 @@ PredGeomDecoder::decodeTree(Vec3<int32_t>* outA, Vec3<int32_t>* outB)
 
     for (int i = 0; i < numChildren; i++)
       _stack.push_back(curNodeIdx);
+
+    prevNodeIdx = curNodeIdx;
+    interFlagBuffer = (interFlagBuffer << 1) | (interFlag ? 1 : 0);
   }
 
   return nodeCount;
@@ -556,7 +628,7 @@ int
 PredGeomDecoder::decode(
   int numPoints,
   Vec3<int32_t>* outputPoints,
-  std::vector<Vec3<int32_t>>* reconPosSph)
+  std::vector<Vec3<int32_t>>* reconPosSph, PredGeomPredictor& refFrameSph)
 {
   _nodeIdxToParentIdx.resize(numPoints);
 
@@ -573,7 +645,7 @@ PredGeomDecoder::decode(
 
   int32_t pointCount = 0;
   do {
-    auto numSubtreePoints = decodeTree(reconA, outputPoints);
+    auto numSubtreePoints = decodeTree(reconA, outputPoints, refFrameSph);
     outputPoints += numSubtreePoints;
     reconA += numSubtreePoints;
     pointCount += numSubtreePoints;
@@ -591,14 +663,17 @@ void
 decodePredictiveGeometry(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
-  PCCPointSet3& pointCloud,
-  std::vector<Vec3<int32_t>>* reconPosSph,
+  PCCPointSet3& pointCloud, std::vector<Vec3<int32_t>>* reconPosSph,
+  PredGeomPredictor& refFrameSph,
   PredGeomContexts& ctxtMem,
   EntropyDecoder& aed)
 {
   PredGeomDecoder dec(gps, gbh, ctxtMem, &aed);
+  refFrameSph.init(
+    gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled);
   dec.decode(
-    gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph);
+    gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph,
+    refFrameSph);
   ctxtMem = dec.getCtx();
 }
 

@@ -112,6 +112,8 @@ struct Parameters {
 
   // resort the input points by azimuth angle
   bool sortInputByAzimuth;
+
+  std::string motionVectorPath;
 };
 
 //----------------------------------------------------------------------------
@@ -953,6 +955,27 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_radius_inv_scale_log2, 0,
     "Inverse scale factor applied to radius in predictive geometry coding")
 
+  ("interAzimScaleLog2",
+    params.encoder.gps.interAzimScaleLog2, 1,
+    "Scale factor applied to azimuth angle during inter search")
+
+  ("randomAccessPeriod",
+    params.encoder.randomAccessPeriod, 1,
+    "Distance (in pictures) between random access points when "
+    "encoding a sequence")
+
+  ("interPredictionEnabled",
+    params.encoder.gps.interPredictionEnabledFlag, false,
+    "Enable inter prediciton")
+
+  ("globalMotionEnabled",
+    params.encoder.gps.globalMotionEnabled, true,
+    "Enable global motion compensation for inter prediction")
+
+  ("motionVectorPath",
+    params.motionVectorPath, {},
+    "File path containing motion vector information")
+
   ("predGeomSort",
     params.encoder.predGeom.sortMode, PredGeomEncOpts::kSortMorton,
     "Predictive geometry tree construction order")
@@ -1689,9 +1712,12 @@ SequenceEncoder::compress(Stopwatch* clock)
   if (!bytestreamFile.is_open()) {
     return -1;
   }
-
+  this->encoder.setMotionVectorFileName(params->motionVectorPath);
   const int lastFrameNum = params->firstFrameNum + params->frameCount;
   for (frameNum = params->firstFrameNum; frameNum < lastFrameNum; frameNum++) {
+    this->encoder.setInterForCurrPic(
+      params->encoder.gps.interPredictionEnabledFlag
+      && ((frameNum - params->firstFrameNum) % params->encoder.randomAccessPeriod));
     if (compressOneFrame(clock))
       return -1;
   }
@@ -1812,7 +1838,7 @@ SequenceDecoder::decompress(Stopwatch* clock)
   if (!fin.is_open()) {
     return -1;
   }
-
+  decoder.setMotionVectorFileName(params->motionVectorPath);
   this->clock = clock;
   clock->start();
 
@@ -1827,7 +1853,7 @@ SequenceDecoder::decompress(Stopwatch* clock)
 
     if (decoder.decompress(buf_ptr, this)) {
       cout << "Error: can't decompress point cloud!" << endl;
-      return -1;
+      return -1;  
     }
 
     if (!buf_ptr)

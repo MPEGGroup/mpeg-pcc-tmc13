@@ -194,6 +194,10 @@ PCCTMC3Encoder3::compress(
 
     // Allocate storage for attribute contexts
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
+
+    if (params->gps.globalMotionEnabled) {
+      _refFrameSph.parseMotionParams(motionVectorFileName);
+    }
   }
 
   // placeholder to "activate" the parameter sets
@@ -381,7 +385,8 @@ PCCTMC3Encoder3::compress(
     }
     std::cout << "Slice number: " << partitions.slices.size() << std::endl;
   } while (0);
-
+  if (_frameCounter)
+    _refFrameSph.updateFrame(*_gps);
   // Encode each partition:
   //  - create a pointset comprising just the partitioned points
   //  - compress
@@ -685,7 +690,7 @@ PCCTMC3Encoder3::compressPartition(
       region.attr_region_qp_offset = {0, 0};
       abh.attr_region_bits_minus1 = -1
         + numBits(
-            std::max(region.regionOrigin.max(), region.regionSize.max()));
+          std::max(region.regionOrigin.max(), region.regionSize.max()));
     }
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
@@ -753,6 +758,11 @@ PCCTMC3Encoder3::compressPartition(
     callback->onOutputBuffer(payload);
   }
 
+  if (_gps->interPredictionEnabledFlag) {
+    if (_gps->predgeom_enabled_flag)
+      _refFrameSph.insert(_posSph);
+  }
+
   // Note the current slice id for loss detection with entropy continuation
   _prevSliceId = _sliceId;
 
@@ -786,7 +796,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
   gbh.trisoup_node_size_log2_minus2 =
     params->gbh.trisoup_node_size_log2_minus2;
-
+  gbh.interPredictionEnabledFlag = _codeCurrFrameAsInter;
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
 
@@ -833,10 +843,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(
       ctxtMem.reset();
   }
 
-  if (_gps->predgeom_enabled_flag)
+  if (_gps->predgeom_enabled_flag) {
+    _refFrameSph.setInterEnabled(gbh.interPredictionEnabledFlag);
     encodePredictiveGeometry(
-      params->predGeom, *_gps, gbh, pointCloud, &_posSph, *_ctxtMemPredGeom,
-      arithmeticEncoders[0].get());
+      params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph,
+      *_ctxtMemPredGeom, arithmeticEncoders[0].get());
+  }
   else if (!_gps->trisoup_enabled_flag)
     encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
@@ -852,6 +864,14 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   // signal the actual number of points coded
   gbh.footer.geom_num_points_minus1 = pointCloud.getPointCount() - 1;
+
+  if (gbh.interPredictionEnabledFlag && _gps->globalMotionEnabled) {
+    _refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+  }else {
+    gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
+    gbh.gm_trans = 0;
+    gbh.gm_thresh = {0, 0};
+  }
 
   // assemble data unit
   //  - record the position of each aec buffer for chunk concatenation

@@ -89,6 +89,7 @@ public:
   void storeTileInventory(TileInventory&& inventory);
 
   //==========================================================================
+  void setMotionVectorFileName(std::string s) { motionVectorFileName = s; }
 
 private:
   void activateParameterSets(const AttributeParamInventoryHdr& gbh);
@@ -162,6 +163,10 @@ private:
 
   // Attribute decoder for reuse between attributes of same slice
   std::unique_ptr<AttributeDecoderIntf> _attrDecoder;
+
+  // Point positions in spherical coordinates of the reference frame
+  PredGeomPredictor _refFrameSph;
+  std::string motionVectorFileName;
 };
 
 //----------------------------------------------------------------------------

@@ -43,6 +43,7 @@
 #include "entropy.h"
 #include "hls.h"
 #include "partitioning.h"
+#include "geometry_predictive.h"
 
 namespace pcc {
 
@@ -101,6 +102,7 @@ void encodePredictiveGeometry(
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
+  PredGeomPredictor& refFrameSph,
   PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder);
 
@@ -109,6 +111,7 @@ void decodePredictiveGeometry(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
+  PredGeomPredictor& refFrameSph,
   PredGeomContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder);
 

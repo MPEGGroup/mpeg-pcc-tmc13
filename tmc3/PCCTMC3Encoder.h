@@ -139,6 +139,9 @@ struct EncoderParams {
   // precision expected for attributes after scaling with predgeom
   // and spherical coordinates
   int attrSphericalMaxLog2;
+
+  // Period of random access points (managed by SequenceEncoder)
+  int randomAccessPeriod;
 };
 
 //============================================================================
@@ -169,6 +172,8 @@ public:
 
   static void deriveParameterSets(EncoderParams* params);
   static void fixupParameterSets(EncoderParams* params);
+  void setInterForCurrPic(bool x) { _codeCurrFrameAsInter = x; }
+  void setMotionVectorFileName(std::string s) { motionVectorFileName = s; }
 
 private:
   void appendSlice(PCCPointSet3& cloud);
@@ -231,6 +236,11 @@ private:
   std::unique_ptr<PredGeomContexts> _ctxtMemPredGeom;
   std::vector<AttributeContexts> _ctxtMemAttrs;
   std::vector<int> _ctxtMemAttrSliceIds;
+  // Code current picture as inter prediction
+  bool _codeCurrFrameAsInter;
+  // Point positions in spherical coordinates of the reference frame
+  PredGeomPredictor _refFrameSph;
+  std::string motionVectorFileName;
 };
 
 //----------------------------------------------------------------------------
