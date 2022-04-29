@@ -758,6 +758,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.sps.entropy_continuation_enabled_flag, false,
     "Propagate context state between slices")
 
+  ("GoFGeometryEntropyContinuationEnabled",
+    params.encoder.gps.gof_geom_entropy_continuation_enabled_flag, false,
+    "Propagate context state between P frames in GoF")
+
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,
     "Ignore attribute coding configuration")

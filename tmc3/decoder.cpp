@@ -392,7 +392,11 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   } else {
     // forget (reset) all saved context state at boundary
     _ctxtMemOctreeGeom->reset();
-    _ctxtMemPredGeom->reset();
+    if (
+      !_gps->gof_geom_entropy_continuation_enabled_flag
+      || !_gbh.interPredictionEnabledFlag) {
+      _ctxtMemPredGeom->reset();
+    }
     for (auto& ctxtMem : _ctxtMemAttrs)
       ctxtMem.reset();
   }

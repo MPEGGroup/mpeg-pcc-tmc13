@@ -546,6 +546,9 @@ struct GeometryParameterSet {
   bool interPredictionEnabledFlag;
   int interAzimScaleLog2;
   bool globalMotionEnabled;
+
+  //Permits entropy continuation enabled in GoF for inter frame coding
+  bool gof_geom_entropy_continuation_enabled_flag;
 };
 
 //============================================================================
