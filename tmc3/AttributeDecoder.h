@@ -64,7 +64,9 @@ public:
     const char* payload,
     size_t payloadLen,
     AttributeContexts& ctxtMem,
-    PCCPointSet3& pointCloud) override;
+    PCCPointSet3& pointCloud, 
+    const AttributeInterPredParams& attrInterPredParams
+  ) override;
 
   bool isReusable(
     const AttributeParameterSet& aps,
@@ -81,7 +83,8 @@ protected:
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
     PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
+    PCCPointSet3& pointCloud,
+    const AttributeInterPredParams& attrInterPredParams);
 
   void decodeColorsLift(
     const AttributeDescription& desc,
@@ -99,7 +102,8 @@ protected:
     const AttributeBrickHeader& abh,
     const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
+    PCCPointSet3& pointCloud,
+    const AttributeInterPredParams& attrInterPredParams);
 
   void decodeColorsPred(
     const AttributeDescription& desc,

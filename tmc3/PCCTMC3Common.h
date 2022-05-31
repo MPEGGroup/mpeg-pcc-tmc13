@@ -195,10 +195,23 @@ struct PCCNeighborInfo {
   uint64_t weight;
   uint32_t predictorIndex;
 
+  uint32_t pointIndex;
+  bool interFrameRef;
+
   bool operator<(const PCCNeighborInfo& rhs) const
   {
     return weight < rhs.weight;
   }
+};
+
+//---------------------------------------------------------------------------
+
+struct AttributeInterPredParams {
+  PCCPointSet3 referencePointCloud;
+  int frameDistance;
+  bool enableAttrInterPred;
+  int getPointCount() const { return referencePointCloud.getPointCount(); }
+  void clear() { referencePointCloud.clear(); }
 };
 
 //---------------------------------------------------------------------------
@@ -238,18 +251,33 @@ struct PCCPredictor {
   }
 
   int64_t predictReflectance(
-    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes) const
+    const PCCPointSet3& pointCloud, const std::vector<uint32_t>& indexes
+    , const AttributeInterPredParams& attrInterPredParams
+    ) const
   {
     int64_t predicted(0);
     if (predMode > neighborCount) {
       /* nop */
     } else if (predMode > 0) {
-      predicted = pointCloud.getReflectance(
-        indexes[neighbors[predMode - 1].predictorIndex]);
+      if (attrInterPredParams.enableAttrInterPred)
+        predicted = (neighbors[predMode - 1].interFrameRef
+                       ? attrInterPredParams.referencePointCloud
+                       : pointCloud)
+                      .getReflectance(neighbors[predMode - 1].pointIndex);
+      else
+        predicted = pointCloud.getReflectance(
+          indexes[neighbors[predMode - 1].predictorIndex]);
     } else {
       for (size_t i = 0; i < neighborCount; ++i) {
-        predicted += neighbors[i].weight
-          * pointCloud.getReflectance(indexes[neighbors[i].predictorIndex]);
+        if (attrInterPredParams.enableAttrInterPred)
+          predicted += neighbors[i].weight
+            * (neighbors[i].interFrameRef
+                 ? attrInterPredParams.referencePointCloud.getReflectance(
+                   neighbors[i].pointIndex)
+                 : pointCloud.getReflectance(neighbors[i].pointIndex));
+        else
+          predicted += neighbors[i].weight
+            * pointCloud.getReflectance(indexes[neighbors[i].predictorIndex]);
       }
       predicted = divExp2RoundHalfInf(predicted, kFixedPointWeightShift);
     }
@@ -303,7 +331,9 @@ struct PCCPredictor {
   }
 
   void
-  blendWeights(const PCCPointSet3& cloud, const std::vector<uint32_t>& indexes)
+  blendWeights(const PCCPointSet3& cloud, const std::vector<uint32_t>& indexes
+    , const AttributeInterPredParams& attrInterPredParams
+  )
   {
     int w0 = neighbors[0].weight;
     int w1 = neighbors[1].weight;
@@ -312,9 +342,28 @@ struct PCCPredictor {
     if (neighborCount != 3)
       return;
 
-    auto neigh0Pos = cloud[indexes[neighbors[0].predictorIndex]];
-    auto neigh1Pos = cloud[indexes[neighbors[1].predictorIndex]];
-    auto neigh2Pos = cloud[indexes[neighbors[2].predictorIndex]];
+    point_t neigh0Pos, neigh1Pos, neigh2Pos;
+    if (attrInterPredParams.enableAttrInterPred) {
+      const uint32_t neighIdx[3] = {
+        neighbors[0].pointIndex, neighbors[1].pointIndex,
+        neighbors[2].pointIndex};
+      const PCCPointSet3* refCloud[3];
+      for (auto i = 0; i < 3; i++)
+        refCloud[i] = neighbors[i].interFrameRef
+          ? &attrInterPredParams.referencePointCloud
+          : &cloud;
+      neigh0Pos = (*refCloud[0])[neighIdx[0]];
+      neigh1Pos = (*refCloud[1])[neighIdx[1]];
+      neigh2Pos = (*refCloud[2])[neighIdx[2]];
+    } else {
+      neigh0Pos = cloud[indexes[neighbors[0].predictorIndex]];
+      neigh1Pos = cloud[indexes[neighbors[1].predictorIndex]];
+      neigh2Pos = cloud[indexes[neighbors[2].predictorIndex]];
+    }
+    
+    //auto neigh0Pos = cloud[indexes[neighbors[0].predictorIndex]];
+    //auto neigh1Pos = cloud[indexes[neighbors[1].predictorIndex]];
+    //auto neigh2Pos = cloud[indexes[neighbors[2].predictorIndex]];
 
     constexpr bool variant = 1;
     const auto d = variant ? 10 : 8;
@@ -369,7 +418,10 @@ PCCLiftPredict(
   const size_t startIndex,
   const size_t endIndex,
   const bool direct,
-  std::vector<T>& attributes)
+  std::vector<T>& attributes
+  , bool interRef
+  , std::vector<T>& attributesRef
+  )
 {
   const size_t predictorCount = endIndex - startIndex;
   for (size_t index = 0; index < predictorCount; ++index) {
@@ -378,6 +430,12 @@ PCCLiftPredict(
     auto& attribute = attributes[predictorIndex];
     T predicted(T(0));
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
+      if (interRef && predictor.neighbors[i].interFrameRef) {
+        const size_t neighborPointIndexRef = predictor.neighbors[i].pointIndex;
+        const uint32_t weight = predictor.neighbors[i].weight;
+        predicted += weight * attributesRef[neighborPointIndexRef];
+        continue;
+      }
       const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
       const uint32_t weight = predictor.neighbors[i].weight;
       assert(neighborPredIndex < startIndex);
@@ -396,13 +454,32 @@ PCCLiftPredict(
 
 template<typename T>
 void
+PCCLiftPredict(
+  const std::vector<PCCPredictor>& predictors,
+  const size_t startIndex,
+  const size_t endIndex,
+  const bool direct,
+  std::vector<T>& attributes)
+{
+  std::vector<T> attributesRef;
+  PCCLiftPredict(
+    predictors, startIndex, endIndex, direct, attributes, false,
+    attributesRef);
+}
+
+//---------------------------------------------------------------------------
+
+template<typename T>
+void
 PCCLiftUpdate(
   const std::vector<PCCPredictor>& predictors,
   const std::vector<uint64_t>& quantizationWeights,
   const size_t startIndex,
   const size_t endIndex,
   const bool direct,
-  std::vector<T>& attributes)
+  std::vector<T>& attributes
+  , bool interRef = false
+  )
 {
   std::vector<uint64_t> updateWeights;
   updateWeights.resize(startIndex, uint64_t(0));
@@ -417,6 +494,8 @@ PCCLiftUpdate(
     const auto& predictor = predictors[predictorIndex];
     const auto currentQuantWeight = quantizationWeights[predictorIndex];
     for (size_t i = 0; i < predictor.neighborCount; ++i) {
+      if (interRef && predictor.neighbors[i].interFrameRef)
+        continue;
       const size_t neighborPredIndex = predictor.neighbors[i].predictorIndex;
       const auto weight = divExp2RoundHalfInf(
         predictor.neighbors[i].weight * currentQuantWeight,
@@ -447,7 +526,9 @@ PCCLiftUpdate(
 inline void
 PCCComputeQuantizationWeights(
   const std::vector<PCCPredictor>& predictors,
-  std::vector<uint64_t>& quantizationWeights)
+  std::vector<uint64_t>& quantizationWeights
+  , const bool interRef = false
+  )
 {
   const size_t pointCount = predictors.size();
   quantizationWeights.resize(pointCount);
@@ -459,6 +540,8 @@ PCCComputeQuantizationWeights(
     const auto& predictor = predictors[predictorIndex];
     const auto currentQuantWeight = quantizationWeights[predictorIndex];
     for (size_t j = 0; j < predictor.neighborCount; ++j) {
+      if(interRef && predictor.neighbors[j].interFrameRef) 
+        continue;
       const size_t neighborPredIndex = predictor.neighbors[j].predictorIndex;
       const auto weight = predictor.neighbors[j].weight;
       auto& neighborQuantWeight = quantizationWeights[neighborPredIndex];
@@ -511,7 +594,9 @@ inline void
 computeQuantizationWeights(
   const std::vector<PCCPredictor>& predictors,
   std::vector<int64_t>& quantizationWeights,
-  Vec3<int32_t> neighWeight)
+  Vec3<int32_t> neighWeight
+  , bool interRef = false
+  )
 {
   const size_t pointCount = predictors.size();
   quantizationWeights.resize(pointCount);
@@ -523,6 +608,8 @@ computeQuantizationWeights(
     const auto& predictor = predictors[predictorIndex];
     const auto currentQuantWeight = quantizationWeights[predictorIndex];
     for (size_t j = 0; j < predictor.neighborCount; ++j) {
+      if (interRef && predictor.neighbors[j].interFrameRef)
+        continue;
       const size_t neighborPredIndex = predictor.neighbors[j].predictorIndex;
       auto& neighborQuantWeight = quantizationWeights[neighborPredIndex];
       neighborQuantWeight += divExp2RoundHalfInf(
@@ -558,7 +645,11 @@ updateNearestNeigh(
   const Vec3<int32_t>& point1,
   int32_t index,
   int32_t (&localIndexes)[3],
-  int64_t (&minDistances)[3])
+  int64_t (&minDistances)[3]
+  , bool interRef,
+  std::vector<bool>& localRef,
+  bool predRef
+  )
 {
   auto d = (point0 - point1).getNorm1();
 
@@ -572,14 +663,32 @@ updateNearestNeigh(
     localIndexes[2] = localIndexes[1];
     localIndexes[1] = localIndexes[0];
     localIndexes[0] = index;
+
+    if (interRef) {
+      localRef[2] = localRef[1];
+      localRef[1] = localRef[0];
+      localRef[0] = predRef;
+    }
+
   } else if (d < minDistances[1]) {
     minDistances[2] = minDistances[1];
     minDistances[1] = d;
     localIndexes[2] = localIndexes[1];
     localIndexes[1] = index;
+
+    if (interRef) {
+      localRef[2] = localRef[1];
+      localRef[1] = predRef;
+    }
+
   } else {
     minDistances[2] = d;
     localIndexes[2] = index;
+
+    if (interRef) {
+      localRef[2] = predRef;
+    }
+
   }
 }
 
@@ -591,14 +700,28 @@ updateNearestNeighWithCheck(
   const Vec3<int32_t>& point1,
   const int32_t index,
   int32_t (&localIndexes)[3],
-  int64_t (&minDistances)[3])
-{
-  if (
-    index == localIndexes[0] || index == localIndexes[1]
-    || index == localIndexes[2])
-    return;
+  int64_t (&minDistances)[3]
+  , bool interRef,
+  std::vector<bool>& localRef,
+  bool predRef
 
-  updateNearestNeigh(point0, point1, index, localIndexes, minDistances);
+  )
+{
+  if (interRef) {
+    if (
+      (index == localIndexes[0] && predRef == localRef[0])
+      || (index == localIndexes[1] && predRef == localRef[1])
+      || (index == localIndexes[2] && predRef == localRef[2]))
+      return;
+  } else
+    if (
+      index == localIndexes[0] || index == localIndexes[1]
+      || index == localIndexes[2])
+      return;
+
+  updateNearestNeigh(point0, point1, index, localIndexes, minDistances
+      , interRef, localRef, predRef
+  );
 }
 
 //---------------------------------------------------------------------------
@@ -616,7 +739,14 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  MortonIndexMap3d& atlas)
+  MortonIndexMap3d& atlas
+  ,bool interRef,
+  const std::vector<MortonCodeWithIndex>& packedVoxelRef,
+  const std::vector<uint32_t>& retainedRef,
+  int32_t startIndexRef,
+  int32_t endIndexRef,
+  std::vector<uint32_t>& indexesRef  
+  )
 {
   constexpr auto searchRangeNear = 2;
   constexpr auto bucketSizeLog2 = 5;
@@ -637,8 +767,12 @@ computeNearestNeighbors(
 
   const int32_t retainedSize = retained.size();
   const int32_t indexesSize = endIndex - startIndex;
-  const auto rangeInterLod = aps.inter_lod_search_range;
-  const auto rangeIntraLod = aps.intra_lod_search_range;
+
+  auto rangeInterLod = aps.inter_lod_search_range;
+  auto rangeIntraLod = aps.intra_lod_search_range;
+
+  //const auto rangeInterLod = aps.inter_lod_search_range;
+  //const auto rangeIntraLod = aps.intra_lod_search_range;
 
   static const uint8_t kNeighOffset[27] = {
     7,   // { 0,  0,  0} 0
@@ -708,6 +842,36 @@ computeNearestNeighbors(
     hIntraBBoxes.update();
   }
 
+  const int32_t retainedSizeRef = retainedRef.size();
+  const int32_t indexesSizeRef = endIndexRef - startIndexRef;
+  const auto interSearchRange = abh.attrInterPredSearchRange;
+  std::vector<point_t> biasedPosRef;
+  BoxHierarchy<bucketSizeLog2, levelCount> hIntraBBoxesRef;
+  if (interRef) {
+    rangeInterLod = rangeIntraLod = interSearchRange;
+    // The point positions biased by lodNeighBias
+    biasedPosRef.reserve(packedVoxelRef.size());
+    for (const auto& src_ref : packedVoxelRef) {
+      auto point = clacIntermediatePosition(
+        aps.scalable_lifting_enabled_flag, lodIndex, src_ref.position);
+      biasedPosRef.push_back(times(point, aps.lodNeighBias));
+    }
+
+    hIntraBBoxesRef.resize(indexesSizeRef);
+    for (int32_t i = startIndexRef; i < endIndexRef;) {
+      hIntraBBoxesRef.insert(
+        biasedPosRef[indexesRef[i]], i - startIndexRef);
+      ++i;
+      for (int32_t k = 1; k < bucketSize && i < endIndexRef; ++k, ++i) {
+        hIntraBBoxesRef.insert(
+          biasedPosRef[indexesRef[i]], i - startIndexRef);
+      }
+    }
+    hIntraBBoxesRef.update();
+  }
+  int jRef = 0;
+
+
   const auto bucketSize0Log2 = hBBoxes.bucketSizeLog2(0);
   const auto bucketSize1Log2 = hBBoxes.bucketSizeLog2(1);
   const auto bucketSize2Log2 = hBBoxes.bucketSizeLog2(2);
@@ -720,6 +884,8 @@ computeNearestNeighbors(
     int64_t minDistances[3] = {std::numeric_limits<int64_t>::max(),
                                std::numeric_limits<int64_t>::max(),
                                std::numeric_limits<int64_t>::max()};
+
+    std::vector<bool> localRef = {false, false, false};
 
     const int32_t index = indexes[i];
     const auto& pv = packedVoxel[index];
@@ -771,7 +937,9 @@ computeNearestNeighbors(
 
       for (const auto k : neighborIndexes) {
         updateNearestNeigh(
-          bpoint, biasedPos[retained[k]], k, localIndexes, minDistances);
+          bpoint, biasedPos[retained[k]], k, localIndexes, minDistances
+          , false, localRef, false
+          );
       }
 
       if (localIndexes[2] == -1) {
@@ -780,17 +948,22 @@ computeNearestNeighbors(
         const auto k1 = std::min(retainedSize - 1, center + rangeInterLod);
         updateNearestNeighWithCheck(
           bpoint, biasedPos[retained[center]], center, localIndexes,
-          minDistances);
+          minDistances
+          , false, localRef, false
+          );
         for (int32_t n = 1; n <= searchRangeNear; ++n) {
           const int32_t kp = center + n;
           if (kp <= k1) {
             updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kp]], kp, localIndexes, minDistances);
+              bpoint, biasedPos[retained[kp]], kp, localIndexes, minDistances
+              , false, localRef, false);
           }
           const int32_t kn = center - n;
           if (kn >= k0) {
             updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kn]], kn, localIndexes, minDistances);
+              bpoint, biasedPos[retained[kn]], kn, localIndexes, minDistances
+              ,false, localRef, false
+              );
           }
         }
 
@@ -835,7 +1008,9 @@ computeNearestNeighbors(
               for (int32_t k = h0; k <= h1; ++k) {
                 updateNearestNeighWithCheck(
                   bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances);
+                  minDistances
+                  ,false, localRef, false
+                  );
               }
             }
           }
@@ -878,7 +1053,8 @@ computeNearestNeighbors(
               for (int32_t k = h1; k >= h0; --k) {
                 updateNearestNeighWithCheck(
                   bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances);
+                  minDistances
+                  , false, localRef, false);
               }
             }
           }
@@ -898,7 +1074,9 @@ computeNearestNeighbors(
       for (int32_t k = k00; k <= k01; ++k) {
         updateNearestNeigh(
           bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-          minDistances);
+          minDistances
+          , false, localRef, false
+          );
       }
       const int32_t k0 = k01 + 1 - startIndex;
       const int32_t k1 =
@@ -942,12 +1120,149 @@ computeNearestNeighbors(
               const int32_t k = startIndex + h;
               updateNearestNeigh(
                 bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-                minDistances);
+                minDistances
+                , false, localRef, false
+              );
             }
           }
         }
       }
     }
+
+    if (interRef) {
+      if (endIndexRef > startIndexRef) {
+        while ((jRef < (indexesSizeRef - 1))
+               && mortonCode
+                 > packedVoxelRef[indexesRef[jRef]].mortonCode) {
+          ++jRef;
+        }
+        const int32_t k0_ref =
+          std::min(endIndexRef - 1, std::max(startIndexRef, jRef))
+          - startIndexRef;
+        const int32_t k1_ref =
+          std::min(
+            endIndexRef - 1,
+            std::max(startIndexRef, k0_ref + interSearchRange))
+          - startIndexRef;
+
+        //search k0_ref ... k1_ref
+        const int32_t b21_ref = k1_ref >> bucketSize2Log2;
+        const int32_t b20_ref = k0_ref >> bucketSize2Log2;
+        const int32_t b11_ref = k1_ref >> bucketSize1Log2;
+        const int32_t b10_ref = k0_ref >> bucketSize1Log2;
+        const int32_t b01_ref = k1_ref >> bucketSize0Log2;
+        const int32_t b00_ref = k0_ref >> bucketSize0Log2;
+        for (int32_t b2 = b20_ref; b2 <= b21_ref; ++b2) {
+          if (
+            localIndexes[2] != -1
+            && hIntraBBoxesRef.bBox(b2, 2).getDist1(bpoint)
+              >= minDistances[2]) {
+            continue;
+          }
+
+          const auto alignedIndex1_ref = b2 << bucketSizeLog2;
+          const auto start1_ref = std::max(b10_ref, alignedIndex1_ref);
+          const auto end1_ref =
+            std::min(b11_ref, alignedIndex1_ref + bucketSizeMinus1);
+          for (int32_t b1 = start1_ref; b1 <= end1_ref; ++b1) {
+            if (
+              localIndexes[2] != -1
+              && hIntraBBoxesRef.bBox(b1, 1).getDist1(bpoint)
+                >= minDistances[2]) {
+              continue;
+            }
+            const auto alignedIndex0_ref = b1 << bucketSizeLog2;
+            const auto start0_ref = std::max(b00_ref, alignedIndex0_ref);
+            const auto end0_ref =
+              std::min(b01_ref, alignedIndex0_ref + bucketSizeMinus1);
+            for (int32_t b0 = start0_ref; b0 <= end0_ref; ++b0) {
+              if (
+                localIndexes[2] != -1
+                && hIntraBBoxesRef.bBox(b0, 0).getDist1(bpoint)
+                  >= minDistances[2]) {
+                continue;
+              }
+              const int32_t alignedIndex_ref = b0 << bucketSizeLog2;
+              const int32_t h0_ref = std::max(k0_ref, alignedIndex_ref);
+              const int32_t h1_ref =
+                std::min(k1_ref, alignedIndex_ref + bucketSizeMinus1);
+              for (int32_t h = h0_ref; h <= h1_ref; ++h) {
+                const int32_t k_ref = startIndexRef + h;
+                updateNearestNeigh(
+                  bpoint, biasedPosRef[indexesRef[k_ref]], indexesRef[k_ref],
+                  localIndexes, minDistances, true, localRef, true);
+              }
+            }
+          }
+        }
+
+        //Search k1_ref_left ... k0_ref_lefti
+        const int32_t k0_ref_left =
+          std::min(endIndexRef - 1, std::max(startIndexRef, jRef - 1))
+          - startIndexRef;
+        const int32_t k1_ref_left =
+          std::min(
+            endIndexRef - 1,
+            std::max(startIndexRef, k0_ref_left - interSearchRange))
+          - startIndexRef;
+
+        const int32_t b21_ref_left = k1_ref_left >> bucketSize2Log2;
+        const int32_t b20_ref_left = k0_ref_left >> bucketSize2Log2;
+        const int32_t b11_ref_left = k1_ref_left >> bucketSize1Log2;
+        const int32_t b10_ref_left = k0_ref_left >> bucketSize1Log2;
+        const int32_t b01_ref_left = k1_ref_left >> bucketSize0Log2;
+        const int32_t b00_ref_left = k0_ref_left >> bucketSize0Log2;
+
+        for (int32_t b2 = b21_ref_left; b2 <= b20_ref_left; ++b2) {
+          if (
+            localIndexes[2] != -1
+            && hIntraBBoxesRef.bBox(b2, 2).getDist1(bpoint)
+              >= minDistances[2]) {
+            continue;
+          }
+
+          const auto alignedIndex1_ref_left = b2 << bucketSizeLog2;
+          const auto start1_ref_left =
+            std::max(b11_ref_left, alignedIndex1_ref_left);
+          const auto end1_ref_left =
+            std::min(b10_ref_left, alignedIndex1_ref_left + bucketSizeMinus1);
+          for (int32_t b1 = start1_ref_left; b1 <= end1_ref_left; ++b1) {
+            if (
+              localIndexes[2] != -1
+              && hIntraBBoxesRef.bBox(b1, 1).getDist1(bpoint)
+                >= minDistances[2]) {
+              continue;
+            }
+            const auto alignedIndex0_ref_left = b1 << bucketSizeLog2;
+            const auto start0_ref_left =
+              std::max(b01_ref_left, alignedIndex0_ref_left);
+            const auto end0_ref_left = std::min(
+              b00_ref_left, alignedIndex0_ref_left + bucketSizeMinus1);
+            for (int32_t b0 = start0_ref_left; b0 <= end0_ref_left; ++b0) {
+              if (
+                localIndexes[2] != -1
+                && hIntraBBoxesRef.bBox(b0, 0).getDist1(bpoint)
+                  >= minDistances[2]) {
+                continue;
+              }
+              const int32_t alignedIndex_ref_left = b0 << bucketSizeLog2;
+              const int32_t h0_ref_left =
+                std::max(k1_ref_left, alignedIndex_ref_left);
+              const int32_t h1_ref_left = std::min(
+                k0_ref_left, alignedIndex_ref_left + bucketSizeMinus1);
+              for (int32_t h = h0_ref_left; h <= h1_ref_left; ++h) {
+                const int32_t k_ref_left = startIndexRef + h;
+                updateNearestNeigh(
+                  bpoint, biasedPosRef[indexesRef[k_ref_left]],
+                  indexesRef[k_ref_left], localIndexes, minDistances, true,
+                  localRef, true);
+              }
+            }
+          }
+        }
+      }
+    }
+
 
     predictor.neighborCount = std::min(
       aps.num_pred_nearest_neighbours_minus1 + 1,
@@ -955,8 +1270,15 @@ computeNearestNeighbors(
         + (localIndexes[2] != -1));
     for (int32_t h = 0; h < predictor.neighborCount; ++h) {
       auto& neigh = predictor.neighbors[h];
-      neigh.predictorIndex = packedVoxel[localIndexes[h]].index;
-      neigh.weight = (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
+      neigh.interFrameRef = localRef[h];
+      if (interRef && neigh.interFrameRef) {
+        neigh.predictorIndex = packedVoxelRef[localIndexes[h]].index;
+        neigh.weight =
+          (biasedPosRef[localIndexes[h]] - bpoint).getNorm2<int64_t>();
+      } else {
+        neigh.predictorIndex = packedVoxel[localIndexes[h]].index;
+        neigh.weight = (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
+      }
     }
 
     // Prune neighbours based upon max neigh range.
@@ -994,6 +1316,38 @@ computeNearestNeighbors(
       }
     }
   }
+  if (interRef) {
+    for (auto i = startIndexRef; i < endIndexRef; ++i) {
+      indexesRef[i] = packedVoxelRef[indexesRef[i]].index;
+    }
+  }
+}
+//---------------------------------------------------------------------------
+
+inline void
+computeNearestNeighbors(
+  const AttributeParameterSet& aps,
+  const AttributeBrickHeader& abh,
+  const std::vector<MortonCodeWithIndex>& packedVoxel,
+  const std::vector<uint32_t>& retained,
+  int32_t startIndex,
+  int32_t endIndex,
+  int32_t lodIndex,
+  std::vector<uint32_t>& indexes,
+  std::vector<PCCPredictor>& predictors,
+  std::vector<uint32_t>& pointIndexToPredictorIndex,
+  int32_t& predIndex,
+  MortonIndexMap3d& atlas)
+{
+  std::vector<MortonCodeWithIndex> packedVoxelRef = {};
+  std::vector<uint32_t> retainedRef = {};
+  int32_t startIndexRef = 0;
+  int32_t endIndexRef = 0;
+  std::vector<uint32_t> indexesRef = {};
+  computeNearestNeighbors(
+    aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex, indexes,
+    predictors, pointIndexToPredictorIndex, predIndex, atlas, false,
+    packedVoxelRef, retainedRef, startIndexRef, endIndexRef, indexesRef);
 }
 
 //---------------------------------------------------------------------------
@@ -1290,7 +1644,8 @@ computeMortonCodesUnsorted(
 inline void
 updatePredictors(
   const std::vector<uint32_t>& pointIndexToPredictorIndex,
-  std::vector<PCCPredictor>& predictors)
+  std::vector<PCCPredictor>& predictors, 
+  const int frameDistance)
 {
   for (auto& predictor : predictors) {
     if (predictor.neighborCount < 2) {
@@ -1301,8 +1656,12 @@ updatePredictors(
     }
     for (int32_t k = 0; k < predictor.neighborCount; ++k) {
       auto& neighbor = predictor.neighbors[k];
-      neighbor.predictorIndex =
-        pointIndexToPredictorIndex[neighbor.predictorIndex];
+      neighbor.pointIndex = neighbor.predictorIndex;
+      if (neighbor.interFrameRef)
+        neighbor.weight += frameDistance;
+      else
+        neighbor.predictorIndex =
+          pointIndexToPredictorIndex[neighbor.predictorIndex];
     }
   }
 }
@@ -1318,7 +1677,12 @@ buildPredictorsFast(
   int geom_num_points_minus1,
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& numberOfPointsPerLevelOfDetail,
-  std::vector<uint32_t>& indexes)
+  std::vector<uint32_t>& indexes
+  ,bool interRef,
+  const AttributeInterPredParams& attrInterPredParams,
+  std::vector<uint32_t>& numberOfPointsPerLevelOfDetailRef,
+  std::vector<uint32_t>& indexesRef
+  )
 {
   const int32_t pointCount = int32_t(pointCloud.getPointCount());
   assert(pointCount);
@@ -1345,6 +1709,31 @@ buildPredictorsFast(
   numberOfPointsPerLevelOfDetail.reserve(21);
   numberOfPointsPerLevelOfDetail.push_back(pointCount);
 
+  const auto& referencePointCloud = attrInterPredParams.referencePointCloud;
+  const int32_t pointCountRef = int32_t(referencePointCloud.getPointCount());
+  std::vector<MortonCodeWithIndex> packedVoxelRef = {};
+  std::vector<uint32_t> retainedRef = {}, inputRef = {},
+                        pointIndexToPredictorIndexRef = {};
+  if (interRef) {
+    assert(referencePointCloud.getPointCount());
+    computeMortonCodesUnsorted(
+      referencePointCloud, aps.lodNeighBias, packedVoxelRef);
+    if (!aps.canonical_point_order_flag) {
+      std::sort(packedVoxelRef.begin(), packedVoxelRef.end());
+    }
+    pointIndexToPredictorIndexRef.resize(pointCountRef);
+    retainedRef.reserve(pointCountRef);
+    inputRef.resize(pointCountRef);
+    for (uint32_t i = 0; i < pointCountRef; ++i) {
+      inputRef[i] = i;
+    }
+    numberOfPointsPerLevelOfDetailRef.resize(0);
+    indexesRef.resize(0);
+    indexesRef.reserve(pointCountRef);
+    numberOfPointsPerLevelOfDetailRef.reserve(21);
+    numberOfPointsPerLevelOfDetailRef.push_back(pointCountRef);
+  }
+
   bool concatenateLayers = aps.scalable_lifting_enabled_flag;
   std::vector<uint32_t> indexesOfSubsample;
   if (concatenateLayers)
@@ -1356,6 +1745,14 @@ buildPredictorsFast(
   MortonIndexMap3d atlas;
   atlas.resize(log2CubeSize);
   atlas.init();
+
+  int32_t startIndexRef = 0, endIndexRef = 0;
+  if (interRef) {
+    for (const auto indexRef : inputRef)
+      indexesRef.push_back(indexRef);
+    startIndexRef = 0;
+    endIndexRef = indexesRef.size();
+  }
 
   auto maxNumDetailLevels = aps.maxNumDetailLevels();
   int32_t predIndex = int32_t(pointCount);
@@ -1405,16 +1802,26 @@ buildPredictorsFast(
 
     computeNearestNeighbors(
       aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex, indexes,
-      predictors, pointIndexToPredictorIndex, predIndex, atlas);
+      predictors, pointIndexToPredictorIndex, predIndex, atlas
+      , interRef,
+      packedVoxelRef, retainedRef, startIndexRef, endIndexRef, indexesRef      
+      );
 
     if (!retained.empty()) {
       numberOfPointsPerLevelOfDetail.push_back(retained.size());
+      if (interRef)
+        numberOfPointsPerLevelOfDetailRef.push_back(retained.size());
     }
     input.resize(0);
     std::swap(retained, input);
   }
   std::reverse(indexes.begin(), indexes.end());
-  updatePredictors(pointIndexToPredictorIndex, predictors);
+  std::reverse(indexesRef.begin(), indexesRef.end());
+  updatePredictors(pointIndexToPredictorIndex, predictors, attrInterPredParams.frameDistance);
+  std::reverse(
+    numberOfPointsPerLevelOfDetailRef.begin(),
+    numberOfPointsPerLevelOfDetailRef.end());
+  //updatePredictors(pointIndexToPredictorIndex, predictors);
   std::reverse(
     numberOfPointsPerLevelOfDetail.begin(),
     numberOfPointsPerLevelOfDetail.end());

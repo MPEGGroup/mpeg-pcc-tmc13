@@ -973,7 +973,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable inter prediciton")
 
   ("globalMotionEnabled",
-    params.encoder.gps.globalMotionEnabled, true,
+    params.encoder.gps.globalMotionEnabled, false,
     "Enable global motion compensation for inter prediction")
 
   ("motionVectorPath",
@@ -1183,6 +1183,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("quantNeighWeight",
     params_attr.aps.quant_neigh_weight, {16, 8, 4},
     "Factors used to derive quantization weights (transformType=1)")
+
+  ("attributeInterPredictionEnabled", params_attr.aps.attrInterPredictionEnabled, true, "Enable inter prediction for attributes")
+
+  ("attrInterPredSearchRange", params_attr.aps.attrInterPredSearchRange, 128, "Search range for nearest neighbour search in inter prediction candidate\n -1: Full range")
+
+  ("QPShiftStep",
+    params_attr.aps.qpShiftStep, 0,
+    "QP shift step used to derive the QP shift for attrbute coding in inter predicted pictures")
 
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.

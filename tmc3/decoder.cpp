@@ -247,6 +247,10 @@ PCCTMC3Decoder3::decompress(
     _attrDecoder.reset();
     // Avoid dropping an actual frame
     _suppressOutput = false;
+
+    if (!attrInterPredParams.getPointCount())
+      attrInterPredParams.referencePointCloud = _currentPointCloud;
+
     return decodeGeometryBrick(*buf);
 
   case PayloadType::kAttributeBrick: decodeAttributeBrick(*buf); return 0;
@@ -378,6 +382,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   _sliceOrigin = _gbh.geomBoxOrigin;
 
   if (_frameCtr == 0) {
+    _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   } else if (_firstSliceInFrame) {
     if (_gps->globalMotionEnabled)
       _refFrameSph.setMotionParams(
@@ -528,6 +533,10 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   int abhSize;
   abh = parseAbh(*_sps, attr_aps, buf, &abhSize);
 
+  attrInterPredParams.frameDistance = 1;
+  attrInterPredParams.enableAttrInterPred = attr_aps.attrInterPredictionEnabled && !abh.disableAttrInterPred;
+  abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange; 
+
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   // replace the attribute decoder if not compatible
@@ -543,9 +552,13 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     // If predgeom was used, re-use the internal positions rather than
     // calculating afresh.
     Box3<int> bboxRpl;
+
+    pcc::point_t minPos = 0;
+
     if (_gps->predgeom_enabled_flag) {
       altPositions = _posSph;
       bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
+      minPos = bboxRpl.min;
     } else {
       altPositions.resize(_currentPointCloud.getPointCount());
 
@@ -555,23 +568,43 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
         &_currentPointCloud[0],
         &_currentPointCloud[0] + _currentPointCloud.getPointCount(),
         altPositions.data());
+
+      if(!attr_aps.attrInterPredictionEnabled){
+        minPos = bboxRpl.min;
+      }
     }
 
     offsetAndScale(
-      bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
+      minPos, attr_aps.attr_coord_scale, altPositions.data(),
+      //bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
       altPositions.data() + altPositions.size());
 
     _currentPointCloud.swapPoints(altPositions);
   }
 
+  if (!attr_aps.spherical_coord_flag)
+    for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud[i] += _sliceOrigin;
+
   auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
   _attrDecoder->decode(
     *_sps, attr_sps, attr_aps, abh, _gbh.footer.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf.data() + abhSize, buf.size() - abhSize,
-    ctxtMemAttr, _currentPointCloud);
+    ctxtMemAttr, _currentPointCloud
+    , attrInterPredParams);
+
+  if (!attr_aps.spherical_coord_flag)
+    for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
+      _currentPointCloud[i] -= _sliceOrigin;
 
   if (attr_aps.spherical_coord_flag)
     _currentPointCloud.swapPoints(altPositions);
+
+  attrInterPredParams.referencePointCloud.clear();
+  if (attr_aps.spherical_coord_flag) {
+    attrInterPredParams.referencePointCloud = _currentPointCloud;
+    attrInterPredParams.referencePointCloud.swapPoints(altPositions);
+  }
 
   // Note the current sliceID for loss detection
   _ctxtMemAttrSliceIds[abh.attr_sps_attr_idx] = _sliceId;

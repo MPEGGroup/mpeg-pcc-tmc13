@@ -40,6 +40,7 @@
 #include "hls.h"
 #include "PayloadBuffer.h"
 #include "PCCPointSet.h"
+#include "PCCTMC3Common.h"
 #include "entropy.h"
 
 namespace pcc {
@@ -64,7 +65,9 @@ public:
     const char* payload,
     size_t payloadLen,
     AttributeContexts& ctxtMem,
-    PCCPointSet3& pointCloud) = 0;
+    PCCPointSet3& pointCloud, 
+    const AttributeInterPredParams& attrInterPredParams
+    ) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
   virtual bool isReusable(
@@ -89,7 +92,9 @@ public:
     AttributeBrickHeader& abh,
     AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
-    PayloadBuffer* payload) = 0;
+    PayloadBuffer* payload, 
+    const AttributeInterPredParams &attrInterPredParams
+  ) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
   virtual bool isReusable(

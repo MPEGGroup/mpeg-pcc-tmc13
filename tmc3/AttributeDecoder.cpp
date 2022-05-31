@@ -199,7 +199,9 @@ AttributeDecoder::decode(
   const char* payload,
   size_t payloadLen,
   AttributeContexts& ctxtMem,
-  PCCPointSet3& pointCloud)
+  PCCPointSet3& pointCloud  ,
+   const AttributeInterPredParams& attrInterPredParams
+  )
 {
   if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
     AttrRawDecoder::decode(
@@ -215,7 +217,7 @@ AttributeDecoder::decode(
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(
-      attr_aps, abh, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud);
+      attr_aps, abh, geom_num_points_minus1, minGeomNodeSizeLog2, pointCloud, attrInterPredParams);
 
   if (attr_desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
@@ -225,13 +227,13 @@ AttributeDecoder::decode(
 
     case AttributeEncoding::kPredictingTransform:
       decodeReflectancesPred(
-        attr_desc, attr_aps, abh, qpSet, decoder, pointCloud);
+        attr_desc, attr_aps, abh, qpSet, decoder, pointCloud, attrInterPredParams);
       break;
 
     case AttributeEncoding::kLiftingTransform:
       decodeReflectancesLift(
         attr_desc, attr_aps, abh, qpSet, geom_num_points_minus1,
-        minGeomNodeSizeLog2, decoder, pointCloud);
+        minGeomNodeSizeLog2, decoder, pointCloud, attrInterPredParams);
       break;
 
     case AttributeEncoding::kRaw:
@@ -327,7 +329,8 @@ AttributeDecoder::decodeReflectancesPred(
   const AttributeBrickHeader& abh,
   const QpSet& qpSet,
   PCCResidualsDecoder& decoder,
-  PCCPointSet3& pointCloud)
+  PCCPointSet3& pointCloud    ,
+    const AttributeInterPredParams& attrInterPredParams)
 {
   const size_t pointCount = pointCloud.getPointCount();
   const int64_t maxReflectance = (1ll << desc.bitdepth) - 1;
@@ -337,7 +340,9 @@ AttributeDecoder::decodeReflectancesPred(
 
   std::vector<int64_t> quantWeights;
   computeQuantizationWeights(
-    _lods.predictors, quantWeights, aps.quant_neigh_weight);
+    _lods.predictors, quantWeights, aps.quant_neigh_weight
+    , attrInterPredParams.enableAttrInterPred
+    );
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -356,12 +361,14 @@ AttributeDecoder::decodeReflectancesPred(
     if (!zeroRunRem)
       attValue0 = decoder.decode();
 
-    if (predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor))
+    if (predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor, attrInterPredParams))
       decodePredModeRefl(aps, attValue0, predictor);
 
     attr_t& reflectance = pointCloud.getReflectance(pointIndex);
     const int64_t quantPredAttValue =
-      predictor.predictReflectance(pointCloud, _lods.indexes);
+      predictor.predictReflectance(pointCloud, _lods.indexes,
+      attrInterPredParams
+      );
 
     int64_t qStep = quant[0].stepSize();
     int64_t weight =
@@ -735,13 +742,16 @@ AttributeDecoder::decodeReflectancesLift(
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
   PCCResidualsDecoder& decoder,
-  PCCPointSet3& pointCloud)
+  PCCPointSet3& pointCloud    ,
+    const AttributeInterPredParams& attrInterPredParams)
 {
   const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint64_t> weights;
 
+
+
   if (!aps.scalable_lifting_enabled_flag) {
-    PCCComputeQuantizationWeights(_lods.predictors, weights);
+    PCCComputeQuantizationWeights(_lods.predictors, weights, attrInterPredParams.enableAttrInterPred);
   } else {
     computeQuantizationWeightsScalable(
       _lods.predictors, _lods.numPointsInLod, geom_num_points_minus1 + 1,
@@ -751,6 +761,17 @@ AttributeDecoder::decodeReflectancesLift(
   const size_t lodCount = _lods.numPointsInLod.size();
   std::vector<int64_t> reflectances;
   reflectances.resize(pointCount);
+
+  std::vector<int64_t> reflectancesRef;
+  const auto& referencePointCloud = attrInterPredParams.referencePointCloud;
+  reflectancesRef.resize(referencePointCloud.getPointCount());
+
+  for (size_t index = 0; index < referencePointCloud.getPointCount();
+       ++index) {
+    reflectancesRef[index] =
+      int32_t(referencePointCloud.getReflectance(index))
+      << kFixedPointAttributeShift;
+  }
 
   // decompress
   int zeroRunRem = 0;
@@ -782,9 +803,11 @@ AttributeDecoder::decodeReflectancesLift(
     const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
     const size_t endIndex = _lods.numPointsInLod[lodIndex];
     PCCLiftUpdate(
-      _lods.predictors, weights, startIndex, endIndex, false, reflectances);
+      _lods.predictors, weights, startIndex, endIndex, false, reflectances
+      , attrInterPredParams.enableAttrInterPred);
     PCCLiftPredict(
-      _lods.predictors, startIndex, endIndex, false, reflectances);
+      _lods.predictors, startIndex, endIndex, false, reflectances
+      , attrInterPredParams.enableAttrInterPred, reflectancesRef);
   }
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {

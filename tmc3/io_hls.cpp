@@ -695,17 +695,19 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   if (gps_extension_flag) {
     bs.write(gps.trisoup_enabled_flag);
 
+    bs.write(gps.interPredictionEnabledFlag);
+    if (gps.interPredictionEnabledFlag) {
+      bs.write(gps.globalMotionEnabled);
+      if (gps.predgeom_enabled_flag)
+        bs.writeUe(gps.interAzimScaleLog2);
+      bs.write(gps.gof_geom_entropy_continuation_enabled_flag);
+    }
+
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
       bs.write(gps.azimuth_scaling_enabled_flag);
       if (gps.azimuth_scaling_enabled_flag)
         bs.writeUe(gps.predgeom_radius_threshold_for_pred_list);
-      bs.write(gps.interPredictionEnabledFlag);
-      if (gps.interPredictionEnabledFlag) {
-        bs.write(gps.globalMotionEnabled);
-        if (gps.predgeom_enabled_flag)
-          bs.writeUe(gps.interAzimScaleLog2);
-        bs.write(gps.gof_geom_entropy_continuation_enabled_flag);
-      }
+
     }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.write(gps.octree_angular_extension_flag);
@@ -845,17 +847,18 @@ parseGps(const PayloadBuffer& buf)
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
 
+    bs.read(&gps.interPredictionEnabledFlag);
+    if (gps.interPredictionEnabledFlag) {
+      bs.read(&gps.globalMotionEnabled);
+      if (gps.predgeom_enabled_flag)
+        bs.readUe(&gps.interAzimScaleLog2);
+      bs.read(&gps.gof_geom_entropy_continuation_enabled_flag);
+    }
+
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
       bs.read(&gps.azimuth_scaling_enabled_flag);
       if (gps.azimuth_scaling_enabled_flag)
         bs.readUe(&gps.predgeom_radius_threshold_for_pred_list);
-      bs.read(&gps.interPredictionEnabledFlag);
-      if (gps.interPredictionEnabledFlag) {
-        bs.read(&gps.globalMotionEnabled);
-        if (gps.predgeom_enabled_flag)
-          bs.readUe(&gps.interAzimScaleLog2);
-        bs.read(&gps.gof_geom_entropy_continuation_enabled_flag);
-      }
     }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.read(&gps.octree_angular_extension_flag);
@@ -962,14 +965,22 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUn(attr_coord_scale_bits_minus1 + 1, aps.attr_coord_scale[k]);
     }
   }
+ 
 
+  
   // NB: bitstreams conforming to the first edition must set
   // aps_extension_flag equal to 0.
   bool aps_extension_flag = sps.profile.isDraftProfile();
   bs.write(aps_extension_flag);
   if (aps_extension_flag) {
-    for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
-      bs.writeUe(aps.quant_neigh_weight[i]);
+    if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
+      for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
+        bs.writeUe(aps.quant_neigh_weight[i]);
+    }
+
+    bs.write(aps.attrInterPredictionEnabled);
+    if (aps.attrInterPredictionEnabled)
+      bs.writeUe(aps.attrInterPredSearchRange);
   }
 
   bs.byteAlign();
@@ -1080,12 +1091,17 @@ parseAps(const PayloadBuffer& buf)
   }
 
   bool aps_extension_flag = bs.read();
+
   if (aps_extension_flag) {
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
       for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
         bs.readUe(&aps.quant_neigh_weight[i]);
     }
+    bs.read(&aps.attrInterPredictionEnabled);
+    if (aps.attrInterPredictionEnabled)
+      bs.readUe(&aps.attrInterPredSearchRange);
   }
+
   bs.byteAlign();
 
   return aps;
@@ -1204,6 +1220,7 @@ write(
     bs.writeSe(gbh.gm_thresh.first);
     bs.writeSe(gbh.gm_thresh.second);
   }
+
   bs.byteAlign();
 }
 
@@ -1500,6 +1517,9 @@ write(
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
       bs.writeSe(region.attr_region_qp_offset[1]);
   }
+
+  bs.write(abh.disableAttrInterPred);  
+
   bs.byteAlign();
 }
 
@@ -1623,6 +1643,8 @@ parseAbh(
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
       bs.readSe(&region.attr_region_qp_offset[1]);
   }
+  
+  bs.read(&abh.disableAttrInterPred);
 
   bs.byteAlign();
 

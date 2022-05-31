@@ -64,7 +64,9 @@ public:
     AttributeBrickHeader& abh,
     AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
-    PayloadBuffer* payload) override;
+    PayloadBuffer* payload
+    , const AttributeInterPredParams &attrInterPredParams
+    ) override;
 
   bool isReusable(
     const AttributeParameterSet& aps,
@@ -78,7 +80,9 @@ protected:
     const AttributeParameterSet& aps,
     const QpSet& qpSet,
     PCCPointSet3& pointCloud,
-    PCCResidualsEncoder& encoder);
+    PCCResidualsEncoder& encoder
+    ,
+    const AttributeInterPredParams& attrInterPredParams);
 
   void encodeColorsLift(
     const AttributeDescription& desc,
@@ -92,7 +96,9 @@ protected:
     const AttributeParameterSet& aps,
     const QpSet& qpSet,
     PCCPointSet3& pointCloud,
-    PCCResidualsEncoder& encoder);
+    PCCResidualsEncoder& encoder
+    ,
+    const AttributeInterPredParams& attrInterPredParams);
 
   void encodeColorsPred(
     const AttributeDescription& desc,
@@ -157,7 +163,8 @@ protected:
     PCCPredictor& predictor,
     PCCResidualsEncoder& encoder,
     PCCResidualsEntropyEstimator& context,
-    const Quantizer& quant);
+    const Quantizer& quant,
+    const AttributeInterPredParams& attrInterPredParams);
 
   static void encodePredModeRefl(
     const AttributeParameterSet& aps, int predMode, int32_t& coeff);

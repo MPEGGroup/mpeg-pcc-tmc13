@@ -547,7 +547,6 @@ public:
       std::pair<int, int> currThresh;
       std::vector<int64_t> currMatrix;
       Vec3<int> currVector;
-
       for (auto& laserPts : refPointValsGlob)
         laserPts.clear();
       motionParams.getMotionParams(currThresh, currMatrix, currVector);
@@ -634,7 +633,10 @@ public:
   {
     motionParams.setMotionParams(th, mat, tr);
   }
-
+  
+  void setGlobalMotionEnabled(bool GlobalMotionEnabled){
+    globalMotionEnabled = GlobalMotionEnabled;
+  }
 
 private:
   std::vector<std::map<int, pcc::point_t>> refPointVals;

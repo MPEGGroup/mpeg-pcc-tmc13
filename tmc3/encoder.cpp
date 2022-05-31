@@ -194,7 +194,7 @@ PCCTMC3Encoder3::compress(
 
     // Allocate storage for attribute contexts
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
-
+    
     if (params->gps.globalMotionEnabled) {
       _refFrameSph.parseMotionParams(motionVectorFileName);
     }
@@ -385,8 +385,13 @@ PCCTMC3Encoder3::compress(
     }
     std::cout << "Slice number: " << partitions.slices.size() << std::endl;
   } while (0);
-  if (_frameCounter)
+  
+  if (_frameCounter){
     _refFrameSph.updateFrame(*_gps);
+  }else{
+    _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
+  }
+
   // Encode each partition:
   //  - create a pointset comprising just the partitioned points
   //  - compress
@@ -681,6 +686,9 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_layer_qp_delta_luma = attr_enc.abh.attr_layer_qp_delta_luma;
     abh.attr_layer_qp_delta_chroma = attr_enc.abh.attr_layer_qp_delta_chroma;
 
+    if(_gbh.interPredictionEnabledFlag)
+      abh.attr_qp_delta_luma = attr_aps.qpShiftStep;
+
     // NB: regionQpOrigin/regionQpSize use the STV axes, not XYZ.
     if (false) {
       abh.qpRegions.emplace_back();
@@ -694,7 +702,11 @@ PCCTMC3Encoder3::compressPartition(
     }
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
-
+    
+    abh.disableAttrInterPred = !movingState;
+    attrInterPredParams.enableAttrInterPred = attr_aps.attrInterPredictionEnabled & !abh.disableAttrInterPred;
+    abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;
+    
     // Convert cartesian positions to spherical for use in attribute coding.
     // NB: this retains the original cartesian positions to restore afterwards
     std::vector<pcc::point_t> altPositions;
@@ -702,9 +714,13 @@ PCCTMC3Encoder3::compressPartition(
       // If predgeom was used, re-use the internal positions rather than
       // calculating afresh.
       Box3<int> bboxRpl;
+
+      pcc::point_t minPos = 0;
+
       if (_gps->predgeom_enabled_flag) {
         altPositions = _posSph;
         bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
+        minPos = bboxRpl.min;
       } else {
         altPositions.resize(pointCloud.getPointCount());
 
@@ -713,10 +729,15 @@ PCCTMC3Encoder3::compressPartition(
           laserOrigin, _gps->angularTheta.data(), _gps->angularTheta.size(),
           &pointCloud[0], &pointCloud[0] + pointCloud.getPointCount(),
           altPositions.data());
+
+        if(!attr_aps.attrInterPredictionEnabled){
+          minPos = bboxRpl.min;
+        }
       }
 
       offsetAndScale(
-        bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
+        minPos, attr_aps.attr_coord_scale, altPositions.data(),      
+        //bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
         altPositions.data() + altPositions.size());
 
       pointCloud.swapPoints(altPositions);
@@ -735,12 +756,38 @@ PCCTMC3Encoder3::compressPartition(
     if (!attrEncoder->isReusable(attr_aps, abh))
       attrEncoder = makeAttributeEncoder();
 
+    if (!attr_aps.spherical_coord_flag)
+      for (auto i = 0; i < pointCloud.getPointCount(); i++)
+        pointCloud[i] += _sliceOrigin;      
+
     auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
     attrEncoder->encode(
-      *_sps, attr_sps, attr_aps, abh, ctxtMemAttr, pointCloud, &payload);
+      *_sps, attr_sps, attr_aps, abh, ctxtMemAttr, pointCloud, &payload, attrInterPredParams);
 
-    if (attr_aps.spherical_coord_flag)
+    if (!attr_aps.spherical_coord_flag)
+      for (auto i = 0; i < pointCloud.getPointCount(); i++)
+        pointCloud[i] -= _sliceOrigin;    
+
+    if (attr_aps.spherical_coord_flag){
       pointCloud.swapPoints(altPositions);
+    }
+
+    if(attr_aps.spherical_coord_flag){
+      attrInterPredParams.referencePointCloud = pointCloud;
+      attrInterPredParams.referencePointCloud.swapPoints(altPositions);     
+    }
+    else{
+      attrInterPredParams.referencePointCloud.clear();
+    }
+
+    if(!attrInterPredParams.getPointCount())
+    {
+      attrInterPredParams.referencePointCloud = pointCloud;
+      for (int count = 0; count < attrInterPredParams.referencePointCloud.getPointCount(); count++) {
+        attrInterPredParams.referencePointCloud[count] += _sliceOrigin;
+      }
+    }
+
 
     clock_user.stop();
 
@@ -759,8 +806,9 @@ PCCTMC3Encoder3::compressPartition(
   }
 
   if (_gps->interPredictionEnabledFlag) {
-    if (_gps->predgeom_enabled_flag)
+    if (_gps->predgeom_enabled_flag){
       _refFrameSph.insert(_posSph);
+    }
   }
 
   // Note the current slice id for loss detection with entropy continuation
@@ -875,6 +923,29 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
     gbh.gm_trans = 0;
     gbh.gm_thresh = {0, 0};
+  }
+
+  attrInterPredParams.frameDistance = 1;
+  movingState = false;
+
+  if(gbh.interPredictionEnabledFlag){
+    const double scale = 65536.;  
+    const double thr1_pre = 0.1 / attrInterPredParams.frameDistance;
+    const double thr2_pre = 1000.;
+
+    const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
+    const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
+    
+    double Rx,Ry,Rz,Sx,Sy,Sz;
+
+    Rx = abs((gbh.gm_matrix[5] / scale) / (1. + gbh.gm_matrix[8] / scale));
+    Ry = abs(gbh.gm_matrix[2] / scale);
+    Rz = abs((gbh.gm_matrix[1] / scale) / (1. + gbh.gm_matrix[0] / scale));
+    Sx = abs(gbh.gm_trans[0]);
+    Sy = abs(gbh.gm_trans[1]);
+    Sz = abs(gbh.gm_trans[2]);
+
+    movingState =(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
   }
 
   // assemble data unit

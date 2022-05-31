@@ -80,11 +80,16 @@ struct AttributeLods {
     const AttributeBrickHeader& abh,
     int geom_num_points_minus1,
     int minGeomNodeSizeLog2,
-    const PCCPointSet3& cloud);
+    const PCCPointSet3& cloud
+    , const AttributeInterPredParams& attrInterPredParams    
+    );
 
   std::vector<PCCPredictor> predictors;
   std::vector<uint32_t> numPointsInLod;
   std::vector<uint32_t> indexes;
+
+  std::vector<uint32_t> indexesRef;
+  std::vector<uint32_t> numPointsInLodRef;  
 
 private:
   // This is the aps that was used to generate the LoDs.  It is used to check
@@ -110,7 +115,8 @@ bool predModeEligibleRefl(
   const AttributeParameterSet& aps,
   const PCCPointSet3& pointCloud,
   const std::vector<uint32_t>& indexes,
-  const PCCPredictor& predictor);
+  const PCCPredictor& predictor
+  , const AttributeInterPredParams& attrInterPredParams);
 
 //============================================================================
 
