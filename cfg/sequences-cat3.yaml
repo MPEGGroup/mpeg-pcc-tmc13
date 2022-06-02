@@ -52,7 +52,8 @@ sequences:
 
   # temporal sequences (Reflectance only)
   ford_01_q1mm:
-    global_motion_file: 'zeroMotion-ford-01-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-ford-01-global-motion-matrix.txt'
+    global_motion_file: 'ford_01_q1mm-global-motion-matrix-estimated.txt'
     src-dir: Ford_01_q_1mm
     src: Ford_01_vox1mm-{0100..1599}.ply
     first-frame: 100
@@ -106,7 +107,8 @@ sequences:
      - resolution: 30000
 
   ford_02_q1mm:
-    global_motion_file: 'zeroMotion-ford-02-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-ford-02-global-motion-matrix.txt'
+    global_motion_file: 'ford_02_q1mm-global-motion-matrix-estimated.txt'
     src-dir: Ford_02_q_1mm
     src: Ford_02_vox1mm-{0100..1599}.ply
     first-frame: 100
@@ -160,7 +162,8 @@ sequences:
      - resolution: 30000
 
   ford_03_q1mm:
-    global_motion_file: 'zeroMotion-ford-03-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-ford-03-global-motion-matrix.txt'
+    global_motion_file: 'ford_03_q1mm-global-motion-matrix-estimated.txt'
     src-dir: Ford_03_q_1mm
     src: Ford_03_vox1mm-{0200..1699}.ply
     first-frame: 200
@@ -214,7 +217,8 @@ sequences:
      - resolution: 30000
 
   qnxadas-junction-approach:
-    global_motion_file: 'zeroMotion-qnx-approach-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-qnx-approach-global-motion-matrix.txt'
+    global_motion_file: 'qnxadas-junction-approach-global-motion-matrix-estimated.txt'
     src-dir: qnxadas-junction-approach
     src: '{000001..000074}.ply'
     norm-dir: qnxadas-junction-approach
@@ -250,7 +254,8 @@ sequences:
      - resolution: 30000
 
   qnxadas-junction-exit:
-    global_motion_file: 'zeroMotion-qnx-exit-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-qnx-exit-global-motion-matrix.txt'
+    global_motion_file: 'qnxadas-junction-exit-global-motion-matrix-estimated.txt'
     src-dir: qnxadas-junction-exit
     src: '{000001..000074}.ply'
     norm-dir: qnxadas-junction-exit
@@ -286,7 +291,8 @@ sequences:
      - resolution: 30000
 
   qnxadas-motorway-join:
-    global_motion_file: 'zeroMotion-qnx-join-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-qnx-join-global-motion-matrix.txt'
+    global_motion_file: 'qnxadas-motorway-join-global-motion-matrix-estimated.txt'
     src-dir: qnxadas-motorway-join
     src: '{000001..000500}.ply'
     norm-dir: qnxadas-motorway-join
@@ -322,7 +328,8 @@ sequences:
      - resolution: 30000
 
   qnxadas-navigating-bends:
-    global_motion_file: 'zeroMotion-qnx-bends-global-motion-matrix.txt'
+    zero_motion_file: 'zeroMotion-qnx-bends-global-motion-matrix.txt'
+    global_motion_file: 'qnxadas-navigating-bends-global-motion-matrix-estimated.txt'
     src-dir: qnxadas-navigating-bends
     src: '{000001..000300}.ply'
     norm-dir: qnxadas-navigating-bends

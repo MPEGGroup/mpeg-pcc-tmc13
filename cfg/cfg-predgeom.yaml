@@ -5,13 +5,11 @@ encflags:
  # Some sequences input order is not characteristic of a real
  # system.  This will make it so.
  - sortInputByAzimuth: '$eval{ ${needs_azimuth_presort} || 0 }'
- - motionVectorPath: '${global_motion_file}'
+ - motionVectorPath: '${zero_motion_file}'
 
  # use predictive geometry, default to azimuthal sort
  - geomTreeType: 1
  - predGeomSort: 0
- - randomAccessPeriod: 8
- - interPredictionEnabled: 1
 
  # configuration for angular predictive geometry
  -
