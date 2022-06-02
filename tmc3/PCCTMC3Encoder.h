@@ -50,7 +50,7 @@
 #include "hls.h"
 #include "partitioning.h"
 #include "pointset_processing.h"
-
+#include "TMC3.h"
 namespace pcc {
 
 //============================================================================
@@ -244,6 +244,9 @@ private:
 
   AttributeInterPredParams attrInterPredParams;
   bool movingState;
+  // Point cloud that acts as a predictor of @pointCloud's geometry
+  // occupancy.
+  PCCPointSet3 predPointCloud;
 
 };
 

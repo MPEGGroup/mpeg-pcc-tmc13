@@ -44,7 +44,7 @@
 #include "hls.h"
 #include "partitioning.h"
 #include "geometry_predictive.h"
-
+#include "TMC3.h"
 namespace pcc {
 
 //============================================================================
@@ -60,14 +60,20 @@ void encodeGeometryOctree(
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder);
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder
+  , const SequenceParameterSet& sps
+  , PCCPointSet3& predPointCloud
+);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  EntropyDecoder& arithmeticDecoder);
+  EntropyDecoder& arithmeticDecoder,
+  PCCPointSet3& predPointCloud,
+  Vec3<int> minimum_position
+);
 
 void decodeGeometryOctreeScalable(
   const GeometryParameterSet& gps,
@@ -75,7 +81,9 @@ void decodeGeometryOctreeScalable(
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  EntropyDecoder& arithmeticDecoder);
+  EntropyDecoder& arithmeticDecoder
+  , PCCPointSet3& predPointCloud
+);
 
 //----------------------------------------------------------------------------
 

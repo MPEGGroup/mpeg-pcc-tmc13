@@ -153,33 +153,13 @@ updatePatternFromNeighOccupancy(
 
   // conversions between neighbour occupancy and adjacency:
   //  x: >> 4, y: >> 2, z: >> 1
-  int adjacencyShift = 4 >> neighIdx;
-
   // Always inspect the adjacent children, taking into account that their
   // position changes depending upon whther the current axis is coded or not.
   if (!codedAxisCurLvl) {
     childMask ^= 0xff;
-    adjacencyShift = 0;
   }
-
-  if (gnp.neighPattern & patternBit) {
-    uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
-    gnp.adjNeighOcc[neighIdx] = child_occ;
-
-    uint8_t child_unocc = ~child_occ;
-    child_occ &= childMask;
-    if (!child_occ) {
-      /* neighbour is falsely occupied */
-      gnp.neighPattern ^= patternBit;
-    } else {
-      child_occ >>= adjacencyShift;
-      gnp.adjacencyGt1 |= gnp.adjacencyGt0 & child_occ;
-      gnp.adjacencyGt0 |= child_occ;
-    }
-
-    // map of children with any unoccupied adjacent child
-    gnp.adjacencyUnocc |= (child_unocc & childMask) >> adjacencyShift;
-  }
+  uint8_t child_occ = occupancyAtlas.getChildOcc(x, y, z);
+  gnp.adjNeighOcc[neighIdx] = child_occ;
 
   return gnp;
 }
@@ -232,22 +212,345 @@ makeGeometryNeighPattern(
   // the occupancy contextualisation bits.
   GeometryNeighPattern gnp = {neighPattern, 0, 0, 0};
 
-  if (!adjacent_child_contextualization_enabled_flag)
+  if (!gnp.neighPattern || !adjacent_child_contextualization_enabled_flag)
+
     return gnp;
 
-  if (x > 0)
+  if (
+    x > 0 && gnp.neighPattern & 2
+  )
     gnp = updatePatternFromNeighOccupancy(
       occupancyAtlas, x - 1, y, z, gnp, 0, codedAxesCurLvl & 4);
 
-  if (y > 0)
+  if (y > 0 && gnp.neighPattern & 4 )
     gnp = updatePatternFromNeighOccupancy(
       occupancyAtlas, x, y - 1, z, gnp, 1, codedAxesCurLvl & 2);
 
-  if (z > 0)
+  if (z > 0 && gnp.neighPattern & 16)
     gnp = updatePatternFromNeighOccupancy(
       occupancyAtlas, x, y, z - 1, gnp, 2, codedAxesCurLvl & 1);
 
   return gnp;
+}
+//----------------------------------------------------------------------------
+
+GeometryNeighPattern
+makeGeometryNeighPattern(
+  const Vec3<int32_t>& position,
+  int codedAxesPrevLvl,
+  const MortonMap3D& occupancyAtlas)
+{
+  const int mask = occupancyAtlas.cubeSize() - 1;
+  const int cubeSizeMinusOne = mask;
+  const int32_t x = position[0] & mask;
+  const int32_t y = position[1] & mask;
+  const int32_t z = position[2] & mask;
+  uint8_t neighPattern;
+
+  const int sx = codedAxesPrevLvl & 4 ? 1 : 0;
+  const int sy = codedAxesPrevLvl & 2 ? 1 : 0;
+  const int sz = codedAxesPrevLvl & 1 ? 1 : 0;
+
+  if (
+    x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+    && z < cubeSizeMinusOne) {
+    neighPattern = occupancyAtlas.get(x + 1, y, z, sx, sy, sz);
+    neighPattern |= occupancyAtlas.get(x - 1, y, z, sx, sy, sz) << 1;
+    neighPattern |= occupancyAtlas.get(x, y - 1, z, sx, sy, sz) << 2;
+    neighPattern |= occupancyAtlas.get(x, y + 1, z, sx, sy, sz) << 3;
+    neighPattern |= occupancyAtlas.get(x, y, z - 1, sx, sy, sz) << 4;
+    neighPattern |= occupancyAtlas.get(x, y, z + 1, sx, sy, sz) << 5;
+  } else {
+    neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z, sx, sy, sz);
+    neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z, sx, sy, sz) << 1;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z, sx, sy, sz) << 2;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z, sx, sy, sz) << 3;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1, sx, sy, sz) << 4;
+    neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1, sx, sy, sz) << 5;
+  }
+
+  // Above, the neighbour pattern corresponds directly to the six same
+  // sized neighbours of the given node.
+  // The patten is then refined by examining the available children
+  // of the same neighbours.
+
+  // NB: the process of updating neighpattern below also derives
+  // the occupancy contextualisation bits.
+  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0};
+  return gnp;
+}
+
+
+//----------------------------------------------------------------------------
+
+void
+makeGeometryAdvancedNeighPattern(
+  int neighPattern,
+  const Vec3<int32_t>& position,
+  int atlasShift,
+  const MortonMap3D& occupancyAtlas,
+  int Word7Adj[8],
+  bool Sparse[8])
+{
+  const int mask = occupancyAtlas.cubeSize() - 1;
+  const int32_t x = position[0] & mask;
+  const int32_t y = position[1] & mask;
+  const int32_t z = position[2] & mask;
+
+  // ----- neighbours  FLB -----
+  int occLeft = 0;
+  if (neighPattern & 2)  //Neighbour L
+    occLeft = occupancyAtlas.getChildOcc(x - 1, y, z);
+
+  int occFront = 0;
+  if (neighPattern & 4) //Neighbour F
+    occFront = occupancyAtlas.getChildOcc(x, y - 1, z);
+
+  int occBottom = 0;
+  if (neighPattern & 16) //Neighbour B
+    occBottom = occupancyAtlas.getChildOcc(x, y, z - 1);
+
+  int occL = occLeft >> 4;
+  int occF = ((occFront >> 2) & 3) | ((occFront >> 4) & 12);
+  int occB = ((occBottom >> 1) & 1) | ((occBottom >> 2) & 2) | ((occBottom >> 3) & 4) | ((occBottom >> 4) & 8);
+  int occOrLFBfb = occLeft | occFront | occBottom;
+
+  // ----- neighbours  LB, FB, LF -----
+  const int sx = atlasShift & 4 ? 1 : 0;
+  const int sy = atlasShift & 2 ? 1 : 0;
+  const int sz = atlasShift & 1 ? 1 : 0;
+
+  int edgeBits = 0;
+  if (occupancyAtlas.getWithCheck(x - 1, y, z - 1, sx, sy, sz)) {
+    int occLB = occupancyAtlas.getChildOcc(x - 1, y, z - 1);
+    edgeBits = ((occLB & 32) >> 5) | ((occLB & 128) >> 6);
+  }
+
+  if (occupancyAtlas.getWithCheck(x, y - 1, z - 1, sx, sy, sz)) {
+    int occFB = occupancyAtlas.getChildOcc(x, y - 1, z - 1);
+    edgeBits |= ((occFB & 8) >> 1) | ((occFB & 128) >> 4);
+  }
+
+  if (occupancyAtlas.getWithCheck(x - 1, y - 1, z, sx, sy, sz)) {
+    int occLF = occupancyAtlas.getChildOcc(x - 1, y - 1, z);
+    edgeBits |= (occLF & 0b11000000) >> 2;
+  }
+
+  int N3 = ((neighPattern >> 3) & 4) | ((neighPattern >> 2) & 2) | (neighPattern & 1);// gnp.neighPattern & 0b101001
+  int N2 = N3 & 3;
+
+  // ------ bit 0  ------ 12+0 = 12 bits
+  int NN = !!(occL & 1) + !!(occL & 2) + !!(occL & 4) + !!(occL & 8);
+  NN += !!(occF & 1) + !!(occF & 2) + !!(occF & 4) + !!(occF & 8);
+  NN += !!(occB & 1) + !!(occB & 2) + !!(occB & 4) + !!(occB & 8);
+
+  int NLFB = !!occL + !!occF + !!occB;
+  if (NN>1) {
+    if (NLFB == 3) {
+      Word7Adj[0] = 0b1000 << 8; // put tag at the head as it is the most important info
+      Word7Adj[0] |= (occL & 7);
+      Word7Adj[0] |= (occF & 7) << 3;
+      Word7Adj[0] |= (occB & 7) << 6;
+    }
+    else if (NLFB == 2) {
+      if (occL && occB) {
+        Word7Adj[0] = 0b0100 << 8;
+        Word7Adj[0] |= occL;
+        Word7Adj[0] |= occB << 4;
+      }
+      if (occF && occB) {
+        Word7Adj[0] = 0b0101 << 8;
+        Word7Adj[0] |= occF;
+        Word7Adj[0] |= occB << 4;
+      }
+      if (occL && occF) {
+        Word7Adj[0] = 0b0110 << 8;
+        Word7Adj[0] |= occL;
+        Word7Adj[0] |= occF << 4;
+      }
+    }
+    else //NLFB == 1
+    {
+      if (occL) {
+        Word7Adj[0] = 0b0000 << 8;
+        Word7Adj[0] |= occL << 4;
+        Word7Adj[0] |= (edgeBits & 0b001100);
+      }
+      if (occF) {
+        Word7Adj[0] = 0b0001 << 8;
+        Word7Adj[0] |= occF << 4;
+        Word7Adj[0] |= (edgeBits & 0b000011) << 2;
+
+      }
+      if (occB) {
+        Word7Adj[0] = 0b0010 << 8;
+        Word7Adj[0] |= occB << 4;
+        Word7Adj[0] |= (edgeBits & 0b110000) >> 2;
+      }
+    }
+  }
+  else {
+    int neighPatternLFB = ((neighPattern & 0b110) >> 1) | ((neighPattern & 16) >> 2);
+    Word7Adj[0] = neighPatternLFB << 4; // 9 bits
+    if (NN) {
+      if (occL)
+        Word7Adj[0] |= 1 << 7;
+      if (occF)
+        Word7Adj[0] |= 2 << 7;
+      if (occB)
+        Word7Adj[0] |= 3 << 7;
+    }
+    if (neighPatternLFB) {
+      if (occOrLFBfb & 1) {
+        Word7Adj[0] |= 8;
+        Word7Adj[0] |= (occLeft & 1);
+        Word7Adj[0] |= (occFront & 1) << 1;
+        Word7Adj[0] |= (occBottom & 1) << 2;
+      }
+      else
+      {
+        Word7Adj[0] |= ((occLeft & 2) || (occFront & 16) || (occBottom & 16));
+        Word7Adj[0] |= ((occLeft & 4) || (occFront & 2) || (occBottom & 4)) << 1;
+        Word7Adj[0] |= !edgeBits << 2;
+      }
+    }
+    else {
+      Word7Adj[0] |= !(edgeBits & 0b000011) << 1;
+      Word7Adj[0] |= !(edgeBits & 0b001100) << 2;
+      Word7Adj[0] |= !(edgeBits & 0b110000) << 3;
+    }
+
+    Sparse[0] = true;
+  }
+
+
+  // ------ bit 1  ------ 8+3+1 = 12 bits
+  if (occL || occF) {
+    Word7Adj[1] = occL << 3;
+    Word7Adj[1] |= occF << 7;
+    Word7Adj[1] |= N3;
+  }
+  else { // 5+1+1 = 7 bits
+    Word7Adj[1] = (N3 >> 2) << 5; //Top
+    if (occOrLFBfb & 2) {
+      Word7Adj[1] |= 16;
+      Word7Adj[1] |= (occLeft & 2) << 0;
+      Word7Adj[1] |= (occFront & 2) << 1;
+      Word7Adj[1] |= (occBottom & 2) << 2;
+    }
+    else {
+      Word7Adj[1] |= ((occLeft & 1) || (occFront & 1)) << 1;
+      Word7Adj[1] |= ((occLeft & 8) || (occFront & 32)) << 2;
+      Word7Adj[1] |= !(edgeBits & 0b110101) << 3;
+    }
+
+    Word7Adj[1] |= !occB;
+
+    Sparse[1] = true;
+  }
+
+  // ------ bit 2  ------ 8+2+2 = 12 bits
+  if (occL || occB) {
+    Word7Adj[2] = occL << 2;
+    Word7Adj[2] |= occB << 6;
+    Word7Adj[2] |= N2;
+  }
+  else { // 5+1+2 = 8 bits
+    Word7Adj[2] = !occF;
+    if (occOrLFBfb & 4) {
+      Word7Adj[2] |= 16;
+      Word7Adj[2] |= (occLeft & 4) << 1;
+      Word7Adj[2] |= (occBottom & 4);
+      Word7Adj[2] |= (occFront & 4) >> 1;
+    }
+    else {
+      Word7Adj[2] |= ((occLeft & 1) || (occBottom & 1)) << 3;
+      Word7Adj[2] |= ((occLeft & 8) || (occBottom & 64)) << 2;
+      Word7Adj[2] |= !(edgeBits & 0b000011) << 1;
+    }
+
+    Sparse[2] = true;
+    Word7Adj[2] |= ((N2 >> 1) & 1) << 5; // Back
+  }
+
+  // ------ bit 3  ------ 4+3+3 = 10 bits
+  if (occL) {
+    Word7Adj[3] = occL << 3;
+    Word7Adj[3] |= N3;
+  }
+  else { // 6+2+3 = 11 bits
+    Word7Adj[3] = !occF;
+    Word7Adj[3] |= !occB << 1;
+    if (occOrLFBfb & 8) {
+      Word7Adj[3] |= 32;
+      Word7Adj[3] |= (occLeft & 8) >> 1;
+      Word7Adj[3] |= (occFront & 8);
+      Word7Adj[3] |= (occBottom & 8) << 1;
+    }
+    else {
+      Word7Adj[3] |= (occLeft & 0b110) << 2;
+      Word7Adj[3] |= !(edgeBits & 0b110010) << 2;
+    }
+
+    Sparse[3] = true;
+    Word7Adj[3] |= (N3 >> 1) << 6; // Back + Top
+  }
+
+  // ------ bit 4  ------ 6+2+4 = 12 bits
+  if (occF || occB) {
+    Word7Adj[4] = ((occF & 1) | ((occF >> 1) & 6)) << 2; // &0b1101;
+    Word7Adj[4] |= ((occB & 1) | ((occB >> 1) & 6)) << 5; // &0b1101;
+    Word7Adj[4] |= N2;
+  }
+  else { // 5+1+4 = 10 bits
+    Word7Adj[4] = !occL;
+    if (occOrLFBfb & 16) {
+      Word7Adj[4] |= 16;
+      Word7Adj[4] |= (occFront & 16) >> 1;
+      Word7Adj[4] |= (occBottom & 16) >> 2;
+      Word7Adj[4] |= (occLeft & 16) >> 3;
+    }
+    else {
+      Word7Adj[4] |= ((occFront & 32) || (occBottom & 1)) << 3;
+      Word7Adj[4] |= ((occFront & 64) || (occBottom & 64)) << 2;
+      Word7Adj[4] |= !(edgeBits & 0b001100) << 1;
+    }
+
+    Sparse[4] = true;
+    Word7Adj[4] |= (N2 & 1) << 5; // Right
+  }
+
+  // ------ bit 5  ------ 3+3+5 = 11 bits
+  if (occF) {
+    Word7Adj[5] = (occF & 0b1110) << 2;
+    Word7Adj[5] |= N3;
+  }
+  else { // 4+2+5 = 11 bits
+    Word7Adj[5] = !occL;
+    Word7Adj[5] |= !occB << 1;
+    Word7Adj[5] |= !(edgeBits & 0b111100) << 2;
+    Word7Adj[5] |= !(occOrLFBfb & 32) << 3;
+    Sparse[5] = true;
+    Word7Adj[5] |= (N3 & 1) << 4; // Right
+    Word7Adj[5] |= (N3 >> 2) << 5; //  and Top
+  }
+
+  // ------ bit 6  ------   3+2+6 = 11 bits
+  if (occB) {
+    Word7Adj[6] = (occB & 0b1110) << 1;
+    Word7Adj[6] |= N2;
+  }
+  else { // 4+2+6 = 12 bits
+    Word7Adj[6] = !occL;
+    Word7Adj[6] |= !occF << 1;
+    Word7Adj[6] |= !(edgeBits & 0b001010) << 2;
+    Word7Adj[6] |= !(occOrLFBfb & 64) << 3;
+    Sparse[6] = true;
+    Word7Adj[6] |= N2 << 4; // Right and Back
+  }
+
+  // ------ bit 7  ------  3+7 = 10 bits, never sparse
+  Word7Adj[7] = N3; // Right and Back and Top
 }
 
 //============================================================================

@@ -159,69 +159,6 @@ mkQtBtNodeSizeList(
 
   return nodeSizeLog2List;
 }
-
-//-------------------------------------------------------------------------
-// map the @occupancy pattern bits to take into account symmetries in the
-// neighbour configuration @neighPattern.
-//
-uint8_t
-mapGeometryOccupancy(uint8_t occupancy, uint8_t neighPattern)
-{
-  switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
-  case 1: occupancy = kOccMapRotateZ090[occupancy]; break;
-  case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
-  case 3: occupancy = kOccMapRotateZ270[occupancy]; break;
-  }
-
-  bool flag_ud = (neighPattern & 16) && !(neighPattern & 32);
-  if (flag_ud) {
-    occupancy = kOccMapMirrorXY[occupancy];
-  }
-
-  if (kOccMapRotateYIdFromPattern[neighPattern]) {
-    occupancy = kOccMapRotateY270[occupancy];
-  }
-
-  switch (kOccMapRotateXIdFromPattern[neighPattern]) {
-  case 1: occupancy = kOccMapRotateX090[occupancy]; break;
-  case 2: occupancy = kOccMapRotateX270Y180[occupancy]; break;
-  case 3: occupancy = kOccMapRotateX090Y180[occupancy]; break;
-  }
-
-  return occupancy;
-}
-
-//-------------------------------------------------------------------------
-// map the @occupancy pattern bits to take into account symmetries in the
-// neighbour configuration @neighPattern.
-//
-uint8_t
-mapGeometryOccupancyInv(uint8_t occupancy, uint8_t neighPattern)
-{
-  switch (kOccMapRotateXIdFromPattern[neighPattern]) {
-  case 1: occupancy = kOccMapRotateX270[occupancy]; break;
-  case 2: occupancy = kOccMapRotateX270Y180[occupancy]; break;
-  case 3: occupancy = kOccMapRotateX090Y180[occupancy]; break;
-  }
-
-  if (kOccMapRotateYIdFromPattern[neighPattern]) {
-    occupancy = kOccMapRotateY090[occupancy];
-  }
-
-  bool flag_ud = (neighPattern & 16) && !(neighPattern & 32);
-  if (flag_ud) {
-    occupancy = kOccMapMirrorXY[occupancy];
-  }
-
-  switch (kOccMapRotateZIdFromPatternXY[neighPattern & 15]) {
-  case 1: occupancy = kOccMapRotateZ270[occupancy]; break;
-  case 2: occupancy = kOccMapRotateZ180[occupancy]; break;
-  case 3: occupancy = kOccMapRotateZ090[occupancy]; break;
-  }
-
-  return occupancy;
-}
-
 //============================================================================
 // Derive the neighbour pattern for the three siblings of a node
 // from the parent's occupancy byte.

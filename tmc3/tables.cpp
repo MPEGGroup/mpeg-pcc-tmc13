@@ -34,7 +34,7 @@
  */
 
 #include "tables.h"
-
+#include "TMC3.h"
 // indicates impossible values in the following table
 static const int x = 0;
 
@@ -293,8 +293,9 @@ const int8_t pcc::kOccBitCodingOrder[8] = {1, 7, 5, 3, 2, 6, 4, 0};
 //============================================================================
 
 // Generated from (L*p+s)/(L+1), L=min(200, max(5, 1/p, 1/(1-p))
+
 const uint8_t pcc::kCtxMapOctreeOccupancyDelta[16] = {
-  0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 18, 13, 6};
+  0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 22, 20, 15};
 
 //============================================================================
 

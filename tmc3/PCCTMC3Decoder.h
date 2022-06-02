@@ -138,6 +138,10 @@ private:
   // The current output cloud
   CloudFrame _outCloud;
 
+  // The reference pointcloud buffer (a one entry buffer) that may be
+  // used to predict a frame.
+  PCCPointSet3 _refPointCloud;
+ 
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 

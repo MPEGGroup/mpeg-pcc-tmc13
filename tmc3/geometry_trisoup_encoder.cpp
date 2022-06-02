@@ -54,9 +54,12 @@ encodeGeometryTrisoup(
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
+#if 1
+  std::cout << "Does not support Trisoup\n";
+#else
   encodeGeometryOctree(
     opt, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes);
-
+#endif
   // resume encoding with the last encoder
   auto arithmeticEncoder = arithmeticEncoders.back().get();
 

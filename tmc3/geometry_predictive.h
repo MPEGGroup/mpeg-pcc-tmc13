@@ -413,7 +413,7 @@ public:
     else
       return int(y + 0.5) / float(scaleFactor);
   }
-  void parseFile(std::string fileName)
+  void parseFile(std::string fileName, double qs)
   {
     if (numFrames)
       return;
@@ -438,9 +438,9 @@ public:
         else
           motionMatrix[i][j] = std::round((*(it++)) * scaleFactor);
       for (int j = 0; j < 3; j++)
-        transVec[i][j] = std::round(*(it++));
-      threshVec[i].first = std::round(*(it++));  // quantizeParameter(*(it++));
-      threshVec[i].second = std::round(*(it++)); // quantizeParameter(*(it++));
+        transVec[i][j] = std::round((*(it++)) * qs);
+      threshVec[i].first = std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
+      threshVec[i].second = std::round((*(it++)) * qs); // quantizeParameter(*(it++));
     }
   }
   void
@@ -534,9 +534,9 @@ public:
   bool isInterEnabled() { return interEnabled; }
   void setInterEnabled(bool enableFlag) { interEnabled = enableFlag; }
   void advanceFrame() { motionParams.AdvanceFrame(); }
-  void parseMotionParams(std::string fileName)
+  void parseMotionParams(std::string fileName, double qs)
   {
-    motionParams.parseFile(fileName);
+    motionParams.parseFile(fileName, qs);
   }
   void updateFrame(const GeometryParameterSet& gps)
   {

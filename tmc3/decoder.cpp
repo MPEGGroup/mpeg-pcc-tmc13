@@ -250,6 +250,8 @@ PCCTMC3Decoder3::decompress(
 
     if (!attrInterPredParams.getPointCount())
       attrInterPredParams.referencePointCloud = _currentPointCloud;
+    // save the decoded pointcloud in the reference buffer
+    std::swap(_refPointCloud, _currentPointCloud);
 
     return decodeGeometryBrick(*buf);
 
@@ -466,11 +468,16 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   } else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
-        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
+        *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec
+        ,_refPointCloud
+        ,_sps->seqBoundingBoxOrigin
+	  );
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
-        *_ctxtMemOctreeGeom, aec);
+        *_ctxtMemOctreeGeom, aec
+        ,_refPointCloud
+	  );
     }
   } else {
     decodeGeometryTrisoup(
@@ -576,7 +583,6 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
     offsetAndScale(
       minPos, attr_aps.attr_coord_scale, altPositions.data(),
-      //bboxRpl.min, attr_aps.attr_coord_scale, altPositions.data(),
       altPositions.data() + altPositions.size());
 
     _currentPointCloud.swapPoints(altPositions);

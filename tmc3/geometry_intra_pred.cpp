@@ -37,81 +37,53 @@
 
 namespace pcc {
 
-//============================================================================
-// Mapping of neighbour influence to affected (childIdx + 1).
-// NB: zero indicates no influence.
-
-static const int8_t kNeighToChildIdx[26][4] = {
-  {1, 0, 0, 0}, {1, 2, 0, 0}, {2, 0, 0, 0}, {1, 3, 0, 0}, {1, 2, 3, 4},
-  {2, 4, 0, 0}, {3, 0, 0, 0}, {3, 4, 0, 0}, {4, 0, 0, 0}, {1, 5, 0, 0},
-  {1, 2, 5, 6}, {2, 6, 0, 0}, {1, 3, 5, 7}, {2, 4, 6, 8}, {3, 7, 0, 0},
-  {3, 4, 7, 8}, {4, 8, 0, 0}, {5, 0, 0, 0}, {5, 6, 0, 0}, {6, 0, 0, 0},
-  {5, 7, 0, 0}, {5, 6, 7, 8}, {6, 8, 0, 0}, {7, 0, 0, 0}, {7, 8, 0, 0},
-  {8, 0, 0, 0}};
-
-//============================================================================
-
 void
-predictGeometryOccupancyIntra(
+
+construct26NeighbourWord(
+
   const MortonMap3D& occupancyAtlas,
   Vec3<int32_t> pos,
   const int atlasShift,
-  int* occupancyIsPredicted,
-  int* occupancyPrediction)
+  int Word4[8]
+)
 {
   uint32_t mask = occupancyAtlas.cubeSize() - 1;
   int32_t x = pos[0] & mask;
   int32_t y = pos[1] & mask;
   int32_t z = pos[2] & mask;
 
-  int score[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  const int8_t* kNeigh = &kNeighToChildIdx[0][0];
-  int numOccupied = 0;
-
   const int shiftX = (atlasShift & 4 ? 1 : 0);
   const int shiftY = (atlasShift & 2 ? 1 : 0);
   const int shiftZ = (atlasShift & 1 ? 1 : 0);
+  int WordDiag[8] = { 0,0,0,0,0,0,0,0 };
+  static const int LUTdx[20] = { -1,-1,-1,-1,-1,-1,-1,-1,0,0,0,0,1,1,1,1,1,1,1,1 };
+  static const int LUTdy[20] = { -1,-1,-1,0,0,1,1,1,-1,-1,1,1,-1,-1,-1,0,0,1,1,1 };
+  static const int LUTdz[20] = { -1,0,1,-1,1,-1,0,1,-1,1,-1,1,-1,0,1,-1,1,-1,0,1 };
+  static const bool LUTsumdydydzIs3[20] = { 1,0,1,0,0,1,0,1,0,0,0,0,1,0,1,0,0,1,0,1 };
+  static const int LUTi2[12][2] = { {0,1}, {0,2}, {1,3}, {2,3}, {0,4}, {1,5}, {2,6}, {3,7}, {4,5}, {4,6}, {5,7}, {6,7} };
 
-  for (int dx = -1; dx <= 1; dx++) {
-    for (int dy = -1; dy <= 1; dy++) {
-      for (int dz = -1; dz <= 1; dz++) {
-        if (dz == 0 && dy == 0 && dx == 0)
-          continue;
+  int i3 = 0;
+  const int *i2 = LUTi2[0];
+  for (int n = 0; n < 20; n++) {
+    int occupied = occupancyAtlas.getWithCheck(x + LUTdx[n], y +LUTdy[n], z + LUTdz[n], shiftX, shiftY, shiftZ);
 
-        // todo(df): remove unnecessary checks
-        bool occupied = occupancyAtlas.getWithCheck(
-          x + dx, y + dy, z + dz, shiftX, shiftY, shiftZ);
-
-        if (occupied) {
-          numOccupied++;
-          for (int i = 0; i < 4; i++) {
-            if (!kNeigh[i])
-              break;
-            score[kNeigh[i] - 1]++;
-          }
-        }
-        // next pattern
-        kNeigh += 4;
-      }
+    if (LUTsumdydydzIs3[n])
+    {
+      WordDiag[i3++] |= occupied;
+    }
+    else {
+      Word4[*i2] <<= 1;
+      Word4[*i2++] |= occupied;
+      Word4[*i2] <<= 1;
+      Word4[*i2++] |= occupied;
     }
   }
-
-  int th0 = 2;
-  int th1 = numOccupied < 14 ? 4 : 5;
-  int occIsPredicted = 0;
-  int occPrediction = 0;
 
   for (int i = 0; i < 8; i++) {
-    if (score[i] <= th0)
-      occIsPredicted |= 1 << i;
-    else if (score[i] >= th1) {
-      occIsPredicted |= 1 << i;
-      occPrediction |= 1 << i;
-    }
+    Word4[i] <<= 1;
+    Word4[i] |= WordDiag[i];
   }
 
-  *occupancyIsPredicted = occIsPredicted;
-  *occupancyPrediction = occPrediction;
 }
 
 //============================================================================

@@ -54,7 +54,7 @@
 #include "partitioning.h"
 #include "pcc_chrono.h"
 #include "ply.h"
-
+#include "TMC3.h"
 namespace pcc {
 
 //============================================================================
@@ -196,7 +196,8 @@ PCCTMC3Encoder3::compress(
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
     
     if (params->gps.globalMotionEnabled) {
-      _refFrameSph.parseMotionParams(motionVectorFileName);
+      double qs = params->gps.predgeom_enabled_flag ? 1.0 : params->codedGeomScale;
+      _refFrameSph.parseMotionParams(motionVectorFileName, qs);
     }
   }
 
@@ -385,9 +386,9 @@ PCCTMC3Encoder3::compress(
     }
     std::cout << "Slice number: " << partitions.slices.size() << std::endl;
   } while (0);
-  
+ 
   if (_frameCounter){
-    _refFrameSph.updateFrame(*_gps);
+     _refFrameSph.updateFrame(*_gps);
   }else{
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   }
@@ -755,10 +756,10 @@ PCCTMC3Encoder3::compressPartition(
     // replace the attribute encoder if not compatible
     if (!attrEncoder->isReusable(attr_aps, abh))
       attrEncoder = makeAttributeEncoder();
-
-    if (!attr_aps.spherical_coord_flag)
+    
+	if (!attr_aps.spherical_coord_flag)
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
-        pointCloud[i] += _sliceOrigin;      
+        pointCloud[i] += _sliceOrigin; 
 
     auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
     attrEncoder->encode(
@@ -809,6 +810,8 @@ PCCTMC3Encoder3::compressPartition(
     if (_gps->predgeom_enabled_flag){
       _refFrameSph.insert(_posSph);
     }
+    else
+      predPointCloud = pointCloud;
   }
 
   // Note the current slice id for loss detection with entropy continuation
@@ -821,6 +824,11 @@ PCCTMC3Encoder3::compressPartition(
 
   if (reconCloud)
     appendSlice(reconCloud->cloud);
+  for (int count = 0; count < predPointCloud.getPointCount(); count++) {
+    // In decoder, the reconstructed is stored without a shift of _sliceOrigin. To avoide mismatch, encoder should do the same.
+    predPointCloud[count] += _sliceOrigin;
+  }
+
 }
 
 //----------------------------------------------------------------------------
@@ -900,12 +908,20 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     encodePredictiveGeometry(
       params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph,
       *_ctxtMemPredGeom, arithmeticEncoders[0].get());
-  }
-  else if (!_gps->trisoup_enabled_flag)
-    encodeGeometryOctree(
-      params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders);
-  else {
+  } else if (!_gps->trisoup_enabled_flag)
+	{
+	    if (gbh.interPredictionEnabledFlag && _gps->globalMotionEnabled) {
+			_refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+		}else {
+			gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
+			gbh.gm_trans = 0;
+			gbh.gm_thresh = {0, 0};
+		}
+		encodeGeometryOctree(
+		params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom, arithmeticEncoders, *_sps, predPointCloud);
+	}
+  else
+  {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
