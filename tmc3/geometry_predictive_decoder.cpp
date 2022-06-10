@@ -552,9 +552,9 @@ PredGeomDecoder::decodeTree(
 
     if (_azimuth_scaling_enabled_flag) {
       if (pos[1] < -1 << (_azimuthTwoPiLog2 - 1))
-        pos[1] += (1 << _azimuthTwoPiLog2) + 1;
+        pos[1] += (1 << _azimuthTwoPiLog2);
       if (pos[1] > 1 << (_azimuthTwoPiLog2 - 1))
-        pos[1] -= (1 << _azimuthTwoPiLog2) + 1;
+        pos[1] -= (1 << _azimuthTwoPiLog2);
     }
 
     if (!_geom_angular_mode_enabled_flag)

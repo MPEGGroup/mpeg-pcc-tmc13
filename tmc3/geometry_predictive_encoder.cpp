@@ -808,9 +808,9 @@ PredGeomEncoder::encodeTree(
               residual[k] = int32_t(quantizer.quantize(residual[k]));
           else {
             while (residual[1] < -1 << (_azimuthTwoPiLog2 - 1))
-              residual[1] += (1 << _azimuthTwoPiLog2) + 1;
+              residual[1] += (1 << _azimuthTwoPiLog2);
             while (residual[1] > 1 << (_azimuthTwoPiLog2 - 1))
-              residual[1] -= (1 << _azimuthTwoPiLog2) + 1;
+              residual[1] -= (1 << _azimuthTwoPiLog2);
 
             if (_azimuth_scaling_enabled_flag) {
               // Quantize phi by 8r/2^n
@@ -836,9 +836,9 @@ PredGeomEncoder::encodeTree(
                 pred[1] += qphi * azimuthSpeed;
                 residual[1] = point[1] - pred[1];
                 while (residual[1] < -1 << (_azimuthTwoPiLog2 - 1))
-                  residual[1] += (1 << _azimuthTwoPiLog2) + 1;
+                  residual[1] += (1 << _azimuthTwoPiLog2);
                 while (residual[1] > 1 << (_azimuthTwoPiLog2 - 1))
-                  residual[1] -= (1 << _azimuthTwoPiLog2) + 1;
+                  residual[1] -= (1 << _azimuthTwoPiLog2);
               }
 
               auto arc = int64_t(residual[1]) * r;
@@ -939,9 +939,9 @@ PredGeomEncoder::encodeTree(
         // position, for use in, for instance, attribute coding.
         srcPts[nodeIdx] /* == point */ = best.prediction + best.residual;
         if (srcPts[nodeIdx][1] < -1 << (_azimuthTwoPiLog2 - 1))
-          srcPts[nodeIdx][1] += (1 << _azimuthTwoPiLog2) + 1;
+          srcPts[nodeIdx][1] += (1 << _azimuthTwoPiLog2);
         if (srcPts[nodeIdx][1] > 1 << (_azimuthTwoPiLog2 - 1))
-          srcPts[nodeIdx][1] -= (1 << _azimuthTwoPiLog2) + 1;
+          srcPts[nodeIdx][1] -= (1 << _azimuthTwoPiLog2);
         for (int i = 1; i <= node.numDups; i++)
           srcPts[nodeIdx + i] = srcPts[nodeIdx];
 
