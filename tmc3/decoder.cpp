@@ -398,10 +398,10 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     assert(_gbh.prev_slice_id == _prevSliceId);
   } else {
     // forget (reset) all saved context state at boundary
-    _ctxtMemOctreeGeom->reset();
     if (
       !_gps->gof_geom_entropy_continuation_enabled_flag
       || !_gbh.interPredictionEnabledFlag) {
+      _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();
     }
     for (auto& ctxtMem : _ctxtMemAttrs)
