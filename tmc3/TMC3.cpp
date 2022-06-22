@@ -1411,6 +1411,16 @@ sanitizeEncoderOpts(
     params.encoder.gps.geom_planar_mode_enabled_flag = false;
   }
 
+  if (
+    params.encoder.gps.predgeom_enabled_flag
+    && !params.encoder.gps.geom_angular_mode_enabled_flag)
+    params.encoder.gps.interPredictionEnabledFlag = false;
+
+  if (!params.encoder.gps.interPredictionEnabledFlag) {
+    params.encoder.gps.globalMotionEnabled = false;
+    params.encoder.gps.gof_geom_entropy_continuation_enabled_flag = false;
+  }
+
   // support disabling attribute coding (simplifies configuration)
   if (params.disableAttributeCoding) {
     params.encoder.attributeIdxMap.clear();
@@ -1515,6 +1525,11 @@ sanitizeEncoderOpts(
                       "disabling\n";
       attr_aps.spherical_coord_flag = false;
     }
+
+    if (
+      !params.encoder.gps.interPredictionEnabledFlag
+      || params.encoder.gps.predgeom_enabled_flag)
+      attr_aps.attrInterPredictionEnabled = false;
   }
 
   // convert floating point values of Lasers' Theta and H to fixed point
