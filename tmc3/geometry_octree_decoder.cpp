@@ -1511,8 +1511,6 @@ GeometryOctreeDecoder::decodeZRes()
   if (!_arithmeticDecoder->decode(_ctxZRes[0]))
     return 0;
 
-  bool sign = _arithmeticDecoder->decode(_ctxZResSign);
-
   int absVal = 1;
   absVal += _arithmeticDecoder->decode(_ctxZRes[1]);
   if (absVal > 1)
@@ -1520,7 +1518,8 @@ GeometryOctreeDecoder::decodeZRes()
   if (absVal == 3)
     absVal += _arithmeticDecoder->decodeExpGolomb(1, _ctxZResExp);
 
-  return sign ? absVal : -absVal;
+  bool sign = _arithmeticDecoder->decode(_ctxZResSign);
+  return sign ? -absVal : absVal;
 }
 
 //-------------------------------------------------------------------------

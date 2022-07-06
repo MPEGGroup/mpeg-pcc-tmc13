@@ -1760,14 +1760,14 @@ GeometryOctreeEncoder::encodeZRes(int zRes)
   if (!zRes)
     return;
 
-  _arithmeticEncoder->encode(zRes > 0, _ctxZResSign);
-
   int absVal = std::abs(zRes);
   _arithmeticEncoder->encode(--absVal > 0, _ctxZRes[1]);
   if (absVal)
     _arithmeticEncoder->encode(--absVal > 0, _ctxZRes[2]);
   if (absVal)
     _arithmeticEncoder->encodeExpGolomb(--absVal, 1, _ctxZResExp);
+
+  _arithmeticEncoder->encode(zRes < 0, _ctxZResSign);
 }
 
 //-------------------------------------------------------------------------
