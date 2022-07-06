@@ -281,36 +281,27 @@ PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx, const boo
   int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (multiplier ? 2 : 0);
 
-  // encode isZero
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsZero[interCtx][ctxLR]);
+  _aec->encode(resR != 0, _ctxResRGTZero[interCtx][ctxLR]);
   if (!resR)
     return;
 
-  // encode sign
+  int absVal = std::abs(resR);
+  _aec->encode(--absVal > 0, _ctxResRGTOne[interCtx][ctxLR]);
+  if (absVal)
+    _aec->encode(--absVal > 0, _ctxResRGTTwo[interCtx][ctxLR]);
+  if (absVal)
+    _aec->encodeExpGolomb(
+      absVal - 1, 2, _ctxResRExpGolombPre[interCtx][ctxLR],
+      _ctxResRExpGolombSuf[interCtx][ctxLR]);
+
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
+
   _aec->encode(
-    resR < 0, _ctxResRSign[interCtx ? 2 : prevInterFlag][ctxL][ctxR]);
+    resR < 0, _ctxResRSign[interCtx ? 2 : _prevInterFlag][ctxL][ctxR]);
   _precSignR = resR < 0;
   _precAzimuthStepDelta = multiplier;
-  prevInterFlag = interFlag;
-
-  // encode isOne
-  resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsOne[interCtx][ctxLR]);
-  if (!resR)
-    return;
-
-  // encode IsTwo
-  resR = std::abs(resR) - 1;
-  _aec->encode(resR == 0 ? 1 : 0, _ctxResRIsTwo[interCtx][ctxLR]);
-  if (!resR)
-    return;
-
-  // encode residual by expGolomb k=2
-  _aec->encodeExpGolomb(
-    resR - 1, 2, _ctxResRExpGolombPre[interCtx][ctxLR],
-    _ctxResRExpGolombSuf[interCtx][ctxLR]);
+  _prevInterFlag = interFlag;
 }
 
 //-------------------------------------------------------------------------
@@ -411,32 +402,23 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx, const b
   int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (multiplier ? 2 : 0);
 
-  //encode isZero
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsZero[interCtx][ctxLR]);
+  bits += estimate(resR != 0, _ctxResRGTZero[interCtx][ctxLR]);
   if (!resR)
     return bits;
 
-  // encode sign
+  int absVal = std::abs(resR);
+  bits += estimate(--absVal > 0, _ctxResRGTOne[interCtx][ctxLR]);
+  if (absVal)
+    bits += estimate(--absVal > 0, _ctxResRGTTwo[interCtx][ctxLR]);
+  if (absVal)
+    // encode residual by expGolomb k=2
+    bits += std::max(3, (ilog2(uint32_t(absVal + 4)) << 1) - 1);
+
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
-  bits +=
-    estimate(resR < 0, _ctxResRSign[interCtx ? 2 : prevInterFlag][ctxL][ctxR]);
 
-  // encode isOne
-  resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsOne[interCtx][ctxLR]);
-  if (!resR)
-    return bits;
-
-  // encode IsTwo
-  resR = std::abs(resR) - 1;
-  bits += estimate(resR == 0 ? 1 : 0, _ctxResRIsTwo[interCtx][ctxLR]);
-  if (!resR)
-    return bits;
-
-  // encode residual by expGolomb k=2
-  bits += std::max(3, (ilog2(uint32_t(resR + 4)) << 1) - 1);
-
+  bits += estimate(
+    resR < 0, _ctxResRSign[interCtx ? 2 : _prevInterFlag][ctxL][ctxR]);
   return bits;
 }
 

@@ -113,24 +113,24 @@ protected:
   AdaptiveBitModel _ctxResidualPhi[2][7];
 
   AdaptiveBitModel _ctxEndOfTrees;
-  AdaptiveBitModel _ctxResRIsZero[2][4];
-  AdaptiveBitModel _ctxResRIsOne[2][4];
-  AdaptiveBitModel _ctxResRIsTwo[2][4];
+  AdaptiveBitModel _ctxResRGTZero[2][4];
+  AdaptiveBitModel _ctxResRGTOne[2][4];
+  AdaptiveBitModel _ctxResRGTTwo[2][4];
   AdaptiveBitModel _ctxResRExpGolombPre[2][4][10];
   AdaptiveBitModel _ctxResRExpGolombSuf[2][4][10];
 
   AdaptiveBitModel _ctxResPhiGTZero[2][2];
-  int _resPhiOldSign = 2;
   AdaptiveBitModel _ctxResPhiSign[2][2+2];
   AdaptiveBitModel _ctxResPhiGTOne[2][2];
   AdaptiveBitModel _ctxResPhiExpGolombPre[2][2][4];
   AdaptiveBitModel _ctxResPhiExpGolombSuf[2][2][4];
 
-  bool prevInterFlag = false;
-  int              _precAzimuthStepDelta = 0;
-  int              _precSignR = 0;
-
   AdaptiveBitModel _ctxResRSign[3][2][8];
+
+  bool _prevInterFlag = false;
+  bool _precSignR = false;
+  int _resPhiOldSign = 2;
+  int _precAzimuthStepDelta = 0;
 };
 
 //----------------------------------------------------------------------------
