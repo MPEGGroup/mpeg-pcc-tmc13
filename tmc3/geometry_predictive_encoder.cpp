@@ -321,38 +321,26 @@ PredGeomEncoder::encodeResPhi(
 {
   if (boundPhi == 0)
     return;
+
   int interCtxIdx = interFlag ? 1 : 0;
-
   int ctxL = predIdx ? 1 : 0;
-  // encode isZero
-  _aec->encode(resPhi == 0 ? 1 : 0, _ctxResPhiIsZero[interCtxIdx][ctxL]);
+
+  _aec->encode(resPhi != 0, _ctxResPhiGTZero[interCtxIdx][ctxL]);
   if (!resPhi)
     return;
 
-  // encode sign
+  int absVal = std::abs(resPhi);
+  if (boundPhi > 1)
+    _aec->encode(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
+  if (absVal && boundPhi > 2)
+    _aec->encodeExpGolomb(
+      absVal - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
+      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+
   _aec->encode(
-    resPhi >= 0 ? 1 : 0,
-    _ctxResPhiSign[interCtxIdx ? 0 : ctxL]
-                  [interCtxIdx ? 3 : _resPhiOldSign]);
-
-  _resPhiOldSign = interFlag ? 2 : (resPhi >= 0 ? 1 : 0);
-  resPhi = std::abs(resPhi) - 1;
-
-  if (boundPhi == 1)
-    return;
-
-  // encode isOne
-  _aec->encode(resPhi == 0 ? 1 : 0, _ctxResPhiIsOne[interCtxIdx][ctxL]);
-  if (!resPhi)
-    return;
-
-  if (boundPhi == 2)
-    return;
-
-  // encode residual by expGolomb k=1
-  _aec->encodeExpGolomb(
-    resPhi - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-    _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+    resPhi < 0,
+    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
+  _resPhiOldSign = resPhi < 0;
 }
 
 //-------------------------------------------------------------------------
@@ -394,34 +382,22 @@ PredGeomEncoder::estimateResPhi(
     return bits;
 
   int ctxL = predIdx ? 1 : 0;
-  // encode isZero
-  bits += estimate(resPhi == 0 ? 1 : 0, _ctxResPhiIsZero[interCtxIdx][ctxL]);
+
+  bits += estimate(resPhi != 0, _ctxResPhiGTZero[interCtxIdx][ctxL]);
   if (!resPhi)
     return bits;
 
-  // encode sign
+  int absVal = std::abs(resPhi);
+  if (boundPhi > 1)
+    bits += estimate(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
+  if (absVal && boundPhi > 2)
+    bits += estimateExpGolomb(
+      absVal - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
+      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+
   bits += estimate(
-    resPhi >= 0 ? 1 : 0,
-    _ctxResPhiSign[interCtxIdx ? 0 : ctxL]
-                  [interCtxIdx ? 3 : _resPhiOldSign]);
-
-  resPhi = std::abs(resPhi) - 1;
-
-  if (boundPhi == 1)
-    return bits;
-
-  // encode isOne
-  bits += estimate(resPhi == 0 ? 1 : 0, _ctxResPhiIsOne[interCtxIdx][ctxL]);
-  if (!resPhi)
-    return bits;
-
-  if (boundPhi == 2)
-    return bits;
-
-  // encode residual by expGolomb k=1
-  bits += estimateExpGolomb(
-    resPhi - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-    _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+    resPhi < 0,
+    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
 
   return bits;
 }

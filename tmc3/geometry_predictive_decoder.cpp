@@ -316,37 +316,25 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag)
 {
   if (boundPhi == 0)
     return 0;
+
   int interCtxIdx = interFlag ? 1 : 0;
-
-
   int ctxL = predIdx ? 1 : 0;
-  // encode isZero
-  int bit = _aed->decode(_ctxResPhiIsZero[interCtxIdx][ctxL]);
-  if (bit)
+
+  if (!_aed->decode(_ctxResPhiGTZero[interCtxIdx][ctxL]))
     return 0;
 
-  // encode sign
-  int sign = _aed->decode(_ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
+  int absVal = 1;
+  if (boundPhi > 1)
+    absVal += _aed->decode(_ctxResPhiGTOne[interCtxIdx][ctxL]);
+  if (absVal == 2 && boundPhi > 2)
+    absVal += _aed->decodeExpGolomb(
+      1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
+      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+
+  bool sign = _aed->decode(
+    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? 2 : (sign ? 1 : 0);
-
-  if (boundPhi == 1)
-    return sign ? +1 : -1;
-
-  // encode isOne
-  bit = _aed->decode(_ctxResPhiIsOne[interCtxIdx][ctxL]);
-  if (bit)
-    return sign ? +1 : -1;
-
-  if (boundPhi == 2)
-    return sign ? +2 : -2;
-
-  // encode residual by expGolomb k=1
-  int resPhi = 2 + _aed->decodeExpGolomb(
-    1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]
-    );
-
-  return sign ? +resPhi : -resPhi;
+  return sign ? -absVal : absVal;
 }
 //----------------------------------------------------------------------------
 int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, const bool interFlag)

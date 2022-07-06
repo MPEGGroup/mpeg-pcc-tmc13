@@ -119,10 +119,10 @@ protected:
   AdaptiveBitModel _ctxResRExpGolombPre[2][4][10];
   AdaptiveBitModel _ctxResRExpGolombSuf[2][4][10];
 
-  AdaptiveBitModel _ctxResPhiIsZero[2][2];
+  AdaptiveBitModel _ctxResPhiGTZero[2][2];
   int _resPhiOldSign = 2;
   AdaptiveBitModel _ctxResPhiSign[2][2+2];
-  AdaptiveBitModel _ctxResPhiIsOne[2][2];
+  AdaptiveBitModel _ctxResPhiGTOne[2][2];
   AdaptiveBitModel _ctxResPhiExpGolombPre[2][2][4];
   AdaptiveBitModel _ctxResPhiExpGolombSuf[2][2][4];
 
