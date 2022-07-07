@@ -809,7 +809,7 @@ PredGeomEncoder::encodeTree(
           else {
             while (residual[1] < -1 << (_azimuthTwoPiLog2 - 1))
               residual[1] += (1 << _azimuthTwoPiLog2);
-            while (residual[1] > 1 << (_azimuthTwoPiLog2 - 1))
+            while (residual[1] >= 1 << (_azimuthTwoPiLog2 - 1))
               residual[1] -= (1 << _azimuthTwoPiLog2);
 
             if (_azimuth_scaling_enabled_flag) {
@@ -837,7 +837,7 @@ PredGeomEncoder::encodeTree(
                 residual[1] = point[1] - pred[1];
                 while (residual[1] < -1 << (_azimuthTwoPiLog2 - 1))
                   residual[1] += (1 << _azimuthTwoPiLog2);
-                while (residual[1] > 1 << (_azimuthTwoPiLog2 - 1))
+                while (residual[1] >= 1 << (_azimuthTwoPiLog2 - 1))
                   residual[1] -= (1 << _azimuthTwoPiLog2);
               }
 
@@ -940,7 +940,7 @@ PredGeomEncoder::encodeTree(
         srcPts[nodeIdx] /* == point */ = best.prediction + best.residual;
         if (srcPts[nodeIdx][1] < -1 << (_azimuthTwoPiLog2 - 1))
           srcPts[nodeIdx][1] += (1 << _azimuthTwoPiLog2);
-        if (srcPts[nodeIdx][1] > 1 << (_azimuthTwoPiLog2 - 1))
+        if (srcPts[nodeIdx][1] >= 1 << (_azimuthTwoPiLog2 - 1))
           srcPts[nodeIdx][1] -= (1 << _azimuthTwoPiLog2);
         for (int i = 1; i <= node.numDups; i++)
           srcPts[nodeIdx + i] = srcPts[nodeIdx];
