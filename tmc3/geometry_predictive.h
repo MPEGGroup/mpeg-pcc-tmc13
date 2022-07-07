@@ -86,10 +86,10 @@ public:
   static const uint8_t interFlagBufferMask = 0x1F;
 
 protected:
-  static const int NPredDelta = 4;
+  static const int NPredMinus1 = 3;
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
-  AdaptiveBitModel _ctxPredIdx[NPredDelta];
+  AdaptiveBitModel _ctxPredIdx[NPredMinus1];
   AdaptiveBitModel _ctxResGt0[2][3];
   AdaptiveBitModel _ctxSign[2][3];
   AdaptiveBitModel _ctxNumBits[2][5][3][31];

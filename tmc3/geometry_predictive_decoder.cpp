@@ -206,7 +206,7 @@ int
 PredGeomDecoder::decodePredIdx()
 {
   int predIdx = 0;
-  while (predIdx < NPredDelta && _aed->decode(_ctxPredIdx[predIdx]))
+  while (predIdx < NPredMinus1 && _aed->decode(_ctxPredIdx[predIdx]))
     ++predIdx;
   return predIdx;
 }
@@ -453,7 +453,7 @@ PredGeomDecoder::decodeTree(
 
   _stack.push_back(-1);
 
-  const int NPred = NPredDelta;
+  const int NPred = NPredMinus1 + 1;
 
   std::array<std::array<int, 2>, NPred> preds = {};
 

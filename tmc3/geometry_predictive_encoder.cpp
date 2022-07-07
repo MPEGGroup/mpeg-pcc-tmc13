@@ -270,7 +270,7 @@ PredGeomEncoder::encodePredIdx(int predIdx)
 {
   for (int i = 0; i < predIdx; ++i)
     _aec->encode(1, _ctxPredIdx[i]);
-  if (predIdx < NPredDelta)
+  if (predIdx < NPredMinus1)
     _aec->encode(0, _ctxPredIdx[predIdx]);
 }
 //----------------------------------------------------------------------------
@@ -585,7 +585,7 @@ PredGeomEncoder::estimateBits(
     if (_azimuth_scaling_enabled_flag) {
       for (int i = 0; i < predIdx; ++i)
         bits += estimate(1, _ctxPredIdx[i]);
-      if (predIdx < NPredDelta)
+      if (predIdx < NPredMinus1)
         bits += estimate(0, _ctxPredIdx[predIdx]);
     } else {
       bits += estimate((iMode >> 1) & 1, _ctxPredMode[0]);
@@ -704,7 +704,7 @@ PredGeomEncoder::encodeTree(
 
   _stack.push_back(rootIdx);
 
-  const int NPred = NPredDelta;
+  const int NPred = NPredMinus1 + 1;
 
   std::array<std::array<int, 2>, NPred> preds = {};
 
