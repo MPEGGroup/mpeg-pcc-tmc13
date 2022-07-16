@@ -1769,17 +1769,34 @@ decodeGeometryOctree(
           neighPatternFromOccupancy(posInParent, node0.siblingOccupancy);
       }
 
+      
+      bool isDirectMode = false;
+      // At the scaling depth, it is possible for a node that has previously
+      // been marked as being eligible for idcm to be fully quantised due
+      // to the choice of QP.  There is therefore nothing to code with idcm.
+      if (isLeafNode(effectiveNodeSizeLog2))
+        node0.idcmEligible = false;
+      bool planar_eligibility_idcm_angular = true;
+
+      if (node0.idcmEligible) {
+        if (gps.geom_planar_disabled_idcm_angular_flag) {
+          isDirectMode = decoder.decodeIsIdcm();
+          if (isDirectMode && gps.geom_angular_mode_enabled_flag)
+            planar_eligibility_idcm_angular = false;
+        }
+      }
+
       int contextAngle = -1;
       int contextAnglePhiX = -1;
       int contextAnglePhiY = -1;
-      if (gps.geom_angular_mode_enabled_flag) {
+      if (gps.geom_angular_mode_enabled_flag && planar_eligibility_idcm_angular) {
         contextAngle = determineContextAngleForPlanar(
           node0, nodeSizeLog2, angularOrigin, zLaser, thetaLaser, numLasers,
           deltaAngle, decoder._phiZi, decoder._phiBuffer.data(),
           &contextAnglePhiX, &contextAnglePhiY, posQuantBitMasks);
       }
 
-      if (gps.geom_planar_mode_enabled_flag) {
+      if (gps.geom_planar_mode_enabled_flag && planar_eligibility_idcm_angular) {
         // update the plane rate depending on the occupancy and local density
         auto occupancy = node0.siblingOccupancy;
         auto numOccupied = node0.numSiblingsPlus1;
@@ -1793,7 +1810,7 @@ decodeGeometryOctree(
       if (!isLeafNode(effectiveNodeSizeLog2)) {
         // planar eligibility
         bool planarEligible[3] = {false, false, false};
-        if (gps.geom_planar_mode_enabled_flag) {
+        if (gps.geom_planar_mode_enabled_flag && planar_eligibility_idcm_angular) {
           decoder._planar.isEligible(planarEligible);
           if (gps.geom_angular_mode_enabled_flag) {
             if (contextAngle != -1)
@@ -1818,14 +1835,9 @@ decodeGeometryOctree(
           posInParent, gnp, node0, planar, contextAngle, contextAnglePhiX, contextAnglePhiY,  planarRef);
       }
 
-      // At the scaling depth, it is possible for a node that has previously
-      // been marked as being eligible for idcm to be fully quantised due
-      // to the choice of QP.  There is therefore nothing to code with idcm.
-      if (isLeafNode(effectiveNodeSizeLog2))
-        node0.idcmEligible = false;
-
       if (node0.idcmEligible) {
-        bool isDirectMode = decoder.decodeIsIdcm();
+        if (!gps.geom_planar_disabled_idcm_angular_flag)
+          isDirectMode = decoder.decodeIsIdcm();
         if (isDirectMode) {
           auto idcmSize = effectiveNodeSizeLog2;
           if (idcmQp) {

@@ -2054,17 +2054,42 @@ encodeGeometryOctree(
       if (isInter)
         setPlanesFromOccupancy(predOccupancy, planarRef);
 
+      DirectMode mode = DirectMode::kUnavailable;
+      // At the scaling depth, it is possible for a node that has previously
+      // been marked as being eligible for idcm to be fully quantised due
+      // to the choice of QP.  There is therefore nothing to code with idcm.
+      if (isLeafNode(effectiveNodeSizeLog2))
+        node0.idcmEligible = false;
+      bool planar_eligibility_idcm_angular = true;
+      if (node0.idcmEligible) {
+        // todo(df): this is pessimistic in the presence of idcm quantisation,
+        // since that is eligible may only meet the point count constraint
+        // after quantisation, which is performed after the decision is taken.
+        mode = canEncodeDirectPosition(
+          gps.geom_unique_points_flag, node0, pointCloud);
+        if (gps.geom_planar_disabled_idcm_angular_flag) {
+          encoder.encodeIsIdcm(mode);
+          if (
+            mode != DirectMode::kUnavailable
+            && gps.geom_angular_mode_enabled_flag)
+            planar_eligibility_idcm_angular = false;
+        }
+      }
+
       int contextAngle = -1;
       int contextAnglePhiX = -1;
       int contextAnglePhiY = -1;
-      if (gps.geom_angular_mode_enabled_flag) {
+      if (
+        gps.geom_angular_mode_enabled_flag
+        && planar_eligibility_idcm_angular) {
         contextAngle = determineContextAngleForPlanar(
           node0, nodeSizeLog2, angularOrigin, zLaser, thetaLaser, numLasers,
           deltaAngle, encoder._phiZi, encoder._phiBuffer.data(),
           &contextAnglePhiX, &contextAnglePhiY, posQuantBitMasks);
       }
 
-      if (gps.geom_planar_mode_enabled_flag) {
+      if (
+        gps.geom_planar_mode_enabled_flag && planar_eligibility_idcm_angular) {
         // update the plane rate depending on the occupancy and local density
         auto occupancy = node0.siblingOccupancy;
         auto numSiblings = node0.numSiblingsPlus1;
@@ -2078,7 +2103,9 @@ encodeGeometryOctree(
       if (!isLeafNode(effectiveNodeSizeLog2)) {
         // planar eligibility
         bool planarEligible[3] = {false, false, false};
-        if (gps.geom_planar_mode_enabled_flag) {
+        if (
+          gps.geom_planar_mode_enabled_flag
+          && planar_eligibility_idcm_angular) {
           encoder._planar.isEligible(planarEligible);
           if (gps.geom_angular_mode_enabled_flag) {
             if (contextAngle != -1)
@@ -2108,60 +2135,46 @@ encodeGeometryOctree(
             contextAnglePhiX, contextAnglePhiY, planarRef);
       }
 
-      // At the scaling depth, it is possible for a node that has previously
-      // been marked as being eligible for idcm to be fully quantised due
-      // to the choice of QP.  There is therefore nothing to code with idcm.
-      if (isLeafNode(effectiveNodeSizeLog2))
-        node0.idcmEligible = false;
-
-      if (node0.idcmEligible) {
-        // todo(df): this is pessimistic in the presence of idcm quantisation,
-        // since that is eligible may only meet the point count constraint
-        // after quantisation, which is performed after the decision is taken.
-        auto mode = canEncodeDirectPosition(
-          gps.geom_unique_points_flag, node0, pointCloud);
-
+      if (node0.idcmEligible && !gps.geom_planar_disabled_idcm_angular_flag)
         encoder.encodeIsIdcm(mode);
 
-        if (mode != DirectMode::kUnavailable) {
-          int idcmShiftBits = shiftBits;
-          auto idcmSize = effectiveNodeSizeLog2;
+      if (mode != DirectMode::kUnavailable) {
+        int idcmShiftBits = shiftBits;
+        auto idcmSize = effectiveNodeSizeLog2;
 
-          if (idcmQp) {
-            node0.qp = idcmQp;
-            idcmShiftBits = QuantizerGeom::qpShift(idcmQp);
-            idcmSize = nodeSizeLog2 - idcmShiftBits;
-            geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
+        if (idcmQp) {
+          node0.qp = idcmQp;
+          idcmShiftBits = QuantizerGeom::qpShift(idcmQp);
+          idcmSize = nodeSizeLog2 - idcmShiftBits;
+          geometryQuantization(pointCloud, node0, quantNodeSizeLog2);
 
-            if (gps.geom_unique_points_flag)
-              checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
-          }
-
-          encoder.encodeDirectPosition(
-            gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
-            gps.geom_angular_mode_enabled_flag, mode, posQuantBitMasks,
-            idcmSize, idcmShiftBits, node0, planar, pointCloud, angularOrigin,
-            zLaser, thetaLaser, numLasers);
-
-          // inverse quantise any quantised positions
-          geometryScale(pointCloud, node0, quantNodeSizeLog2);
-
-          // point reordering to match decoder's order
-          for (auto idx = node0.start; idx < node0.end; idx++)
-            pointIdxToDmIdx[idx] = nextDmIdx++;
-
-          // NB: by definition, this is the only child node present
-          if (gps.inferred_direct_coding_mode <= 1)
-            assert(node0.numSiblingsPlus1 == 1);
-
-          // This node has no children, ensure that future nodes avoid
-          // accessing stale child occupancy data.
-          if (gps.adjacent_child_contextualization_enabled_flag)
-            updateGeometryOccupancyAtlasOccChild(
-              node0.pos, 0, &occupancyAtlas);
-
-          continue;
+          if (gps.geom_unique_points_flag)
+            checkDuplicatePoints(pointCloud, node0, pointIdxToDmIdx);
         }
+
+        encoder.encodeDirectPosition(
+          gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
+          gps.geom_angular_mode_enabled_flag, mode, posQuantBitMasks, idcmSize,
+          idcmShiftBits, node0, planar, pointCloud, angularOrigin, zLaser,
+          thetaLaser, numLasers);
+
+        // inverse quantise any quantised positions
+        geometryScale(pointCloud, node0, quantNodeSizeLog2);
+
+        // point reordering to match decoder's order
+        for (auto idx = node0.start; idx < node0.end; idx++)
+          pointIdxToDmIdx[idx] = nextDmIdx++;
+
+        // NB: by definition, this is the only child node present
+        if (gps.inferred_direct_coding_mode <= 1)
+          assert(node0.numSiblingsPlus1 == 1);
+
+        // This node has no children, ensure that future nodes avoid
+        // accessing stale child occupancy data.
+        if (gps.adjacent_child_contextualization_enabled_flag)
+          updateGeometryOccupancyAtlasOccChild(node0.pos, 0, &occupancyAtlas);
+
+        continue;
       }
 
       // when all points are quantized to a single point

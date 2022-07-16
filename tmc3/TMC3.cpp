@@ -959,6 +959,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_radius_inv_scale_log2, 0,
     "Inverse scale factor applied to radius in predictive geometry coding")
 
+  ("disable_planar_IDCM_angluar",
+    params.encoder.gps.geom_planar_disabled_idcm_angular_flag, true,
+    "Disable planar mode for geometry coding of IDCM coded nodes when angular coding is enabled")
+
   ("interAzimScaleLog2",
     params.encoder.gps.interAzimScaleLog2, 1,
     "Scale factor applied to azimuth angle during inter search")
@@ -1595,6 +1599,10 @@ sanitizeEncoderOpts(
     params.encoder.geom.qtbt.angularMaxNodeMinDimLog2ToSplitV = 0;
     params.encoder.geom.qtbt.angularMaxDiffToSplitZ = 0;
   }
+
+  // 
+  if (!params.encoder.gps.geom_angular_mode_enabled_flag)
+    params.encoder.gps.geom_planar_disabled_idcm_angular_flag = false;
 
   // sanity checks
 
