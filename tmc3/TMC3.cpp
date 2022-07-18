@@ -862,6 +862,27 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Trisoup voxelisation sampling rate\n"
     "  0: automatic")
 
+  ("trisoupQuantizationBits",
+    params.encoder.gps.trisoup_vertex_quantization_bits, 0,
+    "Trisoup number of bits for quantization of position of vertices along edges\n"
+    "  0: inferred to trisoupNodeSizeLog2")
+
+  ("trisoupCentroidResidualEnabled",
+    params.encoder.gps.trisoup_centroid_vertex_residual_flag, true,
+    "Trisoup activate residual position value for the centroid vertex")
+
+  ("trisoupHaloEnabled",
+    params.encoder.gps.trisoup_halo_flag, true,
+    "Trisoup activate halo around triangles for ray tracing")
+
+  ("trisoupFineRayTracingEnabled",
+    params.encoder.gps.trisoup_fine_ray_tracing_flag, true,
+    "Trisoup activate more ray tracing from non-integer origin")
+
+  ("trisoupImprovedEncoderEnabled",
+    params.encoder.gps.trisoup_improved_encoder_vertex_determination_flag, true,
+    "Trisoup activate improved determination of vertex position (encoder only)")
+
   ("positionQuantisationEnabled",
     params.encoder.gps.geom_scaling_enabled_flag, false,
     "Enable in-loop quantisation of positions")

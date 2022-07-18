@@ -608,7 +608,7 @@ refineSlicesByAdjacentInfo(
   Vec3<int> sliceArrNum,
   std::vector<Partition>& slices)
 {
-  int maxPoints = params.sliceMaxPoints;
+  int maxPoints = params.sliceMaxPoints;  
   int minPoints = params.sliceMinPoints;
 
   //initialize

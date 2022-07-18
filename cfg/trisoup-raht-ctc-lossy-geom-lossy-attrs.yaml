@@ -20,7 +20,16 @@ categories:
          r02: 4
          r03: 3
          r04: 2
-
+     - trisoupQuantizationBits: 2
+     - trisoupCentroidResidualEnabled: 
+         r01: 1
+         r02: 1
+         r03: 1
+         r04: 0     
+     - trisoupHaloEnabled: 1
+     - trisoupFineRayTracingEnabled: 1
+     - trisoupImprovedEncoderEnabled: 1
+     
      ####
      # attribute coding (common options -- relies on option ordering)
      #  - use raht

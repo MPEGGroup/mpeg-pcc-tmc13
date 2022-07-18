@@ -694,6 +694,14 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
   bs.write(gps_extension_flag);
   if (gps_extension_flag) {
     bs.write(gps.trisoup_enabled_flag);
+    if (gps.trisoup_enabled_flag)
+    {
+      bs.writeUe(gps.trisoup_vertex_quantization_bits);
+      bs.write(gps.trisoup_centroid_vertex_residual_flag);
+      bs.write(gps.trisoup_halo_flag);
+      bs.write(gps.trisoup_fine_ray_tracing_flag);
+    }
+
 
     if (gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag && gps.inferred_direct_coding_mode)
       bs.write(gps.geom_planar_disabled_idcm_angular_flag);
@@ -850,6 +858,13 @@ parseGps(const PayloadBuffer& buf)
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
+    if (gps.trisoup_enabled_flag)
+    {
+      bs.readUe(&gps.trisoup_vertex_quantization_bits);
+      bs.read(&gps.trisoup_centroid_vertex_residual_flag);
+      bs.read(&gps.trisoup_halo_flag);
+      bs.read(&gps.trisoup_fine_ray_tracing_flag);
+    }
 
     if (
       gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag

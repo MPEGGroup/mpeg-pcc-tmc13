@@ -297,6 +297,9 @@ const int8_t pcc::kOccBitCodingOrder[8] = {1, 7, 5, 3, 2, 6, 4, 0};
 const uint8_t pcc::kCtxMapOctreeOccupancyDelta[16] = {
   0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 22, 20, 15};
 
+const uint8_t pcc::kCtxMapTriSoupDelta[16] = {
+  0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 22, 20, 15};
+
 //============================================================================
 
 const uint8_t pcc::kDualLutOccupancyCoderInit[10][32] = {
