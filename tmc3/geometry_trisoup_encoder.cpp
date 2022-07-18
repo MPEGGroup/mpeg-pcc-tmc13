@@ -50,16 +50,15 @@ encodeGeometryTrisoup(
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMemOctree,
-  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders)
+  std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
+  PCCPointSet3& predPointCloud,
+  const Vec3<int> minimum_position)
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
-#if 1
-  std::cout << "Does not support Trisoup\n";
-#else
   encodeGeometryOctree(
-    opt, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes);
-#endif
+    opt, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes, predPointCloud, minimum_position);
+
   // resume encoding with the last encoder
   auto arithmeticEncoder = arithmeticEncoders.back().get();
 

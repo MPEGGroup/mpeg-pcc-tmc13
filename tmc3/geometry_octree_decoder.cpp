@@ -1494,7 +1494,7 @@ decodeGeometryOctree(
   EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining
   ,PCCPointSet3& predPointCloud,
-  Vec3<int> minimum_position
+  const Vec3<int> minimum_position
 )
 {
   // init main fifo
@@ -2022,7 +2022,7 @@ decodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
   PCCPointSet3& predPointCloud,
-  Vec3<int> minimum_position
+  const Vec3<int> minimum_position
 )
 {
   decodeGeometryOctree(

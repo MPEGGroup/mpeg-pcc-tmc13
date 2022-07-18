@@ -726,10 +726,9 @@ void encodeGeometryOctree(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
-  pcc::ringbuf<PCCOctree3Node>* nodesRemaining
-  , const SequenceParameterSet& sps,
-  PCCPointSet3& predPointCloud
-);
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
+  PCCPointSet3& predPointCloud,
+  const Vec3<int> minimum_position);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
@@ -740,7 +739,7 @@ void decodeGeometryOctree(
   EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining
   , PCCPointSet3 &predPointCloud
-  , Vec3<int> minimum_position
+  , const Vec3<int> minimum_position
 
 );
 

@@ -918,7 +918,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 			gbh.gm_thresh = {0, 0};
 		}
 		encodeGeometryOctree(
-		params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom, arithmeticEncoders, *_sps, predPointCloud);
+      params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
+      arithmeticEncoders, predPointCloud, _sps->seqBoundingBoxOrigin);
 	}
   else
   {
@@ -927,7 +928,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
     encodeGeometryTrisoup(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders);
+      arithmeticEncoders, predPointCloud, _sps->seqBoundingBoxOrigin);
   }
 
   // signal the actual number of points coded

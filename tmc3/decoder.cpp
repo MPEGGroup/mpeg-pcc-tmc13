@@ -481,7 +481,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     }
   } else {
     decodeGeometryTrisoup(
-      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec);
+      *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec,
+      _refPointCloud, _sps->seqBoundingBoxOrigin);
   }
 
   if (_gps->interPredictionEnabledFlag)

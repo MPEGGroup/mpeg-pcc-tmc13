@@ -1711,8 +1711,7 @@ encodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
-  const SequenceParameterSet& sps,
-  PCCPointSet3& predPointCloud)
+  PCCPointSet3& predPointCloud, const Vec3<int> minimum_position)
 {
   auto arithmeticEncoderIt = arithmeticEncoders.begin();
   GeometryOctreeEncoder encoder(gps, gbh, ctxtMem, arithmeticEncoderIt->get());
@@ -1752,7 +1751,7 @@ encodeGeometryOctree(
     if (gps.globalMotionEnabled)
       applyGlobalMotion_with_shift(
         pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
-        sps.seqBoundingBoxOrigin);
+        minimum_position);
 
     for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
       pointPredictorWorld[i] -= gbh.geomBoxOrigin;
@@ -2371,12 +2370,12 @@ encodeGeometryOctree(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
-  const SequenceParameterSet& sps,
-  PCCPointSet3& predPointCloud)
+  PCCPointSet3& predPointCloud,
+  const Vec3<int> minimum_position)
 {
   encodeGeometryOctree(
-    opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr, sps,
-    predPointCloud);
+    opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr,
+    predPointCloud, minimum_position);
 }
 
 //============================================================================
