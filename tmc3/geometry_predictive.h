@@ -38,6 +38,7 @@
 #include <cmath>
 #include <cstdint>
 
+#include "constants.h"
 #include "entropy.h"
 #include "PCCMath.h"
 #include "hls.h"
@@ -86,10 +87,9 @@ public:
   static const uint8_t interFlagBufferMask = 0x1F;
 
 protected:
-  static const int NPredMinus1 = 3;
   AdaptiveBitModel _ctxNumChildren[3];
   AdaptiveBitModel _ctxPredMode[3];
-  AdaptiveBitModel _ctxPredIdx[NPredMinus1];
+  AdaptiveBitModel _ctxPredIdx[kPTEMaxPredictorIndex];
   AdaptiveBitModel _ctxResGt0[2][3];
   AdaptiveBitModel _ctxSign[2][3];
   AdaptiveBitModel _ctxNumBits[2][5][3][31];

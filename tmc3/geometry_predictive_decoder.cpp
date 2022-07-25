@@ -123,6 +123,7 @@ private:
 
   int _minVal;
 
+  int _maxPredIdx;
   int _thObj;
 };
 
@@ -149,6 +150,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
   , _azimuthTwoPiLog2(gps.geom_angular_azimuth_scale_log2_minus11 + 12)
   , _minVal(gbh.pgeom_min_radius)
+  , _maxPredIdx(gps.predgeom_max_pred_index)
   , _thObj(gps.predgeom_radius_threshold_for_pred_list)
 {
   if (gps.geom_scaling_enabled_flag) {
@@ -206,7 +208,7 @@ int
 PredGeomDecoder::decodePredIdx()
 {
   int predIdx = 0;
-  while (predIdx < NPredMinus1 && _aed->decode(_ctxPredIdx[predIdx]))
+  while (predIdx < _maxPredIdx && _aed->decode(_ctxPredIdx[predIdx]))
     ++predIdx;
   return predIdx;
 }
@@ -453,9 +455,10 @@ PredGeomDecoder::decodeTree(
 
   _stack.push_back(-1);
 
-  const int NPred = NPredMinus1 + 1;
+  const int MaxNPred = kPTEMaxPredictorIndex + 1;
+  const int NPred = _maxPredIdx + 1;
 
-  std::array<std::array<int, 2>, NPred> preds = {};
+  std::array<std::array<int, 2>, MaxNPred> preds = {};
 
   while (!_stack.empty()) {
     auto parentNodeIdx = _stack.back();
@@ -615,6 +618,9 @@ PredGeomDecoder::decode(
   Vec3<int32_t>* outputPoints,
   std::vector<Vec3<int32_t>>* reconPosSph, PredGeomPredictor& refFrameSph)
 {
+  if (_azimuth_scaling_enabled_flag && _maxPredIdx > kPTEMaxPredictorIndex)
+    std::runtime_error("gps.predgeom_max_pred_index is out of bound");
+
   _nodeIdxToParentIdx.resize(numPoints);
 
   // An intermediate buffer used for reconstruction of the spherical

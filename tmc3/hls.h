@@ -552,6 +552,8 @@ struct GeometryParameterSet {
   bool azimuth_scaling_enabled_flag;
   // Enable octree angular extension
   bool octree_angular_extension_flag;
+  // Maximum prediction index to be used in the prediction list
+  int predgeom_max_pred_index;
   // Radius residual threshold to add new predictor in the prediction list
   int predgeom_radius_threshold_for_pred_list;
   // Enable inter prediction

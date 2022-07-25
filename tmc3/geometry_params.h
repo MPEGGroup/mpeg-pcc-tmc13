@@ -168,6 +168,7 @@ struct PredGeomEncOpts {
   //  0 => full precision
   float azimuthSortRecipBinWidth;
 
+  int maxPredIdxTested;
   int radiusThresholdForNewPred;
 };
 

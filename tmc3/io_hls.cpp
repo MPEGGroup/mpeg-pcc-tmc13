@@ -718,6 +718,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.write(gps.residual2_disabled_flag);
       bs.write(gps.azimuth_scaling_enabled_flag);
       if (gps.azimuth_scaling_enabled_flag)
+        bs.writeUe(gps.predgeom_max_pred_index);
         bs.writeUe(gps.predgeom_radius_threshold_for_pred_list);
 
     }
@@ -890,6 +891,7 @@ parseGps(const PayloadBuffer& buf)
       bs.read(&gps.residual2_disabled_flag);
       bs.read(&gps.azimuth_scaling_enabled_flag);
       if (gps.azimuth_scaling_enabled_flag)
+        bs.readUe(&gps.predgeom_max_pred_index);
         bs.readUe(&gps.predgeom_radius_threshold_for_pred_list);
     }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)

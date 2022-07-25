@@ -1106,6 +1106,20 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.octree_point_count_list_present_flag, false,
     "Add octree layer point count metadata")
 
+  ("predGeomMaxPredIdx",
+    params.encoder.gps.predgeom_max_pred_index, 3,
+    "Maximum prediction index usable in the prediction list,\n"
+    " default is 3, maximum allowed is 7."
+  )
+
+  ("predGeomMaxPredIdxTested",
+    params.encoder.predGeom.maxPredIdxTested, -1,
+    "Maximum prediction index tested by encoder in prediction list,\n"
+    " a value lower than 0 or higher than predGeomMaxPredIdx implies\n"
+    " the maximum prediction index is set equal to predGeomMaxPredIdx;\n"
+    " default is -1."
+  )
+
   ("predGeomRadiusPredThreshold",
     params.encoder.predGeom.radiusThresholdForNewPred, 2048,
     "Threshold for considering new predictor in the list,\n"
@@ -1705,9 +1719,15 @@ sanitizeEncoderOpts(
     }
 
     if (params.encoder.gps.azimuth_scaling_enabled_flag) {
-      params.encoder.gps.predgeom_radius_threshold_for_pred_list =
-        params.encoder.predGeom.radiusThresholdForNewPred
-        >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
+      params.encoder.gps.predgeom_radius_threshold_for_pred_list
+        = params.encoder.predGeom.radiusThresholdForNewPred
+          >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
+
+      if (params.encoder.predGeom.maxPredIdxTested < 0
+          || params.encoder.predGeom.maxPredIdxTested
+              > params.encoder.gps.predgeom_max_pred_index)
+        params.encoder.predGeom.maxPredIdxTested
+          = params.encoder.gps.predgeom_max_pred_index;
     }
   } else { // Angular disabled
     params.sortInputByAzimuth = false;
@@ -1759,6 +1779,13 @@ sanitizeEncoderOpts(
     < params.encoder.partition.sliceMinPoints)
     err.error()
       << "sliceMaxPoints must be greater than or equal to sliceMinPoints\n";
+
+  if (params.encoder.gps.azimuth_scaling_enabled_flag
+      && params.encoder.gps.predgeom_max_pred_index > kPTEMaxPredictorIndex)
+    err.error()
+      << "predGeomMaxPredIdx must be lower than or equal to "
+      << kPTEMaxPredictorIndex
+      << "\n";
 
   for (const auto& it : params.encoder.attributeIdxMap) {
     const auto& attr_sps = params.encoder.sps.attributeSets[it.second];

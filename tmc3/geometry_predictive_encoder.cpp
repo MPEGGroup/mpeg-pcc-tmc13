@@ -86,6 +86,7 @@ public:
   PredGeomEncoder(
     const GeometryParameterSet&,
     const GeometryBrickHeader&,
+    const PredGeomEncOpts&,
     const PredGeomContexts& ctxtMem,
     EntropyEncoder* aec);
 
@@ -184,6 +185,8 @@ private:
   // Minimum radius used for prediction in angular coding
   int _pgeom_min_radius;
 
+  int _maxPredIdx;
+  int _maxPredIdxTested;
   int _thObj;
 };
 
@@ -192,6 +195,7 @@ private:
 PredGeomEncoder::PredGeomEncoder(
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
+  const PredGeomEncOpts& opt,
   const PredGeomContexts& ctxtMem,
   EntropyEncoder* aec)
   : PredGeomContexts(ctxtMem)
@@ -211,6 +215,8 @@ PredGeomEncoder::PredGeomEncoder(
   , _pgeom_resid_abs_log2_bits(gbh.pgeom_resid_abs_log2_bits)
   , _azimuthTwoPiLog2(gps.geom_angular_azimuth_scale_log2_minus11 + 12)
   , _pgeom_min_radius(gbh.pgeom_min_radius)
+  , _maxPredIdx(gps.predgeom_max_pred_index)
+  , _maxPredIdxTested(opt.maxPredIdxTested)
   , _thObj(gps.predgeom_radius_threshold_for_pred_list)
 {
   if (gps.geom_scaling_enabled_flag) {
@@ -270,7 +276,7 @@ PredGeomEncoder::encodePredIdx(int predIdx)
 {
   for (int i = 0; i < predIdx; ++i)
     _aec->encode(1, _ctxPredIdx[i]);
-  if (predIdx < NPredMinus1)
+  if (predIdx < _maxPredIdx)
     _aec->encode(0, _ctxPredIdx[predIdx]);
 }
 //----------------------------------------------------------------------------
@@ -585,7 +591,7 @@ PredGeomEncoder::estimateBits(
     if (_azimuth_scaling_enabled_flag) {
       for (int i = 0; i < predIdx; ++i)
         bits += estimate(1, _ctxPredIdx[i]);
-      if (predIdx < NPredMinus1)
+      if (predIdx < _maxPredIdx)
         bits += estimate(0, _ctxPredIdx[predIdx]);
     } else {
       bits += estimate((iMode >> 1) & 1, _ctxPredMode[0]);
@@ -704,9 +710,11 @@ PredGeomEncoder::encodeTree(
 
   _stack.push_back(rootIdx);
 
-  const int NPred = NPredMinus1 + 1;
+  const int MaxNPred = kPTEMaxPredictorIndex + 1;
+  const int NPred = _maxPredIdx + 1;
+  const int NTestedPred = _maxPredIdxTested + 1;
 
-  std::array<std::array<int, 2>, NPred> preds = {};
+  std::array<std::array<int, 2>, MaxNPred> preds = {};
 
   while (!_stack.empty()) {
     const auto nodeIdx = _stack.back();
@@ -744,7 +752,7 @@ PredGeomEncoder::encodeTree(
 
     const int iModeBegin = _azimuth_scaling_enabled_flag ? 1 : 0;
     const int iModeEnd = _azimuth_scaling_enabled_flag ? 2 : 4;
-    const int predIdxEnd = _azimuth_scaling_enabled_flag ? NPred : 1;
+    const int predIdxEnd = _azimuth_scaling_enabled_flag ? NTestedPred : 1;
     bool firstCheck = true;
 
     for (int iMode = iModeBegin; iMode < iModeEnd; iMode++) {
@@ -1333,7 +1341,7 @@ encodePredictiveGeometry(
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
-  PredGeomEncoder enc(gps, gbh, ctxtMem, arithmeticEncoder);
+  PredGeomEncoder enc(gps, gbh, opt, ctxtMem, arithmeticEncoder);
   int maxPtsPerTree = std::min(opt.maxPtsPerTree, int(numPoints));
   refFrameSph.init(
     gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled);

@@ -48,4 +48,10 @@ const uint32_t kFixedPointAttributeShift = 8;
 
 //============================================================================
 
+// Predictive Tree Extension
+
+const uint32_t kPTEMaxPredictorIndex = 7;
+
+//============================================================================
+
 }  // namespace pcc
