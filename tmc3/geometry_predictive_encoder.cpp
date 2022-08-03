@@ -151,7 +151,8 @@ public:
     bool interFlag,
     bool interEnabledFlag,
     bool refNodeFlag,
-    const uint8_t interFlagBuffer);
+    const uint8_t interFlagBuffer,
+    float best_known_bits);
 
   const PredGeomContexts& getCtx() const { return *this; }
 
@@ -419,7 +420,7 @@ PredGeomEncoder::estimateResPhi(
   bits += estimateExpGolomb(
     resPhi - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
     _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
-  
+
   return bits;
 }
 
@@ -614,7 +615,8 @@ PredGeomEncoder::estimateBits(
   bool interFlag,
   bool interEnabledFlag,
   bool refNodeFlag,
-  const uint8_t interFlagBuffer)
+  const uint8_t interFlagBuffer,
+  float best_known_bits)
 {
   int iMode = int(mode);
   float bits = 0.;
@@ -632,20 +634,24 @@ PredGeomEncoder::estimateBits(
   } else {
     bits += estimate(refNodeFlag, _ctxRefNodeFlag);
   }
+  if (bits > best_known_bits)  return bits;
 
   if (interEnabledFlag) {
     uint8_t interFlagCtxIdx =
       interFlagBuffer & PredGeomEncoder::interFlagBufferMask;
     bits += estimate(interFlag, _ctxInterFlag[interFlagCtxIdx]);
+    if (bits > best_known_bits)  return bits;
   }
 
   if (_geom_angular_mode_enabled_flag) {
     bits += estimate(multiplier != 0, _ctxPhiGtN[interCtxIdx][0]);
+    if (bits > best_known_bits)  return bits;
 
     if (multiplier) {
       int32_t value = abs(multiplier) - 1;
       bits += estimate(value > 0, _ctxPhiGtN[interCtxIdx][1]);
       bits += estimate(multiplier < 0, _ctxSignPhi[interCtxIdx]);
+      if (bits > best_known_bits)  return bits;
       if (value) {
         value--;
 
@@ -659,6 +665,7 @@ PredGeomEncoder::estimateBits(
 
         if (valueMinus7 >= 0)
           bits += (1 + 2.0 * log2(valueMinus7 + 1));
+        if (bits > best_known_bits)  return bits;
       }
     }
   }
@@ -668,11 +675,13 @@ PredGeomEncoder::estimateBits(
   if (_azimuth_scaling_enabled_flag) {
 
     bits += estimateResR(residual[0], multiplier, predIdx, interFlag);
+    if (bits > best_known_bits)  return bits;
 
     int r = rPred + residual[0] << 3;
     auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
     int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
     bits += estimateResPhi(residual[1], predIdx, phiBound, interFlag);
+    if (bits > best_known_bits)  return bits;
 
     k = 2;
   }
@@ -684,11 +693,13 @@ PredGeomEncoder::estimateBits(
 
     const auto res = residual[k];
     bits += estimate(res != 0, _ctxResGt0[interCtxIdx][k]);
+    if (bits > best_known_bits)  return bits;
     if (res == 0)
       continue;
 
     if (iMode > 0 || k) {
       bits += estimate(res < 0, _ctxSign[interCtxIdx][k]);
+      if (bits > best_known_bits)  return bits;
 
     }
 
@@ -699,6 +710,7 @@ PredGeomEncoder::estimateBits(
     for (int ctxIdx = 1, n = _pgeom_resid_abs_log2_bits[k] - 1; n >= 0; n--) {
       auto bin = (numBits >> n) & 1;
       bits += estimate(bin, ctxs[ctxIdx]);
+      if (bits > best_known_bits)  return bits;
       ctxIdx = (ctxIdx << 1) | bin;
     }
 
@@ -706,6 +718,7 @@ PredGeomEncoder::estimateBits(
       ctxIdx = std::min(4, (numBits + 1) >> 1);
 
     bits += std::max(0, numBits - 1);
+    if (bits > best_known_bits)  return bits;
   }
   return bits;
 }
@@ -907,7 +920,7 @@ PredGeomEncoder::encodeTree(
           // penalize bit cost so that it is only used if all modes overfow
           auto bits = estimateBits(
             mode, predIdx, residual, qphi, pred[0], interFlag, isInterEnabled,
-            refNodeFlag, interFlagBuffer);
+            refNodeFlag, interFlagBuffer, best.bits);
 
           if (unusable[iMode])
             bits = std::numeric_limits<decltype(bits)>::max();
