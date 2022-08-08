@@ -933,6 +933,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_mode_enabled_flag, false,
     "Controls angular contextualisation of occupancy")
 
+  ("secondaryResidualDisabled",
+    params.encoder.gps.residual2_disabled_flag, false,
+    "Controls disabling of quantized cartesian residual in lossy pred tree")
+
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
   ("lidarHeadPosition",

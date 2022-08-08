@@ -605,6 +605,9 @@ Controls the use of radius dependent azimuth quantization in predictive
 geometry coding.
 Requires `angularEnabled=1` and `geomTreeType=1`.
 
+### `--secondaryResidualDisabled=1|0`
+Controls the disabling of quantized cartesian residual in lossy pred tree geometry coding.
+
 ### `--pointCountMetadata=0|1`
 Controls the addition of per octree layer point count metadata to each
 geometry slice.

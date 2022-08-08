@@ -105,6 +105,7 @@ private:
   bool _geom_unique_points_flag;
 
   bool _geom_angular_mode_enabled_flag;
+  bool _predgeometry_residual2_disabling_enabled_flag;
   Vec3<int32_t> origin;
   int _numLasers;
   SphericalToCartesian _sphToCartesian;
@@ -136,6 +137,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _aed(aed)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
+  , _predgeometry_residual2_disabling_enabled_flag(gps.residual2_disabled_flag)
   , origin()
   , _numLasers(gps.numLasers())
   , _sphToCartesian(gps)
@@ -595,7 +597,12 @@ PredGeomDecoder::decodeTree(
 
     // convert pos from spherical to cartesian, add secondary residual
     if (_geom_angular_mode_enabled_flag) {
-      residual = decodeResidual2();
+      if (!_predgeometry_residual2_disabling_enabled_flag) {
+        residual = decodeResidual2();
+      } else {
+        residual = 0;
+      }
+
       for (int k = 0; k < 3; k++)
         residual[k] = int32_t(quantizer.scale(residual[k]));
 

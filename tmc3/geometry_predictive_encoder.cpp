@@ -164,6 +164,7 @@ private:
   bool _geom_unique_points_flag;
 
   bool _geom_angular_mode_enabled_flag;
+  bool _predgeometry_residual2_disabling_enabled_flag;
   Vec3<int32_t> origin;
   int _numLasers;
   SphericalToCartesian _sphToCartesian;
@@ -197,6 +198,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _aec(aec)
   , _geom_unique_points_flag(gps.geom_unique_points_flag)
   , _geom_angular_mode_enabled_flag(gps.geom_angular_mode_enabled_flag)
+  , _predgeometry_residual2_disabling_enabled_flag(gps.residual2_disabled_flag)
   , origin()
   , _numLasers(gps.numLasers())
   , _sphToCartesian(gps)
@@ -1000,8 +1002,11 @@ PredGeomEncoder::encodeTree(
       best.residual = reconPts[nodeIdx] - best.prediction;
       for (int k = 0; k < 3; k++)
         best.residual[k] = int32_t(quantizer.quantize(best.residual[k]));
-
-      encodeResidual2(best.residual);
+      if (!_predgeometry_residual2_disabling_enabled_flag) {
+        encodeResidual2(best.residual);
+      } else {
+        best.residual = 0;
+      }
     }
 
     // write the reconstructed position back to the point cloud

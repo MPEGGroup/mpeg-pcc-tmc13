@@ -507,6 +507,9 @@ struct GeometryParameterSet {
   // Enables angular coding in octree/predgeom
   bool geom_angular_mode_enabled_flag;
 
+  // Enables disabling residual2 in lossy predtree geometry coding
+  bool residual2_disabled_flag;
+
   // Indicates whether the angualed origin is signalled in the gps or slice
   bool geom_slice_angular_origin_present_flag;
 
