@@ -342,6 +342,7 @@ public:
     : sphToCartesian(gps)
     , log2ScaleRadius(gps.geom_angular_radius_inv_scale_log2)
     , scalePhi(1 << (gps.geom_angular_azimuth_scale_log2_minus11 + 12))
+    , azimLog2(gps.geom_angular_azimuth_scale_log2_minus11 + 12 - 1)
     , numLasers(gps.angularTheta.size())
     , tanThetaLaser(gps.angularTheta.data())
     , zLaser(gps.angularZ.data())
@@ -349,7 +350,9 @@ public:
 
   Vec3<int32_t> operator()(Vec3<int32_t> xyz)
   {
-    int64_t r0 = int64_t(std::round(hypot(xyz[0], xyz[1])));
+    const int64_t xLaser = xyz[0] << 8;
+    const int64_t yLaser = xyz[1] << 8;
+    const int64_t r0 = isqrt(xLaser * xLaser + yLaser * yLaser) >> 8;
     int32_t thetaIdx = 0;
     int32_t minError = std::numeric_limits<int32_t>::max();
     for (int idx = 0; idx < numLasers; ++idx) {
@@ -362,8 +365,11 @@ public:
         minError = err;
       }
     }
-
-    auto phi0 = std::round((atan2(xyz[1], xyz[0]) / (2.0 * M_PI)) * scalePhi);
+    const int64_t tanElevAng = iatan2(yLaser, xLaser);
+    const int sh = 44 - azimLog2;
+    const int off = 1 << (sh - 1);
+    auto phi0 =
+      (((tanElevAng + 3294199) * 5340354 + off) >> sh) - (1 << azimLog2);
 
     Vec3<int32_t> sphPos{
       int32_t(divExp2RoundHalfUp(r0, log2ScaleRadius)), int32_t(phi0),
@@ -378,6 +384,7 @@ private:
   static constexpr int32_t log2ScaleTheta = 20;
   int32_t log2ScaleRadius;
   int32_t scalePhi;
+  int32_t azimLog2;
   int numLasers;
   const int* tanThetaLaser;
   const int* zLaser;
