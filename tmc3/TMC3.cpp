@@ -1555,9 +1555,7 @@ sanitizeEncoderOpts(
       attr_aps.spherical_coord_flag = false;
     }
 
-    if (
-      !params.encoder.gps.interPredictionEnabledFlag
-      || params.encoder.gps.predgeom_enabled_flag)
+    if (!params.encoder.gps.interPredictionEnabledFlag)
       attr_aps.attrInterPredictionEnabled = false;
   }
 

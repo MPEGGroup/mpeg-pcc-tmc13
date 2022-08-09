@@ -173,6 +173,8 @@ private:
   std::string motionVectorFileName;
 
   AttributeInterPredParams attrInterPredParams;
+
+  pcc::point_t minPos_ref;
 };
 
 //----------------------------------------------------------------------------

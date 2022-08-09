@@ -61,6 +61,11 @@ void offsetAndScale(
   Vec3<int>* begin,
   Vec3<int>* end);
 
+void offsetAndScaleShift(
+  const Vec3<int>& minPos_shift,
+  const Vec3<int>& axisWeight,
+  Vec3<int>* begin,
+  Vec3<int>* end);
 //============================================================================
 
 }  // namespace pcc

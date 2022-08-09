@@ -117,6 +117,33 @@ offsetAndScale(
     *it = times((*it - minPos), axisWeight) + (1 << 7) >> 8;
 }
 
+//----------------------------------------------------------------------------
+
+void
+offsetAndScaleShift(
+  const Vec3<int>& minPosShift,
+  const Vec3<int>& axisWeight,
+  Vec3<int>* begin,
+  Vec3<int>* end)
+{
+  pcc::point_t shift = minPosShift;
+  pcc::point_t shiftD = {1, 1, 1};
+  for ( int i = 0; i < 3; i++ ){
+    if(minPosShift[i] < 0){
+      shift[i] = -minPosShift[i];
+      shiftD[i] = -1;
+    }
+  }
+  auto shiftScal = times(shift, axisWeight) >> 8;
+  shiftScal[0] *= shiftD[0];
+  shiftScal[1] *= shiftD[1];
+  shiftScal[2] *= shiftD[2];
+  for (auto it = begin; it != end; it++){
+    *it = *it + shiftScal;
+  }
+}
+
+
 //============================================================================
 
 }  // namespace pcc

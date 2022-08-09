@@ -567,6 +567,19 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
       altPositions = _posSph;
       bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
       minPos = bboxRpl.min;
+      if (attrInterPredParams.enableAttrInterPred) {
+        for (auto i = 0; i < 3; i++)
+          minPos[i] = minPos[i] < minPos_ref[i] ? minPos[i] : minPos_ref[i];
+        auto minPos_shift = minPos_ref - minPos;
+
+        if (minPos_shift[0] || minPos_shift[1] || minPos_shift[2])
+          offsetAndScaleShift(
+            minPos_shift, attr_aps.attr_coord_scale,
+            &attrInterPredParams.referencePointCloud[0],
+            &attrInterPredParams.referencePointCloud[0]
+              + attrInterPredParams.getPointCount());
+      }
+      minPos_ref = minPos;
     } else {
       altPositions.resize(_currentPointCloud.getPointCount());
 

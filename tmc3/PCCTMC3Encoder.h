@@ -244,6 +244,8 @@ private:
 
   AttributeInterPredParams attrInterPredParams;
   bool movingState;
+
+  pcc::point_t minPos_ref;
   // Point cloud that acts as a predictor of @pointCloud's geometry
   // occupancy.
   PCCPointSet3 predPointCloud;
