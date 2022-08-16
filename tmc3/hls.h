@@ -696,6 +696,7 @@ struct AttributeParameterSet {
 
   LodDecimationMethod lod_decimation_type;
   bool canonical_point_order_flag;
+  int max_points_per_sort_log2_plus1;
   int num_pred_nearest_neighbours_minus1;
   int max_num_direct_predictors;
   bool direct_avg_predictor_disabled_flag;

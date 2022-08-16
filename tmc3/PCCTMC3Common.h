@@ -1690,8 +1690,15 @@ buildPredictorsFast(
   std::vector<MortonCodeWithIndex> packedVoxel;
   computeMortonCodesUnsorted(pointCloud, aps.lodNeighBias, packedVoxel);
 
-  if (!aps.canonical_point_order_flag)
+  if (!aps.canonical_point_order_flag && !aps.max_points_per_sort_log2_plus1) {
     std::sort(packedVoxel.begin(), packedVoxel.end());
+  } else if (aps.max_points_per_sort_log2_plus1 > 1) {
+    int maxPtsPerSort = 1 << (aps.max_points_per_sort_log2_plus1 - 1);
+    for (int i = 0; i < pointCount; i += maxPtsPerSort) {
+      int iEnd = std::min(i + maxPtsPerSort, int(pointCount));
+      std::sort(packedVoxel.begin() + i, packedVoxel.begin() + iEnd);
+    }
+  }
 
   std::vector<uint32_t> retained, input, pointIndexToPredictorIndex;
   pointIndexToPredictorIndex.resize(pointCount);
@@ -1718,8 +1725,15 @@ buildPredictorsFast(
     assert(referencePointCloud.getPointCount());
     computeMortonCodesUnsorted(
       referencePointCloud, aps.lodNeighBias, packedVoxelRef);
-    if (!aps.canonical_point_order_flag) {
+    if (
+      !aps.canonical_point_order_flag && !aps.max_points_per_sort_log2_plus1) {
       std::sort(packedVoxelRef.begin(), packedVoxelRef.end());
+    } else if (aps.max_points_per_sort_log2_plus1 > 1) {
+      int maxPtsPerSort = 1 << (aps.max_points_per_sort_log2_plus1 - 1);
+      for (int i = 0; i < pointCount; i += maxPtsPerSort) {
+        int iEnd = std::min(i + maxPtsPerSort, int(pointCount));
+        std::sort(packedVoxelRef.begin() + i, packedVoxelRef.begin() + iEnd);
+      }
     }
     pointIndexToPredictorIndexRef.resize(pointCountRef);
     retainedRef.reserve(pointCountRef);

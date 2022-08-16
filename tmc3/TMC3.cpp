@@ -1242,7 +1242,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("canonical_point_order_flag",
     params_attr.aps.canonical_point_order_flag, false,
-    "Enable skipping morton sort in case of number of LoD equal to 1")
+    "Enable skipping morton sort in case of number of LoD equal to 1, "
+    "when max_points_per_sort_log2_plus1 is equal to 0")
+
+  ("max_points_per_sort_log2_plus1",
+    params_attr.aps.max_points_per_sort_log2_plus1, 0,
+    "max number of points per sort based on morton code in case of number of LoD equal to 1")
 
   ("spherical_coord_flag",
      params_attr.aps.spherical_coord_flag, false,
@@ -1558,6 +1563,11 @@ sanitizeEncoderOpts(
     attrMeta.scalingParametersPresent = attrMeta.attr_offset
       || attrMeta.attr_scale_minus1 || attrMeta.attr_frac_bits;
 
+    // behaviour of canonical_point_order_flag is affected by 
+    // max_points_per_sort_log2_plus1
+    if (attr_aps.max_points_per_sort_log2_plus1 > 0)
+      attr_aps.canonical_point_order_flag = false;
+
     // todo(df): remove this hack when scaling is generalised
     if (it.first != "reflectance" && attrMeta.scalingParametersPresent) {
       err.warn() << it.first << ": scaling not supported, disabling\n";
@@ -1684,9 +1694,9 @@ sanitizeEncoderOpts(
     }
 
     if (params.encoder.gps.azimuth_scaling_enabled_flag) {
-      params.encoder.gps.predgeom_radius_threshold_for_pred_list
-        = params.encoder.predGeom.radiusThresholdForNewPred
-          >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
+      params.encoder.gps.predgeom_radius_threshold_for_pred_list =
+        params.encoder.predGeom.radiusThresholdForNewPred
+        >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
     }
   } else { // Angular disabled
     params.sortInputByAzimuth = false;
@@ -1771,7 +1781,13 @@ sanitizeEncoderOpts(
       if (lod > 0 && attr_aps.canonical_point_order_flag) {
         err.error() << it.first
                     << "when levelOfDetailCount > 0, "
-                       "canonicalPointOrder must be 0\n";
+                       "canonical_point_order_flag must be 0\n";
+      }
+
+      if (lod > 0 && attr_aps.max_points_per_sort_log2_plus1) {
+        err.error() << it.first
+                    << "when levelOfDetailCount > 0, "
+                       "maxPointsPerSortLog2Plus1 must be 0\n";
       }
 
       if (

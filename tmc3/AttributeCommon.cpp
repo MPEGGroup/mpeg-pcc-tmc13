@@ -132,6 +132,10 @@ AttributeLods::isReusable(
     return false;
 
   if (
+    _aps.max_points_per_sort_log2_plus1 != aps.max_points_per_sort_log2_plus1)
+    return false;
+
+  if (
     _aps.pred_weight_blending_enabled_flag
     != aps.pred_weight_blending_enabled_flag)
     return false;
