@@ -469,13 +469,12 @@ struct GeometryParameterSet {
 
   // Enables trisoup
   bool trisoup_enabled_flag;
-  // TriSoup parameters 
-  int trisoup_vertex_quantization_bits; 
+  // TriSoup parameters
+  int trisoup_vertex_quantization_bits;
   bool trisoup_centroid_vertex_residual_flag;
   bool trisoup_halo_flag;
   bool trisoup_fine_ray_tracing_flag;
   bool trisoup_improved_encoder_vertex_determination_flag;
-  
 
   // sampling value of trisoup decoding process
   // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
@@ -499,6 +498,7 @@ struct GeometryParameterSet {
   // Controls the use of planar mode
   bool geom_planar_mode_enabled_flag;
   bool geom_octree_depth_planar_eligibiity_enabled_flag;
+  bool geom_multiple_planar_mode_enable_flag;
   int geom_planar_threshold0;
   int geom_planar_threshold1;
   int geom_planar_threshold2;
@@ -676,7 +676,6 @@ struct GeometryBrickHeader {
   std::vector<int> motion_block_size;
   int lpu_type;
   bool min_zero_origin_flag;
-
 };
 
 //============================================================================

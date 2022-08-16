@@ -87,6 +87,8 @@ public:
     int adjPlanes,
     int planeId,
     int contextAngle,
+    bool* twoPlanesIsPlanar,
+    bool* multiPlanarEligible,
     OctreeNodePlanar& planarRef);
 
   void derivePlanarPCMContextBuffer(
@@ -113,6 +115,8 @@ public:
     uint8_t siblingOccupancy,
     int planarRate[3],
     int contextAngle,
+    bool* twoPlanesIsPlanar,
+    bool* multiPlanarEligible,
     OctreeNodePlanar& planarRef);
 
   void determinePlanarMode(
@@ -348,8 +352,9 @@ GeometryOctreeEncoder::encodePlanarMode(
   int adjPlanes,
   int planeId,
   int contextAngle,
+  bool* multiPlanarFlag,
+  bool* multiPlanarEligible,
   OctreeNodePlanar& planarRef
-
 )
 {
   const int mask0 = (1 << planeId);
@@ -358,13 +363,6 @@ GeometryOctreeEncoder::encodePlanarMode(
   bool isPlanar = node.planarMode & mask0;
   int planeBit = (node.planePosBits & mask0) == 0 ? 0 : 1;
 
-  if (!node.isSignaled && node.allowPCM) {
-    _arithmeticEncoder->encode(
-      node.isPCM,
-      _ctxPlanarCopyMode[planarRef.ctxBufPCM][planarRef.planarMode]);
-    node.isSignaled = true;
-  }
-
   bool isPlanarRef = planarRef.planarMode & mask0;
   int planeBitRef = (planarRef.planePosBits & mask0) == 0 ? 0 : 1;
 
@@ -372,8 +370,37 @@ GeometryOctreeEncoder::encodePlanarMode(
   if (isPlanarRef)
     ctxIdx_Planar_flag += 3 * (planeBitRef + 1);
 
-  if (!node.isPCM)
-    _arithmeticEncoder->encode(isPlanar, _ctxPlanarMode[ctxIdx_Planar_flag]);
+  if (!node.isPCM) {
+    if (_planar._geom_multiple_planar_mode_enable_flag) {
+      static const int planeId2Index[3][3] = {{0, 1, 2}, {0, 1, 3}, {0, 2, 3}};
+      bool multiPlanarFlagFalse = true;
+      for (int i = 0; i < 3; i++) {
+        multiPlanarFlagFalse &= !(multiPlanarFlag[planeId2Index[planeId][i]]);
+      }
+      bool inferredPlanarFalse = multiPlanarFlagFalse;
+
+      if (multiPlanarFlagFalse) {
+        if (planeId == 2) {
+          if (multiPlanarEligible[0])
+            inferredPlanarFalse =
+              !((node.planarMode & 2) && (node.planarMode & 1));
+          else if (multiPlanarEligible[2])
+            inferredPlanarFalse = !(node.planarMode & 1);
+          else if (multiPlanarEligible[3])
+            inferredPlanarFalse = !(node.planarMode & 2);
+        } else if (planeId == 1) {
+          if (multiPlanarEligible[1])
+            inferredPlanarFalse = !(node.planarMode & 1);
+        }
+      }
+
+      if (inferredPlanarFalse)
+        _arithmeticEncoder->encode(
+          isPlanar, _ctxPlanarMode[ctxIdx_Planar_flag]);
+    } else {
+      _arithmeticEncoder->encode(isPlanar, _ctxPlanarMode[ctxIdx_Planar_flag]);
+    }
+  }
 
   if (!isPlanar) {
     node.planarPossible &= mask1[planeId];
@@ -530,6 +557,8 @@ GeometryOctreeEncoder::determinePlanarMode(
   uint8_t siblingOccupancy,
   int planarRate[3],
   int contextAngle,
+  bool* multiPlanarFlag,
+  bool* multiPlanarEligible,
   OctreeNodePlanar& planarRef)
 {
   const int kPlanarChildThreshold = 63;
@@ -583,7 +612,7 @@ GeometryOctreeEncoder::determinePlanarMode(
   int adjPlanes = (highAdjPlaneOccupied << 1) | lowAdjPlaneOccupied;
   int planeBit = encodePlanarMode(
     planar, closestPlanarFlag, closestDist, adjPlanes, planeId, contextAngle,
-    planarRef);
+    multiPlanarFlag, multiPlanarEligible, planarRef);
 
   bool isPlanar = (planar.planarMode & planeSelector);
 
@@ -620,7 +649,6 @@ GeometryOctreeEncoder::determinePlanarMode(
 {
   auto& planeBuffer = _planar._planarBuffer;
 
-  // determine what planes exist in occupancy
   setPlanesFromOccupancy(occupancy, planar);
 
   uint8_t planarEligibleMask = 0;
@@ -666,13 +694,53 @@ GeometryOctreeEncoder::determinePlanarMode(
       planeBuffer.getBuffer(1), planeBuffer.getBuffer(2));
   }
 
+  if (!planar.isSignaled && planar.allowPCM) {
+    _arithmeticEncoder->encode(
+      planar.isPCM,
+      _ctxPlanarCopyMode[planarRef.ctxBufPCM][planarRef.planarMode]);
+    planar.isSignaled = true;
+  }
+
+  bool multiPlanarEligible[4] = {false, false, false, false};  //xyz,xy,xz,yz
+  bool multiPlanarFlag[4] = {false, false, false, false};      //xyz,xy,xz,yz
+
+  if (_planar._geom_multiple_planar_mode_enable_flag) {
+    if (!planar.isPCM) {
+      // determine what planes exist in occupancy
+      if (planarEligible[2] && planarEligible[1] && planarEligible[0]) {  //xyz
+        multiPlanarEligible[0] = true;
+        multiPlanarFlag[0] = !popcntGt1(occupancy);
+        _arithmeticEncoder->encode(multiPlanarFlag[0], _ctxMultiPlanarMode);
+      } else if (
+        (!planarEligible[2]) && planarEligible[1] && planarEligible[0]) {  //xy
+        multiPlanarEligible[1] = true;
+        multiPlanarFlag[1] =
+          (planar.planarMode & 1) && (planar.planarMode & 2);
+        _arithmeticEncoder->encode(multiPlanarFlag[1], _ctxMultiPlanarMode);
+      } else if (
+        planarEligible[2] && (!planarEligible[1]) && planarEligible[0]) {  //xz
+        multiPlanarEligible[2] = true;
+        multiPlanarFlag[2] =
+          (planar.planarMode & 1) && (planar.planarMode & 4);
+        _arithmeticEncoder->encode(multiPlanarFlag[2], _ctxMultiPlanarMode);
+      } else if (
+        planarEligible[2] && planarEligible[1] && (!planarEligible[0])) {  //yz
+        multiPlanarEligible[3] = true;
+        multiPlanarFlag[3] =
+          (planar.planarMode & 2) && (planar.planarMode & 4);
+        _arithmeticEncoder->encode(multiPlanarFlag[3], _ctxMultiPlanarMode);
+      }
+    }
+  }
+
+
   // planar x
   if (planarEligible[0]) {
     determinePlanarMode(
       adjacent_child_contextualization_enabled_flag, 0, planar,
       planeBuffer.getBuffer(0), yy, zz, xx, posInParent, gnp,
       node.siblingOccupancy, _planar._rate.data(), contextAnglePhiX,
-      planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef);
   }
   // planar y
   if (planarEligible[1]) {
@@ -680,14 +748,15 @@ GeometryOctreeEncoder::determinePlanarMode(
       adjacent_child_contextualization_enabled_flag, 1, planar,
       planeBuffer.getBuffer(1), xx, zz, yy, posInParent, gnp,
       node.siblingOccupancy, _planar._rate.data(), contextAnglePhiY,
-      planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef);
   }
   // planar z
   if (planarEligible[2]) {
     determinePlanarMode(
       adjacent_child_contextualization_enabled_flag, 2, planar,
       planeBuffer.getBuffer(2), xx, yy, zz, posInParent, gnp,
-      node.siblingOccupancy, _planar._rate.data(), contextAngle, planarRef);
+      node.siblingOccupancy, _planar._rate.data(), contextAngle,
+      multiPlanarFlag, multiPlanarEligible, planarRef);
   }
 }
 

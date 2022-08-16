@@ -725,6 +725,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.write(gps.octree_angular_extension_flag);
 
     bs.write(gps.geom_octree_depth_planar_eligibiity_enabled_flag);
+
+    if (!gps.predgeom_enabled_flag && gps.geom_planar_mode_enabled_flag)
+      bs.write(gps.geom_multiple_planar_mode_enable_flag);
   }
   bs.byteAlign();
 
@@ -750,7 +753,7 @@ parseGps(const PayloadBuffer& buf)
 
   gps.geom_planar_mode_enabled_flag = false;
   gps.octree_point_count_list_present_flag = false;
-
+  gps.geom_multiple_planar_mode_enable_flag = false;
   bs.read(&gps.predgeom_enabled_flag);
   if (!gps.predgeom_enabled_flag) {
     bs.read(&gps.octree_point_count_list_present_flag);
@@ -894,6 +897,9 @@ parseGps(const PayloadBuffer& buf)
 
     if (gps.geom_planar_mode_enabled_flag)
       bs.read(&gps.geom_octree_depth_planar_eligibiity_enabled_flag);
+
+    if (!gps.predgeom_enabled_flag && gps.geom_planar_mode_enabled_flag)
+      bs.read(&gps.geom_multiple_planar_mode_enable_flag);
   }
   bs.byteAlign();
 

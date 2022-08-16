@@ -880,6 +880,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_octree_depth_planar_eligibiity_enabled_flag, true,
     "Determine the eligibility for planar mode per octree depth")
 
+  ("multiplePlanarEnabled",
+    params.encoder.gps.geom_multiple_planar_mode_enable_flag, true,
+    "Use multiple planar mode for geometry coding")
+
   ("planarModeThreshold0",
     params.encoder.gps.geom_planar_threshold0, 77,
     "Activation threshold (0-127) of first planar mode when the eligibility is not determined per octree depth. "
@@ -1538,6 +1542,9 @@ sanitizeEncoderOpts(
     else
       params.encoder.interGeom.motionSrc = InterGeomEncOpts::kInternalLMSGMSrc;
   }
+
+  if (params.encoder.gps.interPredictionEnabledFlag)
+    params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
 
   // support disabling attribute coding (simplifies configuration)
   if (params.disableAttributeCoding) {

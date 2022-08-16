@@ -70,7 +70,7 @@ struct PCCOctree3Node {
   // Range of prediction's point indexes spanned by node
   uint32_t predStart;
   uint32_t predEnd;
-  
+
   // The number of mispredictions in determining the occupancy
   // map of the child nodes in this node's parent.
   int8_t numSiblingsMispredicted;
@@ -107,7 +107,6 @@ struct OctreeNodePlanar {
 
   bool eligible[3] = {false, false, false};
   int ctxBufPCM = 0;
-
 };
 
 //---------------------------------------------------------------------------
@@ -137,16 +136,14 @@ uint32_t mkIdcmEnableMask(const GeometryParameterSet& gps);
 //   - Block must not be near the bottom of the tree
 //   - The parent / grandparent are sparsely occupied
 
-
-
 inline bool
 isDirectModeEligible(
   int intensity,
   int nodeSizeLog2,
   int nodeNeighPattern,
   const PCCOctree3Node& node,
-  const PCCOctree3Node& child
-  ,bool occupancyIsPredictable,
+  const PCCOctree3Node& child,
+  bool occupancyIsPredictable,
   bool isAngularModeEnabled
 
 )
@@ -180,10 +177,8 @@ isDirectModeEligible_Inter(
   int nodeNeighPattern,
   const PCCOctree3Node& node,
   const PCCOctree3Node& child,
-  bool occupancyIsPredictable
-)
+  bool occupancyIsPredictable)
 {
-
   if (!intensity)
     return false;
 
@@ -191,7 +186,7 @@ isDirectModeEligible_Inter(
     return false;
 
   return (nodeSizeLog2 >= 2) && (nodeNeighPattern == 0)
-     && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
+    && (child.numSiblingsPlus1 == 1) && (node.numSiblingsPlus1 <= 2);
 }
 
 //---------------------------------------------------------------------------
@@ -597,6 +592,7 @@ struct OctreePlanarState {
   OctreePlanarState& operator=(OctreePlanarState&&);
 
   bool _planarBufferEnabled;
+  bool _geom_multiple_planar_mode_enable_flag;
   OctreePlanarBuffer _planarBuffer;
 
   std::array<int, 3> _rate{{128 * 8, 128 * 8, 128 * 8}};
@@ -634,9 +630,10 @@ int determineContextAngleForPlanar(
 
 //---------------------------------------------------------------------------
 
-inline int determineContextIndexForAngularPhiIDCM(int deltaPhi, int phiLRDiff)
+inline int
+determineContextIndexForAngularPhiIDCM(int deltaPhi, int phiLRDiff)
 {
-  return (3*deltaPhi < phiLRDiff<<2) + (deltaPhi < phiLRDiff<<1);
+  return (3 * deltaPhi < phiLRDiff << 2) + (deltaPhi < phiLRDiff << 1);
 }
 
 //----------------------------------------------------------------------------
@@ -681,7 +678,7 @@ protected:
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
   // for planar mode xyz
-
+  AdaptiveBitModel _ctxMultiPlanarMode;
   AdaptiveBitModel _ctxPlanarCopyMode[16][8];
   AdaptiveBitModel _ctxPlanarMode[9];
   AdaptiveBitModel _ctxPlanarPlaneLastIndex[3][3][3][4];
@@ -691,13 +688,12 @@ protected:
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularIdcm[4];
 
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhi[3][8];
- 
+
   AdaptiveBitModel _ctxPlanarPlaneLastIndexAngularPhiIDCM[8][3];
 
   // For bitwise occupancy coding
   CtxModelOctreeOccupancy _ctxOccupancy;
   CtxMapOctreeOccupancy _ctxIdxMaps[24];
-
 
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
@@ -738,9 +734,9 @@ void decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
-  pcc::ringbuf<PCCOctree3Node>* nodesRemaining
-  , PCCPointSet3 &predPointCloud
-  , const Vec3<int> minimum_position
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
+  PCCPointSet3& predPointCloud,
+  const Vec3<int> minimum_position
 
 );
 //============================================================================
