@@ -360,6 +360,22 @@ operator>>(std::istream& in, OctreeEncOpts::QpMethod& val)
 }
 }  // namespace pcc
 
+namespace pcc {
+static std::istream&
+operator>>(std::istream& in, InterGeomEncOpts::LPUType& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::istream&
+operator>>(std::istream& in, InterGeomEncOpts::MotionSource& val)
+{
+  return readUInt(in, val);
+}
+}  // namespace pcc
+
 static std::ostream&
 operator<<(std::ostream& out, const OutputSystem& val)
 {
@@ -494,6 +510,35 @@ operator<<(std::ostream& out, const OctreeEncOpts::QpMethod& val)
   case Method::kUniform: out << int(val) << " (Uniform)"; break;
   case Method::kRandom: out << int(val) << " (Random)"; break;
   case Method::kByDensity: out << int(val) << " (ByDensity)"; break;
+  default: out << int(val) << " (Unknown)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const InterGeomEncOpts::LPUType& val)
+{
+  switch (val) {
+    using Method = InterGeomEncOpts::LPUType;
+  case Method::kRoadObjClassfication: out << int(val) << " (RoadObjClassfication)"; break;
+  case Method::kCuboidPartition: out << int(val) << " (CuboidPartition)"; break;
+  default: out << int(val) << " (Unknown)"; break;
+  }
+  return out;
+}
+}  // namespace pcc
+
+namespace pcc {
+static std::ostream&
+operator<<(std::ostream& out, const InterGeomEncOpts::MotionSource& val)
+{
+  switch (val) {
+    using Method = InterGeomEncOpts::MotionSource;
+  case Method::kExternalGMSrc: out << int(val) << " (ExternalGMSrc)"; break;
+  case Method::kInternalLMSGMSrc: out << int(val) << " (InternalLMSGMSrc)"; break;
+  case Method::kInternalICPGMSrc: out << int(val) << " (InternalICPGMSrc)"; break;
   default: out << int(val) << " (Unknown)"; break;
   }
   return out;
@@ -1009,6 +1054,34 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.motionVectorPath, {},
     "File path containing motion vector information")
 
+  ("lpuType",
+    params.encoder.interGeom.lpuType, InterGeomEncOpts::kRoadObjClassfication,
+    "Reference motion used in MC for LPU:"
+    "  0: use road and object classification-based LPU\n"
+    "  1: use cuboid partition-based LPU\n")
+
+  ("globalMotionSrcType",
+    params.encoder.interGeom.motionSrc, InterGeomEncOpts::kExternalGMSrc,
+    "If using outside global motion matrix:"
+    "  0: external GM\n"
+    "  1: internal GM based on LMS\n"
+    "  2: internal GM based on ICP")
+
+  ("globalMotionBlockSize",
+    params.encoder.interGeom.motion_block_size, {0, 0, 4096},
+    "Block size for global moton compensation")
+
+  ("globalMotionWindowSize",
+    params.encoder.interGeom.motion_window_size, 512,
+    "Window size for global moton compensation")
+
+  ("use_cuboidal_regions_in_GM_estimation",
+    params.encoder.interGeom.useCuboidalRegionsInGMEstimation, false,
+    "Use cuboidal regions with square cross-section in xy-plane for "
+    "global motion estimation using LMS"
+    "0: Use cubic regions"
+    "1: Use cuboidal regions")
+
   ("predGeomSort",
     params.encoder.predGeom.sortMode, PredGeomEncOpts::kSortMorton,
     "Predictive geometry tree construction order")
@@ -1448,6 +1521,13 @@ sanitizeEncoderOpts(
   if (!params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.globalMotionEnabled = false;
     params.encoder.gps.gof_geom_entropy_continuation_enabled_flag = false;
+  }
+
+  if (params.motionVectorPath.size() == 0) {
+    if (params.encoder.gps.predgeom_enabled_flag)
+      params.encoder.gps.globalMotionEnabled = false;
+    else
+      params.encoder.interGeom.motionSrc = InterGeomEncOpts::kInternalLMSGMSrc;
   }
 
   // support disabling attribute coding (simplifies configuration)

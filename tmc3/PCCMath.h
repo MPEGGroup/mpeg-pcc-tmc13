@@ -679,6 +679,13 @@ divExp2RoundHalfInf(Vec3<T> vec, int shift)
 }
 
 //---------------------------------------------------------------------------
+inline int64_t
+divExp2RoundHalfInfPositiveShift(
+  const int64_t scalar, const unsigned int shift, const unsigned int s0)
+{
+  return scalar >= 0 ? (s0 + scalar) >> shift : -((s0 - scalar) >> shift);
+}
+//---------------------------------------------------------------------------
 
 extern const uint16_t kDivApproxDivisor[256];
 

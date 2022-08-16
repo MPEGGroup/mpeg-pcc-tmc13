@@ -42,7 +42,7 @@
 #include "PCCMath.h"
 #include "hls.h"
 #include "PCCPointSet.h"
-#include "geometry_octree.h"
+#include "geometry_params.h"
 #include <map>
 
 
@@ -392,86 +392,6 @@ private:
 typedef std::vector<Vec3<int>> VecVec3;
 typedef std::vector<VecVec3> VecVecVec3;
 typedef std::vector<VecVecVec3> VecVecVecVec3;
-inline int64_t
-divExp2RoundHalfInfPositiveShift(
-  const int64_t scalar, const unsigned int shift, const unsigned int s0)
-{
-  return scalar >= 0 ? (s0 + scalar) >> shift : -((s0 - scalar) >> shift);
-}
-class MotionParameters {
-private:
-  int numFrames;
-  std::vector<std::vector<int>> motionMatrix;
-  std::vector<Vec3<int>> transVec;
-  std::vector<std::pair<int, int>> threshVec;
-  int frameCounter;
-
-public:
-  MotionParameters() : numFrames(0), frameCounter(-1) {}
-  bool EndOfFrames() const { return frameCounter >= numFrames; }
-  void AdvanceFrame() { frameCounter++; }
-  int getFrameCtr() { return frameCounter; }
-  float quantizeParameter(float x)
-  {
-    int scaleFactor = 65536;
-    float y = x * scaleFactor;
-    if (y < 0)
-      return int(y - 0.5) / float(scaleFactor);
-    else
-      return int(y + 0.5) / float(scaleFactor);
-  }
-  void parseFile(std::string fileName, double qs)
-  {
-    if (numFrames)
-      return;
-
-    std::ifstream fin(fileName);
-    float tmp;
-    std::vector<float> out;
-    std::copy(
-      std::istream_iterator<float>(fin), std::istream_iterator<float>(),
-      std::back_inserter(out));
-    numFrames = out.size() / 14;
-    motionMatrix.resize(numFrames);
-    transVec.resize(numFrames);
-    threshVec.resize(numFrames);
-    const int scaleFactor = 65536;
-    auto it = out.begin();
-    for (auto i = 0; i < numFrames; i++) {
-      motionMatrix[i].resize(9);
-      for (int j = 0; j < 9; j++)
-        if (j % 3 == j / 3)
-          motionMatrix[i][j] = std::round((*(it++) - 1) * scaleFactor) + 65536;
-        else
-          motionMatrix[i][j] = std::round((*(it++)) * scaleFactor);
-      for (int j = 0; j < 3; j++)
-        transVec[i][j] = std::round((*(it++)) * qs);
-      threshVec[i].first = std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
-      threshVec[i].second = std::round((*(it++)) * qs); // quantizeParameter(*(it++));
-    }
-  }
-  void
-    setMotionParams(std::pair<int, int> thresh, std::vector<int> matrix, Vec3<int> trans)
-  {
-    motionMatrix.push_back(matrix);
-    threshVec.push_back(thresh);
-    transVec.push_back(trans);
-  }
-  template <typename T>
-  void 
-  getMotionParams(
-    std::pair<int, int> &th, std::vector<T> &mat, Vec3<int> &tr) const
-  {
-    if (frameCounter > threshVec.size()) {
-      std::cout << "Accessing unassigned values\n";
-    }
-    th = threshVec[frameCounter];
-    mat.resize(9);
-    for (auto i = 0; i < 9; i++)
-      mat[i] = motionMatrix[frameCounter][i];
-    tr = transVec[frameCounter];
-  }
-};
 
 class PredGeomPredictor {
 public:

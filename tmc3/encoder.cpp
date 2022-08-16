@@ -196,8 +196,13 @@ PCCTMC3Encoder3::compress(
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
     
     if (params->gps.globalMotionEnabled) {
-      double qs = params->gps.predgeom_enabled_flag ? 1.0 : params->codedGeomScale;
-      _refFrameSph.parseMotionParams(motionVectorFileName, qs);
+      if (params->gps.predgeom_enabled_flag) {
+        _refFrameSph.parseMotionParams(motionVectorFileName, 1.0);
+      } else if (!params->gps.trisoup_enabled_flag) {
+        params->interGeom.motionParams.parseFile(
+          motionVectorFileName, params->codedGeomScale);
+        deriveMotionParams(params);
+      }
     }
   }
 
@@ -388,8 +393,12 @@ PCCTMC3Encoder3::compress(
   } while (0);
  
   if (_frameCounter){
-     _refFrameSph.updateFrame(*_gps);
-  }else{
+    if (params->gps.predgeom_enabled_flag) {
+      _refFrameSph.updateFrame(*_gps);
+    } else if (!params->gps.trisoup_enabled_flag) {
+      params->interGeom.motionParams.AdvanceFrame();
+    }
+  } else {
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   }
 
@@ -569,6 +578,28 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     attr_enc.abh.attr_layer_qp_delta_luma.resize(numLayers, lastDeltaLuma);
     attr_enc.abh.attr_layer_qp_delta_chroma.resize(numLayers, lastDeltaChroma);
   }
+}
+
+
+//---------------------------------------------------------------------------
+// motion parameter derivation
+// Setup the block sizes b
+void
+PCCTMC3Encoder3::deriveMotionParams(EncoderParams* params)
+{
+  auto scaleFactor = params->codedGeomScale;
+  params->interGeom.th_dist = int(1000 * scaleFactor);
+  params->gbh.motion_block_size = {0, 0, 0};
+  for (int i = 0; i < 3; i++) {
+    if (params->interGeom.motion_block_size[i] > 0)
+      params->gbh.motion_block_size[i] = std::max(
+        64,
+        int(std::round(params->interGeom.motion_block_size[i] * scaleFactor)));
+    else
+      params->gbh.motion_block_size[i] = 0;
+  }
+  params->interGeom.motion_window_size = std::max(
+    2, int(std::round(params->interGeom.motion_window_size * scaleFactor)));
 }
 
 //----------------------------------------------------------------------------
@@ -869,6 +900,14 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
 
+  gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
+  gbh.gm_trans = 0;
+  gbh.gm_thresh = {0, 0};
+  if (gbh.interPredictionEnabledFlag && !_gps->predgeom_enabled_flag) {
+    gbh.lpu_type = params->interGeom.lpuType;
+    gbh.motion_block_size = params->gbh.motion_block_size;
+  }
+
   // Entropy continuation is not permitted in the first slice of a frame
   gbh.entropy_continuation_flag = false;
   if (_sps->entropy_continuation_enabled_flag)
@@ -921,19 +960,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     encodePredictiveGeometry(
       params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph,
       *_ctxtMemPredGeom, arithmeticEncoders[0].get());
-  } else if (!_gps->trisoup_enabled_flag)
-	{
-	    if (gbh.interPredictionEnabledFlag && _gps->globalMotionEnabled) {
-			_refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
-		}else {
-			gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
-			gbh.gm_trans = 0;
-			gbh.gm_thresh = {0, 0};
-		}
-		encodeGeometryOctree(
+  } else if (!_gps->trisoup_enabled_flag) {
+    encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders, predPointCloud, _sps->seqBoundingBoxOrigin);
-	}
+      arithmeticEncoders, predPointCloud, *_sps,
+      params->interGeom);
+  }
   else
   {
     // limit the number of points to the slice limit
@@ -941,19 +973,16 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
     encodeGeometryTrisoup(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders, predPointCloud, _sps->seqBoundingBoxOrigin);
+      arithmeticEncoders, predPointCloud, *_sps, params->interGeom);
   }
 
   // signal the actual number of points coded
   gbh.footer.geom_num_points_minus1 = pointCloud.getPointCount() - 1;
 
-  if (gbh.interPredictionEnabledFlag && _gps->globalMotionEnabled) {
+  if (
+    _gps->predgeom_enabled_flag && gbh.interPredictionEnabledFlag
+    && _gps->globalMotionEnabled)
     _refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
-  }else {
-    gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
-    gbh.gm_trans = 0;
-    gbh.gm_thresh = {0, 0};
-  }
 
   attrInterPredParams.frameDistance = 1;
   movingState = false;

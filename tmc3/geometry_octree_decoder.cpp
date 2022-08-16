@@ -42,6 +42,7 @@
 #include "io_hls.h"
 #include "tables.h"
 #include "quantization.h"
+#include "motionWip.h"
 
 namespace pcc {
 
@@ -1483,6 +1484,30 @@ invQuantPosition(int qp, Vec3<uint32_t> quantMasks, const Vec3<int32_t>& pos)
 }
 
 //-------------------------------------------------------------------------
+void
+compensateGlobalMotion(
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  PCCPointSet3& predPointCloud,
+  PCCPointSet3& pointPredictorWorld,
+  EntropyDecoder* arithmeticDecoder,
+  const Vec3<int> minimum_position)
+{
+  switch (gbh.lpu_type) {
+  case 0:  // object and road classification
+    compensateWithRoadObjClassfication(
+      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
+      minimum_position);
+    break;
+  case 1:  // cuboid partition
+    decodeCompensateWithCuboidPartition(
+      predPointCloud, pointPredictorWorld, gbh, minimum_position,
+      arithmeticDecoder);
+    break;
+  }
+}
+
+//-------------------------------------------------------------------------
 
 void
 decodeGeometryOctree(
@@ -1593,8 +1618,16 @@ decodeGeometryOctree(
   if (isInter) {
     pointPredictorWorld = predPointCloud;
 
-    if (gps.globalMotionEnabled)
-		applyGlobalMotion_with_shift(pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh, minimum_position);
+    if (gps.globalMotionEnabled) {
+      auto minPos = minimum_position;
+      if (gbh.min_zero_origin_flag)
+        minPos = {0, 0, 0};
+
+      compensateGlobalMotion(
+        gps, gbh, predPointCloud, pointPredictorWorld, &arithmeticDecoder,
+        minPos);
+    }
+    node00.predEnd = uint32_t(pointPredictorWorld.getPointCount());
 
     for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
       pointPredictorWorld[i] -= gbh.geomBoxOrigin;

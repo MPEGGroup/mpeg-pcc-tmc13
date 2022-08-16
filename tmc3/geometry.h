@@ -62,7 +62,8 @@ void encodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder,
   PCCPointSet3& predPointCloud,
-  const Vec3<int> minimum_position);
+  const SequenceParameterSet& sps,
+  const InterGeomEncOpts& interParams);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
@@ -71,8 +72,7 @@ void decodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
   PCCPointSet3& predPointCloud,
-  const Vec3<int> minimum_position
-);
+  const Vec3<int> minimum_position);
 
 void decodeGeometryOctreeScalable(
   const GeometryParameterSet& gps,
@@ -80,9 +80,8 @@ void decodeGeometryOctreeScalable(
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  EntropyDecoder& arithmeticDecoder
-  , PCCPointSet3& predPointCloud
-);
+  EntropyDecoder& arithmeticDecoder,
+  PCCPointSet3& predPointCloud);
 
 //----------------------------------------------------------------------------
 
@@ -94,7 +93,8 @@ void encodeGeometryTrisoup(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoder,
   PCCPointSet3& predPointCloud,
-  const Vec3<int> minimum_position);
+  const SequenceParameterSet& sps,
+  const InterGeomEncOpts& interParams);
 
 void decodeGeometryTrisoup(
   const GeometryParameterSet& gps,

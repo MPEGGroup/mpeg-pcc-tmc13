@@ -43,6 +43,7 @@
 #include "tables.h"
 #include "quantization.h"
 #include "TMC3.h"
+#include "motionWip.h"
 #include <set>
 #include <random>
 
@@ -1701,6 +1702,65 @@ GeometryOctreeEncoder::encodeZRes(int zRes)
 }
 
 //-------------------------------------------------------------------------
+void
+applyGlobalMotion(
+  const InterGeomEncOpts& params,
+  const SequenceParameterSet& sps,
+  const GeometryParameterSet& gps,
+  GeometryBrickHeader& gbh,
+  PCCPointSet3& pointCloud,
+  PCCPointSet3& predPointCloud,
+  PCCPointSet3& pointPredictorWorld,
+  EntropyEncoder* arithmeticEncoder)
+{
+  PCCPointSet3 pointCloudZeroOrigin;
+  pointCloudZeroOrigin = pointCloud;
+  // shift for matching origin position between predPointCloud and pointCloud
+  for (int i = 0; i < pointCloud.getPointCount(); i++) {
+    pointCloudZeroOrigin[i] += gbh.geomBoxOrigin;
+  }
+  Vec3<int> minimum_position;
+
+  // search for global motion
+  switch (params.motionSrc) {
+  case InterGeomEncOpts::kExternalGMSrc:
+    gbh.min_zero_origin_flag = false;
+    minimum_position = sps.seqBoundingBoxOrigin;
+    params.motionParams.getMotionParams(
+      gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+    break;
+  case InterGeomEncOpts::kInternalLMSGMSrc:
+    if (params.lpuType != InterGeomEncOpts::kCuboidPartition) {
+      params.motionParams.getMotionParams(
+        gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+      gbh.gm_thresh.first -= sps.seqBoundingBoxOrigin[2];
+      gbh.gm_thresh.second -= sps.seqBoundingBoxOrigin[2];
+    }
+    minimum_position = {0, 0, 0};
+    gbh.min_zero_origin_flag = true;
+    SearchGlobalMotionPerTile(
+      pointCloudZeroOrigin, predPointCloud, sps.seqGeomScale, gbh,
+      params.th_dist, params.useCuboidalRegionsInGMEstimation);
+    break;
+  case InterGeomEncOpts::kInternalICPGMSrc: break;
+  }
+
+  // compensation
+  switch (params.lpuType) {
+  case InterGeomEncOpts::kRoadObjClassfication:
+    compensateWithRoadObjClassfication(
+      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
+      minimum_position);
+    break;
+  case InterGeomEncOpts::kCuboidPartition:
+    compensateWithCuboidPartition(
+      pointCloudZeroOrigin, predPointCloud, pointPredictorWorld, gbh,
+      params.motion_window_size, minimum_position, arithmeticEncoder);
+    break;
+  }
+}
+
+//-------------------------------------------------------------------------
 
 void
 encodeGeometryOctree(
@@ -1711,7 +1771,9 @@ encodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
-  PCCPointSet3& predPointCloud, const Vec3<int> minimum_position)
+  PCCPointSet3& predPointCloud,
+  const SequenceParameterSet& sps,
+  const InterGeomEncOpts& interParams)
 {
   auto arithmeticEncoderIt = arithmeticEncoders.begin();
   GeometryOctreeEncoder encoder(gps, gbh, ctxtMem, arithmeticEncoderIt->get());
@@ -1719,6 +1781,24 @@ encodeGeometryOctree(
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
   std::unique_ptr<GeometryOctreeEncoder> savedState;
+
+   bool isInter = gbh.interPredictionEnabledFlag;
+
+  // for inter prediction
+  PCCPointSet3 pointPredictorWorld;
+  if (isInter) {
+    pointPredictorWorld = predPointCloud;
+
+    if (gps.globalMotionEnabled) {
+      applyGlobalMotion(
+        interParams, sps, gps, gbh, pointCloud, predPointCloud,
+        pointPredictorWorld, arithmeticEncoderIt->get());
+    }
+
+    for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
+      pointPredictorWorld[i] -= gbh.geomBoxOrigin;
+    }
+  }
 
   // init main fifo
   //  -- worst case size is the last level containing every input poit
@@ -1732,31 +1812,14 @@ encodeGeometryOctree(
   node00.end = uint32_t(pointCloud.getPointCount());
   node00.pos = int32_t(0);
 
-  bool isInter = gbh.interPredictionEnabledFlag;
-
   node00.numSiblingsMispredicted = 0;
-  node00.predEnd = uint32_t(predPointCloud.getPointCount());
+  node00.predEnd = uint32_t(pointPredictorWorld.getPointCount());
   node00.predStart = uint32_t(0);
 
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
   node00.qp = 0;
   node00.idcmEligible = 0;
-
-  // For inter
-  PCCPointSet3 pointPredictorWorld;
-  if (isInter) {
-    pointPredictorWorld = predPointCloud;
-
-    if (gps.globalMotionEnabled)
-      applyGlobalMotion_with_shift(
-        pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
-        minimum_position);
-
-    for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
-      pointPredictorWorld[i] -= gbh.geomBoxOrigin;
-    }
-  }
 
   // map of pointCloud idx to DM idx, used to reorder the points
   // after coding.
@@ -2371,42 +2434,13 @@ encodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   PCCPointSet3& predPointCloud,
-  const Vec3<int> minimum_position)
+  const SequenceParameterSet& sps,
+  const InterGeomEncOpts& interParams)
 {
   encodeGeometryOctree(
     opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr,
-    predPointCloud, minimum_position);
+    predPointCloud, sps, interParams);
 }
 
 //============================================================================
-
-void
-applyGlobalMotion_with_shift(
-  PCCPointSet3& PC,
-  const std::vector<int> gm_matrix,
-  const Vec3<int> gm_trans,
-  const std::pair<int, int> thresh,
-  const Vec3<int> minimum_position)
-{
-  static const unsigned int motionParamPrec = 16;
-  static const unsigned int motionParamOffset = 1 << (motionParamPrec - 1);
-
-  // apply
-  Vec3<int> b = 0;
-  for (int n = 0; n < PC.getPointCount(); n++) {
-    b = PC[n];
-
-    b[0] = b[0] + minimum_position[0];
-    b[1] = b[1] + minimum_position[1];
-    b[2] = b[2] + minimum_position[2];
-
-    if ((b[2] < thresh.second) || (b[2] > thresh.first)) {
-      for (int i = 0; i < 3; i++) {
-		  PC[n][i] = divExp2RoundHalfInfPositiveShift(gm_matrix[3*i] * b[0] + gm_matrix[3*i + 1] * b[1] + gm_matrix[3*i + 2] * b[2], motionParamPrec, motionParamOffset)
-			         + gm_trans[i] - minimum_position[i]; // translation and offset
-      }
-    }
-  }
-}
-
 }  // namespace pcc

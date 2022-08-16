@@ -728,7 +728,8 @@ void encodeGeometryOctree(
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
   PCCPointSet3& predPointCloud,
-  const Vec3<int> minimum_position);
+  const SequenceParameterSet& sps,
+  const InterGeomEncOpts& interParams);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
@@ -742,13 +743,6 @@ void decodeGeometryOctree(
   , const Vec3<int> minimum_position
 
 );
-
-void applyGlobalMotion_with_shift(
-  PCCPointSet3& PC,
-  const std::vector<int> gm_matrix,
-  const Vec3<int> gm_trans,
-  const std::pair<int, int> thresh,
-  const Vec3<int> minimum_position);
 //============================================================================
 
 }  // namespace pcc
