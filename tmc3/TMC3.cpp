@@ -876,19 +876,23 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_planar_mode_enabled_flag, true,
     "Use planar mode for geometry coding")
 
+  ("octreeDepthPlanarEligibilityEnabled",
+    params.encoder.gps.geom_octree_depth_planar_eligibiity_enabled_flag, true,
+    "Determine the eligibility for planar mode per octree depth")
+
   ("planarModeThreshold0",
     params.encoder.gps.geom_planar_threshold0, 77,
-    "Activation threshold (0-127) of first planar mode. "
+    "Activation threshold (0-127) of first planar mode when the eligibility is not determined per octree depth. "
     "Lower values imply more use of the first planar mode")
 
   ("planarModeThreshold1",
     params.encoder.gps.geom_planar_threshold1, 99,
-    "Activation threshold (0-127) of second planar mode. "
+    "Activation threshold (0-127) of second planar mode when the eligibility is not determined per octree depth. "
     "Lower values imply more use of the first planar mode")
 
   ("planarModeThreshold2",
     params.encoder.gps.geom_planar_threshold2, 113,
-    "Activation threshold (0-127) of third planar mode. "
+    "Activation threshold (0-127) of third planar mode when the eligibility is not determined per octree depth. "
     "Lower values imply more use of the third planar mode")
 
    ("planarModeIdcmUse",

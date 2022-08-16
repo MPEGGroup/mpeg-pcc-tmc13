@@ -498,6 +498,7 @@ struct GeometryParameterSet {
 
   // Controls the use of planar mode
   bool geom_planar_mode_enabled_flag;
+  bool geom_octree_depth_planar_eligibiity_enabled_flag;
   int geom_planar_threshold0;
   int geom_planar_threshold1;
   int geom_planar_threshold2;

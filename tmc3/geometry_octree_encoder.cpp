@@ -1925,7 +1925,16 @@ encodeGeometryOctree(
 
   encoder.resetMap();
 
+  bool planarEligibleKOctreeDepth = 0;
+  int numPointsCodedByIdcm = 0;
+  const bool checkPlanarEligibilityBasedOnOctreeDepth =
+    gps.geom_planar_mode_enabled_flag
+    && gps.geom_octree_depth_planar_eligibiity_enabled_flag
+    && !gps.geom_angular_mode_enabled_flag;
+
   for (int depth = 0; depth < maxDepth; depth++) {
+    int numSubnodes = 0;
+
     // The tree terminated early (eg, due to IDCM or quantisation)
     // Delete any unused arithmetic coders
     if (fifo.empty()) {
@@ -2168,12 +2177,26 @@ encodeGeometryOctree(
         if (
           gps.geom_planar_mode_enabled_flag
           && planar_eligibility_idcm_angular) {
-          encoder._planar.isEligible(planarEligible);
-          if (gps.geom_angular_mode_enabled_flag) {
-            if (contextAngle != -1)
+          if (gps.geom_octree_depth_planar_eligibiity_enabled_flag) {
+            if (gps.geom_angular_mode_enabled_flag) {
+              if (contextAngle != -1)
+                planarEligible[2] = true;
+              planarEligible[0] = (contextAnglePhiX != -1);
+              planarEligible[1] = (contextAnglePhiY != -1);
+            } else if (planarEligibleKOctreeDepth) {
+              planarEligible[0] = true;
+              planarEligible[1] = true;
               planarEligible[2] = true;
-            planarEligible[0] = (contextAnglePhiX != -1);
-            planarEligible[1] = (contextAnglePhiY != -1);
+            }
+          } else
+          {
+            encoder._planar.isEligible(planarEligible);
+            if (gps.geom_angular_mode_enabled_flag) {
+              if (contextAngle != -1)
+                planarEligible[2] = true;
+              planarEligible[0] = (contextAnglePhiX != -1);
+              planarEligible[1] = (contextAnglePhiY != -1);
+            }
           }
 
           for (int k = 0; k < 3; k++)
@@ -2220,6 +2243,11 @@ encodeGeometryOctree(
           idcmShiftBits, node0, planar, pointCloud, angularOrigin, zLaser,
           thetaLaser, numLasers);
 
+        // calculating the number of points coded by IDCM for determining
+        // eligibility of planar mode
+        if (checkPlanarEligibilityBasedOnOctreeDepth)
+          numPointsCodedByIdcm += node0.end - node0.start;
+
         // inverse quantise any quantised positions
         geometryScale(pointCloud, node0, quantNodeSizeLog2);
 
@@ -2265,6 +2293,11 @@ encodeGeometryOctree(
       if (gps.adjacent_child_contextualization_enabled_flag)
         updateGeometryOccupancyAtlasOccChild(
           node0.pos, occupancy, &occupancyAtlas);
+
+      // calculating the number of subnodes for determining eligibility
+      // of planar mode
+      if (checkPlanarEligibilityBasedOnOctreeDepth)
+        numSubnodes += numSiblings;
 
       // Leaf nodes are immediately coded.  No further splitting occurs.
       if (isLeafNode(effectiveChildSizeLog2)) {
@@ -2362,6 +2395,10 @@ encodeGeometryOctree(
         numNodesNextLvl++;
       }
     }
+    if (checkPlanarEligibilityBasedOnOctreeDepth)
+      planarEligibleKOctreeDepth =
+        (pointCloud.getPointCount() - numPointsCodedByIdcm) * 10
+        < numSubnodes * 13;
 
     // calculate the number of points that would be decoded if decoding were
     // to stop at this point.

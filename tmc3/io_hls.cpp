@@ -723,6 +723,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.write(gps.octree_angular_extension_flag);
+
+    bs.write(gps.geom_octree_depth_planar_eligibiity_enabled_flag);
   }
   bs.byteAlign();
 
@@ -857,11 +859,11 @@ parseGps(const PayloadBuffer& buf)
   gps.octree_angular_extension_flag = false;
   gps.geom_planar_disabled_idcm_angular_flag = false;
   gps.residual2_disabled_flag = false;
+  gps.geom_octree_depth_planar_eligibiity_enabled_flag = false;
   bool gps_extension_flag = bs.read();
   if (gps_extension_flag) {
     bs.read(&gps.trisoup_enabled_flag);
-    if (gps.trisoup_enabled_flag)
-    {
+    if (gps.trisoup_enabled_flag) {
       bs.readUe(&gps.trisoup_vertex_quantization_bits);
       bs.read(&gps.trisoup_centroid_vertex_residual_flag);
       bs.read(&gps.trisoup_halo_flag);
@@ -889,6 +891,9 @@ parseGps(const PayloadBuffer& buf)
     }
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.read(&gps.octree_angular_extension_flag);
+
+    if (gps.geom_planar_mode_enabled_flag)
+      bs.read(&gps.geom_octree_depth_planar_eligibiity_enabled_flag);
   }
   bs.byteAlign();
 
