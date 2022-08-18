@@ -340,7 +340,7 @@ PredGeomEncoder::encodeResPhi(
   _aec->encode(
     resPhi < 0,
     _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
-  _resPhiOldSign = resPhi < 0;
+  _resPhiOldSign = interFlag ? 2 : (resPhi < 0 ? 1 : 0);
 }
 
 //-------------------------------------------------------------------------
