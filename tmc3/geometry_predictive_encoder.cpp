@@ -819,6 +819,10 @@ PredGeomEncoder::encodeTree(
                 refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
               refNodeFlag = true;
               break;
+            default:
+              std::cerr << "Unknown option; skipping encoder check.\n";
+              continue;
+              break;
             }
             if (interPred.first)
               pred = interPred.second;

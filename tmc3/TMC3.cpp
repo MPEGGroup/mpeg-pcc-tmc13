@@ -1581,6 +1581,9 @@ sanitizeEncoderOpts(
         = params.encoder.predGeom.radiusThresholdForNewPred
           >> params.encoder.gps.geom_angular_radius_inv_scale_log2;
     }
+  } else { // Angular disabled
+    params.sortInputByAzimuth = false;
+    params.encoder.gps.azimuth_scaling_enabled_flag = false;
   }
 
   // tweak qtbt when angular is / isn't enabled
