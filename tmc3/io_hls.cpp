@@ -706,7 +706,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     if (gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag && gps.inferred_direct_coding_mode)
       bs.write(gps.geom_planar_disabled_idcm_angular_flag);
 
-    bs.write(gps.interPredictionEnabledFlag);
+    if (!gps.predgeom_enabled_flag || gps.geom_angular_mode_enabled_flag)
+      bs.write(gps.interPredictionEnabledFlag);
     if (gps.interPredictionEnabledFlag) {
       bs.write(gps.globalMotionEnabled);
       if (gps.predgeom_enabled_flag)
@@ -861,6 +862,8 @@ parseGps(const PayloadBuffer& buf)
   gps.trisoup_enabled_flag = false;
   gps.azimuth_scaling_enabled_flag = false;
   gps.octree_angular_extension_flag = false;
+  gps.interPredictionEnabledFlag = false;
+  gps.globalMotionEnabled = false;
   gps.geom_planar_disabled_idcm_angular_flag = false;
   gps.residual2_disabled_flag = false;
   gps.geom_octree_depth_planar_eligibiity_enabled_flag = false;
@@ -878,8 +881,9 @@ parseGps(const PayloadBuffer& buf)
       gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag
       && gps.inferred_direct_coding_mode)
       bs.read(&gps.geom_planar_disabled_idcm_angular_flag);
-
-    bs.read(&gps.interPredictionEnabledFlag);
+    
+    if (!gps.predgeom_enabled_flag || gps.geom_angular_mode_enabled_flag)
+      bs.read(&gps.interPredictionEnabledFlag);
     if (gps.interPredictionEnabledFlag) {
       bs.read(&gps.globalMotionEnabled);
       if (gps.predgeom_enabled_flag)

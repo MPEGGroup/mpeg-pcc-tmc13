@@ -1051,7 +1051,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "encoding a sequence")
 
   ("interPredictionEnabled",
-    params.encoder.gps.interPredictionEnabledFlag, true,
+    params.encoder.gps.interPredictionEnabledFlag, false,
     "Enable inter prediciton")
 
   ("globalMotionEnabled",
