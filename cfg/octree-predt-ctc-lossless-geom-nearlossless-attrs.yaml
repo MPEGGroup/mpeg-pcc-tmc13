@@ -15,7 +15,7 @@ categories:
      # preserve lossless geometry property
      - mergeDuplicatedPoints: 0
      - positionQuantizationScale: 1
-     - randomAccessPeriod: 8
+     - randomAccessPeriod: 32
      - interPredictionEnabled: 1
      - globalMotionEnabled: 1
      - motionVectorPath: '${global_motion_file}'

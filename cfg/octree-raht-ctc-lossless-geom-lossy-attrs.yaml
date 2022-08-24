@@ -20,7 +20,7 @@ categories:
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - positionQuantizationScale: 1
-     - randomAccessPeriod: 8
+     - randomAccessPeriod: 32
      - interPredictionEnabled: 1
      - globalMotionEnabled: 1
      - motionVectorPath: '${global_motion_file}'
