@@ -1031,6 +1031,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       && !aps.num_detail_levels_minus1) {
       bs.writeUe(aps.max_points_per_sort_log2_plus1);
     }
+
+    if (aps.lodParametersPresent())
+      bs.write(aps.predictionWithDistributionEnabled);
   }
 
   bs.byteAlign();
@@ -1156,6 +1159,9 @@ parseAps(const PayloadBuffer& buf)
       && !aps.num_detail_levels_minus1) {
       bs.readUe(&aps.max_points_per_sort_log2_plus1);
     }
+
+    if (aps.lodParametersPresent())
+      bs.read(&aps.predictionWithDistributionEnabled);
   }
 
   bs.byteAlign();

@@ -97,6 +97,12 @@ public:
     return std::abs(data[0]) + std::abs(data[1]) + std::abs(data[2]);
   }
 
+  T getDir() const
+  {
+    return ((data[0] >= 0 ? 1 : 0) << 2) + ((data[1] >= 0 ? 1 : 0) << 1)
+      + ((data[2] >= 0 ? 1 : 0));
+  }
+
   T getNormInf() const
   {
     return std::max(data[2], std::max(abs(data[0]), abs(data[1])));

@@ -640,16 +640,97 @@ clacIntermediatePosition(
 //---------------------------------------------------------------------------
 
 inline void
+updateNearestNeighByDistanceAndDistribution(
+  const Vec3<int32_t>& point0,
+  const Vec3<int32_t>& point1,
+  int32_t index,
+  int32_t& index2,
+  int32_t (&localIndexes)[6],
+  int64_t (&minDistances)[6],
+  bool interRef,
+  std::vector<bool>& localRef,
+  bool predRef
+  )
+{
+  auto d = (point0 - point1).getNorm1();
+
+  if (d > minDistances[2]) {
+    // do nothing
+  } else if (d < minDistances[0]) {
+    if (localIndexes[2] != -1) {
+      localIndexes[index2] = localIndexes[2];
+      if (interRef)
+        localRef[index2] = localRef[2];
+      ++index2;
+	}
+
+    minDistances[2] = minDistances[1];
+    minDistances[1] = minDistances[0];
+    minDistances[0] = d;
+
+    localIndexes[2] = localIndexes[1];
+    localIndexes[1] = localIndexes[0];
+    localIndexes[0] = index;
+
+    if (interRef) {
+      localRef[2] = localRef[1];
+      localRef[1] = localRef[0];
+      localRef[0] = predRef;
+    }
+
+  } else if (d < minDistances[1]) {
+    if (localIndexes[2] != -1) {
+      localIndexes[index2] = localIndexes[2];
+      if (interRef)
+        localRef[index2] = localRef[2];
+      ++index2;
+    }
+
+    minDistances[2] = minDistances[1];
+    minDistances[1] = d;
+    localIndexes[2] = localIndexes[1];
+    localIndexes[1] = index;
+
+    if (interRef) {
+      localRef[2] = localRef[1];
+      localRef[1] = predRef;
+    }
+
+  } else if(d < minDistances[2]){
+    if (localIndexes[2] != -1) {
+      localIndexes[index2] = localIndexes[2];
+      if (interRef)
+        localRef[index2] = localRef[2];
+      ++index2;
+	}
+
+    minDistances[2] = d;
+    localIndexes[2] = index;
+
+    if (interRef) {
+      localRef[2] = predRef;
+    }
+  } else if (localIndexes[5] == -1) {
+    localIndexes[index2] = index;
+    if (interRef)
+      localRef[index2] = predRef;
+    ++index2;
+  }
+
+  if (index2 == 6)
+    index2 = 3;
+}
+
+inline void
 updateNearestNeigh(
   const Vec3<int32_t>& point0,
   const Vec3<int32_t>& point1,
   int32_t index,
-  int32_t (&localIndexes)[3],
-  int64_t (&minDistances)[3]
-  , bool interRef,
+  int32_t (&localIndexes)[6],
+  int64_t (&minDistances)[6],
+  bool interRef,
   std::vector<bool>& localRef,
-  bool predRef
-  )
+  bool predRef)
 {
   auto d = (point0 - point1).getNorm1();
 
@@ -688,20 +769,20 @@ updateNearestNeigh(
     if (interRef) {
       localRef[2] = predRef;
     }
-
   }
 }
 
 //---------------------------------------------------------------------------
 
 inline void
-updateNearestNeighWithCheck(
+updateNearestNeighByDistanceAndDistributionWithCheck(
   const Vec3<int32_t>& point0,
   const Vec3<int32_t>& point1,
   const int32_t index,
-  int32_t (&localIndexes)[3],
-  int64_t (&minDistances)[3]
-  , bool interRef,
+  int32_t& index2,
+  int32_t (&localIndexes)[6],
+  int64_t (&minDistances)[6],
+  bool interRef,
   std::vector<bool>& localRef,
   bool predRef
 
@@ -711,17 +792,52 @@ updateNearestNeighWithCheck(
     if (
       (index == localIndexes[0] && predRef == localRef[0])
       || (index == localIndexes[1] && predRef == localRef[1])
-      || (index == localIndexes[2] && predRef == localRef[2]))
+      || (index == localIndexes[2] && predRef == localRef[2])
+	  || (index == localIndexes[3] && predRef == localRef[3])
+      || (index == localIndexes[4] && predRef == localRef[4])
+      || (index == localIndexes[5] && predRef == localRef[5]))
       return;
   } else
     if (
       index == localIndexes[0] || index == localIndexes[1]
-      || index == localIndexes[2])
+    || index == localIndexes[2] || index == localIndexes[3]
+    || index == localIndexes[4] || index == localIndexes[5])
       return;
 
-  updateNearestNeigh(point0, point1, index, localIndexes, minDistances
+  updateNearestNeighByDistanceAndDistribution(
+    point0, point1, index, index2, localIndexes, minDistances
       , interRef, localRef, predRef
   );
+}
+
+
+inline void
+updateNearestNeighWithCheck(
+  const Vec3<int32_t>& point0,
+  const Vec3<int32_t>& point1,
+  const int32_t index,
+  int32_t (&localIndexes)[6],
+  int64_t (&minDistances)[6],
+  bool interRef,
+  std::vector<bool>& localRef,
+  bool predRef
+
+)
+{
+  if (interRef) {
+    if (
+      (index == localIndexes[0] && predRef == localRef[0])
+      || (index == localIndexes[1] && predRef == localRef[1])
+      || (index == localIndexes[2] && predRef == localRef[2]))
+      return;
+  } else if (
+    index == localIndexes[0] || index == localIndexes[1]
+    || index == localIndexes[2])
+    return;
+
+  updateNearestNeigh(
+    point0, point1, index, localIndexes, minDistances, interRef, localRef,
+    predRef);
 }
 
 //---------------------------------------------------------------------------
@@ -739,14 +855,13 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  MortonIndexMap3d& atlas
-  ,bool interRef,
+  MortonIndexMap3d& atlas,
+  bool interRef,
   const std::vector<MortonCodeWithIndex>& packedVoxelRef,
   const std::vector<uint32_t>& retainedRef,
   int32_t startIndexRef,
   int32_t endIndexRef,
-  std::vector<uint32_t>& indexesRef  
-  )
+  std::vector<uint32_t>& indexesRef)
 {
   constexpr auto searchRangeNear = 2;
   constexpr auto bucketSizeLog2 = 5;
@@ -859,18 +974,15 @@ computeNearestNeighbors(
 
     hIntraBBoxesRef.resize(indexesSizeRef);
     for (int32_t i = startIndexRef; i < endIndexRef;) {
-      hIntraBBoxesRef.insert(
-        biasedPosRef[indexesRef[i]], i - startIndexRef);
+      hIntraBBoxesRef.insert(biasedPosRef[indexesRef[i]], i - startIndexRef);
       ++i;
       for (int32_t k = 1; k < bucketSize && i < endIndexRef; ++k, ++i) {
-        hIntraBBoxesRef.insert(
-          biasedPosRef[indexesRef[i]], i - startIndexRef);
+        hIntraBBoxesRef.insert(biasedPosRef[indexesRef[i]], i - startIndexRef);
       }
     }
     hIntraBBoxesRef.update();
   }
   int jRef = 0;
-
 
   const auto bucketSize0Log2 = hBBoxes.bucketSizeLog2(0);
   const auto bucketSize1Log2 = hBBoxes.bucketSizeLog2(1);
@@ -879,13 +991,17 @@ computeNearestNeighbors(
   int64_t curAtlasId = -1;
   int64_t lastMortonCodeShift3 = -1;
   int64_t cubeIndex = 0;
+  int32_t distCoefficient = 54;
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
-    int32_t localIndexes[3] = {-1, -1, -1};
-    int64_t minDistances[3] = {std::numeric_limits<int64_t>::max(),
+    int32_t localIndexes[6] = {-1, -1, -1, -1, -1, -1};
+    int64_t minDistances[6] = {std::numeric_limits<int64_t>::max(),
+                               std::numeric_limits<int64_t>::max(),
+                               std::numeric_limits<int64_t>::max(),
+                               std::numeric_limits<int64_t>::max(),
                                std::numeric_limits<int64_t>::max(),
                                std::numeric_limits<int64_t>::max()};
 
-    std::vector<bool> localRef = {false, false, false};
+    std::vector<bool> localRef = {false, false, false, false, false, false};
 
     const int32_t index = indexes[i];
     const auto& pv = packedVoxel[index];
@@ -898,6 +1014,7 @@ computeNearestNeighbors(
     auto& predictor = predictors[--predIndex];
     pointIndexToPredictorIndex[pointIndex] = predIndex;
 
+    int32_t index2 = 3;
     if (retainedSize) {
       while (j < retainedSize - 1
              && mortonCode >= packedVoxel[retained[j]].mortonCode) {
@@ -936,34 +1053,55 @@ computeNearestNeighbors(
       }
 
       for (const auto k : neighborIndexes) {
-        updateNearestNeigh(
-          bpoint, biasedPos[retained[k]], k, localIndexes, minDistances
-          , false, localRef, false
-          );
+        if (aps.predictionWithDistributionEnabled) {
+          updateNearestNeighByDistanceAndDistribution(
+            bpoint, biasedPos[retained[k]], k, index2, localIndexes,
+            minDistances, false, localRef, false);
+        } else {
+          updateNearestNeigh(
+            bpoint, biasedPos[retained[k]], k, localIndexes, minDistances,
+            false, localRef, false);
+        }
       }
 
       if (localIndexes[2] == -1) {
         const auto center = localIndexes[0] == -1 ? j : localIndexes[0];
         const auto k0 = std::max(0, center - rangeInterLod);
         const auto k1 = std::min(retainedSize - 1, center + rangeInterLod);
-        updateNearestNeighWithCheck(
-          bpoint, biasedPos[retained[center]], center, localIndexes,
-          minDistances
-          , false, localRef, false
-          );
+        if (aps.predictionWithDistributionEnabled) {
+          updateNearestNeighByDistanceAndDistributionWithCheck(
+            bpoint, biasedPos[retained[center]], center, index2, localIndexes,
+            minDistances, false, localRef, false);
+        } else {
+          updateNearestNeighWithCheck(
+            bpoint, biasedPos[retained[center]], center, localIndexes,
+            minDistances, false, localRef, false);
+        }
+
         for (int32_t n = 1; n <= searchRangeNear; ++n) {
           const int32_t kp = center + n;
           if (kp <= k1) {
-            updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kp]], kp, localIndexes, minDistances
-              , false, localRef, false);
+            if (aps.predictionWithDistributionEnabled) {
+              updateNearestNeighByDistanceAndDistributionWithCheck(
+                bpoint, biasedPos[retained[kp]], kp, index2, localIndexes,
+                minDistances, false, localRef, false);
+            } else {
+              updateNearestNeighWithCheck(
+                bpoint, biasedPos[retained[kp]], kp, localIndexes,
+                minDistances, false, localRef, false);
+            }
           }
           const int32_t kn = center - n;
           if (kn >= k0) {
-            updateNearestNeighWithCheck(
-              bpoint, biasedPos[retained[kn]], kn, localIndexes, minDistances
-              ,false, localRef, false
-              );
+            if (aps.predictionWithDistributionEnabled) {
+              updateNearestNeighByDistanceAndDistributionWithCheck(
+                bpoint, biasedPos[retained[kn]], kn, index2, localIndexes,
+                minDistances, false, localRef, false);
+            } else {
+              updateNearestNeighWithCheck(
+                bpoint, biasedPos[retained[kn]], kn, localIndexes,
+                minDistances, false, localRef, false);
+            }
           }
         }
 
@@ -1006,11 +1144,15 @@ computeNearestNeighbors(
               const int32_t h0 = std::max(p1, alignedIndex);
               const int32_t h1 = std::min(k1, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h0; k <= h1; ++k) {
-                updateNearestNeighWithCheck(
-                  bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances
-                  ,false, localRef, false
-                  );
+                if (aps.predictionWithDistributionEnabled) {
+                  updateNearestNeighByDistanceAndDistributionWithCheck(
+                    bpoint, biasedPos[retained[k]], k, index2, localIndexes,
+                    minDistances, false, localRef, false);
+                } else {
+                  updateNearestNeighWithCheck(
+                    bpoint, biasedPos[retained[k]], k, localIndexes,
+                    minDistances, false, localRef, false);
+                }
               }
             }
           }
@@ -1051,10 +1193,15 @@ computeNearestNeighbors(
               const int32_t h0 = std::max(k0, alignedIndex);
               const int32_t h1 = std::min(p0, alignedIndex + bucketSizeMinus1);
               for (int32_t k = h1; k >= h0; --k) {
-                updateNearestNeighWithCheck(
-                  bpoint, biasedPos[retained[k]], k, localIndexes,
-                  minDistances
-                  , false, localRef, false);
+                if (aps.predictionWithDistributionEnabled) {
+                  updateNearestNeighByDistanceAndDistributionWithCheck(
+                    bpoint, biasedPos[retained[k]], k, index2, localIndexes,
+                    minDistances, false, localRef, false);
+                } else {
+                  updateNearestNeighWithCheck(
+                    bpoint, biasedPos[retained[k]], k, localIndexes,
+                    minDistances, false, localRef, false);
+                }
               }
             }
           }
@@ -1066,17 +1213,27 @@ computeNearestNeighbors(
 
       for (int32_t h = 0; h < predictor.neighborCount; ++h)
         localIndexes[h] = retained[localIndexes[h]];
+      if (aps.predictionWithDistributionEnabled) {
+        int neighborCount2 = (localIndexes[3] != -1) + (localIndexes[4] != -1)
+          + (localIndexes[5] != -1);
+        for (int32_t h = 3; h < 3 + neighborCount2; ++h)
+          localIndexes[h] = retained[localIndexes[h]];
+      }
     }
 
     if (lodIndex >= aps.intra_lod_prediction_skip_layers) {
       const int32_t k00 = i + 1;
       const int32_t k01 = std::min(endIndex - 1, k00 + searchRangeNear);
       for (int32_t k = k00; k <= k01; ++k) {
-        updateNearestNeigh(
-          bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-          minDistances
-          , false, localRef, false
-          );
+        if (aps.predictionWithDistributionEnabled) {
+          updateNearestNeighByDistanceAndDistribution(
+            bpoint, biasedPos[indexes[k]], indexes[k], index2, localIndexes,
+            minDistances, false, localRef, false);
+        } else {
+          updateNearestNeigh(
+            bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
+            minDistances, false, localRef, false);
+        }
       }
       const int32_t k0 = k01 + 1 - startIndex;
       const int32_t k1 =
@@ -1118,11 +1275,15 @@ computeNearestNeighbors(
             const int32_t h1 = std::min(k1, alignedIndex + bucketSizeMinus1);
             for (int32_t h = h0; h <= h1; ++h) {
               const int32_t k = startIndex + h;
-              updateNearestNeigh(
-                bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
-                minDistances
-                , false, localRef, false
-              );
+              if (aps.predictionWithDistributionEnabled) {
+                updateNearestNeighByDistanceAndDistribution(
+                  bpoint, biasedPos[indexes[k]], indexes[k], index2,
+                  localIndexes, minDistances, false, localRef, false);
+              } else {
+                updateNearestNeigh(
+                  bpoint, biasedPos[indexes[k]], indexes[k], localIndexes,
+                  minDistances, false, localRef, false);
+              }
             }
           }
         }
@@ -1132,8 +1293,7 @@ computeNearestNeighbors(
     if (interRef) {
       if (endIndexRef > startIndexRef) {
         while ((jRef < (indexesSizeRef - 1))
-               && mortonCode
-                 > packedVoxelRef[indexesRef[jRef]].mortonCode) {
+               && mortonCode > packedVoxelRef[indexesRef[jRef]].mortonCode) {
           ++jRef;
         }
         const int32_t k0_ref =
@@ -1188,9 +1348,15 @@ computeNearestNeighbors(
                 std::min(k1_ref, alignedIndex_ref + bucketSizeMinus1);
               for (int32_t h = h0_ref; h <= h1_ref; ++h) {
                 const int32_t k_ref = startIndexRef + h;
-                updateNearestNeigh(
-                  bpoint, biasedPosRef[indexesRef[k_ref]], indexesRef[k_ref],
-                  localIndexes, minDistances, true, localRef, true);
+                if (aps.predictionWithDistributionEnabled) {
+                  updateNearestNeighByDistanceAndDistribution(
+                    bpoint, biasedPosRef[indexesRef[k_ref]], indexesRef[k_ref],
+                    index2, localIndexes, minDistances, true, localRef, true);
+                } else {
+                  updateNearestNeigh(
+                    bpoint, biasedPosRef[indexesRef[k_ref]], indexesRef[k_ref],
+                    localIndexes, minDistances, true, localRef, true);
+                }
               }
             }
           }
@@ -1252,10 +1418,17 @@ computeNearestNeighbors(
                 k0_ref_left, alignedIndex_ref_left + bucketSizeMinus1);
               for (int32_t h = h0_ref_left; h <= h1_ref_left; ++h) {
                 const int32_t k_ref_left = startIndexRef + h;
-                updateNearestNeigh(
-                  bpoint, biasedPosRef[indexesRef[k_ref_left]],
-                  indexesRef[k_ref_left], localIndexes, minDistances, true,
-                  localRef, true);
+                if (aps.predictionWithDistributionEnabled) {
+                  updateNearestNeighByDistanceAndDistribution(
+                    bpoint, biasedPosRef[indexesRef[k_ref_left]],
+                    indexesRef[k_ref_left], index2, localIndexes, minDistances,
+                    true, localRef, true);
+                } else {
+                  updateNearestNeigh(
+                    bpoint, biasedPosRef[indexesRef[k_ref_left]],
+                    indexesRef[k_ref_left], localIndexes, minDistances, true,
+                    localRef, true);
+                }
               }
             }
           }
@@ -1263,11 +1436,115 @@ computeNearestNeighbors(
       }
     }
 
-
     predictor.neighborCount = std::min(
       aps.num_pred_nearest_neighbours_minus1 + 1,
       (localIndexes[0] != -1) + (localIndexes[1] != -1)
         + (localIndexes[2] != -1));
+    if (aps.predictionWithDistributionEnabled) {
+      const int neighborCount1 = 3 + (localIndexes[3] != -1)
+        + (localIndexes[4] != -1) + (localIndexes[5] != -1);
+
+      for (int m = 3; m < neighborCount1; m++) {
+        if (minDistances[m] == std::numeric_limits<int64_t>::max())
+          minDistances[m] = (bpoint - biasedPos[localIndexes[m]]).getNorm1();
+      }
+
+      for (int m = 3; m < neighborCount1; m++) {
+        for (int l = m + 1; l < neighborCount1; l++) {
+          if (minDistances[l] < minDistances[m]) {
+            auto tmpVal = localIndexes[l];
+            localIndexes[l] = localIndexes[m];
+            localIndexes[m] = tmpVal;
+
+            tmpVal = minDistances[l];
+            minDistances[l] = minDistances[m];
+            minDistances[m] = tmpVal;
+
+            const bool tmp = localRef[l];
+            localRef[l] = localRef[m];
+            localRef[m] = tmp;
+          }
+        }
+      }
+
+      bool replaceFlag = true;
+      //indicates whether the third neighbor needs to be replaced
+      if (predictor.neighborCount >= 3) {
+        int direction[6] = {-1, -1, -1, -1, -1, -1};
+
+        const int looseDirectionTable[8][7] = {{3, 5, 6}, {2, 4, 7}, {1, 4, 7},
+                                         {0, 5, 6}, {1, 2, 7}, {0, 3, 6},
+                                         {0, 3, 5}, {1, 2, 4}};
+        // the direction coplanar with the opposite direction of 0, 1, 2, 3, 4, 5, 6, 7.
+
+        int numend1 = 0, numend2 = 0;
+        for (numend1 = 3; numend1 < neighborCount1; ++numend1)
+          if (
+            (minDistances[numend1] << 5) >= minDistances[2] * distCoefficient)
+            break;
+        for (numend2 = 3; numend2 < neighborCount1; ++numend2)
+          if (
+            (minDistances[numend2] << 5) >= minDistances[1] * distCoefficient)
+            break;
+
+        //direction of neighbors
+        for (int h = 0; h < numend1; ++h)
+          direction[h] = (biasedPos[localIndexes[h]] - bpoint).getDir();
+
+        if (direction[1] == 7 - direction[0])
+          replaceFlag = false;
+        if (direction[2] == 7 - direction[0])
+          replaceFlag = false;
+        if (replaceFlag)
+          for (int h = 3; h < numend1; ++h) {
+            if (direction[h] == 7 - direction[0]) {
+              replaceFlag = false;
+              localIndexes[2] = localIndexes[h];
+              localRef[2] = localRef[h];
+              break;
+            }
+          }
+        if (replaceFlag && (direction[2] != 7 - direction[1]))
+          for (int h = 3; h < numend2; ++h) {
+            if (direction[h] == 7 - direction[1]) {
+              replaceFlag = false;
+              localIndexes[2] = localIndexes[h];
+              localRef[2] = localRef[h];
+              break;
+            }
+          }
+        if (
+          replaceFlag
+          && (direction[2] == direction[0] || direction[1] == direction[0])) {
+          for (int h = 3; h < numend1; ++h) {
+            for (int m = 0; m < 3; ++m) {
+              if (
+                direction[h] == looseDirectionTable[direction[0]][m]
+                && direction[h] != direction[1]) {
+                replaceFlag = false;
+                localIndexes[2] = localIndexes[h];
+                localRef[2] = localRef[h];
+                break;
+              }
+            }
+          }
+          if (
+            replaceFlag
+            && (direction[2] == direction[0] || direction[1] == direction[0]))
+            for (int h = 3; h < numend2; ++h) {
+              for (int m = 0; m < 3; ++m) {
+                if (
+                  direction[h] == looseDirectionTable[direction[1]][m]
+                  && direction[h] != direction[0]) {
+                  localIndexes[2] = localIndexes[h];
+                  localRef[2] = localRef[h];
+                  break;
+                }
+              }
+            }
+        }
+      }
+    }
     for (int32_t h = 0; h < predictor.neighborCount; ++h) {
       auto& neigh = predictor.neighbors[h];
       neigh.interFrameRef = localRef[h];
@@ -1277,7 +1554,8 @@ computeNearestNeighbors(
           (biasedPosRef[localIndexes[h]] - bpoint).getNorm2<int64_t>();
       } else {
         neigh.predictorIndex = packedVoxel[localIndexes[h]].index;
-        neigh.weight = (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
+        neigh.weight =
+          (biasedPos[localIndexes[h]] - bpoint).getNorm2<int64_t>();
       }
     }
 

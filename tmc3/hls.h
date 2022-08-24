@@ -705,7 +705,7 @@ struct AttributeParameterSet {
   int adaptive_prediction_threshold;
   int intra_lod_search_range;
   int inter_lod_search_range;
-
+  bool predictionWithDistributionEnabled;
   // Neighbour contribution weights used to calculate quantization weights
   Vec3<uint32_t> quant_neigh_weight;
 

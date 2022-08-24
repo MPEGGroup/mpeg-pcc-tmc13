@@ -1200,6 +1200,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Inter LoD nearest neighbor search range\n"
     " -1: Full-range")
 
+  ("predictionWithDistributionEnabled",
+    params_attr.aps.predictionWithDistributionEnabled, true,
+    "enable LoD prediction with distribution")
+
   // NB: the underlying variable is in STV order.
   //     Conversion happens during argument sanitization.
   ("lod_neigh_bias",
@@ -1672,6 +1676,9 @@ sanitizeEncoderOpts(
 
     if (!params.encoder.gps.interPredictionEnabledFlag)
       attr_aps.attrInterPredictionEnabled = false;
+
+    if (params.encoder.gps.interPredictionEnabledFlag)
+      attr_aps.predictionWithDistributionEnabled = false;
   }
 
   // convert floating point values of Lasers' Theta and H to fixed point
