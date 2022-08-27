@@ -1677,8 +1677,6 @@ sanitizeEncoderOpts(
     if (!params.encoder.gps.interPredictionEnabledFlag)
       attr_aps.attrInterPredictionEnabled = false;
 
-    if (params.encoder.gps.interPredictionEnabledFlag)
-      attr_aps.predictionWithDistributionEnabled = false;
   }
 
   // convert floating point values of Lasers' Theta and H to fixed point

@@ -1446,7 +1446,9 @@ computeNearestNeighbors(
 
       for (int m = 3; m < neighborCount1; m++) {
         if (minDistances[m] == std::numeric_limits<int64_t>::max())
-          minDistances[m] = (bpoint - biasedPos[localIndexes[m]]).getNorm1();
+          minDistances[m] = localRef[m]
+            ? (bpoint - biasedPosRef[localIndexes[m]]).getNorm1()
+            : (bpoint - biasedPos[localIndexes[m]]).getNorm1();
       }
 
       for (int m = 3; m < neighborCount1; m++) {
@@ -1489,7 +1491,9 @@ computeNearestNeighbors(
 
         //direction of neighbors
         for (int h = 0; h < numend1; ++h)
-          direction[h] = (biasedPos[localIndexes[h]] - bpoint).getDir();
+          direction[h] = localRef[h]
+            ? (biasedPosRef[localIndexes[h]] - bpoint).getDir()
+            : (biasedPos[localIndexes[h]] - bpoint).getDir();
 
         if (direction[1] == 7 - direction[0])
           replaceFlag = false;
