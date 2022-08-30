@@ -154,7 +154,8 @@ public:
     bool planarPossibleX,
     bool planarPossibleY,
     bool planarPossibleZ,
-    int predOcc);
+    int predOcc,
+    bool flagNoSingle);
 
   void encodeOccupancyFullNeihbourgs(
     int neighPattern,
@@ -856,7 +857,8 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
   bool planarPossibleX,
   bool planarPossibleY,
   bool planarPossibleZ,
-  int predOcc)
+  int predOcc,
+  bool flagNoSingle)
 {
   static const int LUTinitCoded0[27][6] = {
     {0, 0, 0, 0, 0, 0}, {4, 0, 2, 2, 2, 2}, {0, 4, 2, 2, 2, 2},
@@ -875,10 +877,10 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
   bool sure_planarityX = planarMaskX || !planarPossibleX;
   bool sure_planarityY = planarMaskY || !planarPossibleY;
   bool sure_planarityZ = planarMaskZ || !planarPossibleZ;
-  const int maxPerPlaneX = 3;
-  const int maxPerPlaneY = 3;
-  const int maxPerPlaneZ = 3;
-  const int maxAll = 7;
+  const int maxPerPlaneX = planarMaskX && flagNoSingle ? 2 : 3;
+  const int maxPerPlaneY = planarMaskY && flagNoSingle ? 2 : 3;
+  const int maxPerPlaneZ = planarMaskZ && flagNoSingle ? 2 : 3;
+  const int maxAll = flagNoSingle ? 6 : 7;
 
   int MaskConfig = !planarMaskX ? 0 : planarMaskX == 15 ? 1 : 2;
   MaskConfig += !planarMaskY ? 0 : planarMaskY == 51 ? 3 : 6;
@@ -900,16 +902,16 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
     }
 
     int mask0X = (0xf0 >> i) & 1;
-    bool bitIsOneX =
-      (sure_planarityX && coded0[mask0X] >= maxPerPlaneX) || (coded0[0] + coded0[1] >= maxAll);
+    bool bitIsOneX = (sure_planarityX && coded0[mask0X] >= maxPerPlaneX)
+      || (coded0[0] + coded0[1] >= maxAll);
 
     int mask0Y = 2 + ((0xcc >> i) & 1);
-    bool bitIsOneY =
-      (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY) || (coded0[2] + coded0[3] >= maxAll);
+    bool bitIsOneY = (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY)
+      || (coded0[2] + coded0[3] >= maxAll);
 
     int mask0Z = 4 + ((0xaa >> i) & 1);
-    bool bitIsOneZ =
-      (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ) || (coded0[4] + coded0[5] >= maxAll);
+    bool bitIsOneZ = (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ)
+      || (coded0[4] + coded0[5] >= maxAll);
 
     if (bitIsOneX || bitIsOneY || bitIsOneZ) {  // bit is 1
       partialOccupancy <<= 1;
@@ -982,7 +984,9 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)));
   const bool nonZeroOccupancyCodingPath =
     !(neighPattern == 0
-      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)));
+      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)))
+    || disableZeroPathCodingGt1Nodes;
+  bool flagNoSingle = false; 
 
   if (zeroOccupancyCodingPath) {
     bool singleChild = !popcntGt1(occupancy);
@@ -1004,7 +1008,8 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
 
       return;
     }
-
+    if(disableZeroPathCodingGt1Nodes)
+      flagNoSingle = true;
     // at least two child nodes occupied and two planars => we know the occupancy
     if (planarMaskX && planarMaskY)
       return;
@@ -1013,9 +1018,10 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
     if (planarMaskX && planarMaskZ)
       return;
 
-    encodeOccupancyNeighZsimple(
-      occupancy, planarMaskX, planarPossibleX, planarMaskY, planarPossibleY,
-      planarMaskZ, planarPossibleZ, predOcc);
+    if (!disableZeroPathCodingGt1Nodes)
+      encodeOccupancyNeighZsimple(
+        occupancy, planarMaskX, planarPossibleX, planarMaskY, planarPossibleY,
+        planarMaskZ, planarPossibleZ, predOcc);
   }
   //------ NZ occupancy encoding from here ----------------
   if (nonZeroOccupancyCodingPath) {
@@ -1034,7 +1040,7 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
     encodeOccupancyFullNeihbourgsNZ(
       neighPattern, occupancy, Word4, Word7Adj, Sparse, planarMaskX,
       planarMaskY, planarMaskZ, planarPossibleX, planarPossibleY,
-      planarPossibleZ, predOcc);
+      planarPossibleZ, predOcc, flagNoSingle);
   }
 }
 

@@ -142,10 +142,9 @@ public:
     int planarMaskZ,
     bool planarPossibleX,
     bool planarPossibleY,
-    bool planarPossibleZ
-    , int predOcc
-
-  );
+    bool planarPossibleZ,
+    int predOcc,
+    bool flagNoSingle);
 
   uint32_t decodeOccupancyFullNeihbourgs(
     int neighPattern,
@@ -819,9 +818,9 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
   int planarMaskZ,
   bool planarPossibleX,
   bool planarPossibleY,
-  bool planarPossibleZ
-  , int predOcc
-)
+  bool planarPossibleZ,
+  int predOcc,
+  bool flagNoSingle)
 {
   static const int LUTinitCoded0[27][6] = {
     {0, 0, 0, 0, 0, 0}, {4, 0, 2, 2, 2, 2}, {0, 4, 2, 2, 2, 2},
@@ -841,10 +840,10 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
   bool sure_planarityX = planarMaskX || !planarPossibleX;
   bool sure_planarityY = planarMaskY || !planarPossibleY;
   bool sure_planarityZ = planarMaskZ || !planarPossibleZ;
-  const int maxPerPlaneX = 3;
-  const int maxPerPlaneY = 3;
-  const int maxPerPlaneZ = 3;
-  const int maxAll = 7;
+  const int maxPerPlaneX = planarMaskX && flagNoSingle ? 2 : 3;
+  const int maxPerPlaneY = planarMaskY && flagNoSingle ? 2 : 3;
+  const int maxPerPlaneZ = planarMaskZ && flagNoSingle ? 2 : 3;
+  const int maxAll = flagNoSingle ? 6 : 7;
 
   int MaskConfig = !planarMaskX ? 0 : planarMaskX == 15 ? 1 : 2;
   MaskConfig += !planarMaskY ? 0 : planarMaskY == 51 ? 3 : 6;
@@ -867,16 +866,16 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
     }
 
     int mask0X = (0xf0 >> i) & 1;
-    bool bitIsOneX =
-      (sure_planarityX && coded0[mask0X] >= maxPerPlaneX) || (coded0[0] + coded0[1] >= maxAll);
+    bool bitIsOneX = (sure_planarityX && coded0[mask0X] >= maxPerPlaneX)
+      || (coded0[0] + coded0[1] >= maxAll);
 
     int mask0Y = 2 + ((0xcc >> i) & 1);
-    bool bitIsOneY =
-      (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY) || (coded0[2] + coded0[3] >= maxAll);
+    bool bitIsOneY = (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY)
+      || (coded0[2] + coded0[3] >= maxAll);
 
     int mask0Z = 4 + ((0xaa >> i) & 1);
-    bool bitIsOneZ =
-      (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ) || (coded0[4] + coded0[5] >= maxAll);
+    bool bitIsOneZ = (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ)
+      || (coded0[4] + coded0[5] >= maxAll);
 
     if (
       bitIsOneX || bitIsOneY
@@ -964,7 +963,9 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)));
   const bool nonZeroOccupancyCodingPath =
     !(neighPattern == 0
-      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)));
+      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)))
+    || disableZeroPathCodingGt1Nodes;
+  bool flagNoSingle = false;
 
   if (zeroOccupancyCodingPath) {
     bool singleChild = false;
@@ -993,6 +994,8 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
       return occupancy;
     }
 
+    if (disableZeroPathCodingGt1Nodes)
+      flagNoSingle = true;
     // at least two child nodes occupied and two planars => we know the occupancy
     if (planarMaskX && planarMaskY) {
       uint32_t cnt = ((planarMaskX & 1) << 2) | ((planarMaskY & 1) << 1);
@@ -1011,10 +1014,10 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
       occupancy = (1 << cnt) | (1 << (cnt + 2));
       return occupancy;
     }
-
-    return decodeOccupancyNeighZsimple(
-      planarMaskX, planarPossibleX, planarMaskY, planarPossibleY, planarMaskZ,
-      planarPossibleZ, predOcc);
+    if (!disableZeroPathCodingGt1Nodes)
+      return decodeOccupancyNeighZsimple(
+        planarMaskX, planarPossibleX, planarMaskY, planarPossibleY,
+        planarMaskZ, planarPossibleZ, predOcc);
   }
   if (
     nonZeroOccupancyCodingPath) {  //------ NZ occupancy decoding from here ----------------
@@ -1032,7 +1035,8 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
     }
     return decodeOccupancyFullNeihbourgsNZ(
       neighPattern, Word4, Word7Adj, Sparse, planarMaskX, planarMaskY,
-      planarMaskZ, planarPossibleX, planarPossibleY, planarPossibleZ, predOcc);
+      planarMaskZ, planarPossibleX, planarPossibleY, planarPossibleZ, predOcc,
+      flagNoSingle);
   }
 }
 //-------------------------------------------------------------------------
