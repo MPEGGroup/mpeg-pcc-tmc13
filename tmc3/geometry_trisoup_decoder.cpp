@@ -971,8 +971,9 @@ void decodeTrisoupVertices(
       // three bits to spare 
       ctxMap2 |= perpStartCtx;
     }
-    c = arithmeticDecoder.decode(ctxTriSoup[MapOBUFTriSoup[0].get(ctxMap2, ctxMap1)]);
-    MapOBUFTriSoup[0].evolve(c, ctxMap2, ctxMap1);
+    c = MapOBUFTriSoup[0].decodeEvolve(
+      &arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
+
 
 
     segind.push_back(c);
@@ -993,15 +994,16 @@ void decodeTrisoupVertices(
       ctxMap2 |= std::min(3, nfar) << 4;
       ctxMap2 |= std::min(3, nclose) << 2;
       ctxMap2 |= std::min(3, nmiddle);
-      int bit = arithmeticDecoder.decode(ctxTriSoup[MapOBUFTriSoup[1].get(ctxMap2, ctxMap1)]);
-      MapOBUFTriSoup[1].evolve(bit, ctxMap2, ctxMap1);
+      int bit = MapOBUFTriSoup[1].decodeEvolve(
+        &arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
+
       v = (v << 1) | bit;
       b--;
 
-      // second bit       
+      // second bit
       if (b >= 0) {
-        bit = arithmeticDecoder.decode(ctxTriSoup[MapOBUFTriSoup[2].get(ctxMap2, (ctxMap1 << 1) + v)]);
-        MapOBUFTriSoup[2].evolve(bit, ctxMap2, (ctxMap1 << 1) + v);
+        bit = MapOBUFTriSoup[2].decodeEvolve(
+          &arithmeticDecoder, ctxTriSoup, ctxMap2, (ctxMap1 << 1) + v);
         v = (v << 1) | bit;
         b--;
       }

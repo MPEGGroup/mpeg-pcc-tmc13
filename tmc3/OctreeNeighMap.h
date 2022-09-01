@@ -202,6 +202,32 @@ struct GeometryNeighPattern {
   uint8_t adjNeighOcc[3];
 };
 
+
+//============================================================================
+struct OctreeNeighours {
+
+  int occLeft = 0;
+  int occFront = 0;
+  int occBottom = 0;
+
+  int occL = 0;
+  int occF = 0;
+  int occB = 0;
+  int occOrLFBfb = 0;
+
+  int edgeBits = 0;
+
+  int N3 = 0;
+  int N2 = 0;
+
+  int neighPatternLFB = 0;
+
+  int neighb20 = 0;
+};
+
+
+
+
 //============================================================================
 // determine the occupancy pattern of the six neighbours of the node at
 // @position.  If @adjacent_child_contextualization_enabled_flag is true,
@@ -213,13 +239,68 @@ GeometryNeighPattern makeGeometryNeighPattern(
   int codedAxesPrevLvl,
   const MortonMap3D& occupancyAtlas);
 
-void makeGeometryAdvancedNeighPattern(
-  int neighPattern,
+void prepareGeometryAdvancedNeighPattern(
+  OctreeNeighours& octreeNeighours,
+  const GeometryNeighPattern& gnp,
   const Vec3<int32_t>& currentPosition,
   int atlasShift,
-  const MortonMap3D& occupancyAtlas,
-  int Word7Adj[8],
-  bool Sparse[8]);
+  const MortonMap3D& occupancyAtlas);
+
+void makeGeometryAdvancedNeighPattern0(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern1(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern2(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern3(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern4(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern5(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern6(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
+
+void makeGeometryAdvancedNeighPattern7(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int &ctx1,
+  int &ctx2,
+  bool& Sparse);
 
 // populate (if necessary) the occupancy atlas with occupancy information
 // from @fifo.

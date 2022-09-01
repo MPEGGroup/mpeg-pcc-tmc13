@@ -250,14 +250,41 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
 }
 
 //============================================================================
+
+
+struct CtxModelOctreeOccupancy {
+  static const int kCtxFactorShift = 4;
+  AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
+
+  AdaptiveBitModelFast& operator[](int idx)
+  {
+    return contexts[idx >> kCtxFactorShift];
+  }
+};
+
+//---------------------------------------------------------------------------
+
+struct CtxModelDynamicOBUF {
+  static const int kCtxFactorShift = 3;
+  AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
+
+  AdaptiveBitModelFast& operator[](int idx)
+  {
+    return contexts[idx >> kCtxFactorShift];
+  }
+};
+
+
+//============================================================================
+
 class CtxMapDynamicOBUF {
 public:
-  int S1 = 0;  // 16;
-  int S2 = 0;  // 128 * 2 * 8;
+  int S1 = 0; // 16;
+  int S2 = 0; // 128 * 2 * 8;
 
-  uint8_t* CtxIdxMap;  // S1*S2
-  uint8_t* kDown;      // S2
-  uint8_t* Nseen;      // S2
+  uint8_t* CtxIdxMap; // S1*S2
+  uint8_t* kDown; // S2
+  uint8_t* Nseen; // S2
 
   //  allocate and reset CtxIdxMap to 127
   void reset(int userBitS1, int userBitS2);
@@ -265,12 +292,14 @@ public:
   //  deallocate CtxIdxMap
   void clear();
 
-  //  return ctxIdx according to bit
-  uint8_t get(int i, int j);
+  //  decode bit  and update *ctxIdx according to bit
+  int decodeEvolve(
+    EntropyDecoder* _arithmeticDecoder,
+    CtxModelDynamicOBUF& _ctxMapOccupancy,
+    int i,
+    int j);
 
-  //  update *ctxIdx according to bit
-  void evolve(bool bit, int i, int j);
-  //  update *ctxIdx according to bit
+  //  get and update *ctxIdx according to bit
   uint8_t getEvolve(bool bit, int i, int j);
 
 private:
@@ -278,7 +307,7 @@ private:
   int minkTree = 0;
 
   //  update kDown
-  void decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree);
+  void  decreaseKdown(int iP, int j, int iTree, int kDown0, int  kTree);
   int idx(int i, int j);
 };
 
@@ -292,11 +321,11 @@ CtxMapDynamicOBUF::reset(int userBitS1, int userBitS2)
   minkTree = userBitS1 - maxTreeDepth;
 
   kDown = new uint8_t[(1 << maxTreeDepth) * S2];
-  memset(kDown, userBitS1, sizeof *kDown * (1 << maxTreeDepth) * S2);
+  std::memset(kDown, userBitS1, sizeof * kDown * (1 << maxTreeDepth) * S2);
   Nseen = new uint8_t[(1 << maxTreeDepth) * S2];
-  memset(Nseen, 0, sizeof *Nseen * (1 << maxTreeDepth) * S2);
+  std::memset(Nseen, 0, sizeof * Nseen * (1 << maxTreeDepth) * S2);
   CtxIdxMap = new uint8_t[S1 * S2];
-  memset(CtxIdxMap, 127, sizeof *CtxIdxMap * S1 * S2);
+  std::memset(CtxIdxMap, 127, sizeof * CtxIdxMap * S1 * S2);
 }
 
 inline void
@@ -305,26 +334,24 @@ CtxMapDynamicOBUF::clear()
   if (!S1 || !S2)
     return;
 
-  delete[] kDown;
+  delete[] kDown ;
   delete[] Nseen;
   delete[] CtxIdxMap;
 }
 
-inline uint8_t
-CtxMapDynamicOBUF::get(int i, int j)
-{
-  int kDown0 = kDown[idx(i >> minkTree, j)];
-  int iP = (i >> kDown0) << kDown0;
-  return CtxIdxMap[idx(iP, j)];
-}
-
-inline void
-CtxMapDynamicOBUF::evolve(bool bit, int i, int j)
+inline int
+CtxMapDynamicOBUF::decodeEvolve(
+  EntropyDecoder* _arithmeticDecoder,
+  CtxModelDynamicOBUF& _ctxMapOccupancy,
+  int i,
+  int j)
 {
   int iTree = i >> minkTree;
   int kDown0 = kDown[idx(iTree, j)];
   int iP = (i >> kDown0) << kDown0;
   uint8_t* ctxIdx = &(CtxIdxMap[idx(iP, j)]);
+
+  int bit = _arithmeticDecoder->decode(_ctxMapOccupancy[*ctxIdx]);
 
   if (bit)
     *ctxIdx += kCtxMapDynamicOBUFDelta[(255 - *ctxIdx) >> 4];
@@ -338,7 +365,10 @@ CtxMapDynamicOBUF::evolve(bool bit, int i, int j)
     if (++Nseen[idx(iTree, j)]>= th)  // if more than th stats per pack
       decreaseKdown(iP, j, iTree, kDown0, kTree);
   }
+
+  return bit;
 }
+
 
 inline uint8_t
 CtxMapDynamicOBUF::getEvolve(bool bit, int i, int j)
@@ -367,25 +397,33 @@ CtxMapDynamicOBUF::getEvolve(bool bit, int i, int j)
 }
 
 inline void
-CtxMapDynamicOBUF::decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree)
+CtxMapDynamicOBUF::decreaseKdown(
+  int iP,
+  int j,
+  int iTree,
+  int kDown0,
+  int kTree)
 {
   int idxTree = idx(iTree, j);
-  Nseen[idxTree] = 0;  // setting other Nseen unneeded because initialized to 0
-  if (kTree) {         // binary-tree based dynamic OBUF
+  Nseen[idxTree] = 0; // setting other Nseen unneeded because initialized to 0
+  if (kTree) { // binary-tree based dynamic OBUF
     int iEnd = S2 << kTree;
     for (int ii = 0; ii < iEnd; ii += S2)
       kDown[idxTree + ii]--;
 
-    auto* p = &CtxIdxMap[idx(iP, j)];
+    auto *p = &CtxIdxMap[idx(iP, j)];
     p[S2 << kDown0 - 1] = *p;
-  } else {  // simple dynamic OBUF on a subblock of states attached to a leaf of binary-tree
+  }
+  else {
+    // simple dynamic OBUF on a subblock of states attached to a leaf of
+    // binary-tree
     kDown[idxTree]--;
 
     int S1Simple = S1 >> maxTreeDepth;
-    int SS1 = (S1Simple >> kDown0);
+    int SS1 = (S1Simple >> kDown0) ;
     int stride = S2 << kDown0;
 
-    auto* p = &CtxIdxMap[idx(iTree << minkTree, j)];
+    auto *p = &CtxIdxMap[idx(iTree << minkTree, j)];
     for (int iL = 0; iL < SS1; iL++, p += stride)  // pack
       p[stride >> 1] = *p;
   }
@@ -397,28 +435,8 @@ CtxMapDynamicOBUF::idx(int i, int j)
   return i * S2 + j;
 }
 
-//============================================================================
-struct CtxModelOctreeOccupancy {
-  static const int kCtxFactorShift = 4;
-  AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
 
-  AdaptiveBitModelFast& operator[](int idx)
-  {
-    return contexts[idx >> kCtxFactorShift];
-  }
-};
 
-//---------------------------------------------------------------------------
-
-struct CtxModelDynamicOBUF {
-  static const int kCtxFactorShift = 3; 
-  AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
-
-  AdaptiveBitModelFast& operator[](int idx)
-  {
-    return contexts[idx >> kCtxFactorShift];
-  }
-};
 
 //---------------------------------------------------------------------------
 // generate an array of node sizes according to subsequent qtbt decisions

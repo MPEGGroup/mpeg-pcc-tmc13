@@ -37,54 +37,6 @@
 
 namespace pcc {
 
-void
-
-construct26NeighbourWord(
-
-  const MortonMap3D& occupancyAtlas,
-  Vec3<int32_t> pos,
-  const int atlasShift,
-  int Word4[8]
-)
-{
-  uint32_t mask = occupancyAtlas.cubeSize() - 1;
-  int32_t x = pos[0] & mask;
-  int32_t y = pos[1] & mask;
-  int32_t z = pos[2] & mask;
-
-  const int shiftX = (atlasShift & 4 ? 1 : 0);
-  const int shiftY = (atlasShift & 2 ? 1 : 0);
-  const int shiftZ = (atlasShift & 1 ? 1 : 0);
-  int WordDiag[8] = { 0,0,0,0,0,0,0,0 };
-  static const int LUTdx[20] = { -1,-1,-1,-1,-1,-1,-1,-1,0,0,0,0,1,1,1,1,1,1,1,1 };
-  static const int LUTdy[20] = { -1,-1,-1,0,0,1,1,1,-1,-1,1,1,-1,-1,-1,0,0,1,1,1 };
-  static const int LUTdz[20] = { -1,0,1,-1,1,-1,0,1,-1,1,-1,1,-1,0,1,-1,1,-1,0,1 };
-  static const bool LUTsumdydydzIs3[20] = { 1,0,1,0,0,1,0,1,0,0,0,0,1,0,1,0,0,1,0,1 };
-  static const int LUTi2[12][2] = { {0,1}, {0,2}, {1,3}, {2,3}, {0,4}, {1,5}, {2,6}, {3,7}, {4,5}, {4,6}, {5,7}, {6,7} };
-
-  int i3 = 0;
-  const int *i2 = LUTi2[0];
-  for (int n = 0; n < 20; n++) {
-    int occupied = occupancyAtlas.getWithCheck(x + LUTdx[n], y +LUTdy[n], z + LUTdz[n], shiftX, shiftY, shiftZ);
-
-    if (LUTsumdydydzIs3[n])
-    {
-      WordDiag[i3++] |= occupied;
-    }
-    else {
-      Word4[*i2] <<= 1;
-      Word4[*i2++] |= occupied;
-      Word4[*i2] <<= 1;
-      Word4[*i2++] |= occupied;
-    }
-  }
-
-  for (int i = 0; i < 8; i++) {
-    Word4[i] <<= 1;
-    Word4[i] |= WordDiag[i];
-  }
-
-}
 
 //============================================================================
 

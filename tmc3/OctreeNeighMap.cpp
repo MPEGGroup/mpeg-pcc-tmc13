@@ -226,277 +226,1078 @@ makeGeometryNeighPattern(
   return gnp;
 }
 
-
 //----------------------------------------------------------------------------
 
-void
-makeGeometryAdvancedNeighPattern(
-  int neighPattern,
+static const int LUTdx[20] =
+  { -1,-1,-1,-1,-1,-1,-1,-1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 };
+static const int LUTdy[20] =
+  { -1,-1,-1, 0, 0, 1, 1, 1,-1,-1, 1, 1,-1,-1,-1, 0, 0, 1, 1, 1 };
+static const int LUTdz[20] =
+  { -1, 0, 1,-1, 1,-1, 0, 1,-1, 1,-1, 1,-1, 0, 1,-1, 1,-1, 0, 1 };
+
+void prepareGeometryAdvancedNeighPattern(
+  OctreeNeighours& octreeNeighours,
+  const GeometryNeighPattern& gnp,
   const Vec3<int32_t>& position,
   int atlasShift,
-  const MortonMap3D& occupancyAtlas,
-  int Word7Adj[8],
-  bool Sparse[8])
+  const MortonMap3D& occupancyAtlas)
 {
+  // prepare neighbours
+  const int neighPattern = gnp.neighPattern;
   const int mask = occupancyAtlas.cubeSize() - 1;
   const int32_t x = position[0] & mask;
   const int32_t y = position[1] & mask;
   const int32_t z = position[2] & mask;
 
-  // ----- neighbours  FLB -----
-  int occLeft = 0;
-  if (neighPattern & 2)  //Neighbour L
-    occLeft = occupancyAtlas.getChildOcc(x - 1, y, z);
-
-  int occFront = 0;
-  if (neighPattern & 4) //Neighbour F
-    occFront = occupancyAtlas.getChildOcc(x, y - 1, z);
-
-  int occBottom = 0;
-  if (neighPattern & 16) //Neighbour B
-    occBottom = occupancyAtlas.getChildOcc(x, y, z - 1);
-
-  int occL = occLeft >> 4;
-  int occF = ((occFront >> 2) & 3) | ((occFront >> 4) & 12);
-  int occB = ((occBottom >> 1) & 1) | ((occBottom >> 2) & 2) | ((occBottom >> 3) & 4) | ((occBottom >> 4) & 8);
-  int occOrLFBfb = occLeft | occFront | occBottom;
-
-  // ----- neighbours  LB, FB, LF -----
   const int sx = atlasShift & 4 ? 1 : 0;
   const int sy = atlasShift & 2 ? 1 : 0;
   const int sz = atlasShift & 1 ? 1 : 0;
 
-  int edgeBits = 0;
-  if (occupancyAtlas.getWithCheck(x - 1, y, z - 1, sx, sy, sz)) {
+  const int cubeSizeMinusOne = mask;
+
+  // prepare 20 neighbours
+  int neighb20 = 0;
+  if (x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+      && z < cubeSizeMinusOne)
+    for (int n = 0; n < 20; n++)
+      neighb20 |= occupancyAtlas.get(
+        x + LUTdx[n], y + LUTdy[n], z + LUTdz[n], sx, sy, sz) << n;
+  else
+    for (int n = 0; n < 20; n++)
+      neighb20 |= occupancyAtlas.getWithCheck(
+        x + LUTdx[n], y + LUTdy[n], z + LUTdz[n], sx, sy, sz) << n;
+
+  octreeNeighours.neighb20 = neighb20;
+
+  // ----- neighbours  FLB -----
+  octreeNeighours.occLeft = gnp.adjNeighOcc[0];
+  octreeNeighours.occFront = gnp.adjNeighOcc[1];
+  octreeNeighours.occBottom = gnp.adjNeighOcc[2];
+
+  octreeNeighours.occL = octreeNeighours.occLeft >> 4;
+  octreeNeighours.occF =
+    ((octreeNeighours.occFront >> 2) & 3)
+    | ((octreeNeighours.occFront >> 4) & 12);
+  octreeNeighours.occB =
+    ((octreeNeighours.occBottom >> 1) & 1)
+    | ((octreeNeighours.occBottom >> 2) & 2)
+    | ((octreeNeighours.occBottom >> 3) & 4)
+    | ((octreeNeighours.occBottom >> 4) & 8);
+  octreeNeighours.occOrLFBfb =
+    octreeNeighours.occLeft
+    | octreeNeighours.occFront
+    | octreeNeighours.occBottom;
+
+  // ----- neighbours  LB, FB, LF -----
+  octreeNeighours.edgeBits = 0;
+  if ((neighb20 >> 3) & 1) {
     int occLB = occupancyAtlas.getChildOcc(x - 1, y, z - 1);
-    edgeBits = ((occLB & 32) >> 5) | ((occLB & 128) >> 6);
+    octreeNeighours.edgeBits = ((occLB & 32) >> 5) | ((occLB & 128) >> 6);
   }
 
-  if (occupancyAtlas.getWithCheck(x, y - 1, z - 1, sx, sy, sz)) {
+  if ((neighb20 >> 8) & 1) {
     int occFB = occupancyAtlas.getChildOcc(x, y - 1, z - 1);
-    edgeBits |= ((occFB & 8) >> 1) | ((occFB & 128) >> 4);
+    octreeNeighours.edgeBits |= ((occFB & 8) >> 1) | ((occFB & 128) >> 4);
   }
 
-  if (occupancyAtlas.getWithCheck(x - 1, y - 1, z, sx, sy, sz)) {
+  if ((neighb20 >> 1) & 1) {
     int occLF = occupancyAtlas.getChildOcc(x - 1, y - 1, z);
-    edgeBits |= (occLF & 0b11000000) >> 2;
+    octreeNeighours.edgeBits |= (occLF & 0b11000000) >> 2;
   }
 
-  int N3 = ((neighPattern >> 3) & 4) | ((neighPattern >> 2) & 2) | (neighPattern & 1);// gnp.neighPattern & 0b101001
-  int N2 = N3 & 3;
+  // neighPattern & 0b101001  -> right  back top
+  octreeNeighours.N3 =
+    ((neighPattern >> 3) & 4)
+    | ((neighPattern >> 2) & 2)
+    | (neighPattern & 1);
+  // -> right  back
+  octreeNeighours.N2 = octreeNeighours.N3 & 3;
+  // LFB pattern
+  octreeNeighours.neighPatternLFB =
+    ((neighPattern & 0b110) >> 1)
+    | ((neighPattern & 16) >> 2);
+}
 
-  // ------ bit 0  ------ 12+0 = 12 bits
-  int NN = !!(occL & 1) + !!(occL & 2) + !!(occL & 4) + !!(occL & 8);
-  NN += !!(occF & 1) + !!(occF & 2) + !!(occF & 4) + !!(occF & 8);
-  NN += !!(occB & 1) + !!(occB & 2) + !!(occB & 4) + !!(occB & 8);
+// ---------------------------------------------------------------------------
 
-  int NLFB = !!occL + !!occF + !!occB;
-  if (NN>1) {
+inline int getBit(int w, const int n)
+{
+  return (w >> n) & 1;
+}
+
+inline int getBit(int w, const int n1, const int n2)
+{
+  return ((w >> n1 - 1) & 2) | ((w >> n2) & 1);
+}
+
+inline int getBit(int w, const int n1, const int n2, const int n3)
+{
+  return ((w >> n1 - 2) & 4) | ((w >> n2 - 1) & 2) | ((w >> n3) & 1);
+}
+
+inline int getBit(
+  int w, const int n1, const int n2, const int n3, const int n4)
+{
+  return ((w >> n1 - 3) & 8) | ((w >> n2 - 2) & 4) | ((w >> n3 - 1) & 2)
+    | ((w >> n4) & 1);
+}
+
+// ---------------------------------------------------------------------------
+
+static const int LUTNN[16] = { 0,1,1,2 , 1,2,2,3 , 1,2,2,3 , 2,3,3,4};
+
+// ------------------------------------ bit 0 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern0(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+
+  int NN =
+    LUTNN[octreeNeighours.occL]
+    + LUTNN[octreeNeighours.occF]
+    + LUTNN[octreeNeighours.occB];
+
+  if (NN > 1) {
+    int NLFB =
+      !!octreeNeighours.occL
+      + !!octreeNeighours.occF
+      + !!octreeNeighours.occB;
+
     if (NLFB == 3) {
-      Word7Adj[0] = 0b1000 << 8; // put tag at the head as it is the most important info
-      Word7Adj[0] |= (occL & 7);
-      Word7Adj[0] |= (occF & 7) << 3;
-      Word7Adj[0] |= (occB & 7) << 6;
-    }
-    else if (NLFB == 2) {
-      if (occL && occB) {
-        Word7Adj[0] = 0b0100 << 8;
-        Word7Adj[0] |= occL;
-        Word7Adj[0] |= occB << 4;
-      }
-      if (occF && occB) {
-        Word7Adj[0] = 0b0101 << 8;
-        Word7Adj[0] |= occF;
-        Word7Adj[0] |= occB << 4;
-      }
-      if (occL && occF) {
-        Word7Adj[0] = 0b0110 << 8;
-        Word7Adj[0] |= occL;
-        Word7Adj[0] |= occF << 4;
-      }
-    }
-    else //NLFB == 1
-    {
-      if (occL) {
-        Word7Adj[0] = 0b0000 << 8;
-        Word7Adj[0] |= occL << 4;
-        Word7Adj[0] |= (edgeBits & 0b001100);
-      }
-      if (occF) {
-        Word7Adj[0] = 0b0001 << 8;
-        Word7Adj[0] |= occF << 4;
-        Word7Adj[0] |= (edgeBits & 0b000011) << 2;
+      // put tag at the head as it is the most important info
+      infoNeigh = 0b100 << 16;
+      // face
+      infoNeigh |= (octreeNeighours.occB & 1) << 15;
+      infoNeigh |= (octreeNeighours.occF & 1) << 14;
+      infoNeigh |= (octreeNeighours.occL & 1) << 13;
+      //edge
+      infoNeigh |= (octreeNeighours.occB & 0b110) << 11 - 1;
+      infoNeigh |= (octreeNeighours.occF & 0b110) << 9 - 1;
+      infoNeigh |= (octreeNeighours.occL & 0b110) << 7 - 1;
 
-      }
-      if (occB) {
-        Word7Adj[0] = 0b0010 << 8;
-        Word7Adj[0] |= occB << 4;
-        Word7Adj[0] |= (edgeBits & 0b110000) >> 2;
-      }
+      infoNeigh |= octreeNeighours.N3 << 4;
+      infoNeigh |= getBit(N20, 8, 3, 1, 0);
     }
+    else {
+      if (NLFB == 2) {
+        if (octreeNeighours.occL && octreeNeighours.occB) {
+          infoNeigh = 0b101 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occB & 1) << 15;
+          infoNeigh |= (octreeNeighours.occL & 1) << 14;
+          //edge
+          infoNeigh |= (octreeNeighours.occB & 0b110) << 12 - 1;
+          infoNeigh |= (octreeNeighours.occL & 0b110) << 10 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occB & 8) << 9;
+          infoNeigh |= !(octreeNeighours.occL & 8) << 8;
+
+          infoNeigh |= !(octreeNeighours.N3 & 2) << 7; //Back
+        }
+        if (octreeNeighours.occF && octreeNeighours.occB) {
+          infoNeigh = 0b110 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occB & 1) << 15;
+          infoNeigh |= (octreeNeighours.occF & 1) << 14;
+          //edge
+          infoNeigh |= (octreeNeighours.occB & 0b110) << 12 - 1;
+          infoNeigh |= (octreeNeighours.occF & 0b110) << 10 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occB & 8) << 9;
+          infoNeigh |= !(octreeNeighours.occF & 8) << 8;
+
+          infoNeigh |= !(octreeNeighours.N3 & 1) << 7; // Right
+        }
+        if (octreeNeighours.occL && octreeNeighours.occF) {
+          infoNeigh = 0b111 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occF & 1) << 15;
+          infoNeigh |= (octreeNeighours.occL & 1) << 14;
+          // edge
+          infoNeigh |= (octreeNeighours.occF & 0b110) << 12 - 1;
+          infoNeigh |= (octreeNeighours.occL & 0b110) << 10 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occF & 8) << 9;
+          infoNeigh |= !(octreeNeighours.occL & 8) << 8;
+
+          infoNeigh |= !(octreeNeighours.N3 & 4) << 7; //Top
+        }
+      }
+      else //NLFB == 1
+      {
+        if (octreeNeighours.occL) {
+          infoNeigh = 0b000 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occL & 1) << 15;
+          //edge
+          infoNeigh |= (octreeNeighours.occL & 0b110) << 13 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occL & 8) << 12;
+          infoNeigh |= (octreeNeighours.edgeBits & 0b001100) << 10 - 2;
+        }
+        else if (octreeNeighours.occF) {
+          infoNeigh = 0b001 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occF & 1) << 15;
+          //edge
+          infoNeigh |= (octreeNeighours.occF & 0b110) << 13 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occF & 8) << 12;
+          infoNeigh |= (octreeNeighours.edgeBits & 0b000011) << 10;
+        }
+        else { //if (octreeNeighours.occB) {
+          infoNeigh = 0b010 << 16;
+          //face
+          infoNeigh |= (octreeNeighours.occB & 1) << 15;
+          //edge
+          infoNeigh |= (octreeNeighours.occB & 0b110) << 13 - 1;
+          //vertex
+          infoNeigh |= !(octreeNeighours.occB & 8) << 12;
+          infoNeigh |= (octreeNeighours.edgeBits & 0b110000) << 10 - 4;
+        }
+        infoNeigh |= octreeNeighours.N3 << 7;
+      }
+
+      infoNeigh |= getBit(N20, 8, 3, 1, 0) << 3;
+      infoNeigh |= getBit(N20, 18, 19, 11);
+    }
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
   }
   else {
-    int neighPatternLFB = ((neighPattern & 0b110) >> 1) | ((neighPattern & 16) >> 2);
-    Word7Adj[0] = neighPatternLFB << 4; // 9 bits
+    int neighPatternLFB = octreeNeighours.neighPatternLFB;
     if (NN) {
-      if (occL)
-        Word7Adj[0] |= 1 << 7;
-      if (occF)
-        Word7Adj[0] |= 2 << 7;
-      if (occB)
-        Word7Adj[0] |= 3 << 7;
+      if (octreeNeighours.occL) {
+        infoNeigh = 1 << 14;
+        infoNeigh |= !(octreeNeighours.occL & 1) << 13;  // face
+        infoNeigh |= !(neighPatternLFB & 4) << 12;  //edge
+        infoNeigh |= !(neighPatternLFB & 2) << 11;  //edge
+      }
+      else if (octreeNeighours.occF) {
+        infoNeigh = 2 << 14;
+        infoNeigh |= !(octreeNeighours.occF & 1) << 13;  // face
+        infoNeigh |= !(neighPatternLFB & 4) << 12; //edge
+        infoNeigh |= !(neighPatternLFB & 1) << 11;  //edge
+      }
+      else { //if (octreeNeighours.occB) {
+        infoNeigh = 3 << 14;
+        infoNeigh |= !(octreeNeighours.occB & 1) << 13; // face
+        infoNeigh |= !(neighPatternLFB & 2) << 12; //edge
+        infoNeigh |= !(neighPatternLFB & 1) << 11; //edge
+      }
     }
+    else {
+      infoNeigh = 0 << 14;
+      infoNeigh |= neighPatternLFB << 11;
+    }
+
+    infoNeigh |= getBit(N20, 1, 3) << 9;
+    infoNeigh |= getBit(N20, 8, 0) << 7;
+
     if (neighPatternLFB) {
-      if (occOrLFBfb & 1) {
-        Word7Adj[0] |= 8;
-        Word7Adj[0] |= (occLeft & 1);
-        Word7Adj[0] |= (occFront & 1) << 1;
-        Word7Adj[0] |= (occBottom & 1) << 2;
+      if (octreeNeighours.occOrLFBfb & 1) {
+        infoNeigh |= 1 << 6;
+        infoNeigh |= (octreeNeighours.occBottom & 1) << 5;
+        infoNeigh |= (octreeNeighours.occFront & 1) << 4;
+        infoNeigh |= (octreeNeighours.occLeft & 1) << 3;
       }
       else
       {
-        Word7Adj[0] |= ((occLeft & 2) || (occFront & 16) || (occBottom & 16));
-        Word7Adj[0] |= ((occLeft & 4) || (occFront & 2) || (occBottom & 4)) << 1;
-        Word7Adj[0] |= !edgeBits << 2;
+        infoNeigh |= !octreeNeighours.edgeBits << 5;
+        infoNeigh |=
+          ((octreeNeighours.occLeft & 4)
+          || (octreeNeighours.occFront & 2)
+          || (octreeNeighours.occBottom & 4)) << 4;
+        infoNeigh |=
+          ((octreeNeighours.occLeft & 2)
+          || (octreeNeighours.occFront & 16)
+          || (octreeNeighours.occBottom & 16)) << 3;
       }
     }
     else {
-      Word7Adj[0] |= !(edgeBits & 0b000011) << 1;
-      Word7Adj[0] |= !(edgeBits & 0b001100) << 2;
-      Word7Adj[0] |= !(edgeBits & 0b110000) << 3;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b110000) << 6;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b001100) << 5;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b000011) << 4;
+      // bit 3 is unused
     }
 
-    Sparse[0] = true;
+    infoNeigh |= getBit(N20, 18, 19, 11);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
   }
+}
 
+// ------------------------------------ bit 1 --------------------------------
 
-  // ------ bit 1  ------ 8+3+1 = 12 bits
-  if (occL || occF) {
-    Word7Adj[1] = occL << 3;
-    Word7Adj[1] |= occF << 7;
-    Word7Adj[1] |= N3;
-  }
-  else { // 5+1+1 = 7 bits
-    Word7Adj[1] = (N3 >> 2) << 5; //Top
-    if (occOrLFBfb & 2) {
-      Word7Adj[1] |= 16;
-      Word7Adj[1] |= (occLeft & 2) << 0;
-      Word7Adj[1] |= (occFront & 2) << 1;
-      Word7Adj[1] |= (occBottom & 2) << 2;
-    }
-    else {
-      Word7Adj[1] |= ((occLeft & 1) || (occFront & 1)) << 1;
-      Word7Adj[1] |= ((occLeft & 8) || (occFront & 32)) << 2;
-      Word7Adj[1] |= !(edgeBits & 0b110101) << 3;
-    }
+void
+makeGeometryAdvancedNeighPattern1(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
 
-    Word7Adj[1] |= !occB;
+  if (octreeNeighours.occF) {
+    //face
+    infoNeigh = (occupancy & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occF & 0b0010) << 17;
+    infoNeigh |= !octreeNeighours.occL << 16;
 
-    Sparse[1] = true;
-  }
+    if (octreeNeighours.occL) {
+      //face
+      infoNeigh |= !(octreeNeighours.occL & 0b0010) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 4) << 14; //Top
+      //edge
+      infoNeigh |= !(octreeNeighours.occF & 0b0001) << 13;
+      infoNeigh |= !(octreeNeighours.occF & 0b1000) << 12;
+      infoNeigh |= !(octreeNeighours.occL & 0b0001) << 11;
+      infoNeigh |= !(octreeNeighours.occL & 0b1000) << 10;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occF & 0b0100) << 9;
+      infoNeigh |= !(octreeNeighours.occL & 0b0100) << 8;
 
-  // ------ bit 2  ------ 8+2+2 = 12 bits
-  if (occL || occB) {
-    Word7Adj[2] = occL << 2;
-    Word7Adj[2] |= occB << 6;
-    Word7Adj[2] |= N2;
-  }
-  else { // 5+1+2 = 8 bits
-    Word7Adj[2] = !occF;
-    if (occOrLFBfb & 4) {
-      Word7Adj[2] |= 16;
-      Word7Adj[2] |= (occLeft & 4) << 1;
-      Word7Adj[2] |= (occBottom & 4);
-      Word7Adj[2] |= (occFront & 4) >> 1;
-    }
-    else {
-      Word7Adj[2] |= ((occLeft & 1) || (occBottom & 1)) << 3;
-      Word7Adj[2] |= ((occLeft & 8) || (occBottom & 64)) << 2;
-      Word7Adj[2] |= !(edgeBits & 0b000011) << 1;
-    }
+      infoNeigh |= (octreeNeighours.N3 & 1) << 7; // Right
 
-    Sparse[2] = true;
-    Word7Adj[2] |= ((N2 >> 1) & 1) << 5; // Back
-  }
-
-  // ------ bit 3  ------ 4+3+3 = 10 bits
-  if (occL) {
-    Word7Adj[3] = occL << 3;
-    Word7Adj[3] |= N3;
-  }
-  else { // 6+2+3 = 11 bits
-    Word7Adj[3] = !occF;
-    Word7Adj[3] |= !occB << 1;
-    if (occOrLFBfb & 8) {
-      Word7Adj[3] |= 32;
-      Word7Adj[3] |= (occLeft & 8) >> 1;
-      Word7Adj[3] |= (occFront & 8);
-      Word7Adj[3] |= (occBottom & 8) << 1;
+      infoNeigh |= getBit(N20, 9, 4, 1, 2) << 3;
     }
     else {
-      Word7Adj[3] |= (occLeft & 0b110) << 2;
-      Word7Adj[3] |= !(edgeBits & 0b110010) << 2;
+      infoNeigh |= !(octreeNeighours.N3 & 4) << 15; //Top
+      // edge
+      infoNeigh |= !(octreeNeighours.occF & 0b0001) << 14;
+      infoNeigh |= !(octreeNeighours.occF & 0b1000) << 13;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occF & 0b0100) << 12;
+
+      infoNeigh |= getBit(N20, 9, 4, 1, 2) << 8;
+
+      infoNeigh |= !(octreeNeighours.occBottom & 2) << 7;
+      infoNeigh |= !(octreeNeighours.occFront & 2) << 6;
+      infoNeigh |= !(octreeNeighours.occLeft & 2) << 5;
+      infoNeigh |= (octreeNeighours.N3 & 3) << 3; // Right Back
     }
 
-    Sparse[3] = true;
-    Word7Adj[3] |= (N3 >> 1) << 6; // Back + Top
-  }
+    infoNeigh |= getBit(N20, 11, 16, 19);
 
-  // ------ bit 4  ------ 6+2+4 = 12 bits
-  if (occF || occB) {
-    Word7Adj[4] = ((occF & 1) | ((occF >> 1) & 6)) << 2; // &0b1101;
-    Word7Adj[4] |= ((occB & 1) | ((occB >> 1) & 6)) << 5; // &0b1101;
-    Word7Adj[4] |= N2;
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
   }
-  else { // 5+1+4 = 10 bits
-    Word7Adj[4] = !occL;
-    if (occOrLFBfb & 16) {
-      Word7Adj[4] |= 16;
-      Word7Adj[4] |= (occFront & 16) >> 1;
-      Word7Adj[4] |= (occBottom & 16) >> 2;
-      Word7Adj[4] |= (occLeft & 16) >> 3;
+  else {
+    //face
+    infoNeigh = (occupancy & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occL & 0b0010) << 17;
+    infoNeigh |= !(octreeNeighours.N3 & 4) << 16; //Top
+    //edge
+    infoNeigh |= !(octreeNeighours.occL & 0b0001) << 15;
+    infoNeigh |= !(octreeNeighours.occL & 0b1000) << 14;
+    //vertex
+    infoNeigh |= !(octreeNeighours.occL & 0b0100) << 13;
+
+    infoNeigh |= (octreeNeighours.N3 & 1) << 12; // Right
+
+    infoNeigh |= getBit(N20, 1, 4) << 10;
+    infoNeigh |= getBit(N20, 9, 2) << 8;
+
+    if (octreeNeighours.occOrLFBfb & 2) {
+      infoNeigh |= 1 << 7;
+      infoNeigh |= !(octreeNeighours.occBottom & 2) << 6;
+      infoNeigh |= !(octreeNeighours.occFront & 2) << 5;
+      infoNeigh |= !(octreeNeighours.occLeft & 2) << 4;
     }
     else {
-      Word7Adj[4] |= ((occFront & 32) || (occBottom & 1)) << 3;
-      Word7Adj[4] |= ((occFront & 64) || (occBottom & 64)) << 2;
-      Word7Adj[4] |= !(edgeBits & 0b001100) << 1;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b110101) << 6;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 8)
+        || (octreeNeighours.occFront & 32)) << 5;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 1)
+        || (octreeNeighours.occFront & 1)) << 4;
     }
 
-    Sparse[4] = true;
-    Word7Adj[4] |= (N2 & 1) << 5; // Right
-  }
+    infoNeigh |= !octreeNeighours.occB << 3;
+    infoNeigh |= getBit(N20, 11, 16, 19);
 
-  // ------ bit 5  ------ 3+3+5 = 11 bits
-  if (occF) {
-    Word7Adj[5] = (occF & 0b1110) << 2;
-    Word7Adj[5] |= N3;
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
   }
-  else { // 4+2+5 = 11 bits
-    Word7Adj[5] = !occL;
-    Word7Adj[5] |= !occB << 1;
-    Word7Adj[5] |= !(edgeBits & 0b111100) << 2;
-    Word7Adj[5] |= !(occOrLFBfb & 32) << 3;
-    Sparse[5] = true;
-    Word7Adj[5] |= (N3 & 1) << 4; // Right
-    Word7Adj[5] |= (N3 >> 2) << 5; //  and Top
-  }
+}
 
-  // ------ bit 6  ------   3+2+6 = 11 bits
-  if (occB) {
-    Word7Adj[6] = (occB & 0b1110) << 1;
-    Word7Adj[6] |= N2;
-  }
-  else { // 4+2+6 = 12 bits
-    Word7Adj[6] = !occL;
-    Word7Adj[6] |= !occF << 1;
-    Word7Adj[6] |= !(edgeBits & 0b001010) << 2;
-    Word7Adj[6] |= !(occOrLFBfb & 64) << 3;
-    Sparse[6] = true;
-    Word7Adj[6] |= N2 << 4; // Right and Back
-  }
+// ------------------------------------ bit 2 --------------------------------
 
-  // ------ bit 7  ------  3+7 = 10 bits, never sparse
-  Word7Adj[7] = N3; // Right and Back and Top
+void
+makeGeometryAdvancedNeighPattern2(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+
+  if (octreeNeighours.occB) {
+    // face
+    infoNeigh = (occupancy & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occB & 0b0010) << 17;
+    infoNeigh |= !octreeNeighours.occL << 16;
+
+    if (octreeNeighours.occL) {
+      //face
+      infoNeigh |= !(octreeNeighours.occL & 0b0100) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 14; //back
+      //edge
+      infoNeigh |= !(occupancy & 2) << 13;
+      infoNeigh |= !(octreeNeighours.occB & 0b1000) << 12;
+      infoNeigh |= !(octreeNeighours.occL & 0b1000) << 11;
+      infoNeigh |= !(octreeNeighours.occL & 0b0001) << 10;
+      infoNeigh |= !(octreeNeighours.occB & 0b0001) << 9;
+
+      infoNeigh |= getBit(N20, 10, 6, 3) << 6;
+
+      //vertex
+      infoNeigh |= !(octreeNeighours.occB & 0b0100) << 5;
+      infoNeigh |= !(octreeNeighours.occL & 0b0010) << 4;
+    }
+    else {
+      //face
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 15; //back
+      //edge
+      infoNeigh |= !(occupancy & 2) << 14;
+      infoNeigh |= !(octreeNeighours.occB & 0b0001) << 13;
+      infoNeigh |= !(octreeNeighours.occB & 0b1000) << 12;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occB & 0b0100) << 11;
+
+      infoNeigh |= getBit(N20, 10, 6, 3) << 8;
+
+      //others
+      infoNeigh |= !(octreeNeighours.N3 & 4)  << 7;
+      infoNeigh |= !(octreeNeighours.occLeft & 4) << 6;
+      infoNeigh |= !(octreeNeighours.occBottom & 4) << 5;
+      infoNeigh |= !(octreeNeighours.occFront & 4) << 4;
+    }
+
+    infoNeigh |= getBit(N20, 0) << 3;
+    infoNeigh |= getBit(N20, 18, 19, 11);
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
+  }
+  else {
+    // face
+    infoNeigh = (occupancy & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occL & 0b0100) << 17;
+    infoNeigh |= !(octreeNeighours.N3 & 2) << 16; //back
+    //edge
+    infoNeigh |= !(occupancy & 2) << 15;
+    infoNeigh |= !(octreeNeighours.occL & 0b1000) << 14;
+    infoNeigh |= !(octreeNeighours.occL & 0b0001) << 13;
+    //vertex
+    infoNeigh |= !(octreeNeighours.occL & 0b0010) << 12;
+
+    infoNeigh |= getBit(N20, 3, 6, 10, 5) << 8;
+
+    if (octreeNeighours.occOrLFBfb & 4) {
+      infoNeigh |= 1 << 7;
+      infoNeigh |= !(octreeNeighours.occLeft & 4) << 6;
+      infoNeigh |= !(octreeNeighours.occBottom & 4) << 5;
+      infoNeigh |= !(octreeNeighours.occFront & 4) << 4;
+    }
+    else {
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 1)
+        || (octreeNeighours.occBottom & 1)) << 6;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 8)
+        || (octreeNeighours.occBottom & 64)) << 5;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b000011) << 4;
+    }
+
+    infoNeigh |= !octreeNeighours.occF << 3;
+    infoNeigh |= getBit(N20, 18, 19, 11);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
+}
+
+// ------------------------------------ bit 3 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern3(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+
+  int NN = LUTNN[octreeNeighours.occL] + LUTNN[occupancy & 7];
+
+  if (NN > 1) {
+    // face
+    infoNeigh = !(occupancy & 4) << 16;
+    infoNeigh |= !(occupancy & 2) << 15;
+    infoNeigh |= !(octreeNeighours.occL & 8 ) << 14;
+    infoNeigh |= octreeNeighours.N3 << 11;
+    // edge
+    infoNeigh |= !(occupancy & 1) << 10;
+    infoNeigh |= !(octreeNeighours.occL & 4 ) << 9;
+    infoNeigh |= !(octreeNeighours.occL & 2 ) << 8;
+    // vertex
+    infoNeigh |= (octreeNeighours.occL & 1) << 7;
+
+    infoNeigh |= getBit(N20, 11, 6, 4, 0) << 3;
+    infoNeigh |= getBit(N20, 16, 19, 18);
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 11;
+    ctx2 = infoNeigh & 0x07FF;
+  }
+  else {
+    // NN <= 1
+    int occup = occupancy & 7;
+    infoNeigh = !(occup) << 17;
+    if (occup) { // occL is empty, at most 1 in occupancy & 7
+      infoNeigh |= (!!occup + !!(occup >> 1) + !!(occup >> 2)) << 15;
+    }
+    else {
+      // occL may not be empty;
+      // empty and furthest neigh occupied together in 0
+      infoNeigh |=
+        (!!(octreeNeighours.occL >> 1)
+        + !!(octreeNeighours.occL >> 2)
+        + !!(octreeNeighours.occL >> 3)) << 15;
+    }
+
+    infoNeigh |= (octreeNeighours.N3 >> 1) << 13; // Back + Top
+    infoNeigh |= getBit(N20, 4, 6, 11, 7) << 9;
+
+    if (octreeNeighours.occOrLFBfb & 8) {
+      infoNeigh |= 1 << 8;
+      infoNeigh |= !(octreeNeighours.occBottom & 8) << 7;
+      infoNeigh |= !(octreeNeighours.occFront & 8) << 6;
+      infoNeigh |= !(octreeNeighours.occLeft & 8) << 5;
+    }
+    else {
+      infoNeigh |= (octreeNeighours.occLeft & 0b110) << 5;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b110010) << 5;
+    }
+    infoNeigh |= !octreeNeighours.occB << 4;
+    infoNeigh |= !octreeNeighours.occF << 3;
+
+    infoNeigh |= getBit(N20, 18, 19, 16);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
+}
+
+// ------------------------------------ bit 4 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern4(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+  const int occupancyLeft = occupancy & 15;
+
+  int NN =
+    LUTNN[occupancyLeft]
+    + LUTNN[octreeNeighours.occF]
+    + LUTNN[octreeNeighours.occB];
+
+  if (NN > 1) {
+    int NLFB =
+      !!occupancyLeft
+      + !!octreeNeighours.occF
+      + !!octreeNeighours.occB;
+
+    if (NLFB == 3) {
+      // put tag at the head as it is the most important info
+      infoNeigh = 0b1000 << 15;
+      //face
+      infoNeigh |= !(octreeNeighours.occB & 4) << 17;
+      infoNeigh |= !(octreeNeighours.occF & 4) << 16;
+      infoNeigh |= (occupancyLeft & 1) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 14; //right
+      //edge
+      infoNeigh |= !(octreeNeighours.occB & 1) << 13;
+      infoNeigh |= !(octreeNeighours.occB & 8) << 12;
+      infoNeigh |= !(octreeNeighours.occF & 1) << 11;
+      infoNeigh |= !(octreeNeighours.occF & 8) << 10;
+      infoNeigh |= ! (occupancyLeft & 2) << 9;
+      infoNeigh |= ! (occupancyLeft & 4) << 8;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occB & 2) << 7;
+      infoNeigh |= !(octreeNeighours.occF & 2) << 6;
+
+      infoNeigh |= (octreeNeighours.N3 >> 1) << 4; // back top
+      infoNeigh |= getBit(N20, 15, 13, 8, 12);
+    }
+    else if (NLFB == 2) {
+      if (occupancyLeft && octreeNeighours.occB) {
+        infoNeigh = 0b0100 << 15;
+        //face
+        infoNeigh |= !(octreeNeighours.occB & 4) << 14;
+        infoNeigh |= !(occupancyLeft & 1) << 13;
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 12; //right
+        //edge
+        infoNeigh |= !(octreeNeighours.occB & 1) << 11;
+        infoNeigh |= !(octreeNeighours.occB & 8) << 10;
+        infoNeigh |= !(occupancyLeft & 2) << 9;
+        infoNeigh |= !(occupancyLeft & 4) << 8;
+        //vertex
+        infoNeigh |= !(octreeNeighours.occB & 2) << 7;
+        infoNeigh |= !(occupancyLeft & 8) << 6;
+      }
+      else if (octreeNeighours.occF && octreeNeighours.occB) {
+        infoNeigh = 0b0101 << 15;
+        //face
+        infoNeigh |= !(octreeNeighours.occB & 4) << 14;
+        infoNeigh |= !(octreeNeighours.occF & 4) << 13;
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 12; //right
+        //edge
+        infoNeigh |= !(octreeNeighours.occB & 1) << 11;
+        infoNeigh |= !(octreeNeighours.occB & 8) << 10;
+        infoNeigh |= !(octreeNeighours.occF & 1) << 9;
+        infoNeigh |= !(octreeNeighours.occF & 8) << 8;
+        //vertex
+        infoNeigh |= !(octreeNeighours.occB & 2) << 7;
+        infoNeigh |= !(octreeNeighours.occF & 2) << 6;
+      }
+      else { //if (occupancyLeft && octreeNeighours.occF) {
+        infoNeigh = 0b0110 << 15;
+        //face
+        infoNeigh |= !(octreeNeighours.occF & 4) << 14;
+        infoNeigh |= !(occupancyLeft & 1) << 13;
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 12; //right
+        //edge
+        infoNeigh |= !(octreeNeighours.occF & 1) << 11;
+        infoNeigh |= !(octreeNeighours.occF & 8) << 10;
+        infoNeigh |= ! (occupancyLeft & 2) << 9;
+        infoNeigh |= ! (occupancyLeft & 4) << 8;
+        //vertex
+        infoNeigh |= !(octreeNeighours.occF & 2) << 7;
+        infoNeigh |= !(occupancyLeft & 8) << 6;
+      }
+
+      infoNeigh |= getBit(N20, 15, 13, 8) << 3;
+      infoNeigh |= getBit(N20, 12, 16, 18);
+    }
+    else //NLFB == 1
+    {
+      if (occupancyLeft) {
+        infoNeigh = 0b0000 << 15;
+        infoNeigh |= (occupancyLeft & 1) << 14; //face
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 13; //right
+        infoNeigh |= (occupancyLeft & 0b110) << 11-1; //edge
+        infoNeigh |= !(occupancyLeft & 8) << 10; //vertex
+        infoNeigh |= (octreeNeighours.edgeBits & 0b001100) << 8-2;
+      }
+      else if (octreeNeighours.occF) {
+        infoNeigh = 0b0001 << 15;
+        infoNeigh |= !(octreeNeighours.occF & 0b0100) << 14; //face
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 13; //right
+        infoNeigh |= !(octreeNeighours.occF & 0b0001) << 12; //edge
+        infoNeigh |= !(octreeNeighours.occF & 0b1000) << 11; //edge
+        infoNeigh |= !(octreeNeighours.occF & 0b0010) << 10; //vertex
+        infoNeigh |= (octreeNeighours.edgeBits & 0b000011) << 8;
+      }
+      else { //if (octreeNeighours.occB) {
+        infoNeigh = 0b0010 << 15;
+        infoNeigh |= !(octreeNeighours.occB & 0b0100) << 14;  //face
+        infoNeigh |= !(octreeNeighours.N3 & 1) << 12; //right
+        infoNeigh |= !(octreeNeighours.occB & 0b0001) << 12; //edge
+        infoNeigh |= !(octreeNeighours.occB & 0b1000) << 11; //edge
+        infoNeigh |= !(octreeNeighours.occB & 0b0010) << 10; //vertex
+        infoNeigh |= (octreeNeighours.edgeBits & 0b110000) << 8-4;
+      }
+
+      infoNeigh |= (octreeNeighours.N3 >> 1 ) << 6;
+
+      infoNeigh |= getBit(N20, 15, 13, 8) << 3;
+      infoNeigh |= getBit(N20, 12, 16, 18);
+    }
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
+  }
+  else {
+    int neighPatternLFB = octreeNeighours.neighPatternLFB;
+    if (NN) {
+      if (occupancyLeft) {
+        infoNeigh = 1 << 14;
+        infoNeigh |= !(occupancyLeft & 1) << 13; //face
+        infoNeigh |= !(neighPatternLFB & 4) << 12; //edge
+        infoNeigh |= !(neighPatternLFB & 2) << 11; //edge
+      }
+      else if (octreeNeighours.occF) {
+        infoNeigh = 2 << 14;
+        infoNeigh |= !(octreeNeighours.occF & 1) << 13; //face
+        infoNeigh |= !(neighPatternLFB & 4) << 12; //edge
+        infoNeigh |= !(neighPatternLFB & 1) << 11; //edge
+      }
+      else { //if (octreeNeighours.occB) {
+        infoNeigh = 3 << 14;
+        infoNeigh |= !(octreeNeighours.occB & 1) << 13; //face
+        infoNeigh |= !(neighPatternLFB & 2) << 12; //edge
+        infoNeigh |= !(neighPatternLFB & 1) << 11; //edge
+      }
+    }
+    else {
+      infoNeigh = 0 << 14;
+      infoNeigh |= neighPatternLFB << 11;
+    }
+
+    infoNeigh |= getBit(N20, 8, 13, 15, 12) << 7;
+
+    if (neighPatternLFB) {
+      if (octreeNeighours.occOrLFBfb & 16) {
+        infoNeigh |= 1 << 6;
+        infoNeigh |= !(octreeNeighours.occBottom & 16) << 5;
+        infoNeigh |= !(octreeNeighours.occFront & 16) << 4;
+        infoNeigh |= !(octreeNeighours.occLeft & 16) << 3;
+      }
+      else
+      {
+        infoNeigh |= !octreeNeighours.edgeBits << 5;
+        infoNeigh |=
+          ((octreeNeighours.occLeft & 64)
+          || (octreeNeighours.occFront & 8)
+          || (octreeNeighours.occBottom & 8)) << 4;
+        infoNeigh |= ((octreeNeighours.occLeft & 32)
+          || (octreeNeighours.occFront & 64)
+          || (octreeNeighours.occBottom & 32)) << 3;
+      }
+    }
+    else {
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b110000) << 6;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b001100) << 5;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b000011) << 4;
+      // bit3 is unused
+    }
+
+    infoNeigh |= getBit(N20, 16, 18, 19);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
+}
+
+// ------------------------------------ bit 5 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern5(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+  const int occupancyLeft = occupancy & 15;
+
+  if (octreeNeighours.occF) {
+    //face
+    infoNeigh = ((occupancy >> 4) & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occF & 0b1000) << 17;
+    infoNeigh |= !occupancyLeft << 16;
+
+    if (occupancyLeft) {
+      //face
+      infoNeigh |= !(occupancyLeft & 0b0010) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 4) << 14; //Top
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 13; //Right
+      //edge
+      infoNeigh |= !(octreeNeighours.occF & 0b0010) << 12;
+      infoNeigh |= !(octreeNeighours.occF & 0b0100) << 11;
+      infoNeigh |= !(occupancyLeft & 0b0001) << 10;
+      infoNeigh |= !(occupancyLeft & 0b1000) << 9;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occF & 0b0001) << 8;
+      infoNeigh |= !(occupancyLeft & 0b0100) << 7;
+
+      infoNeigh |= getBit(N20, 16, 13, 9, 14) << 3;
+    }
+    else {
+      //face
+      infoNeigh |= !(octreeNeighours.N3 & 4) << 15; //Top
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 14; //Right
+      //edge
+      infoNeigh |= !(octreeNeighours.occF & 0b0010) << 13;
+      infoNeigh |= !(octreeNeighours.occF & 0b0100) << 12;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occF & 0b0001) << 11;
+
+      infoNeigh |= getBit(N20, 16, 13, 9, 14) << 7;
+
+      infoNeigh |= !(octreeNeighours.occBottom & 32) << 6;
+      infoNeigh |= !(octreeNeighours.occFront & 32) << 5;
+      infoNeigh |= !(octreeNeighours.occLeft & 32) << 4;
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 3; //back
+    }
+
+    infoNeigh |= getBit(N20, 18, 19, 11);
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
+  }
+  else {
+    // face
+    infoNeigh = !((occupancy >> 4) & 1) << 18;
+    infoNeigh |= !(occupancyLeft & 0b0010) << 17;
+    infoNeigh |= !(octreeNeighours.N3 & 4) << 16; //Top
+    infoNeigh |= !(octreeNeighours.N3 & 1) << 15; //Right
+    //edge
+    infoNeigh |= !(occupancyLeft & 0b0001) << 14;
+    infoNeigh |= !(occupancyLeft & 0b1000) << 13;
+    //vertex
+    infoNeigh |= !(octreeNeighours.occL & 0b0100) << 12;
+
+    infoNeigh |= getBit(N20, 9, 13, 16, 14) << 8;
+
+    if (octreeNeighours.occOrLFBfb & 32) {
+      infoNeigh |= 1 << 7;
+      infoNeigh |= !(octreeNeighours.occBottom & 32) << 6;
+      infoNeigh |= !(octreeNeighours.occFront & 32) << 5;
+      infoNeigh |= !(octreeNeighours.occLeft & 32) << 4;
+    }
+    else {
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b111100) << 6;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 128)
+        || (octreeNeighours.occFront & 2)) << 5;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 16)
+        || (octreeNeighours.occFront & 16)) << 4;
+    }
+
+    infoNeigh |= !octreeNeighours.occB << 3;
+    infoNeigh |= getBit(N20, 18, 19, 11);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
+}
+
+// ------------------------------------ bit 6 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern6(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+  const int occupancyLeft = occupancy & 15;
+
+  if (octreeNeighours.occB) {
+    //face
+    infoNeigh = !((occupancy >> 4) & 1) << 18;
+    infoNeigh |= !(octreeNeighours.occB & 0b1000) << 17;
+    infoNeigh |= !occupancyLeft << 16;
+
+    if (occupancyLeft) {
+      //face
+      infoNeigh |= !(occupancyLeft & 0b0100) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 14; //right
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 13; //back
+      //edge
+      infoNeigh |= !((occupancy >> 4) & 2) << 12;
+      infoNeigh |= !(octreeNeighours.occB & 0b0010) << 11;
+      infoNeigh |= !(occupancyLeft & 0b0001) << 10;
+      infoNeigh |= !(occupancyLeft & 0b1000) << 9;
+      infoNeigh |= !(octreeNeighours.occB & 0b0100) << 8;
+
+      infoNeigh |= getBit(N20, 18, 15, 10) << 5;
+
+      //vertex
+      infoNeigh |= !(octreeNeighours.occB & 0b0001) << 4;
+      infoNeigh |= !(occupancyLeft & 0b0010) << 3;
+
+      infoNeigh |= getBit(N20, 17) << 2;
+      infoNeigh |= getBit(N20, 0) << 1;
+      infoNeigh |= getBit(N20, 11) << 0;
+    }
+    else {
+      //face
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 15; //back
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 14; //right
+      //edge
+      infoNeigh |= !((occupancy >> 4) & 2) << 13;
+      infoNeigh |= !(octreeNeighours.occB & 0b0010) << 12;
+      infoNeigh |= !(octreeNeighours.occB & 0b0100) << 11;
+      //vertex
+      infoNeigh |= !(octreeNeighours.occB & 0b0001) << 10;
+
+      infoNeigh |= !(octreeNeighours.occLeft & 64) << 9;
+      infoNeigh |= !(octreeNeighours.occBottom & 64) << 8;
+      infoNeigh |= !(octreeNeighours.occFront & 64) << 7;
+
+      infoNeigh |= getBit(N20, 18, 15, 10, 17) << 3;
+      infoNeigh |= getBit(N20, 0) << 2;
+      infoNeigh |= getBit(N20, 11, 19);
+    }
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 13;
+    ctx2 = infoNeigh & 0x1FFF;
+  }
+  else {
+    //face
+    infoNeigh = !((occupancy >> 4) & 1) << 18;
+    infoNeigh |= !(occupancyLeft & 0b0100) << 17;
+    infoNeigh |= !(octreeNeighours.N3 & 1) << 16; //right
+    //edge
+    infoNeigh |= !((occupancy >> 4) & 2) << 15;
+    infoNeigh |= !(occupancyLeft & 0b1000) << 14;
+    infoNeigh |= !(occupancyLeft & 0b0001) << 13;
+    //vertex
+    infoNeigh |= !(occupancyLeft & 0b0010) << 12;
+
+    infoNeigh |= getBit(N20, 17, 18, 15, 10) << 8;
+
+    if (octreeNeighours.occOrLFBfb & 64) {
+      infoNeigh |= 1<<7;
+      infoNeigh |= !(octreeNeighours.occLeft & 64) << 6;
+      infoNeigh |= !(octreeNeighours.occBottom & 64) << 5;
+      infoNeigh |= !(octreeNeighours.occFront & 64) << 4;
+    }
+    else {
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 1)
+        || (octreeNeighours.occBottom & 1)) << 6;
+      infoNeigh |=
+        ((octreeNeighours.occLeft & 8)
+        || (octreeNeighours.occBottom & 64)) << 5;
+      infoNeigh |= !(octreeNeighours.edgeBits & 0b000011) << 4;
+    }
+
+    infoNeigh |= !octreeNeighours.occF << 3;
+    infoNeigh |= getBit(N20, 19, 16, 11);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
+}
+
+// ------------------------------------ bit 7 --------------------------------
+
+void
+makeGeometryAdvancedNeighPattern7(
+  OctreeNeighours& octreeNeighours,
+  int occupancy,
+  int& ctx1,
+  int& ctx2,
+  bool& Sparse)
+{
+  int infoNeigh = 0;
+  const int N20 = octreeNeighours.neighb20;
+  const int occupancyLeft = occupancy & 15;
+
+  int NN = LUTNN[occupancyLeft] + LUTNN[(occupancy >> 4) & 7];
+
+  // NN cannot be 0! otherwise 7 bit empty end b7 is inferred to 1
+  if (NN > 1) {
+    // face opposition
+    infoNeigh = !((occupancy >> 4) & 4) << 16;
+    infoNeigh |= !((occupancy >> 4) & 2) << 15;
+    infoNeigh |= !(occupancyLeft & 8 ) << 14;
+    infoNeigh |= octreeNeighours.N3 << 11;
+    // edge opposition
+    infoNeigh |= !((occupancy >> 4) & 1) << 10;
+    infoNeigh |= getBit(N20, 11) << 9;
+    infoNeigh |= !(occupancyLeft & 4 ) << 8;
+    infoNeigh |= getBit(N20, 16) << 7;
+    infoNeigh |= !(occupancyLeft & 2 ) << 6;
+    infoNeigh |= getBit(N20, 18) << 5;
+    // vertex opposion
+    infoNeigh |= (occupancyLeft & 1 ) << 4;
+    infoNeigh |= getBit(N20, 19) << 3;
+
+    // more neighbours
+    infoNeigh |= getBit(N20, 0) << 2;
+    //infoNeigh |= getBit(N20, 17) << 1;
+    infoNeigh |= getBit(N20, 17, 10);
+
+    Sparse = false;
+    ctx1 = infoNeigh >> 11;
+    ctx2 = infoNeigh & 0x07FF;
+  }
+  else {
+    //NN==1  (can't be zero otherwise bit 7 is infered upstream to 1 )
+    int occup = (occupancy >> 4) & 7;
+    infoNeigh = !occup << 17;
+    if (occup) { // occupancyLeft is empty,  1 in occup & 7
+      infoNeigh |= (!!occup + !!(occup >> 1) + !!(occup >> 2)) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 2) << 14; // Back
+    }
+    else { // occupancyLeft is not empty!!!: otherwise 7 bit empty end b7 is 1
+      infoNeigh |=
+        (!!(occupancyLeft >> 1)
+        + !!(occupancyLeft >> 2)
+        + !!(occupancyLeft >> 3)) << 15;
+      infoNeigh |= !(octreeNeighours.N3 & 1) << 14; // Right
+    }
+    infoNeigh |= !(octreeNeighours.N3 & 4) << 13; // Top
+    infoNeigh |= getBit(N20, 11, 16, 18, 19) << 9;
+
+    if (octreeNeighours.occOrLFBfb & 128) {
+      infoNeigh |= 1 << 8;
+      infoNeigh |= !(octreeNeighours.occLeft & 128) << 7;
+      infoNeigh |= !(octreeNeighours.occFront & 128) << 6;
+      infoNeigh |= !(octreeNeighours.occBottom & 128) << 5;
+    }
+    else {
+      infoNeigh |= (octreeNeighours.occLeft & 0b01100000) << 1;
+      infoNeigh |=
+        (octreeNeighours.occF & 0b0011
+        || octreeNeighours.occB & 0b0110) << 5;  // LB FB LF
+    }
+    infoNeigh |= !octreeNeighours.occB << 4;
+    infoNeigh |= !octreeNeighours.occF << 3;
+
+    infoNeigh |= getBit(N20, 7, 17, 10);
+
+    Sparse = true;
+    ctx1 = infoNeigh >> 12;
+    ctx2 = infoNeigh & 0x0FFF;
+  }
 }
 
 //============================================================================

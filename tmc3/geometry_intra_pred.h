@@ -43,13 +43,7 @@
 namespace pcc {
 
 //============================================================================
-void construct26NeighbourWord(
 
-  const MortonMap3D& occupancyAtlas,
-  Vec3<int32_t> pos,
-  const int atlasShift,
-  int Word4[8]
-);
 
 //============================================================================
 

@@ -130,22 +130,22 @@ public:
     OctreeNodePlanar& planarRef);
 
   void encodeOccupancyFullNeihbourgsNZ(
-    int neighPattern,
+    const GeometryNeighPattern& gnp,
     int occupancy,
-    int Word4[8],
-    int Word7Adj[8],
-    bool Sparse[8],
     int planarMaskX,
     int planarMaskY,
     int planarMaskZ,
     bool planarPossibleX,
     bool planarPossibleY,
     bool planarPossibleZ,
+    const MortonMap3D& occupancyAtlas,
+    Vec3<int32_t> &pos,
+    const int atlasShift,
     int predOcc,
     bool flagNoSingle);
 
   void encodeOccupancyFullNeihbourgs(
-    int neighPattern,
+    const GeometryNeighPattern& gnp,
     int occupancy,
     int planarMaskX,
     int planarMaskY,
@@ -285,22 +285,24 @@ void
 GeometryOctreeEncoder::resetMap()
 {
   for (int i = 0; i < 4; i++) {
-    _MapOccupancy[i][0].reset(6 + 3, 12 - 3);
-    _MapOccupancy[i][1].reset(6 + 3, 12 - 3);
-    _MapOccupancy[i][2].reset(6 + 3, 12 - 3);
-    _MapOccupancy[i][3].reset(6 + 3, 10 - 3);
-    _MapOccupancy[i][4].reset(6 + 3, 12 - 3);
-    _MapOccupancy[i][5].reset(6 + 3, 11 - 3);
-    _MapOccupancy[i][6].reset(6 + 3, 11 - 3);
-    _MapOccupancy[i][7].reset(6 + 3, 10 - 3);
+    const int n2 = 6;
+    _MapOccupancy[i][0].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][1].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][2].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][3].reset(4 + n2 + 1, 18 - 6 - n2); //16
+    _MapOccupancy[i][4].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][5].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][6].reset(6 + n2 + 1, 18 - 6 - n2); //18
+    _MapOccupancy[i][7].reset(4 + n2 + 1, 18 - 6 - n2); //16
 
-    _MapOccupancySparse[i][0].reset(6 + 5, 9 - 5);
-    _MapOccupancySparse[i][1].reset(6 + 5, 7 - 5);
-    _MapOccupancySparse[i][2].reset(6 + 5, 8 - 5);
-    _MapOccupancySparse[i][3].reset(6 + 5, 11 - 5);
-    _MapOccupancySparse[i][4].reset(6 + 5, 10 - 5);
-    _MapOccupancySparse[i][5].reset(6 + 5, 11 - 5);
-    _MapOccupancySparse[i][6].reset(6 + 5, 12 - 5);
+    _MapOccupancySparse[i][0].reset(6 + 5 + 1, 9 - 5);
+    _MapOccupancySparse[i][1].reset(6 + 5 + 1, 12 - 5);
+    _MapOccupancySparse[i][2].reset(6 + 5 + 1, 12 - 5);
+    _MapOccupancySparse[i][3].reset(6 + 5 + 1, 11 - 5);
+    _MapOccupancySparse[i][4].reset(6 + 5 + 1, 9 - 5);
+    _MapOccupancySparse[i][5].reset(6 + 5 + 1, 12 - 5);
+    _MapOccupancySparse[i][6].reset(6 + 5 + 1, 12 - 5);
+    _MapOccupancySparse[i][7].reset(6 + 5 + 1, 11 - 5);
   }
 }
 
@@ -719,36 +721,44 @@ GeometryOctreeEncoder::determinePlanarMode(
 // encode node occupancy bits
 //
 
+static void (*pointer2FunctionContext[8])(
+  OctreeNeighours&, int, int&, int&, bool&) = {
+  makeGeometryAdvancedNeighPattern0,
+  makeGeometryAdvancedNeighPattern1,
+  makeGeometryAdvancedNeighPattern2,
+  makeGeometryAdvancedNeighPattern3,
+  makeGeometryAdvancedNeighPattern4,
+  makeGeometryAdvancedNeighPattern5,
+  makeGeometryAdvancedNeighPattern6,
+  makeGeometryAdvancedNeighPattern7};
+
+static const int LUTinitCoded0[27][6] = {
+  {0, 0, 0, 0, 0, 0}, {4, 0, 2, 2, 2, 2}, {0, 4, 2, 2, 2, 2},
+  {2, 2, 4, 0, 2, 2}, {4, 2, 4, 2, 3, 3}, {2, 4, 4, 2, 3, 3},
+  {2, 2, 0, 4, 2, 2}, {4, 2, 2, 4, 3, 3}, {2, 4, 2, 4, 3, 3},
+  {2, 2, 2, 2, 4, 0}, {4, 2, 3, 3, 4, 2}, {2, 4, 3, 3, 4, 2},
+  {3, 3, 4, 2, 4, 2}, {4, 3, 4, 3, 4, 3}, {3, 4, 4, 3, 4, 3},
+  {3, 3, 2, 4, 4, 2}, {4, 3, 3, 4, 4, 3}, {3, 4, 3, 4, 4, 3},
+  {2, 2, 2, 2, 0, 4}, {4, 2, 3, 3, 2, 4}, {2, 4, 3, 3, 2, 4},
+  {3, 3, 4, 2, 2, 4}, {4, 3, 4, 3, 3, 4}, {3, 4, 4, 3, 3, 4},
+  {3, 3, 2, 4, 2, 4}, {4, 3, 3, 4, 3, 4}, {3, 4, 3, 4, 3, 4}};
+
 void
 GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
-  int neighPattern,
+  const GeometryNeighPattern& gnp,
   int occupancy,
-  int Word4[8],
-  int Word7Adj[8],
-  bool Sparse[8],
   int planarMaskX,
   int planarMaskY,
   int planarMaskZ,
   bool planarPossibleX,
   bool planarPossibleY,
   bool planarPossibleZ,
+  const MortonMap3D& occupancyAtlas,
+  Vec3<int32_t> &pos,
+  const int atlasShift,
   int predOcc,
   bool flagNoSingle)
 {
-  static const int LUTinitCoded0[27][6] = {
-    {0, 0, 0, 0, 0, 0}, {4, 0, 2, 2, 2, 2}, {0, 4, 2, 2, 2, 2},
-    {2, 2, 4, 0, 2, 2}, {4, 2, 4, 2, 3, 3}, {2, 4, 4, 2, 3, 3},
-    {2, 2, 0, 4, 2, 2}, {4, 2, 2, 4, 3, 3}, {2, 4, 2, 4, 3, 3},
-    {2, 2, 2, 2, 4, 0}, {4, 2, 3, 3, 4, 2}, {2, 4, 3, 3, 4, 2},
-    {3, 3, 4, 2, 4, 2}, {4, 3, 4, 3, 4, 3}, {3, 4, 4, 3, 4, 3},
-    {3, 3, 2, 4, 4, 2}, {4, 3, 3, 4, 4, 3}, {3, 4, 3, 4, 4, 3},
-    {2, 2, 2, 2, 0, 4}, {4, 2, 3, 3, 2, 4}, {2, 4, 3, 3, 2, 4},
-    {3, 3, 4, 2, 2, 4}, {4, 3, 4, 3, 3, 4}, {3, 4, 4, 3, 3, 4},
-    {3, 3, 2, 4, 2, 4}, {4, 3, 3, 4, 3, 4}, {3, 4, 3, 4, 3, 4}};
-  static const int LUTw[16] = {7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 6};
-  static const int LUTmask[16] = {2, 1, 8, 4, 2, 1, 2, 1,
-                                  4, 2, 2, 1, 1, 4, 1, 1};
-
   bool sure_planarityX = planarMaskX || !planarPossibleX;
   bool sure_planarityY = planarMaskY || !planarPossibleY;
   bool sure_planarityZ = planarMaskZ || !planarPossibleZ;
@@ -757,69 +767,69 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
   const int maxPerPlaneZ = planarMaskZ && flagNoSingle ? 2 : 3;
   const int maxAll = flagNoSingle ? 6 : 7;
 
-  int MaskConfig = !planarMaskX ? 0 : planarMaskX == 15 ? 1 : 2;
-  MaskConfig += !planarMaskY ? 0 : planarMaskY == 51 ? 3 : 6;
-  MaskConfig += !planarMaskZ ? 0 : planarMaskZ == 85 ? 9 : 18;
+  //int  MaskConfig = !planarMaskX ? 0 : planarMaskX == 15 ? 1 : 2;
+  //MaskConfig += !planarMaskY ? 0 : planarMaskY == 51 ? 3 : 6;
+  //MaskConfig += !planarMaskZ ? 0 : planarMaskZ == 85 ? 9 : 18;
+  int MaskConfig = (!!planarMaskX) * (1 + (planarMaskX != 0x0F));
+  MaskConfig += (!!planarMaskY) * 3 * (1+ ( planarMaskY != 0x33));
+  MaskConfig += (!!planarMaskZ) * 9 * (1+ ( planarMaskZ != 0x55));
 
-  const int* vinit = LUTinitCoded0[MaskConfig];
-  int coded0[6] = {vinit[0], vinit[1], vinit[2],
-                   vinit[3], vinit[4], vinit[5]};  // mask x0 x1 y0 y1 z0 z1
+  int coded0[6] = {0, 0, 0, 0, 0, 0};  // mask x0 x1 y0 y1 z0 z1
+  if (MaskConfig) {
+    memcpy(coded0, LUTinitCoded0[MaskConfig], 6 * sizeof(int));
+  }
+
+  OctreeNeighours octreeNeighours;
+  prepareGeometryAdvancedNeighPattern(
+    octreeNeighours, gnp, pos, atlasShift, occupancyAtlas);
 
   // loop on occupancy bits from occupancy map
   uint32_t partialOccupancy = 0;
   int maskedOccupancy = planarMaskX | planarMaskY | planarMaskZ;
   for (int i = 0; i < 8; i++) {
-    if (
-      (maskedOccupancy >> i)
-      & 1) {  // bit is 0 because masked by QTBT or planar
+    if ((maskedOccupancy >> i) & 1) {
+      // bit is 0 because masked by QTBT or planar
       partialOccupancy <<= 1;
       continue;
     }
 
     int mask0X = (0xf0 >> i) & 1;
-    bool bitIsOneX = (sure_planarityX && coded0[mask0X] >= maxPerPlaneX)
-      || (coded0[0] + coded0[1] >= maxAll);
-
     int mask0Y = 2 + ((0xcc >> i) & 1);
-    bool bitIsOneY = (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY)
-      || (coded0[2] + coded0[3] >= maxAll);
-
     int mask0Z = 4 + ((0xaa >> i) & 1);
-    bool bitIsOneZ = (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ)
+
+    bool bitIsOne =
+      (sure_planarityX && coded0[mask0X] >= maxPerPlaneX)
+      || (coded0[0] + coded0[1] >= maxAll)
+      || (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY)
+      || (coded0[2] + coded0[3] >= maxAll)
+      || (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ)
       || (coded0[4] + coded0[5] >= maxAll);
 
-    if (bitIsOneX || bitIsOneY || bitIsOneZ) {  // bit is 1
+    if (bitIsOne) {  // bit is 1
       partialOccupancy <<= 1;
       partialOccupancy |= 1;
       continue;
     }
 
-    // OBUF contexts
-    int comp = i << 1;
-    int ctxComp = !(Word4[LUTw[comp]] & LUTmask[comp++]) << 1;
-    ctxComp |= !(Word4[LUTw[comp]] & LUTmask[comp++]);
-    int ctx2 = (Word4[i] << 2) | ctxComp;
-
-    // encode
-    int bit = (occupancy >> i) & 1;
-
     int bitPred = (predOcc >> i) & 1;
     int interCtx = bitPred;
 
-    if (Sparse[i]) {
-      ctx2 |= (Word7Adj[i] & 31) << 6;
-      int ctx1 = ((Word7Adj[i] >> 5) << i) | partialOccupancy;
-      _arithmeticEncoder->encode(
-        bit,
-        _CtxMapDynamicOBUF[_MapOccupancySparse[interCtx][i].getEvolve(
-          bit, ctx2, ctx1)]);
-    } else {
-      ctx2 |= (Word7Adj[i] & 7) << 6;
-      int ctx1 = ((Word7Adj[i] >> 3) << i) | partialOccupancy;
-      _arithmeticEncoder->encode(
-        bit,
-        _CtxMapDynamicOBUF[_MapOccupancy[interCtx][i].getEvolve(
-          bit, ctx2, ctx1)]);
+    // OBUF contexts
+    int ctx1, ctx2;
+    bool Sparse;
+    (*pointer2FunctionContext[i])(
+      octreeNeighours, occupancy,  ctx1, ctx2, Sparse);
+
+    // encode
+    int bit = (occupancy >> i) & 1;
+    if (Sparse) {
+      auto obufIdx =
+        _MapOccupancySparse[interCtx][i].getEvolve(bit, ctx2, ctx1);
+      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[obufIdx]);
+    }
+    else {
+      auto obufIdx = _MapOccupancy[interCtx][i].getEvolve(bit, ctx2, ctx1);
+      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[obufIdx]);
     }
 
     // update partial occupancy of current node
@@ -836,7 +846,7 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
 //
 void
 GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
-  int neighPattern,
+  const GeometryNeighPattern& gnp,
   int occupancy,
   int planarMaskX,
   int planarMaskY,
@@ -857,7 +867,7 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
   bool flagNoSingle = false;
 
   if (
-    neighPattern == 0
+    gnp.neighPattern == 0
     && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ))) {
     bool singleChild = !popcntGt1(occupancy);
     if (planarPossibleX && planarPossibleY && planarPossibleZ) {
@@ -888,20 +898,10 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
     if (planarMaskX && planarMaskZ)
       return;
   }
-  //------ NZ occupancy encoding from here ----------------
-  int Word4[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  int Word7Adj[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  bool Sparse[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  if (flagWord4) {
-    construct26NeighbourWord(occupancyAtlas, pos, atlasShift, Word4);
-    if (adjacent_child_contextualization_enabled_flag)
-      makeGeometryAdvancedNeighPattern(
-        neighPattern, pos, atlasShift, occupancyAtlas, Word7Adj, Sparse);
-  }
   encodeOccupancyFullNeihbourgsNZ(
-    neighPattern, occupancy, Word4, Word7Adj, Sparse, planarMaskX, planarMaskY,
-    planarMaskZ, planarPossibleX, planarPossibleY, planarPossibleZ, predOcc,
-    flagNoSingle);
+    gnp, occupancy, planarMaskX, planarMaskY, planarMaskZ,
+    planarPossibleX, planarPossibleY, planarPossibleZ,
+    occupancyAtlas, pos, atlasShift, predOcc, flagNoSingle);
 }
 
 //-------------------------------------------------------------------------
@@ -2224,7 +2224,7 @@ encodeGeometryOctree(
         maskPlanar(planar, planarMask, codedAxesCurNode);
         bool flagWord4 = gps.neighbour_avail_boundary_log2_minus1 > 0;
         encoder.encodeOccupancyFullNeihbourgs(
-          gnp.neighPattern, occupancy, planarMask[0], planarMask[1],
+          gnp, occupancy, planarMask[0], planarMask[1],
           planarMask[2], planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4, occupancyAtlas, node0.pos,
           codedAxesPrevLvl, flagWord4,
