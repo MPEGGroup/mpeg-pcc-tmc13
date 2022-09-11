@@ -20,6 +20,10 @@ categories:
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6
      - positionQuantizationScale: 1
+     - randomAccessPeriod: 32
+     - interPredictionEnabled: 1
+     - globalMotionEnabled: 1
+     - motionVectorPath: '${global_motion_file}'
      -
        - !conditional '${numLasers}'
        - angularEnabled: 1
@@ -109,9 +113,6 @@ categories:
 
     sequences:
       # cat3
-      citytunnel_q1mm:
-      tollbooth_q1mm:
-      overpass_q1mm:
       ford_01_q1mm:
       ford_02_q1mm:
       ford_03_q1mm:
@@ -119,51 +120,3 @@ categories:
       qnxadas-junction-exit:
       qnxadas-motorway-join:
       qnxadas-navigating-bends:
-
-      # cat1
-      arco_valentino_dense_vox12:
-      arco_valentino_dense_vox20:
-      basketball_player_vox11_00000200:
-      boxer_viewdep_vox12:
-      dancer_vox11_00000001:
-      egyptian_mask_vox12:
-      egyptian_mask_vox20:
-      facade_00009_vox12:
-      facade_00009_vox20:
-      facade_00015_vox14:
-      facade_00015_vox20:
-      facade_00064_vox11:
-      facade_00064_vox14:
-      facade_00064_vox20:
-      frog_00067_vox12:
-      frog_00067_vox20:
-      head_00039_vox12:
-      head_00039_vox20:
-      house_without_roof_00057_vox12:
-      house_without_roof_00057_vox20:
-      landscape_00014_vox14:
-      landscape_00014_vox20:
-      longdress_viewdep_vox12:
-      longdress_vox10_1300:
-      loot_viewdep_vox12:
-      loot_vox10_1200:
-      palazzo_carignano_dense_vox14:
-      palazzo_carignano_dense_vox20:
-      queen_0200:
-      redandblack_viewdep_vox12:
-      redandblack_vox10_1550:
-      shiva_00035_vox12:
-      shiva_00035_vox20:
-      soldier_viewdep_vox12:
-      soldier_vox10_0690:
-      stanford_area_2_vox16:
-      stanford_area_2_vox20:
-      stanford_area_4_vox16:
-      stanford_area_4_vox20:
-      staue_klimt_vox12:
-      staue_klimt_vox20:
-      thaidancer_viewdep_vox12:
-      ulb_unicorn_hires_vox15:
-      ulb_unicorn_hires_vox20:
-      ulb_unicorn_vox13:
-      ulb_unicorn_vox20:
