@@ -43,6 +43,12 @@ categories:
      - maxNumQtBtBeforeOt: 4
      - minQtbtSizeLog2: 0
      - planarEnabled: 1
+     -
+       - !conditional '"${group}" eq "solid"'
+       - planarEnabled: '${enablePlanar}'
+     -
+       - !conditional '"${group}" eq "dense"'
+       - planarEnabled: '${enablePlanar}'
      - planarModeIdcmUse: 0
      -
        - !conditional '"${group}" eq "cat3-frame"'
@@ -136,50 +142,57 @@ categories:
       qnxadas-motorway-join:
       qnxadas-navigating-bends:
 
-      # cat1
-      arco_valentino_dense_vox12:
-      arco_valentino_dense_vox20:
-      basketball_player_vox11_00000200:
-      boxer_viewdep_vox12:
-      dancer_vox11_00000001:
-      egyptian_mask_vox12:
-      egyptian_mask_vox20:
-      facade_00009_vox12:
-      facade_00009_vox20:
-      facade_00015_vox14:
-      facade_00015_vox20:
-      facade_00064_vox11:
-      facade_00064_vox14:
-      facade_00064_vox20:
-      frog_00067_vox12:
-      frog_00067_vox20:
-      head_00039_vox12:
-      head_00039_vox20:
-      house_without_roof_00057_vox12:
-      house_without_roof_00057_vox20:
-      landscape_00014_vox14:
-      landscape_00014_vox20:
-      longdress_viewdep_vox12:
-      longdress_vox10_1300:
-      loot_viewdep_vox12:
-      loot_vox10_1200:
-      palazzo_carignano_dense_vox14:
-      palazzo_carignano_dense_vox20:
-      queen_0200:
-      redandblack_viewdep_vox12:
-      redandblack_vox10_1550:
-      shiva_00035_vox12:
-      shiva_00035_vox20:
-      soldier_viewdep_vox12:
-      soldier_vox10_0690:
-      stanford_area_2_vox16:
-      stanford_area_2_vox20:
-      stanford_area_4_vox16:
-      stanford_area_4_vox20:
-      staue_klimt_vox12:
-      staue_klimt_vox20:
-      thaidancer_viewdep_vox12:
-      ulb_unicorn_hires_vox15:
-      ulb_unicorn_hires_vox20:
-      ulb_unicorn_vox13:
-      ulb_unicorn_vox20:
+      # cat1-solid
+      basketball_player_vox11_00000200:  { enablePlanar: 0 }
+      dancer_vox11_00000001:             { enablePlanar: 0 }
+      facade_00064_vox11:                { enablePlanar: 0 }
+      longdress_vox10_1300:              { enablePlanar: 0 }
+      loot_vox10_1200:                   { enablePlanar: 0 }
+      queen_0200:                        { enablePlanar: 0 }
+      redandblack_vox10_1550:            { enablePlanar: 0 }
+      soldier_vox10_0690:                { enablePlanar: 0 }
+      thaidancer_viewdep_vox12:          { enablePlanar: 0 }
+
+
+      # cat1-dense
+      boxer_viewdep_vox12:               { enablePlanar: 0 }
+      facade_00009_vox12:                { enablePlanar: 1 }
+      facade_00015_vox14:                { enablePlanar: 1 }
+      facade_00064_vox14:                { enablePlanar: 1 }
+      frog_00067_vox12:                  { enablePlanar: 1 }
+      head_00039_vox12:                  { enablePlanar: 0 }
+      house_without_roof_00057_vox12:    { enablePlanar: 1 }
+      landscape_00014_vox14:             { enablePlanar: 0 }
+      longdress_viewdep_vox12:           { enablePlanar: 0 }
+      loot_viewdep_vox12:                { enablePlanar: 0 }
+      redandblack_viewdep_vox12:         { enablePlanar: 0 }
+      soldier_viewdep_vox12:             { enablePlanar: 0 }
+
+      # cat1-sparse
+      arco_valentino_dense_vox12:        { enablePlanar: 1 }
+      egyptian_mask_vox12:               { enablePlanar: 1 }
+      palazzo_carignano_dense_vox14:     { enablePlanar: 1 }
+      shiva_00035_vox12:                 { enablePlanar: 1 }
+      stanford_area_2_vox16:             { enablePlanar: 1 }
+      stanford_area_4_vox16:             { enablePlanar: 1 }
+      staue_klimt_vox12:                 { enablePlanar: 1 }
+      ulb_unicorn_hires_vox15:           { enablePlanar: 1 }
+      ulb_unicorn_vox13:                 { enablePlanar: 1 }
+
+      # cat1-scant
+      arco_valentino_dense_vox20:        { enablePlanar: 1 }
+      egyptian_mask_vox20:               { enablePlanar: 1 }
+      facade_00009_vox20:                { enablePlanar: 1 }
+      facade_00015_vox20:                { enablePlanar: 1 }
+      facade_00064_vox20:                { enablePlanar: 1 }
+      frog_00067_vox20:                  { enablePlanar: 1 }
+      head_00039_vox20:                  { enablePlanar: 1 }
+      house_without_roof_00057_vox20:    { enablePlanar: 1 }
+      landscape_00014_vox20:             { enablePlanar: 1 }
+      palazzo_carignano_dense_vox20:     { enablePlanar: 1 }
+      shiva_00035_vox20:                 { enablePlanar: 1 }
+      stanford_area_2_vox20:             { enablePlanar: 1 }
+      stanford_area_4_vox20:             { enablePlanar: 1 }
+      staue_klimt_vox20:                 { enablePlanar: 1 }
+      ulb_unicorn_hires_vox20:           { enablePlanar: 1 }
+      ulb_unicorn_vox20:                 { enablePlanar: 1 }
