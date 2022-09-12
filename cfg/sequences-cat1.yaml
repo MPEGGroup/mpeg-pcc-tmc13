@@ -3,7 +3,7 @@
 sequences:
   arco_valentino_dense_vox12:
     src: Arco_Valentino_Dense_vox12.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 12
     has_colour: 1
     bitdepth_colour: 8
@@ -12,7 +12,7 @@ sequences:
 
   arco_valentino_dense_vox20:
     src: Arco_Valentino_Dense_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -22,7 +22,7 @@ sequences:
   basketball_player_vox11_00000200:
     src: basketball_player_vox11_00000200.ply
     norm: basketball_player_vox11_00000200.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 11
     seq_lod:  11
     has_colour: 1
@@ -33,7 +33,7 @@ sequences:
   boxer_viewdep_vox12:
     src: boxer_viewdep_vox12.ply
     norm: boxer_viewdep_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -44,7 +44,7 @@ sequences:
   dancer_vox11_00000001:
     src: dancer_vox11_00000001.ply
     norm: dancer_vox11_00000001.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 11
     seq_lod:  11
     has_colour: 1
@@ -54,7 +54,7 @@ sequences:
 
   egyptian_mask_vox12:
     src: Egyptian_mask_vox12.ply
-    group: cat1-A
+    group: sparse
     src-geometry-precision: 12
     seq_lod:  11
     has_colour: 1
@@ -64,7 +64,7 @@ sequences:
 
   egyptian_mask_vox20:
     src: Egyptian_mask_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -73,7 +73,7 @@ sequences:
 
   facade_00009_vox12:
     src: Facade_00009_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -83,7 +83,7 @@ sequences:
 
   facade_00009_vox20:
     src: Facade_00009_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -92,7 +92,7 @@ sequences:
 
   facade_00015_vox14:
     src: Facade_00015_vox14.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 14
     seq_lod:  14
     has_colour: 1
@@ -102,7 +102,7 @@ sequences:
 
   facade_00015_vox20:
     src: Facade_00015_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -111,7 +111,7 @@ sequences:
 
   facade_00064_vox11:
     src: Facade_00064_vox11.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 11
     seq_lod:  13
     has_colour: 1
@@ -121,7 +121,7 @@ sequences:
 
   facade_00064_vox14:
     src: Facade_00064_vox14.ply
-    group: cat1-B
+    group: dense
     src-geometry-precision: 14
     has_colour: 1
     bitdepth_colour: 8
@@ -130,7 +130,7 @@ sequences:
 
   facade_00064_vox20:
     src: Facade_00064_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -139,7 +139,7 @@ sequences:
 
   frog_00067_vox12:
     src: Frog_00067_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  13
     has_colour: 1
@@ -149,7 +149,7 @@ sequences:
 
   frog_00067_vox20:
     src: Frog_00067_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -158,7 +158,7 @@ sequences:
 
   head_00039_vox12:
     src: Head_00039_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  13
     has_colour: 1
@@ -168,7 +168,7 @@ sequences:
 
   head_00039_vox20:
     src: Head_00039_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -177,7 +177,7 @@ sequences:
 
   house_without_roof_00057_vox12:
     src: House_without_roof_00057_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  13
     has_colour: 1
@@ -187,7 +187,7 @@ sequences:
 
   house_without_roof_00057_vox20:
     src: House_without_roof_00057_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -196,7 +196,7 @@ sequences:
 
   landscape_00014_vox14:
     src: Landscape_00014_vox14.ply
-    group: cat1-B
+    group: dense
     src-geometry-precision: 14
     has_colour: 1
     bitdepth_colour: 8
@@ -205,7 +205,7 @@ sequences:
 
   landscape_00014_vox20:
     src: Landscape_00014_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -215,7 +215,7 @@ sequences:
   longdress_viewdep_vox12:
     src: longdress_viewdep_vox12.ply
     norm: longdress_viewdep_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -226,7 +226,7 @@ sequences:
   longdress_vox10_1300:
     src: longdress_vox10_1300.ply
     norm: longdress_vox10_1300_n.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 10
     seq_lod:  12
     has_colour: 1
@@ -237,7 +237,7 @@ sequences:
   loot_viewdep_vox12:
     src: loot_viewdep_vox12.ply
     norm: loot_viewdep_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -248,7 +248,7 @@ sequences:
   loot_vox10_1200:
     src: loot_vox10_1200.ply
     norm: loot_vox10_1200_n.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 10
     seq_lod:  12
     has_colour: 1
@@ -258,7 +258,7 @@ sequences:
 
   palazzo_carignano_dense_vox14:
     src: Palazzo_Carignano_Dense_vox14.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 14
     has_colour: 1
     bitdepth_colour: 8
@@ -267,7 +267,7 @@ sequences:
 
   palazzo_carignano_dense_vox20:
     src: Palazzo_Carignano_Dense_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -277,7 +277,7 @@ sequences:
   queen_0200:
     src: queen_0200.ply
     norm: queen_frame_0200_n.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 10
     seq_lod:  12
     has_colour: 1
@@ -288,7 +288,7 @@ sequences:
   redandblack_viewdep_vox12:
     src: redandblack_viewdep_vox12.ply
     norm: redandblack_viewdep_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -299,7 +299,7 @@ sequences:
   redandblack_vox10_1550:
     src: redandblack_vox10_1550.ply
     norm: redandblack_vox10_1550_n.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 10
     seq_lod:  12
     has_colour: 1
@@ -309,7 +309,7 @@ sequences:
 
   shiva_00035_vox12:
     src: Shiva_00035_vox12.ply
-    group: cat1-A
+    group: sparse
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -319,7 +319,7 @@ sequences:
 
   shiva_00035_vox20:
     src: Shiva_00035_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -329,7 +329,7 @@ sequences:
   soldier_viewdep_vox12:
     src: soldier_viewdep_vox12.ply
     norm: soldier_viewdep_vox12.ply
-    group: cat1-A
+    group: dense
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -340,7 +340,7 @@ sequences:
   soldier_vox10_0690:
     src: soldier_vox10_0690.ply
     norm: soldier_vox10_0690_n.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 10
     seq_lod:  12
     has_colour: 1
@@ -350,7 +350,7 @@ sequences:
 
   stanford_area_2_vox16:
     src: Stanford_Area_2_vox16.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 16
     has_colour: 1
     bitdepth_colour: 8
@@ -359,7 +359,7 @@ sequences:
 
   stanford_area_2_vox20:
     src: Stanford_Area_2_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -368,7 +368,7 @@ sequences:
 
   stanford_area_4_vox16:
     src: Stanford_Area_4_vox16.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 16
     has_colour: 1
     bitdepth_colour: 8
@@ -377,7 +377,7 @@ sequences:
 
   stanford_area_4_vox20:
     src: Stanford_Area_4_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -386,7 +386,7 @@ sequences:
 
   staue_klimt_vox12:
     src: Staue_Klimt_vox12.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 12
     has_colour: 1
     bitdepth_colour: 8
@@ -395,7 +395,7 @@ sequences:
 
   staue_klimt_vox20:
     src: Staue_Klimt_vox20.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -405,7 +405,7 @@ sequences:
   thaidancer_viewdep_vox12:
     src: Thaidancer_viewdep_vox12.ply
     norm: Thaidancer_viewdep_vox12.ply
-    group: cat1-A
+    group: solid
     src-geometry-precision: 12
     seq_lod:  12
     has_colour: 1
@@ -415,7 +415,7 @@ sequences:
 
   ulb_unicorn_hires_vox15:
     src: ULB_Unicorn_HiRes_vox15_n.ply
-    group: cat1-B
+    group: sparse
     src-geometry-precision: 15
     has_colour: 1
     bitdepth_colour: 8
@@ -424,7 +424,7 @@ sequences:
 
   ulb_unicorn_hires_vox20:
     src: ULB_Unicorn_HiRes_vox20_n.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
@@ -433,7 +433,7 @@ sequences:
 
   ulb_unicorn_vox13:
     src: ULB_Unicorn_vox13_n.ply
-    group: cat1-A
+    group: sparse
     src-geometry-precision: 13
     seq_lod:  12
     has_colour: 1
@@ -443,7 +443,7 @@ sequences:
 
   ulb_unicorn_vox20:
     src: ULB_Unicorn_vox20_n.ply
-    group: cat1-B
+    group: scant
     src-geometry-precision: 20
     has_colour: 1
     bitdepth_colour: 8
