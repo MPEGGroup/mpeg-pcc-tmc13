@@ -214,4 +214,3 @@ categories:
       staue_klimt_vox20:                 { enablePlanar: 1 }
       ulb_unicorn_hires_vox20:           { enablePlanar: 1 }
       ulb_unicorn_vox20:                 { enablePlanar: 1 }
->>>>>>> f1ec220e (Disable planar mode for some Cat1 sequences)
