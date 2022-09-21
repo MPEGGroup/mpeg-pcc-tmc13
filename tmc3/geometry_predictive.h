@@ -293,7 +293,7 @@ public:
       int64_t z = divExp2RoundHalfInf(
         tanThetaLaser[idx] * r0 << 2, log2ScaleTheta - log2ScaleZ);
       int64_t z1 = divExp2RoundHalfInf(z - zLaser[idx], log2ScaleZ);
-      int32_t err = abs(z1 - xyz[2]);
+      int32_t err = std::abs(z1 - xyz[2]);
       if (err < minError) {
         thetaIdx = idx;
         minError = err;
@@ -359,7 +359,7 @@ public:
       int64_t z = divExp2RoundHalfInf(
         tanThetaLaser[idx] * r0 << 2, log2ScaleTheta - log2ScaleZ);
       int64_t z1 = divExp2RoundHalfInf(z - zLaser[idx], log2ScaleZ);
-      int32_t err = abs(z1 - xyz[2]);
+      int32_t err = std::abs(z1 - xyz[2]);
       if (err < minError) {
         thetaIdx = idx;
         minError = err;
@@ -540,7 +540,7 @@ public:
             const bool sign =
               ((nr > 0 && dr > 0) || (nr < 0 && dr < 0)) ? 0 : 1;
             pt[0] =
-              ptA[0] + (1 - 2 * sign) * (abs(nr) + (abs(dr) >> 1)) / abs(dr);
+              ptA[0] + (1 - 2 * sign) * (std::abs(nr) + (std::abs(dr) >> 1)) / std::abs(dr);
           }
         }
       }

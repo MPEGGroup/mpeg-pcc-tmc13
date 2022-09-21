@@ -997,12 +997,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     
     double Rx,Ry,Rz,Sx,Sy,Sz;
 
-    Rx = abs((gbh.gm_matrix[5] / scale) / (1. + gbh.gm_matrix[8] / scale));
-    Ry = abs(gbh.gm_matrix[2] / scale);
-    Rz = abs((gbh.gm_matrix[1] / scale) / (1. + gbh.gm_matrix[0] / scale));
-    Sx = abs(gbh.gm_trans[0]);
-    Sy = abs(gbh.gm_trans[1]);
-    Sz = abs(gbh.gm_trans[2]);
+    Rx = std::abs((gbh.gm_matrix[5] / scale) / (1. + gbh.gm_matrix[8] / scale));
+    Ry = std::abs(gbh.gm_matrix[2] / scale);
+    Rz = std::abs((gbh.gm_matrix[1] / scale) / (1. + gbh.gm_matrix[0] / scale));
+    Sx = std::abs(gbh.gm_trans[0]);
+    Sy = std::abs(gbh.gm_trans[1]);
+    Sz = std::abs(gbh.gm_trans[2]);
 
     movingState =(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
   }
