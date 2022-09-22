@@ -466,15 +466,18 @@ IDCM is disabled.  Set to 32, IDCM is unconstrained.
 
 ### `--planarModeThreshold0=0--127`
 Controls the eligibility threshold of the first planar mode based upon
-local child node density.
+local child node density when the eligibility is not determined based 
+on octree depth.
 
 ### `--planarModeThreshold1=0--127`
 Controls the eligibility threshold of the second planar mode based upon
-local child node density.
+local child node density when the eligibility is not determined based 
+on octree depth.
 
 ### `--planarModeThreshold2=0--127`
 Controls the eligibility threshold of the third planar mode based upon
-local child node density.
+local child node density when the eligibility is not determined based 
+on octree depth.
 
 ### `--angularEnabled=0|1`
 Controls the use of the angular coding mode in geometry occupancy
@@ -554,6 +557,25 @@ The automatic mode will find the smallest sampling value that such that
 the number of generated points does not exceed the slice limit set by
 `sliceMaxPoints`.
 
+### `--trisoupQuantizationBits=INT-VALUE|INT-VALUE-LIST`
+Number of bits used for quantization of position of trisoup vertices 
+along edges. 
+
+### `--trisoupCentroidResidualEnabled=0|1`
+Controls the activation of coding residual position value for centroid 
+vertex in trisoup coding. 
+
+### `--trisoupHaloEnabled=0|1`
+Controls the activation of using halo around trisoup triangles for ray
+tracing.
+
+### `--trisoupFineRayTracingEnabled=0|1`
+Controls the activation of additional ray tracing from non-integer origin.
+
+### `--trisoupImprovedEncoderEnabled=0|1`
+(Encoder only)
+Controls the activation of improved determination of trisoup vertex position.
+
 ### `--predGeomSort=INT-VALUE`
 Point order used to construct predictive geometry trees.
 Requires `geomTreeType=1`.
@@ -605,13 +627,91 @@ Controls the use of radius dependent azimuth quantization in predictive
 geometry coding.
 Requires `angularEnabled=1` and `geomTreeType=1`.
 
-### `--secondaryResidualDisabled=1|0`
-Controls the disabling of quantized cartesian residual in lossy pred tree geometry coding.
-
 ### `--pointCountMetadata=0|1`
 Controls the addition of per octree layer point count metadata to each
 geometry slice.
 
+### `--octreeDepthPlanarEligibilityEnabled=0|1`
+Controls the determination of planar mode eligibility based on octree depth.
+
+### `--multiplePlanarEnabled=0|1`
+Controls the enabling of signalling of planar mode for multiple directions.
+
+### `--octreeAngularExtension=0|1`
+Controls the enabling of extending angular mode in octree geometry.
+
+### `--disable_planar_IDCM_angular=0|1`
+Controls the disabling of planar mode for geometry coding of IDCM coded nodes
+when angular coding is enabled.
+
+### `--interAzimScaleLog2=INT-VALUE`
+Specifies the scale factor to be applied to azimuth angle during inter 
+search in predictive geometry coding.
+
+### `--randomAccessPeriod=INT-VALUE`
+Specifies the distance (in frames) between random access points when 
+encoding a sequence.
+
+### `--interPredictionEnabled=0|1`
+Controls the enabling of inter prediction coding.
+
+### `--globalMotionEnabled=0|1`
+Controls the enabling of global motion compensation in inter prediction.
+
+### `--motionVectorPath=FILE`
+(Encoder only)
+The source containing the motion vector parameters using in global 
+motion compensation.
+
+### `--lpuType=0|1`
+Controls the reference points used in motion compensation for LPUs.
+
+  | Value | Description                                |
+  |:-----:| -------------------------------------------|
+  | 0     | Use road/object classificiation-based LPUs |
+  | 1     | Use cuboid partition-based LPUs            |
+
+
+### `--globalMotionSrcType=0|1|2`
+Controls the global motion parameters used for global motion compensation.
+
+  | Value | Description                                                  |
+  |:-----:| -------------------------------------------------------------|
+  | 0     | Use externally specified global motion parameters            |
+  | 1     | Use internally derived Global motion parameters based on LMS |
+  | 2     | Use internally derived Global motion parameters based on ICP |
+
+### `--globalMotionBlockSize=w,h,d`
+Specifies the block size used for global motion compensation.
+
+### `--globalMotionWindowSize=INT-VALUE`
+Specifies the window size used in global motion compensation
+
+### `--use_cuboidal_regions_in_GM_estimation=0|1`
+(Encoder only)
+Controls the use of cuboidal regions with square cross-section in xy-plane
+for global motion estimation using LMS.
+
+  | Value | Description        |
+  |:-----:| -------------------|
+  | 0     | Use cubic regions  |
+  | 1     | Use cuboid regions |
+
+### `--predGeomMaxPredIdxTested=0|1`
+(Encoder only)
+Specifies the maximum prediction index tested by encoder in prediction 
+list. A value lower than 0 or higher than predGeomMaxPredIdx implies 
+that the maximum prediction index is set equal to predGeomMaxPredIdx.
+The default value is set to -1.
+
+### `--predGeomRadiusPredThreshold=0|1`
+Specifies the threshold for consider new predictor in the prediction 
+list for intra prediction in predictive geometry coding. The threshold
+effectively used is predGeomRadiusPredThreshold scaled by 
+positionRadiusInvScaleLog2.
+
+### `--secondaryResidualDisabled=1|0`
+Controls the disabling of quantized cartesian residual in lossy pred tree geometry coding.
 
 Attribute coding
 ----------------
@@ -802,7 +902,8 @@ sequence.
 A list of sampling periods used to generate successive levels of detail.
 
 ### `--canonical_point_order_flag=0|1`
-Controls the order used for attribute coding.  The canonical (geometry
+Controls the order used for attribute coding when 
+max_points_per_sort_log2_plus1 is equal to 0.  The canonical (geometry
 decoding order) is usable only with LoD attribute coding and
 `levelOfDtailCount=0`.
 
@@ -856,6 +957,27 @@ Three factors used to derive quantization weights when `transformType=1`.
 The quantization weights are determined by recursively distributing each
 coefficient's weight to each of its neighbours, i, scaled by
 $\texttt{quantNeighWeight}[i] \div 256$.
+
+### `--predictionWithDistributionEnabled=0|1`
+Controls the activation of prediction within levels of detail based on 
+the distribution of predictors.
+
+### `--max_points_per_sort_log2_plus1=INT-VALUE`
+Specifies the maximum number of points per sort used in attribute coding 
+based on morton code in case the number of LoDs is equal to 1.
+
+### `--attributeInterPredictionEnabled=0|1`
+Controls the activation of inter prediction of attribute.
+
+### `--attributeInterPredSearchRange=INT-VALUE`
+Specifies the search range for nearest neighbour search in inter prediction 
+candidate for attribute coding. A value of -1 indicates that the full 
+range is used for the search.
+
+### `--QPShiftStep=INT-VALUE`
+(Encoder only)
+Specifies the QP shift step used to derive the QP shift for attribute coding 
+in inter predicted frames.
 
 Attribute recolouring (encoder only)
 ------------------------------------
