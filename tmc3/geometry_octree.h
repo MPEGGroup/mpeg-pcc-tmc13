@@ -53,8 +53,6 @@ namespace pcc {
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
-const bool disableZeroPathCodingGt1Nodes = true;
-
 //============================================================================
 
 struct PCCOctree3Node {

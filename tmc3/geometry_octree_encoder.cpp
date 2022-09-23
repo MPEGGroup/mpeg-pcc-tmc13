@@ -132,16 +132,6 @@ public:
     int contextAnglePhiY,
     OctreeNodePlanar& planarRef);
 
-  void encodeOccupancyNeighZsimple(
-    int mappedOccupancy,
-    int mappedPlanarMaskX,
-    bool planarPossibleX,
-    int mappedPlanarMaskY,
-    bool planarPossibleY,
-    int mappedPlanarMaskZ,
-    bool planarPossibleZ,
-    int preOcc);
-
   void encodeOccupancyFullNeihbourgsNZ(
     int neighPattern,
     int occupancy,
@@ -762,85 +752,6 @@ GeometryOctreeEncoder::determinePlanarMode(
 }
 
 //-------------------------------------------------------------------------
-// encode occupancy bits (neighPattern10 == 0 case)
-
-void
-GeometryOctreeEncoder::encodeOccupancyNeighZsimple(
-  int mappedOccupancy,
-  int mappedPlanarMaskX,
-  bool planarPossibleX,
-  int mappedPlanarMaskY,
-  bool planarPossibleY,
-  int mappedPlanarMaskZ,
-  bool planarPossibleZ,
-  int predOcc)
-{
-  // NB: if not predicted, miniumum num occupied is 2 due to singleChild
-  int minOccupied = predOcc ? 1 : 2;
-  int threshold = 8 - minOccupied;
-
-  int numOccupiedAcc = 0;
-
-  int maxPerPlaneX = mappedPlanarMaskX ? 2 : 3;
-  int maxPerPlaneY = mappedPlanarMaskY ? 2 : 3;
-  int maxPerPlaneZ = mappedPlanarMaskZ ? 2 : 3;
-  bool sure_planarityX = mappedPlanarMaskX || !planarPossibleX;
-  bool sure_planarityY = mappedPlanarMaskY || !planarPossibleY;
-  bool sure_planarityZ = mappedPlanarMaskZ || !planarPossibleZ;
-
-  int maskedOccupancy =
-    mappedPlanarMaskX | mappedPlanarMaskY | mappedPlanarMaskZ;
-  int MaskConfig = !mappedPlanarMaskX ? 0 : mappedPlanarMaskX == 15 ? 1 : 2;
-  MaskConfig += !mappedPlanarMaskY ? 0 : mappedPlanarMaskY == 51 ? 3 : 6;
-  MaskConfig += !mappedPlanarMaskZ ? 0 : mappedPlanarMaskZ == 85 ? 9 : 18;
-  static const int LUinit[27][6] = {
-    {0, 0, 0, 0, 0, 0}, {4, 0, 2, 2, 2, 2}, {0, 4, 2, 2, 2, 2},
-    {2, 2, 4, 0, 2, 2}, {4, 2, 4, 2, 3, 3}, {2, 4, 4, 2, 3, 3},
-    {2, 2, 0, 4, 2, 2}, {4, 2, 2, 4, 3, 3}, {2, 4, 2, 4, 3, 3},
-    {2, 2, 2, 2, 4, 0}, {4, 2, 3, 3, 4, 2}, {2, 4, 3, 3, 4, 2},
-    {3, 3, 4, 2, 4, 2}, {4, 3, 4, 3, 4, 3}, {3, 4, 4, 3, 4, 3},
-    {3, 3, 2, 4, 4, 2}, {4, 3, 3, 4, 4, 3}, {3, 4, 3, 4, 4, 3},
-    {2, 2, 2, 2, 0, 4}, {4, 2, 3, 3, 2, 4}, {2, 4, 3, 3, 2, 4},
-    {3, 3, 4, 2, 2, 4}, {4, 3, 4, 3, 3, 4}, {3, 4, 4, 3, 3, 4},
-    {3, 3, 2, 4, 2, 4}, {4, 3, 3, 4, 3, 4}, {3, 4, 3, 4, 3, 4}};
-
-  const int* vinit = LUinit[MaskConfig];
-  int coded0[6] = {vinit[0], vinit[1], vinit[2],
-                   vinit[3], vinit[4], vinit[5]};  // mask x0 x1 y0 y1 z0 z1
-
-  for (int i = 0; i < 8; i++) {
-    // masking for planar is here
-    if ((maskedOccupancy >> i) & 1)
-      continue;
-
-    //  -- avoid coding the occupancyBit if it is implied.
-    int mask0X = (0xf0 >> i) & 1;
-    bool bitIsOneX = (sure_planarityX && coded0[mask0X] >= maxPerPlaneX)
-      || (coded0[0] + coded0[1] >= threshold);
-    int mask0Y = 2 + ((0xcc >> i) & 1);
-    bool bitIsOneY = (sure_planarityY && coded0[mask0Y] >= maxPerPlaneY)
-      || (coded0[0] + coded0[1] >= threshold);
-    int mask0Z = 4 + ((0xaa >> i) & 1);
-    bool bitIsOneZ = (sure_planarityZ && coded0[mask0Z] >= maxPerPlaneZ)
-      || (coded0[0] + coded0[1] >= threshold);
-
-    int bitPred = (predOcc >> i) & 1;
-    int interCtx = bitPred;
-
-    int bit = (mappedOccupancy >> i) & 1;
-    if (!(bitIsOneX || bitIsOneY || bitIsOneZ)) {
-      _arithmeticEncoder->encode(bit, _ctxZ[i][numOccupiedAcc][interCtx]);
-
-      coded0[mask0X] += !bit;
-      coded0[mask0Y] += !bit;
-      coded0[mask0Z] += !bit;
-    }
-
-    numOccupiedAcc += bit;
-  }
-}
-
-//-------------------------------------------------------------------------
 // encode node occupancy bits
 //
 
@@ -979,16 +890,11 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
   // 3 planars => single child and we know its position
   if (planarMaskX && planarMaskY && planarMaskZ)
     return;
-  const bool zeroOccupancyCodingPath =
-    (neighPattern == 0
-     && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)));
-  const bool nonZeroOccupancyCodingPath =
-    !(neighPattern == 0
-      && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ)))
-    || disableZeroPathCodingGt1Nodes;
-  bool flagNoSingle = false; 
+  bool flagNoSingle = false;
 
-  if (zeroOccupancyCodingPath) {
+  if (
+    neighPattern == 0
+    && (!predOcc || (planarMaskX | planarMaskY | planarMaskZ))) {
     bool singleChild = !popcntGt1(occupancy);
     if (planarPossibleX && planarPossibleY && planarPossibleZ) {
       _arithmeticEncoder->encode(singleChild, _ctxSingleChild);
@@ -1008,8 +914,8 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
 
       return;
     }
-    if(disableZeroPathCodingGt1Nodes)
-      flagNoSingle = true;
+
+    flagNoSingle = true;
     // at least two child nodes occupied and two planars => we know the occupancy
     if (planarMaskX && planarMaskY)
       return;
@@ -1017,31 +923,21 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
       return;
     if (planarMaskX && planarMaskZ)
       return;
-
-    if (!disableZeroPathCodingGt1Nodes)
-      encodeOccupancyNeighZsimple(
-        occupancy, planarMaskX, planarPossibleX, planarMaskY, planarPossibleY,
-        planarMaskZ, planarPossibleZ, predOcc);
   }
   //------ NZ occupancy encoding from here ----------------
-  if (nonZeroOccupancyCodingPath) {
-    int Word4[8] = {0, 0, 0, 0,
-                    0, 0, 0, 0};  // occupancy pattern for 3 edges + 1 vertex
-    int Word7Adj[8] = {
-      0, 0, 0, 0, 0,
-      0, 0, 0};  // 7 bits: 0=FaceL 1=FaceF 2=FaceB  / 3=EdgeLF 4=EdgeLB 5=Edge FB / 6=VertexLFB
-    bool Sparse[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    if (flagWord4) {
-      construct26NeighbourWord(occupancyAtlas, pos, atlasShift, Word4);
-      if (adjacent_child_contextualization_enabled_flag)
-        makeGeometryAdvancedNeighPattern(
-          neighPattern, pos, atlasShift, occupancyAtlas, Word7Adj, Sparse);
-    }
-    encodeOccupancyFullNeihbourgsNZ(
-      neighPattern, occupancy, Word4, Word7Adj, Sparse, planarMaskX,
-      planarMaskY, planarMaskZ, planarPossibleX, planarPossibleY,
-      planarPossibleZ, predOcc, flagNoSingle);
+  int Word4[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  int Word7Adj[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  bool Sparse[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  if (flagWord4) {
+    construct26NeighbourWord(occupancyAtlas, pos, atlasShift, Word4);
+    if (adjacent_child_contextualization_enabled_flag)
+      makeGeometryAdvancedNeighPattern(
+        neighPattern, pos, atlasShift, occupancyAtlas, Word7Adj, Sparse);
   }
+  encodeOccupancyFullNeihbourgsNZ(
+    neighPattern, occupancy, Word4, Word7Adj, Sparse, planarMaskX, planarMaskY,
+    planarMaskZ, planarPossibleX, planarPossibleY, planarPossibleZ, predOcc,
+    flagNoSingle);
 }
 
 //-------------------------------------------------------------------------
