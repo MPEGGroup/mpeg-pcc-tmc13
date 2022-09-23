@@ -1472,80 +1472,73 @@ computeNearestNeighbors(
       bool replaceFlag = true;
       //indicates whether the third neighbor needs to be replaced
       if (predictor.neighborCount >= 3) {
-        int direction[6] = {-1, -1, -1, -1, -1, -1};
+        int dir[6] = {-1, -1, -1, -1, -1, -1};
 
-        const int looseDirectionTable[8][7] = {{3, 5, 6}, {2, 4, 7}, {1, 4, 7},
+        const int looseDirTable[8][3] = {{3, 5, 6}, {2, 4, 7}, {1, 4, 7},
                                          {0, 5, 6}, {1, 2, 7}, {0, 3, 6},
                                          {0, 3, 5}, {1, 2, 4}};
         // the direction coplanar with the opposite direction of 0, 1, 2, 3, 4, 5, 6, 7.
 
-        int numend1 = 0, numend2 = 0;
+        int numend1 = 0;
         for (numend1 = 3; numend1 < neighborCount1; ++numend1)
           if (
             (minDistances[numend1] << 5) >= minDistances[2] * distCoefficient)
             break;
-        for (numend2 = 3; numend2 < neighborCount1; ++numend2)
-          if (
-            (minDistances[numend2] << 5) >= minDistances[1] * distCoefficient)
-            break;
 
         //direction of neighbors
         for (int h = 0; h < numend1; ++h)
-          direction[h] = localRef[h]
+          dir[h] = localRef[h]
             ? (biasedPosRef[localIndexes[h]] - bpoint).getDir()
             : (biasedPos[localIndexes[h]] - bpoint).getDir();
 
-        if (direction[1] == 7 - direction[0])
-          replaceFlag = false;
-        if (direction[2] == 7 - direction[0])
-          replaceFlag = false;
-        if (replaceFlag)
-          for (int h = 3; h < numend1; ++h) {
-            if (direction[h] == 7 - direction[0]) {
-              replaceFlag = false;
-              localIndexes[2] = localIndexes[h];
-              localRef[2] = localRef[h];
-              break;
-            }
-          }
-        if (replaceFlag && (direction[2] != 7 - direction[1]))
-          for (int h = 3; h < numend2; ++h) {
-            if (direction[h] == 7 - direction[1]) {
-              replaceFlag = false;
-              localIndexes[2] = localIndexes[h];
-              localRef[2] = localRef[h];
-              break;
-            }
-          }
+        int replaceIdx = -1;
         if (
-          replaceFlag
-          && (direction[2] == direction[0] || direction[1] == direction[0])) {
-          for (int h = 3; h < numend1; ++h) {
-            for (int m = 0; m < 3; ++m) {
+          dir[1] == 7 - dir[0] || dir[2] == 7 - dir[0] || dir[2] == 7 - dir[1])
+          replaceFlag = false;
+        for (int h = 3; replaceFlag && h < numend1; ++h) {
+          if ((dir[h] == 7 - dir[0]) || (dir[h] == 7 - dir[1])) {
+            replaceFlag = false;
+            replaceIdx = h;
+          }
+        }
+        bool equal01 = dir[0] == dir[1];
+        bool equal02 = dir[0] == dir[2];
+        bool equal12 = dir[1] == dir[2];
+        const auto& looseDirs0 = looseDirTable[dir[0]];
+        if (replaceFlag) {
+          if ((equal02 || equal12) && equal01) {
+            for (int h = 3; replaceFlag && h < numend1; h++) {
               if (
-                direction[h] == looseDirectionTable[direction[0]][m]
-                && direction[h] != direction[1]) {
+                dir[h] == looseDirs0[0] || dir[h] == looseDirs0[1]
+                || dir[h] == looseDirs0[2]) {
                 replaceFlag = false;
-                localIndexes[2] = localIndexes[h];
-                localRef[2] = localRef[h];
-                break;
+                replaceIdx = h;
               }
             }
-          }
-          if (
-            replaceFlag
-            && (direction[2] == direction[0] || direction[1] == direction[0]))
-            for (int h = 3; h < numend2; ++h) {
-              for (int m = 0; m < 3; ++m) {
+          } else if ((equal02 || equal12) && !equal01) {
+            if (!(dir[1] == looseDirs0[0] || dir[1] == looseDirs0[1]
+                  || dir[1] == looseDirs0[2]))
+              for (int h = 3; replaceFlag && h < numend1; h++)
+                if (dir[h] != dir[0] && dir[h] != dir[1]) {
+                  replaceFlag = false;
+                  replaceIdx = h;
+                }
+          } else if (equal01) {
+            if (!(dir[2] == looseDirs0[0] || dir[2] == looseDirs0[1]
+                  || dir[2] == looseDirs0[2]))
+              for (int h = 3; replaceFlag && h < numend1; h++) {
                 if (
-                  direction[h] == looseDirectionTable[direction[1]][m]
-                  && direction[h] != direction[0]) {
-                  localIndexes[2] = localIndexes[h];
-                  localRef[2] = localRef[h];
-                  break;
+                  dir[h] == looseDirs0[0] || dir[h] == looseDirs0[1]
+                  || dir[h] == looseDirs0[2]) {
+                  replaceFlag = false;
+                  replaceIdx = h;
                 }
               }
-            }
+          }
+        }
+        if (replaceIdx >= 0) {
+          localIndexes[2] = localIndexes[replaceIdx];
+          localRef[2] = localRef[replaceIdx];
         }
       }
     }
