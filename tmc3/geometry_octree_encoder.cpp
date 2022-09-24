@@ -811,14 +811,14 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
       int ctx1 = ((Word7Adj[i] >> 5) << i) | partialOccupancy;
       _arithmeticEncoder->encode(
         bit,
-        _ctxMapOccupancy[_MapOccupancySparse[interCtx][i].getEvolve(
+        _CtxMapDynamicOBUF[_MapOccupancySparse[interCtx][i].getEvolve(
           bit, ctx2, ctx1)]);
     } else {
       ctx2 |= (Word7Adj[i] & 7) << 6;
       int ctx1 = ((Word7Adj[i] >> 3) << i) | partialOccupancy;
       _arithmeticEncoder->encode(
         bit,
-        _ctxMapOccupancy[_MapOccupancy[interCtx][i].getEvolve(
+        _CtxMapDynamicOBUF[_MapOccupancy[interCtx][i].getEvolve(
           bit, ctx2, ctx1)]);
     }
 

@@ -294,10 +294,7 @@ const int8_t pcc::kOccBitCodingOrder[8] = {1, 7, 5, 3, 2, 6, 4, 0};
 
 // Generated from (L*p+s)/(L+1), L=min(200, max(5, 1/p, 1/(1-p))
 
-const uint8_t pcc::kCtxMapOctreeOccupancyDelta[16] = {
-  0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 22, 20, 15};
-
-const uint8_t pcc::kCtxMapTriSoupDelta[16] = {
+const uint8_t pcc::kCtxMapDynamicOBUFDelta[16] = {
   0, 1, 1, 2, 4, 7, 9, 11, 14, 16, 19, 23, 22, 22, 20, 15};
 
 //============================================================================

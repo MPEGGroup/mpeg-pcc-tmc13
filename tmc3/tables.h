@@ -91,8 +91,7 @@ extern const int8_t kOccBitCodingOrder[8];
 
 // Geometry occupancy context map update table, represented as deltas to
 // current map entry value.
-extern const uint8_t kCtxMapOctreeOccupancyDelta[16];
-extern const uint8_t kCtxMapTriSoupDelta[16];
+extern const uint8_t kCtxMapDynamicOBUFDelta[16];
 
 // LUT initialisation table
 extern const uint8_t kDualLutOccupancyCoderInit[10][32];

@@ -508,8 +508,8 @@ encodeTrisoupVertices(
 
   AdaptiveBitModel ctxTempV2[144];
 
-  CtxModelTrisoup ctxTriSoup;
-  CtxMapTriSoup MapOBUFTriSoup[3];
+  CtxModelDynamicOBUF ctxTriSoup;
+  CtxMapDynamicOBUF MapOBUFTriSoup[3];
   MapOBUFTriSoup[0].reset(10, 7);      // flag
   MapOBUFTriSoup[1].reset(10, 6);      // first bit position
   MapOBUFTriSoup[2].reset(10, 6 + 1);  // second bit position

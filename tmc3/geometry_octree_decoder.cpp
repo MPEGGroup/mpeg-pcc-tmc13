@@ -775,13 +775,13 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
       ctx2 |= (Word7Adj[i] & 31) << 6;
       int ctx1 = ((Word7Adj[i] >> 5) << i) | partialOccupancy;
       bit = _arithmeticDecoder->decode(
-        _ctxMapOccupancy[_MapOccupancySparse[interCtx][i].get(ctx2, ctx1)]);
+        _CtxMapDynamicOBUF[_MapOccupancySparse[interCtx][i].get(ctx2, ctx1)]);
       _MapOccupancySparse[interCtx][i].evolve(bit, ctx2, ctx1);
     } else {
       ctx2 |= (Word7Adj[i] & 7) << 6;
       int ctx1 = ((Word7Adj[i] >> 3) << i) | partialOccupancy;
       bit = _arithmeticDecoder->decode(
-        _ctxMapOccupancy[_MapOccupancy[interCtx][i].get(ctx2, ctx1)]);
+        _CtxMapDynamicOBUF[_MapOccupancy[interCtx][i].get(ctx2, ctx1)]);
       _MapOccupancy[interCtx][i].evolve(bit, ctx2, ctx1);
     }
 

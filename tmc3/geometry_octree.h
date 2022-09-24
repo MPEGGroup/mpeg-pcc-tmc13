@@ -242,15 +242,15 @@ CtxMapOctreeOccupancy::evolve(bool bit, uint8_t* ctxIdx)
   uint8_t retval = *ctxIdx;
 
   if (bit)
-    *ctxIdx += kCtxMapOctreeOccupancyDelta[(255 - *ctxIdx) >> 4];
+    *ctxIdx += kCtxMapDynamicOBUFDelta[(255 - *ctxIdx) >> 4];
   else
-    *ctxIdx -= kCtxMapOctreeOccupancyDelta[*ctxIdx >> 4];
+    *ctxIdx -= kCtxMapDynamicOBUFDelta[*ctxIdx >> 4];
 
   return retval;
 }
 
 //============================================================================
-class CtxMapOccupancy {
+class CtxMapDynamicOBUF {
 public:
   int S1 = 0;  // 16;
   int S2 = 0;  // 128 * 2 * 8;
@@ -276,7 +276,6 @@ public:
 private:
   int maxTreeDepth = 3;
   int minkTree = 0;
-  int LUTth[16];
 
   //  update kDown
   void decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree);
@@ -284,16 +283,13 @@ private:
 };
 
 inline void
-CtxMapOccupancy::reset(int userBitS1, int userBitS2)
+CtxMapDynamicOBUF::reset(int userBitS1, int userBitS2)
 {
   S1 = 1 << userBitS1;
   S2 = 1 << userBitS2;
   maxTreeDepth = userBitS1 - 3;
 
   minkTree = userBitS1 - maxTreeDepth;
-
-  for (int k = 0; k < 16; k++)
-    LUTth[k] = std::min(64, 8 << std::max(0, minkTree - k - 1));
 
   kDown = new uint8_t[(1 << maxTreeDepth) * S2];
   memset(kDown, userBitS1, sizeof *kDown * (1 << maxTreeDepth) * S2);
@@ -304,7 +300,7 @@ CtxMapOccupancy::reset(int userBitS1, int userBitS2)
 }
 
 inline void
-CtxMapOccupancy::clear()
+CtxMapDynamicOBUF::clear()
 {
   if (!S1 || !S2)
     return;
@@ -315,7 +311,7 @@ CtxMapOccupancy::clear()
 }
 
 inline uint8_t
-CtxMapOccupancy::get(int i, int j)
+CtxMapDynamicOBUF::get(int i, int j)
 {
   int kDown0 = kDown[idx(i >> minkTree, j)];
   int iP = (i >> kDown0) << kDown0;
@@ -323,7 +319,7 @@ CtxMapOccupancy::get(int i, int j)
 }
 
 inline void
-CtxMapOccupancy::evolve(bool bit, int i, int j)
+CtxMapDynamicOBUF::evolve(bool bit, int i, int j)
 {
   int iTree = i >> minkTree;
   int kDown0 = kDown[idx(iTree, j)];
@@ -331,22 +327,21 @@ CtxMapOccupancy::evolve(bool bit, int i, int j)
   uint8_t* ctxIdx = &(CtxIdxMap[idx(iP, j)]);
 
   if (bit)
-    *ctxIdx += kCtxMapOctreeOccupancyDelta[(255 - *ctxIdx) >> 4];
+    *ctxIdx += kCtxMapDynamicOBUFDelta[(255 - *ctxIdx) >> 4];
   else
-    *ctxIdx -= kCtxMapOctreeOccupancyDelta[*ctxIdx >> 4];
+    *ctxIdx -= kCtxMapDynamicOBUFDelta[*ctxIdx >> 4];
 
   if (kDown0) {
     int kTree = std::max(0, kDown0 - minkTree);
     iTree = (iTree >> kTree) << kTree;
-    if (
-      ++Nseen[idx(iTree, j)]
-      >= LUTth[kDown0])  // if more than th stats per pack
+    int th = 3 + (std::abs(int(*ctxIdx) - 127) >> 4);
+    if (++Nseen[idx(iTree, j)]>= th)  // if more than th stats per pack
       decreaseKdown(iP, j, iTree, kDown0, kTree);
   }
 }
 
 inline uint8_t
-CtxMapOccupancy::getEvolve(bool bit, int i, int j)
+CtxMapDynamicOBUF::getEvolve(bool bit, int i, int j)
 {
   int iTree = i >> minkTree;
   int kDown0 = kDown[idx(iTree, j)];
@@ -356,16 +351,15 @@ CtxMapOccupancy::getEvolve(bool bit, int i, int j)
   uint8_t out = *ctxIdx;
 
   if (bit)
-    *ctxIdx += kCtxMapOctreeOccupancyDelta[(255 - *ctxIdx) >> 4];
+    *ctxIdx += kCtxMapDynamicOBUFDelta[(255 - *ctxIdx) >> 4];
   else
-    *ctxIdx -= kCtxMapOctreeOccupancyDelta[*ctxIdx >> 4];
+    *ctxIdx -= kCtxMapDynamicOBUFDelta[*ctxIdx >> 4];
 
   if (kDown0) {
     int kTree = std::max(0, kDown0 - minkTree);
     iTree = (iTree >> kTree) << kTree;
-    if (
-      ++Nseen[idx(iTree, j)]
-      >= LUTth[kDown0])  // if more than th stats per pack
+    int th = 3 + (std::abs(int(*ctxIdx) - 127) >> 4);
+    if (++Nseen[idx(iTree, j)]>= th)  // if more than th stats per pack
       decreaseKdown(iP, j, iTree, kDown0, kTree);
   }
 
@@ -373,7 +367,7 @@ CtxMapOccupancy::getEvolve(bool bit, int i, int j)
 }
 
 inline void
-CtxMapOccupancy::decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree)
+CtxMapDynamicOBUF::decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree)
 {
   int idxTree = idx(iTree, j);
   Nseen[idxTree] = 0;  // setting other Nseen unneeded because initialized to 0
@@ -398,7 +392,7 @@ CtxMapOccupancy::decreaseKdown(int iP, int j, int iTree, int kDown0, int kTree)
 }
 
 inline int
-CtxMapOccupancy::idx(int i, int j)
+CtxMapDynamicOBUF::idx(int i, int j)
 {
   return i * S2 + j;
 }
@@ -416,8 +410,8 @@ struct CtxModelOctreeOccupancy {
 
 //---------------------------------------------------------------------------
 
-struct CtxModelOctreeOccupancy2 {
-  static const int kCtxFactorShift = 2;
+struct CtxModelDynamicOBUF {
+  static const int kCtxFactorShift = 3; 
   AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
 
   AdaptiveBitModelFast& operator[](int idx)
@@ -698,9 +692,9 @@ protected:
   // For bytewise occupancy coding
   DualLutCoder<true> _bytewiseOccupancyCoder[10];
   // OBUF somplified
-  CtxMapOccupancy _MapOccupancy[4][8];
-  CtxMapOccupancy _MapOccupancySparse[4][8];
-  CtxModelOctreeOccupancy2 _ctxMapOccupancy;
+  CtxMapDynamicOBUF _MapOccupancy[4][8];
+  CtxMapDynamicOBUF _MapOccupancySparse[4][8];
+  CtxModelDynamicOBUF _CtxMapDynamicOBUF;
 };
 
 //----------------------------------------------------------------------------
