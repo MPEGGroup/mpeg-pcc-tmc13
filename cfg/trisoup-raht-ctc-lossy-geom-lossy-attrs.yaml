@@ -105,4 +105,13 @@ categories:
       facade_00015_vox20:                { enablePlanar: 1, test-depth: 12 }
       facade_00064_vox20:                { enablePlanar: 1, test-depth: 12 }
       frog_00067_vox20:                  { enablePlanar: 1, test-depth: 11 }
+      head_00039_vox20:                  { enablePlanar: 1, test-depth: 12 }
+      house_without_roof_00057_vox20:    { enablePlanar: 1, test-depth: 11 }
+      landscape_00014_vox20:             { enablePlanar: 1, test-depth: 12 }
+      palazzo_carignano_dense_vox20:     { enablePlanar: 1, test-depth:  9 }
+      shiva_00035_vox20:                 { enablePlanar: 1, test-depth: 10 }
+      stanford_area_2_vox20:             { enablePlanar: 1, test-depth: 12 }
+      stanford_area_4_vox20:             { enablePlanar: 1, test-depth: 12 }
+      staue_klimt_vox20:                 { enablePlanar: 1, test-depth:  9 }
+      ulb_unicorn_hires_vox20:           { enablePlanar: 1, test-depth: 12 }
       ulb_unicorn_vox20:                 { enablePlanar: 1, test-depth: 11 }

@@ -82,7 +82,7 @@ categories:
       redandblack_vox10_1550:            { enablePlanar: 0, test-depth: 10 }
       soldier_vox10_0690:                { enablePlanar: 0, test-depth: 10 }
       thaidancer_viewdep_vox12:          { enablePlanar: 0, test-depth: 11 }
-      # cat1-dens
+      # cat1-dense
       boxer_viewdep_vox12:               { enablePlanar: 0, test-depth: 11 }
       facade_00009_vox12:                { enablePlanar: 1, test-depth: 11 }
       facade_00015_vox14:                { enablePlanar: 1, test-depth: 12 }
@@ -95,7 +95,7 @@ categories:
       loot_viewdep_vox12:                { enablePlanar: 0, test-depth: 11 }
       redandblack_viewdep_vox12:         { enablePlanar: 0, test-depth: 11 }
       soldier_viewdep_vox12:             { enablePlanar: 0, test-depth: 11 }
-      # cat1-spars
+      # cat1-sparse
       arco_valentino_dense_vox12:        { enablePlanar: 1, test-depth:  9 }
       egyptian_mask_vox12:               { enablePlanar: 1, test-depth:  9 }
       palazzo_carignano_dense_vox14:     { enablePlanar: 1, test-depth:  9 }
@@ -105,7 +105,7 @@ categories:
       staue_klimt_vox12:                 { enablePlanar: 1, test-depth:  9 }
       ulb_unicorn_hires_vox15:           { enablePlanar: 1, test-depth: 12 }
       ulb_unicorn_vox13:                 { enablePlanar: 1, test-depth: 11 }
-      # cat1-scan
+      # cat1-scant
       arco_valentino_dense_vox20:        { enablePlanar: 1, test-depth:  9 }
       egyptian_mask_vox20:               { enablePlanar: 1, test-depth:  9 }
       facade_00009_vox20:                { enablePlanar: 1, test-depth: 11 }
