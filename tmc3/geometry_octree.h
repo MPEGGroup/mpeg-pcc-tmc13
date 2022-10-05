@@ -293,9 +293,11 @@ public:
   int S1 = 0; // 16;
   int S2 = 0; // 128 * 2 * 8;
 
-  uint8_t* CtxIdxMap; // S1*S2
-  uint8_t* kDown; // S2
-  uint8_t* Nseen; // S2
+  std::vector<uint8_t> CtxIdxMap; // S1*S2
+  std::vector<uint8_t> kDown; // S2
+  std::vector<uint8_t> Nseen; // S2
+
+  ~CtxMapDynamicOBUF() { clear(); }
 
   //  allocate and reset CtxIdxMap to 127
   void reset(int userBitS1, int userBitS2);
@@ -344,13 +346,13 @@ CtxMapDynamicOBUF::reset(int userBitS1, int userBitS2)
 
   // tree of size (1 << maxTreeDepth) * S2
   const int treeSize = (1 << maxTreeDepth) * S2;
-  kDown = new uint8_t[treeSize];
-  Nseen = new uint8_t[treeSize];
-  CtxIdxMap = new uint8_t[treeSize];
+  kDown.resize(treeSize);
+  Nseen.resize(treeSize);
+  CtxIdxMap.resize(treeSize);
 
-  std::fill_n(kDown, treeSize, userBitS1);
-  std::fill_n(Nseen, S2, 0); // only needed for the S2 root nodes
-  std::fill_n(CtxIdxMap, S2, 127); // only needed for the S2 root nodes
+  std::fill_n(kDown.begin(), treeSize, userBitS1);
+  std::fill_n(Nseen.begin(), S2, 0); // only needed for the S2 root nodes
+  std::fill_n(CtxIdxMap.begin(), S2, 127); // only needed for the S2 root nodes
 }
 
 //----------------------------------------------------------------------------
@@ -369,9 +371,11 @@ CtxMapDynamicOBUF::clear()
   if (!S1 || !S2)
     return;
 
-  delete[] kDown;
-  delete[] Nseen;
-  delete[] CtxIdxMap;
+  kDown.resize(0);
+  Nseen.resize(0);
+  CtxIdxMap.resize(0);
+
+  S1 = S2 = 0;
 }
 
 //----------------------------------------------------------------------------
@@ -380,9 +384,8 @@ CtxMapDynamicOBUF::createLeafElement(int leafPos, uint8_t* BufferOBUFleaves, uin
 {
   int firstCtxIdx = leafPos * (1 << kLeafDepth);
   if (!BufferOBUFleaves[firstCtxIdx]) {
-    memset(&BufferOBUFleaves[firstCtxIdx], ctx, sizeof(uint8_t) * (1 << kLeafDepth));
+    std::fill_n(&BufferOBUFleaves[firstCtxIdx], (1 << kLeafDepth), ctx);
     return true;
-
   }
   return false;
 }
@@ -785,6 +788,10 @@ int findLaser(point_t point, const int* thetaList, const int numTheta);
 class GeometryOctreeContexts {
 public:
   void reset();
+
+  // dynamic OBUF
+  void resetMap();
+  void clearMap();
 
 protected:
   AdaptiveBitModel _ctxSingleChild;

@@ -62,8 +62,11 @@ public:
   GeometryOctreeDecoder& operator=(GeometryOctreeDecoder&&) = default;
 
   void beginOctreeLevel(const Vec3<int>& planarDepth);
-  void resetMap();
-  void clearMap();
+
+  // dynamic OBUF
+  void resetMap() { GeometryOctreeContexts::resetMap(); }
+  void clearMap() { GeometryOctreeContexts::clearMap(); };
+
   int decodePositionLeafNumPoints();
 
   int decodePlanarMode(
@@ -267,44 +270,6 @@ GeometryOctreeDecoder::beginOctreeLevel(const Vec3<int>& planarDepth)
   }
 
   _planar.initPlanes(planarDepth);
-}
-//============================================================================
-void
-GeometryOctreeDecoder::resetMap()
-{
-  for (int i = 0; i < 4; i++) {
-    const int n2 = 6;
-    _MapOccupancy[i][0].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][1].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][2].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][3].reset(4 + n2 + 1, 18 - 6 - n2); //16
-    _MapOccupancy[i][4].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][5].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][6].reset(6 + n2 + 1, 18 - 6 - n2); //18
-    _MapOccupancy[i][7].reset(4 + n2 + 1, 18 - 6 - n2); //16
-
-    _MapOccupancySparse[i][0].reset(6 + 5 + 1, 9 - 5);
-    _MapOccupancySparse[i][1].reset(6 + 5 + 1, 12 - 5);
-    _MapOccupancySparse[i][2].reset(6 + 5 + 1, 12 - 5);
-    _MapOccupancySparse[i][3].reset(6 + 5 + 1, 11 - 5);
-    _MapOccupancySparse[i][4].reset(6 + 5 + 1, 9 - 5);
-    _MapOccupancySparse[i][5].reset(6 + 5 + 1, 12 - 5);
-    _MapOccupancySparse[i][6].reset(6 + 5 + 1, 12 - 5);
-    _MapOccupancySparse[i][7].reset(6 + 5 + 1, 11 - 5);
-  }
-
-  memset(_BufferOBUFleaves, 0, sizeof(uint8_t) * CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth));
-}
-
-//============================================================================
-void
-GeometryOctreeDecoder::clearMap()
-{
-  for (int j = 0; j < 4; j++)
-    for (int i = 0; i < 8; i++) {
-      _MapOccupancy[j][i].clear();
-      _MapOccupancySparse[j][i].clear();
-    }
 }
 
 //============================================================================
