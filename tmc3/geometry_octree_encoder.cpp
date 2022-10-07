@@ -97,10 +97,7 @@ public:
     OctreePlanarBuffer& planeBuffer,
     int xx,
     int yy,
-    int zz,
-    OctreePlanarBuffer::Row* planeBuffer0,
-    OctreePlanarBuffer::Row* planeBuffer1,
-    OctreePlanarBuffer::Row* planeBuffer2);
+    int zz);
 
   void determinePlanarMode(
     const bool& adjacent_child_contextualization_enabled_flag,
@@ -460,17 +457,9 @@ GeometryOctreeEncoder::derivePlanarPCMContextBuffer(
   OctreePlanarBuffer& planeBuffer,
   int xx,
   int yy,
-  int zz,
-  OctreePlanarBuffer::Row* planeBuffer0,
-  OctreePlanarBuffer::Row* planeBuffer1,
-  OctreePlanarBuffer::Row* planeBuffer2)
+  int zz)
 {
-  bool matchDir[3] = {false, false, false};
-  bool bufferAvai = true;
   int matchedDir = 0;
-
-  int closestPlanarFlag;
-  int closestDist = 0;
 
   planarRef.ctxBufPCM = 4
     * (int(planar.eligible[0]) + int(planar.eligible[1])
@@ -480,7 +469,6 @@ GeometryOctreeEncoder::derivePlanarPCMContextBuffer(
   for (int planeId = 0; planeId < 3; planeId++) {
     if (planar.eligible[planeId]) {
       const int mask0 = (1 << planeId);
-      const int mask1[3] = {6, 5, 3};
 
       bool isPlanarRef = planarRef.planarMode & mask0;
       int planeBitRef = (planarRef.planePosBits & mask0) == 0 ? 0 : 1;
@@ -488,43 +476,21 @@ GeometryOctreeEncoder::derivePlanarPCMContextBuffer(
       // Get the buffer information
       OctreePlanarBuffer::Row* planeBufferDir = planeBuffer.getBuffer(planeId);
 
-      int coord1 = yy;
-      int coord2 = zz;
-      int coord3 = xx;
-      if (planeId == 1) {
-        coord1 = xx;
-        coord2 = zz;
-        coord3 = yy;
-      }
-      if (planeId == 2) {
-        coord1 = xx;
-        coord2 = yy;
-        coord3 = zz;
-      }
+      int coord3 = (planeId == 2) ? zz : (planeId == 1 ? yy : xx);
 
-      OctreePlanarBuffer::Elmt* row;
-      int rowLen = OctreePlanarBuffer::rowSize;
-      int maxCoord;
+      const int rowLen = OctreePlanarBuffer::rowSize;
 
       if (planeBufferDir) {
-        coord1 =
-          (coord1 & OctreePlanarBuffer::maskAb) >> OctreePlanarBuffer::shiftAb;
-        coord2 =
-          (coord2 & OctreePlanarBuffer::maskAb) >> OctreePlanarBuffer::shiftAb;
-        coord3 = coord3 & OctreePlanarBuffer::maskC;
+        coord3 &= OctreePlanarBuffer::maskC;
 
-        row = planeBufferDir[coord3];
+        const auto row = planeBufferDir[coord3];
 
-        maxCoord = std::max(coord1, coord2);
-        closestDist += std::abs(maxCoord - int(row[rowLen - 1].pos));
-
-        int idxMinDist = rowLen - 1;
-        closestPlanarFlag = row[idxMinDist].planeIdx;
-        bool closetPL = (closestPlanarFlag > -1) ? true : false;
-        int closetPlane = closetPL ? closestPlanarFlag : 0;
-        matchDir[planeId] =
-          (closetPL == isPlanarRef && closetPlane == planeBitRef);
-        matchedDir += int(matchDir[planeId]);
+        const int idxMinDist = rowLen - 1;
+        const int closestPlanarFlag = row[idxMinDist].planeIdx;
+        const bool closestPL = (closestPlanarFlag > -1) ? true : false;
+        const int closestPlane = closestPL ? closestPlanarFlag : 0;
+        matchedDir +=
+          int((closestPL == isPlanarRef && closestPlane == planeBitRef));
       }
     }
   }
@@ -680,9 +646,7 @@ GeometryOctreeEncoder::determinePlanarMode(
   planar.isPCM = planar.allowPCM && matchDir[0] && matchDir[1] && matchDir[2];
 
   if (planar.allowPCM) {
-    derivePlanarPCMContextBuffer(
-      planar, planarRef, planeBuffer, xx, yy, zz, planeBuffer.getBuffer(0),
-      planeBuffer.getBuffer(1), planeBuffer.getBuffer(2));
+    derivePlanarPCMContextBuffer(planar, planarRef, planeBuffer, xx, yy, zz);
   }
 
   if (!planar.isSignaled && planar.allowPCM) {
