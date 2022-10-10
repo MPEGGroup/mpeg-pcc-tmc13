@@ -1027,8 +1027,13 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
 
     if (
       aps.attr_encoding == AttributeEncoding::kRAHTransform
-      && aps.rahtPredParams.raht_prediction_enabled_flag)
+      && aps.rahtPredParams.raht_prediction_enabled_flag) {
       bs.write(aps.rahtPredParams.raht_prediction_skip1_flag);
+      bs.write(aps.rahtPredParams.raht_subnode_prediction_enabled_flag);
+      if (aps.rahtPredParams.raht_subnode_prediction_enabled_flag) 
+        for (int i = 0; i < 5; i++) 
+          bs.writeUe(aps.rahtPredParams.raht_prediction_weights[i]);
+    }
   }
 
   bs.byteAlign();
@@ -1141,6 +1146,7 @@ parseAps(const PayloadBuffer& buf)
   bool aps_extension_flag = bs.read();
   aps.max_points_per_sort_log2_plus1 = 0;
   aps.rahtPredParams.raht_prediction_skip1_flag = false;
+  aps.rahtPredParams.raht_subnode_prediction_enabled_flag = false;
   if (aps_extension_flag) {
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
       for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
@@ -1163,8 +1169,16 @@ parseAps(const PayloadBuffer& buf)
 
     if (
       aps.attr_encoding == AttributeEncoding::kRAHTransform
-      && aps.rahtPredParams.raht_prediction_enabled_flag)
+      && aps.rahtPredParams.raht_prediction_enabled_flag) {
       bs.read(&aps.rahtPredParams.raht_prediction_skip1_flag);
+      bs.read(&aps.rahtPredParams.raht_subnode_prediction_enabled_flag);
+      if (aps.rahtPredParams.raht_subnode_prediction_enabled_flag) {
+        aps.rahtPredParams.raht_prediction_weights.resize(5);
+        for (int i = 0; i < 5; i++)
+          bs.readUe(&aps.rahtPredParams.raht_prediction_weights[i]);
+        aps.rahtPredParams.setPredictionWeights();
+      }
+    }
   }
 
   bs.byteAlign();

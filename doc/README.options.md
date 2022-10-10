@@ -818,6 +818,15 @@ the number of neighbour points that must be present.
 Controls the skipping of transform domain prediction in the case that 
 there is only subnode.
 
+### `--rahtSubnodePredictionEnabled=0|1`
+Controls the use of transform domain prediction of RAHT coefficients
+from the DC values of sub-nodes of neighbouring parent nodes in the 
+transform tree.
+
+### `--rahtPredictionWeights=INT-VALUE-LIST`
+A list of five weights that are used in the derivation of transform 
+domain prediction of RAHT coefficients when subnode prediction is enabled.
+
 ### `--numberOfNearestNeighboursInPrediction=INT-VALUE`
 Attribute's maximum number of nearest neighbours to be used for
 prediction.

@@ -54,6 +54,10 @@ struct UrahtNode {
   int64_t pos;
   int weight;
   Qps qp;
+
+  uint8_t occupancy;
+  std::vector<UrahtNode>::iterator firstChild;
+  std::vector<UrahtNode>::iterator lastChild;
 };
 
 //============================================================================
@@ -234,9 +238,13 @@ findNeighbours(
   It first,
   It last,
   It it,
+  It firstChild,
+  It lastChild,
   int level,
   uint8_t occupancy,
-  int parentNeighIdx[19])
+  int parentNeighIdx[19],
+  int childNeighIdx[12][8],
+  const bool rahtSubnodePredictionEnabled)
 {
   static const uint8_t neighMasks[19] = {255, 240, 204, 170, 192, 160, 136,
                                          3,   5,   15,  17,  51,  85,  10,
@@ -286,6 +294,53 @@ findNeighbours(
 
     parentNeighIdx[i] = std::distance(first, found);
   }
+
+  if (rahtSubnodePredictionEnabled) {
+    //initialize the childNeighIdx
+    for (int *p = (int*)childNeighIdx, i = 0; i < 96; p++, i++)
+      *p = -1;
+
+    static const uint8_t occuMasks[12] = {3,  5,  15, 17, 51, 85,
+                                          10, 34, 12, 68, 48, 80};
+    static const uint8_t occuShift[12] = {6, 5, 4, 3, 2, 1, 3, 1, 2, 1, 2, 3};
+
+    int curLevel = level - 3;
+    for (int i = 0; i < 9; i++) {
+      if (parentNeighIdx[7 + i] == -1)
+        continue;
+
+      auto neiIt = first + parentNeighIdx[7 + i];
+      uint8_t mask =
+        (neiIt->occupancy >> occuShift[i]) & occupancy & occuMasks[i];
+      if (!mask)
+        continue;
+
+      for (auto it = neiIt->firstChild; it != neiIt->lastChild; it++) {
+        int nodeIdx = ((it->pos >> curLevel) & 0x7) - occuShift[i];
+        if ((nodeIdx >= 0) && ((mask >> nodeIdx) & 1)) {
+          childNeighIdx[i][nodeIdx] = std::distance(firstChild, it);
+        }
+      }
+    }
+
+    for (int i = 9; i < 12; i++) {
+      if (parentNeighIdx[7 + i] == -1)
+        continue;
+
+      auto neiIt = first + parentNeighIdx[7 + i];
+      uint8_t mask =
+        (neiIt->occupancy << occuShift[i]) & occupancy & occuMasks[i];
+      if (!mask)
+        continue;
+
+      for (auto it = neiIt->firstChild; it != neiIt->lastChild; it++) {
+        int nodeIdx = ((it->pos >> curLevel) & 0x7) + occuShift[i];
+        if ((nodeIdx < 8) && ((mask >> nodeIdx) & 1)) {
+          childNeighIdx[i][nodeIdx] = std::distance(firstChild, it);
+        }
+      }
+    }
+  }
 }
 
 //============================================================================
@@ -296,8 +351,10 @@ void
 intraDcPred(
   int numAttrs,
   const int parentNeighIdx[19],
+  const int childNeighIdx[12][8],
   int occupancy,
   It first,
+  It firstChild,
   FixedPoint predBuf[][8],
   const RahtPredictionParams &rahtPredParams)
 {
@@ -306,6 +363,7 @@ intraDcPred(
                                         34,  12,  68,  48,  80};
 
   const auto& predWeightParent = rahtPredParams.predWeightParent;
+  const auto& predWeightChild = rahtPredParams.predWeightChild;
 
   static const int kDivisors[64] = {
     32768, 16384, 10923, 8192, 6554, 5461, 4681, 4096, 3641, 3277, 2979,
@@ -320,9 +378,13 @@ intraDcPred(
   std::fill_n(&predBuf[0][0], 8 * numAttrs, FixedPoint(0));
 
   int64_t neighValue[3];
+  int64_t childNeighValue[3];
   int64_t limitLow = 0;
   int64_t limitHigh = 0;
-  for (int i = 0; i < 19; i++) {
+
+  const auto parentOnlyCheckMaxIdx =
+    rahtPredParams.raht_subnode_prediction_enabled_flag ? 7 : 19;
+  for (int i = 0; i < parentOnlyCheckMaxIdx; i++) {
     if (parentNeighIdx[i] == -1)
       continue;
 
@@ -351,6 +413,45 @@ intraDcPred(
         weightSum[j] += predWeightParent[i];
         for (int k = 0; k < numAttrs; k++)
           predBuf[k][j].val += neighValue[k];
+      }
+    }
+  }
+  if (rahtPredParams.raht_subnode_prediction_enabled_flag) {
+    for (int i = 0; i < 12; i++) {
+      if (parentNeighIdx[7 + i] == -1)
+        continue;
+
+      auto neighValueIt = std::next(first, numAttrs * parentNeighIdx[7 + i]);
+      for (int k = 0; k < numAttrs; k++)
+        neighValue[k] = *neighValueIt++;
+
+      // skip neighbours that are outside of threshold limits
+      if (10 * neighValue[0] <= limitLow || 10 * neighValue[0] >= limitHigh)
+        continue;
+
+      // apply weighted neighbour value to masked positions
+      for (int k = 0; k < numAttrs; k++)
+        neighValue[k] *= predWeightParent[7 + i] << pcc::FixedPoint::kFracBits;
+
+      int mask = predMasks[7 + i] & occupancy;
+      for (int j = 0; mask; j++, mask >>= 1) {
+        if (mask & 1) {
+          if (childNeighIdx[i][j] != -1) {
+            weightSum[j] += predWeightChild[i];
+            auto childNeighValueIt =
+              std::next(firstChild, numAttrs * childNeighIdx[i][j]);
+            for (int k = 0; k < numAttrs; k++)
+              childNeighValue[k] = (*childNeighValueIt++)
+                * (predWeightChild[i] << pcc::FixedPoint::kFracBits);
+
+            for (int k = 0; k < numAttrs; k++)
+              predBuf[k][j].val += childNeighValue[k];
+          } else {
+            weightSum[j] += predWeightParent[7 + i];
+            for (int k = 0; k < numAttrs; k++)
+              predBuf[k][j].val += neighValue[k];
+          }
+        }
       }
     }
   }
@@ -561,7 +662,7 @@ isSibling(int64_t pos0, int64_t pos1, int level)
 template<bool isEncoder>
 void
 uraht_process(
-  const RahtPredictionParams &rahtPredParams,
+  const RahtPredictionParams& rahtPredParams,
   const QpSet& qpset,
   const Qps* pointQpOffsets,
   int numPoints,
@@ -610,10 +711,11 @@ uraht_process(
   // copy positions into internal form
   // todo(df): lift to api
   for (int i = 0; i < numPoints; i++) {
-    weightsLf.emplace_back(UrahtNode{positions[i],
-                                     1,
-                                     {pointQpOffsets[i][0] << regionQpShift,
-                                      pointQpOffsets[i][1] << regionQpShift}});
+    weightsLf.emplace_back(UrahtNode{
+      positions[i],
+      1,
+      {pointQpOffsets[i][0] << regionQpShift,
+       pointQpOffsets[i][1] << regionQpShift}});
     for (int k = 0; k < numAttrs; k++) {
       attrsLf.push_back(attributes[i * numAttrs + k]);
     }
@@ -682,8 +784,25 @@ uraht_process(
     //  -> first level = all coeffs
     //  -> otherwise = ac coeffs only
     bool inheritDc = !isFirst;
-    bool enablePredictionInLvl = inheritDc && rahtPredParams.raht_prediction_enabled_flag;
+    bool enablePredictionInLvl =
+      inheritDc && rahtPredParams.raht_prediction_enabled_flag;
     isFirst = 0;
+
+    if (enablePredictionInLvl) {
+      for (auto& ele : weightsParent)
+        ele.occupancy = 0;
+
+      const int parentCount = weightsParent.size();
+      auto it = weightsLf.begin();
+      for (auto i = 0; i < parentCount; i++) {
+        weightsParent[i].firstChild = it++;
+
+        while (it != weightsLf.end()
+               && !((it->pos ^ weightsParent[i].pos) >> (level + 3)))
+          it++;
+        weightsParent[i].lastChild = it;
+      }
+    }
 
     // select quantiser according to transform layer
     qpLayer = std::min(qpLayer + 1, int(qpset.layers.size()) - 1);
@@ -695,7 +814,7 @@ uraht_process(
     std::swap(numParentNeigh, numGrandParentNeigh);
     auto attrRecParentUsIt = attrRecParentUs.cbegin();
     auto attrRecParentIt = attrRecParent.cbegin();
-    auto weightsParentIt = weightsParent.cbegin();
+    auto weightsParentIt = weightsParent.begin();
     auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
 
     for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
@@ -748,21 +867,24 @@ uraht_process(
       //  - The transformPredBuf is then used for reconstruction
       bool enablePrediction = enablePredictionInLvl;
       if (enablePredictionInLvl) {
+        weightsParentIt->occupancy = occupancy;
         // indexes of the neighbouring parents
         int parentNeighIdx[19];
+        int childNeighIdx[12][8];
 
         int parentNeighCount = 0;
         if (rahtPredParams.raht_prediction_skip1_flag && nodeCnt == 1) {
           enablePrediction = false;
           parentNeighCount = 19;
-        }
-        else if (
+        } else if (
           *numGrandParentNeighIt < rahtPredParams.raht_prediction_threshold0) {
           enablePrediction = false;
         } else {
           findNeighbours(
-            weightsParent.cbegin(), weightsParent.cend(), weightsParentIt,
-            level + 3, occupancy, parentNeighIdx);
+            weightsParent.begin(), weightsParent.end(), weightsParentIt,
+            weightsLf.begin(), weightsLf.begin() + i, level + 3, occupancy,
+            parentNeighIdx, childNeighIdx,
+            rahtPredParams.raht_subnode_prediction_enabled_flag);
           for (int i = 0; i < 19; i++) {
             parentNeighCount += (parentNeighIdx[i] != -1);
           }
@@ -770,8 +892,9 @@ uraht_process(
             enablePrediction = false;
           } else
             intraDcPred(
-              numAttrs, parentNeighIdx, occupancy, attrRecParent.begin(),
-              transformPredBuf, rahtPredParams);
+              numAttrs, parentNeighIdx, childNeighIdx, occupancy,
+              attrRecParent.begin(), attrRec.begin(), transformPredBuf,
+              rahtPredParams);
         }
 
         for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
@@ -914,8 +1037,9 @@ uraht_process(
 
   for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
     int weight = weightsLf[i].weight;
-    Qps nodeQp = {weightsLf[i].qp[0] >> regionQpShift,
-                  weightsLf[i].qp[1] >> regionQpShift};
+    Qps nodeQp = {
+      weightsLf[i].qp[0] >> regionQpShift,
+      weightsLf[i].qp[1] >> regionQpShift};
 
     // unique points have weight = 1
     if (weight == 1) {

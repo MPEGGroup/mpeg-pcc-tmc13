@@ -1199,6 +1199,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 	  "Controls the use of skipping transform-domain prediction in "
     "one subnode condition")
 
+  ("rahtSubnodePredictionEnabled",
+    params_attr.aps.rahtPredParams.raht_subnode_prediction_enabled_flag, true,
+    "Controls the use of transform-domain subnode prediction")
+
+  ("rahtPredictionWeights",
+    params_attr.aps.rahtPredParams.raht_prediction_weights, {9,3,1,5,2},
+    "Prediction weights for neighbours")
+
   // NB: the cli option sets +1, the minus1 will be applied later
   ("numberOfNearestNeighborsInPrediction",
     params_attr.aps.num_pred_nearest_neighbours_minus1, 3,
@@ -1702,10 +1710,26 @@ sanitizeEncoderOpts(
       attr_aps.adaptive_prediction_threshold = 0;
     }
 
-    if (
-      attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
-      && !attr_aps.rahtPredParams.raht_prediction_enabled_flag) {
-      attr_aps.rahtPredParams.raht_prediction_skip1_flag = false;
+    if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      auto& predParams = attr_aps.rahtPredParams;
+      if (!predParams.raht_prediction_enabled_flag) {
+        predParams.raht_prediction_skip1_flag = false;
+        predParams.raht_subnode_prediction_enabled_flag = false;
+      } else {
+        if (predParams.raht_subnode_prediction_enabled_flag) {
+          auto& weights = predParams.raht_prediction_weights;
+          if (weights.size() < 5) {
+            err.warn() << "Five raht prediciton weights to be specified, "
+                       << "appending with zeros\n";
+            weights.resize(5);
+          } else if (weights.size() > 5) {
+            err.warn() << "Only five raht prediciton weights to be specified, "
+                       << "ignoring others.\n";
+            weights.erase(weights.begin() + 5, weights.end());
+          }
+          predParams.setPredictionWeights();
+        }
+      }
     }
 
     if (!params.encoder.gps.geom_angular_mode_enabled_flag) {
