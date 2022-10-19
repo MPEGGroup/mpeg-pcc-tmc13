@@ -494,6 +494,9 @@ encodeTrisoupVertices(
   GeometryBrickHeader& gbh,
   pcc::EntropyEncoder* arithmeticEncoder)
 {
+  const int nbitsVertices = gbh.trisoupNodeSizeLog2(gps) - bitDropped;
+  const int max2bits = nbitsVertices > 1 ? 3 : 1;
+
   int iV = 0;
   std::vector<int> correspondanceSegment2V(segind.size(), -1);
 
@@ -522,19 +525,18 @@ encodeTrisoupVertices(
 
     // compute data relative to preceding (before) vertex along edge direction (presence and position)
     // vertoces are on gbh.trisoupNodeSizeLog2(gps) - bitDropped bits
-    int nbitsVertices = gbh.trisoupNodeSizeLog2(gps) - bitDropped;
     if (indexBefore[i] != -1 && gbh.trisoupNodeSizeLog2(gps) <= 4) {
       beforeCtx = segind[indexBefore[i]];
       if (correspondanceSegment2V[indexBefore[i]] != -1) {
         Vbefore = 1 + vertices[correspondanceSegment2V[indexBefore[i]]]
           >> std::max(0, nbitsVertices - 2);  // on 2 bits
 
-        int v2bits = 3
+        int v2bits = max2bits
           - (vertices[correspondanceSegment2V[indexBefore[i]]]
              >> std::max(0, nbitsVertices - 2));  // on 2 bits
         if (v2bits <= 0)
           nclose++;
-        if (v2bits >= 3)
+        if (v2bits >= max2bits)
           nfar++;
       }
     }
@@ -555,12 +557,12 @@ encodeTrisoupVertices(
 
         int orientation = perpVS[k] >> 30;
         if (orientation) {            // if toward then reverse to away
-          vertexPos = 3 - vertexPos;  // 0 is closest, 3 is farthest
+          vertexPos = max2bits - vertexPos;  // 0 is closest, 3 is farthest
         }
 
         if (vertexPos <= 0)
           nclose++;
-        if (vertexPos >= 3)
+        if (vertexPos >= max2bits)
           nfar++;
       }
     }
