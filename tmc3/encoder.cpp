@@ -97,7 +97,8 @@ PCCTMC3Encoder3::compress(
     //  - sequence scaling is replaced by decimation of the input
     //  - any user-specified global scaling is honoured
     _inputDecimationScale = 1.;
-    if (params->gps.predgeom_enabled_flag) {
+    if (params->gps.predgeom_enabled_flag
+        && params->gps.geom_angular_mode_enabled_flag) {
       _inputDecimationScale = params->codedGeomScale;
       params->codedGeomScale /= params->seqGeomScale;
       params->seqGeomScale = 1.;
