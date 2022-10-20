@@ -1269,14 +1269,16 @@ orderByLaserAngle(
       phiB = std::round(phiB * recipBinWidth);
     }
 
-    // NB: the a < b comparison adds some stability to the sort.  It is not
+    // NB: the aIdx < bIdx comparison adds some stability to the sort.  It is not
     // required in an actual implementation.  Either slightly more performance
     // can be achieved by sorting by a second data dependent dimension, or
     // efficiency can be improved by removing the stability (at a cost of
     // being able to reproduce the exact same bitstream).
 
     return phiB != phiA ? phiA < phiB
-                        : rA != rB ? rA < rB : tanThetaA < tanThetaB;
+            : rA != rB ? rA < rB
+            : tanThetaA != tanThetaB ? tanThetaA < tanThetaB
+            : aIdx < bIdx;
   });
 
   return order;
