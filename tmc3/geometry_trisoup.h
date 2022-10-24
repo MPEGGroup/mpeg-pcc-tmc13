@@ -313,6 +313,7 @@ void decodeTrisoupCommon(
   const bool isCentroidDriftActivated,
   bool isDecoder,
   bool haloFlag,
+  bool adaptiveHaloFlag,
   bool fineRayflag,
   pcc::EntropyDecoder* arithmeticDecoder);
 
@@ -333,7 +334,8 @@ void rayTracingAlongdirection(
   Vec3<int32_t> v0,
   int poistionClipValue,
   bool haloFlag,
-  bool fineRayflag); 
+  bool adaptiveHaloFlag,
+  bool fineRayflag);
 
 //============================================================================
 

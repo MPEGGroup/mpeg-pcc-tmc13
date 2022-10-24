@@ -117,6 +117,7 @@ encodeGeometryTrisoup(
 
   // Decode vertices with certain sampling value
   bool haloFlag = gbh.trisoup_halo_flag;
+  bool adaptiveHaloFlag = gbh.trisoup_adaptive_halo_flag;
   bool fineRayFlag = gbh.trisoup_fine_ray_tracing_flag;
 
   PCCPointSet3 recPointCloud;
@@ -130,19 +131,18 @@ encodeGeometryTrisoup(
   if (gps.trisoup_sampling_value > 0) {
     subsample = gps.trisoup_sampling_value;
     decodeTrisoupCommon(
-      nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth, maxval,
-      subsample, bitDropped, isCentroidDriftActivated, false, haloFlag,
-      fineRayFlag, NULL);
+      nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth,
+      maxval, subsample, bitDropped, isCentroidDriftActivated, false,
+      haloFlag, adaptiveHaloFlag, fineRayFlag, NULL);
     std::cout << "Sub-sampling " << subsample << " gives "
               << recPointCloud.getPointCount() << " points \n";
   } else {
     int maxSubsample = 1 << gbh.trisoupNodeSizeLog2(gps);
     for (subsample = 1; subsample <= maxSubsample; subsample++) {
       decodeTrisoupCommon(
-        nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth, maxval,
-        subsample, bitDropped, isCentroidDriftActivated, false, haloFlag,
-        fineRayFlag, NULL);
-
+        nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth,
+        maxval, subsample, bitDropped, isCentroidDriftActivated, false,
+        haloFlag, adaptiveHaloFlag, fineRayFlag, NULL);
       std::cout << "Sub-sampling " << subsample << " gives "
                 << recPointCloud.getPointCount() << " points \n";
       if (recPointCloud.getPointCount() <= gbh.footer.geom_num_points_minus1 + 1)

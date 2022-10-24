@@ -1244,6 +1244,8 @@ write(
     bs.writeUe(gbh.trisoup_vertex_quantization_bits);
     bs.write(gbh.trisoup_centroid_vertex_residual_flag);
     bs.write(gbh.trisoup_halo_flag);
+    if (gbh.trisoup_halo_flag)
+      bs.write(gbh.trisoup_adaptive_halo_flag);
     bs.write(gbh.trisoup_fine_ray_tracing_flag);
   }
 
@@ -1368,6 +1370,9 @@ parseGbh(
     bs.readUe(&gbh.trisoup_vertex_quantization_bits);
     bs.read(&gbh.trisoup_centroid_vertex_residual_flag);
     bs.read(&gbh.trisoup_halo_flag);
+    gbh.trisoup_adaptive_halo_flag = false;
+    if (gbh.trisoup_halo_flag)
+      bs.read(&gbh.trisoup_adaptive_halo_flag);
     bs.read(&gbh.trisoup_fine_ray_tracing_flag);
   }
 

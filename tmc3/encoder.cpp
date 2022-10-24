@@ -913,6 +913,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     params->gbh.trisoup_centroid_vertex_residual_flag;
   gbh.trisoup_halo_flag =
     params->gbh.trisoup_halo_flag;
+  gbh.trisoup_adaptive_halo_flag =
+    params->gbh.trisoup_adaptive_halo_flag;
   gbh.trisoup_fine_ray_tracing_flag =
     params->gbh.trisoup_fine_ray_tracing_flag;
   gbh.interPredictionEnabledFlag = _codeCurrFrameAsInter;

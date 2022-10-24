@@ -168,10 +168,13 @@ decodeGeometryTrisoup(
   std::vector<CentroidDrift> drifts;
   int32_t maxval = (1 << gbh.maxRootNodeDimLog2) - 1;
   bool haloFlag = gbh.trisoup_halo_flag;
+  bool adaptiveHaloFlag = gbh.trisoup_adaptive_halo_flag;
   bool fineRayFlag = gbh.trisoup_fine_ray_tracing_flag;
   decodeTrisoupCommon(
-    nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth, maxval,
-    gbh.trisoup_sampling_value_minus1 + 1, bitDropped, isCentroidDriftActivated, true, haloFlag, fineRayFlag, &arithmeticDecoder);
+    nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth,
+    maxval, gbh.trisoup_sampling_value_minus1 + 1, bitDropped,
+    isCentroidDriftActivated, true, haloFlag, adaptiveHaloFlag, fineRayFlag,
+    &arithmeticDecoder);
 
   pointCloud.resize(0);
   pointCloud = std::move(recPointCloud);
@@ -473,6 +476,7 @@ decodeTrisoupCommon(
   const bool isCentroidDriftActivated,
   bool isDecoder,
   bool haloFlag,
+  bool adaptiveHaloFlag,
   bool fineRayflag,
   pcc::EntropyDecoder* arithmeticDecoder)
 {
@@ -837,12 +841,15 @@ decodeTrisoupCommon(
         }
       }
 
-      // applying ray tracing along direction 
-      for (int direction = 0; direction < 3; direction++) {        
-        if (directionExcluded == direction) // exclude most parallel direction 
-          continue;        
-        rayTracingAlongdirection(refinedVerticesBlock, direction, samplingValue, posNode, minRange, maxRange, edge1, edge2, v0, poistionClipValue, haloFlag, fineRayflag);   
-      }    
+      // applying ray tracing along direction
+      for (int direction = 0; direction < 3; direction++) {
+        if (directionExcluded == direction) // exclude most parallel direction
+          continue;
+        rayTracingAlongdirection(
+          refinedVerticesBlock, direction, samplingValue, posNode, minRange,
+          maxRange, edge1, edge2, v0, poistionClipValue, haloFlag,
+          adaptiveHaloFlag, fineRayflag);
+      }
 
     }  // end loop on triangles
 
@@ -1089,9 +1096,10 @@ void rayTracingAlongdirection(
   Vec3<int32_t> v0,
   int poistionClipValue,
   bool haloFlag,
-  bool fineRayflag) {  
-  
-  // check if ray tracing is valid; if not skip the direction 
+  bool adaptiveHaloFlag,
+  bool fineRayflag) {
+
+  // check if ray tracing is valid; if not skip the direction
   Vec3<int32_t> rayVector = 0;
   rayVector[direction] = 1 << kTrisoupFpBits;
   Vec3<int32_t> h = crossProduct(rayVector, edge2) >> kTrisoupFpBits;
@@ -1110,8 +1118,9 @@ void rayTracingAlongdirection(
   Vec3<int32_t>  rayOrigin = rayStart;
 
 
-  // ray tracing 
-  const int haloTriangle = haloFlag ? 32 : 0;
+  // ray tracing
+  const int haloTriangle =
+    haloFlag ? (adaptiveHaloFlag ? 32 * samplingValue : 32) : 0;
   for (int32_t g1 = startposG1; g1 <= endposG1; g1 += samplingValue) {
     rayOrigin[g1pos[direction]] = g1 << kTrisoupFpBits;
 

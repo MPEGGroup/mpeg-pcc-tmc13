@@ -575,6 +575,10 @@ vertex in trisoup coding.
 Controls the activation of using halo around trisoup triangles for ray
 tracing.
 
+### `--trisoupAdaptiveHaloEnabled=0|1`
+Controls the activation of using adaptive halo when usign halo around
+trisoup triangles for ray tracing.
+
 ### `--trisoupFineRayTracingEnabled=0|1`
 Controls the activation of additional ray tracing from non-integer origin.
 

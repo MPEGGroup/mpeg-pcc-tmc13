@@ -661,6 +661,9 @@ struct GeometryBrickHeader {
   // Indicates if the trisoup halo is enabled or not
   bool trisoup_halo_flag;
 
+  // Indicates if the trisoup halo is adaptive or not
+  bool trisoup_adaptive_halo_flag;
+
   // Indicates if fine ray tracing must be used for trisoup nodes
   bool trisoup_fine_ray_tracing_flag;
 

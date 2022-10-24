@@ -934,6 +934,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gbh.trisoup_halo_flag, true,
     "Trisoup activate halo around triangles for ray tracing")
 
+ ("trisoupAdaptiveHaloEnabled",
+    params.encoder.gbh.trisoup_adaptive_halo_flag, true,
+    "Trisoup activate adaptive halo around triangles for ray tracing when "
+    "halo is activated")
+
   ("trisoupFineRayTracingEnabled",
     params.encoder.gbh.trisoup_fine_ray_tracing_flag, true,
     "Trisoup activate more ray tracing from non-integer origin")
