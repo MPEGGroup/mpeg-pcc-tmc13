@@ -66,13 +66,13 @@ encodeGeometryTrisoup(
   pcc::EntropyEncoder* arithmeticEncoder = arithmeticEncoders.back().get();
 
   int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
-  const int maxVertexPrecisionLog2 = gps.trisoup_vertex_quantization_bits
-    ? gps.trisoup_vertex_quantization_bits
+  const int maxVertexPrecisionLog2 = gbh.trisoup_vertex_quantization_bits
+    ? gbh.trisoup_vertex_quantization_bits
     : gbh.trisoupNodeSizeLog2(gps);
   const int bitDropped =
     std::max(0, gbh.trisoupNodeSizeLog2(gps) - maxVertexPrecisionLog2);
   const bool isCentroidDriftActivated =
-    gps.trisoup_centroid_vertex_residual_flag;
+    gbh.trisoup_centroid_vertex_residual_flag;
 
   // Determine vertices
   std::cout << "Number of points = " << pointCloud.getPointCount() << "\n";
@@ -116,8 +116,8 @@ encodeGeometryTrisoup(
     gps, gbh, arithmeticEncoder);
 
   // Decode vertices with certain sampling value
-  bool haloFlag = gps.trisoup_halo_flag;
-  bool fineRayFlag = gps.trisoup_fine_ray_tracing_flag;
+  bool haloFlag = gbh.trisoup_halo_flag;
+  bool fineRayFlag = gbh.trisoup_fine_ray_tracing_flag;
 
   std::vector<CentroidDrift> drifts;
   int subsample = 1;

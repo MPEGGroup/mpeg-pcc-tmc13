@@ -896,6 +896,14 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_stream_cnt_minus1 = params->gbh.geom_stream_cnt_minus1;
   gbh.trisoup_node_size_log2_minus2 =
     params->gbh.trisoup_node_size_log2_minus2;
+  gbh.trisoup_vertex_quantization_bits =
+    params->gbh.trisoup_vertex_quantization_bits;
+  gbh.trisoup_centroid_vertex_residual_flag =
+    params->gbh.trisoup_centroid_vertex_residual_flag;
+  gbh.trisoup_halo_flag =
+    params->gbh.trisoup_halo_flag;
+  gbh.trisoup_fine_ray_tracing_flag =
+    params->gbh.trisoup_fine_ray_tracing_flag;
   gbh.interPredictionEnabledFlag = _codeCurrFrameAsInter;
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;

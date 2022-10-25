@@ -916,20 +916,20 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  0: automatic")
 
   ("trisoupQuantizationBits",
-    params.encoder.gps.trisoup_vertex_quantization_bits, 0,
+    params.encoder.gbh.trisoup_vertex_quantization_bits, 0,
     "Trisoup number of bits for quantization of position of vertices along edges\n"
     "  0: inferred to trisoupNodeSizeLog2")
 
   ("trisoupCentroidResidualEnabled",
-    params.encoder.gps.trisoup_centroid_vertex_residual_flag, true,
+    params.encoder.gbh.trisoup_centroid_vertex_residual_flag, true,
     "Trisoup activate residual position value for the centroid vertex")
 
   ("trisoupHaloEnabled",
-    params.encoder.gps.trisoup_halo_flag, true,
+    params.encoder.gbh.trisoup_halo_flag, true,
     "Trisoup activate halo around triangles for ray tracing")
 
   ("trisoupFineRayTracingEnabled",
-    params.encoder.gps.trisoup_fine_ray_tracing_flag, true,
+    params.encoder.gbh.trisoup_fine_ray_tracing_flag, true,
     "Trisoup activate more ray tracing from non-integer origin")
 
   ("trisoupImprovedEncoderEnabled",
@@ -1519,6 +1519,10 @@ sanitizeEncoderOpts(
 
   params.encoder.gps.trisoup_enabled_flag =
     !params.encoder.trisoupNodeSizesLog2.empty();
+
+  if (params.encoder.gps.predgeom_enabled_flag
+      && params.encoder.gps.trisoup_enabled_flag)
+    err.error() << "trisoup cannot be used with predictive geometry\n";
 
   // Certain coding modes are not available when trisoup is enabled.
   // Disable them, and warn if set (they may be set as defaults).

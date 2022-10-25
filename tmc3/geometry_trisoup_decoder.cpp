@@ -143,9 +143,9 @@ decodeGeometryTrisoup(
     predPointCloud, minimum_position);
 
   int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
-  const int maxVertexPrecisionLog2 = gps.trisoup_vertex_quantization_bits ? gps.trisoup_vertex_quantization_bits : gbh.trisoupNodeSizeLog2(gps); 
+  const int maxVertexPrecisionLog2 = gbh.trisoup_vertex_quantization_bits ? gbh.trisoup_vertex_quantization_bits : gbh.trisoupNodeSizeLog2(gps);
   const int bitDropped =  std::max(0, gbh.trisoupNodeSizeLog2(gps) - maxVertexPrecisionLog2);
-  const bool isCentroidDriftActivated = gps.trisoup_centroid_vertex_residual_flag; 
+  const bool isCentroidDriftActivated = gbh.trisoup_centroid_vertex_residual_flag;
 
 
   // Determine neighbours
@@ -164,8 +164,8 @@ decodeGeometryTrisoup(
   // Compute refinedVertices.
   std::vector<CentroidDrift> drifts;
   int32_t maxval = (1 << gbh.maxRootNodeDimLog2) - 1;
-  bool haloFlag = gps.trisoup_halo_flag;
-  bool fineRayFlag = gps.trisoup_fine_ray_tracing_flag;
+  bool haloFlag = gbh.trisoup_halo_flag;
+  bool fineRayFlag = gbh.trisoup_fine_ray_tracing_flag;
   decodeTrisoupCommon(
     nodes, segind, vertices, drifts, pointCloud, blockWidth, maxval,
     gbh.trisoup_sampling_value_minus1 + 1, bitDropped, isCentroidDriftActivated, true, haloFlag, fineRayFlag, &arithmeticDecoder);

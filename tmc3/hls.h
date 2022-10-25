@@ -469,11 +469,6 @@ struct GeometryParameterSet {
 
   // Enables trisoup
   bool trisoup_enabled_flag;
-  // TriSoup parameters
-  int trisoup_vertex_quantization_bits;
-  bool trisoup_centroid_vertex_residual_flag;
-  bool trisoup_halo_flag;
-  bool trisoup_fine_ray_tracing_flag;
 
   // sampling value of trisoup decoding process
   // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
@@ -655,6 +650,19 @@ struct GeometryBrickHeader {
 
   // Number of bits to represent num_unique_segments_minus1
   int num_unique_segments_bits_minus1;
+
+  // Number of bits used to quantize vertex positioning in a node
+  // 0 means same number of bits as trisoupNodeSizeLog2
+  int trisoup_vertex_quantization_bits;
+
+  // Indicates if a residual is encoded for centroid vertex of a trisoup node
+  bool trisoup_centroid_vertex_residual_flag;
+
+  // Indicates if the trisoup halo is enabled or not
+  bool trisoup_halo_flag;
+
+  // Indicates if fine ray tracing must be used for trisoup nodes
+  bool trisoup_fine_ray_tracing_flag;
 
   // 'Header' information that appears at the end of the data unit
   GeometryBrickFooter footer;
