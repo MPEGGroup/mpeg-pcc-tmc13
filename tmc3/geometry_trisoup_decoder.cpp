@@ -161,14 +161,20 @@ decodeGeometryTrisoup(
   decodeTrisoupVertices(segind, vertices, neighbNodes, indexBefore, perpVertexStart, bitDropped, gps, gbh, arithmeticDecoder); 
 
 
+  PCCPointSet3 recPointCloud;
+  recPointCloud.addRemoveAttributes(pointCloud);
+
   // Compute refinedVertices.
   std::vector<CentroidDrift> drifts;
   int32_t maxval = (1 << gbh.maxRootNodeDimLog2) - 1;
   bool haloFlag = gbh.trisoup_halo_flag;
   bool fineRayFlag = gbh.trisoup_fine_ray_tracing_flag;
   decodeTrisoupCommon(
-    nodes, segind, vertices, drifts, pointCloud, blockWidth, maxval,
+    nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth, maxval,
     gbh.trisoup_sampling_value_minus1 + 1, bitDropped, isCentroidDriftActivated, true, haloFlag, fineRayFlag, &arithmeticDecoder);
+
+  pointCloud.resize(0);
+  pointCloud = std::move(recPointCloud);
 }
 
 
@@ -459,6 +465,7 @@ decodeTrisoupCommon(
   const std::vector<uint8_t>& vertices,
   std::vector<CentroidDrift>& drifts,
   PCCPointSet3& pointCloud,
+  PCCPointSet3& recPointCloud,
   int defaultBlockWidth,
   int poistionClipValue,
   uint32_t samplingValue,
@@ -850,9 +857,9 @@ decodeTrisoupCommon(
   refinedVertices.erase( std::unique(refinedVertices.begin(), refinedVertices.end()), refinedVertices.end());
   
   // Move list of points to pointCloud.
-  pointCloud.resize(refinedVertices.size());
+  recPointCloud.resize(refinedVertices.size());
   for (int i = 0; i < refinedVertices.size(); i++) {
-    pointCloud[i] = refinedVertices[i];
+    recPointCloud[i] = refinedVertices[i];
   }
 }
 
