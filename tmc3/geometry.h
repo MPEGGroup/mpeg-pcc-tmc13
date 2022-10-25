@@ -86,7 +86,8 @@ void decodeGeometryOctreeScalable(
 //----------------------------------------------------------------------------
 
 void encodeGeometryTrisoup(
-  const OctreeEncOpts& opt,
+  const TrisoupEncOpts& opt,
+  const OctreeEncOpts& optOctree,
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,

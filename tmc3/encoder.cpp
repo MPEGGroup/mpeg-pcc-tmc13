@@ -972,8 +972,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     // todo(df): this should be derived from the level
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
     encodeGeometryTrisoup(
-      params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders, predPointCloud, *_sps, params->interGeom);
+      params->trisoup, params->geom, *_gps, gbh, pointCloud,
+      *_ctxtMemOctreeGeom, arithmeticEncoders, predPointCloud,
+      *_sps, params->interGeom);
   }
 
   // signal the actual number of points coded

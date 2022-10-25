@@ -933,7 +933,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Trisoup activate more ray tracing from non-integer origin")
 
   ("trisoupImprovedEncoderEnabled",
-    params.encoder.gps.trisoup_improved_encoder_vertex_determination_flag, true,
+    params.encoder.trisoup.improvedVertexDetermination, true,
     "Trisoup activate improved determination of vertex position (encoder only)")
 
   ("positionQuantisationEnabled",

@@ -151,6 +151,12 @@ struct OctreeEncOpts {
 
 //----------------------------------------------------------------------------
 
+struct TrisoupEncOpts {
+  bool improvedVertexDetermination;
+};
+
+//----------------------------------------------------------------------------
+
 struct PredGeomEncOpts {
   enum SortMode
   {

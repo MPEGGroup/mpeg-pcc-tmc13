@@ -45,7 +45,8 @@ namespace pcc {
 
 void
 encodeGeometryTrisoup(
-  const OctreeEncOpts& opt,
+  const TrisoupEncOpts& opt,
+  const OctreeEncOpts& optOctree,
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
@@ -58,7 +59,7 @@ encodeGeometryTrisoup(
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
   encodeGeometryOctree(
-    opt, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes,
+    optOctree, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes,
     predPointCloud, sps, interParams);
 
   // resume encoding with the last encoder
@@ -77,7 +78,7 @@ encodeGeometryTrisoup(
   std::cout << "Number of points = " << pointCloud.getPointCount() << "\n";
   std::cout << "Number of nodes = " << nodes.size() << "\n";
   int distanceSearchEncoder = 1;
-  if (gps.trisoup_improved_encoder_vertex_determination_flag) {
+  if (opt.improvedVertexDetermination) {
     float estimatedSampling = float(nodes.size());
     estimatedSampling /= pointCloud.getPointCount();
     estimatedSampling = std::sqrt(estimatedSampling);

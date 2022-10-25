@@ -106,6 +106,9 @@ struct EncoderParams {
   // Encoder specific parameters for geometry
   OctreeEncOpts geom;
 
+  // Encoder specific parameters for trisoup
+  TrisoupEncOpts trisoup;
+
   // Options for the predictive geometry coder
   PredGeomEncOpts predGeom;
 

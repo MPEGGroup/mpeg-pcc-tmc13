@@ -474,7 +474,6 @@ struct GeometryParameterSet {
   bool trisoup_centroid_vertex_residual_flag;
   bool trisoup_halo_flag;
   bool trisoup_fine_ray_tracing_flag;
-  bool trisoup_improved_encoder_vertex_determination_flag;
 
   // sampling value of trisoup decoding process
   // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
