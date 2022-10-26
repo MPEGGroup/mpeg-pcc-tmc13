@@ -531,7 +531,7 @@ encodeTrisoupVertices(
 
         int v2bits = 3
           - (vertices[correspondanceSegment2V[indexBefore[i]]]
-             >> nbitsVertices - 2);  // on 2 bits
+             >> std::max(0, nbitsVertices - 2));  // on 2 bits
         if (v2bits <= 0)
           nclose++;
         if (v2bits >= 3)
@@ -551,7 +551,7 @@ encodeTrisoupVertices(
       if (segind[idxEdge]) {
         occupPerp++;
         int idxVertex = correspondanceSegment2V[idxEdge];
-        int vertexPos = vertices[idxVertex] >> nbitsVertices - 2;  // on 2 bits
+        int vertexPos = vertices[idxVertex] >> std::max(0, nbitsVertices - 2);  // on 2 bits
 
         int orientation = perpVS[k] >> 30;
         if (orientation) {            // if toward then reverse to away

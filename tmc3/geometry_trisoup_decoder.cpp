@@ -900,7 +900,7 @@ void decodeTrisoupVertices(
       if (correspondanceSegment2V[indexBefore[i]] != -1) {
         Vbefore = 1 + vertices[correspondanceSegment2V[indexBefore[i]]] >> std::max(0, nbitsVertices - 2);
 
-        int v2bits = 3 - (vertices[correspondanceSegment2V[indexBefore[i]]] >> nbitsVertices - 2);
+        int v2bits = 3 - (vertices[correspondanceSegment2V[indexBefore[i]]] >> std::max(0, nbitsVertices - 2));
         if (v2bits <= 0)
           nclose++;
         if (v2bits >= 3)
@@ -920,7 +920,7 @@ void decodeTrisoupVertices(
       if (segind[idxEdge]) {
         occupPerp++;
         int idxVertex = correspondanceSegment2V[idxEdge];
-        int vertexPos = vertices[idxVertex] >> gbh.trisoupNodeSizeLog2(gps) - bitDropped - 2; // on 2 bits
+        int vertexPos = vertices[idxVertex] >> std::max(0, nbitsVertices - 2); // on 2 bits
 
         int orientation = perpVS[k] >> 30;
         if (orientation) {// if toward then reverse to away 
