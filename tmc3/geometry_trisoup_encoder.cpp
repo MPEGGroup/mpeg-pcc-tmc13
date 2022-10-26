@@ -614,12 +614,14 @@ encodeTrisoupVertices(
       v = bit;
 
       // second bit
-      bit = (vertex >> b--) & 1;
-      arithmeticEncoder->encode(
-        bit,
-        ctxTriSoup[MapOBUFTriSoup[2].getEvolve(
-          bit, ctxMap2, (ctxMap1 << 1) + v)]);
-      v = (v << 1) | bit;
+      if (b >= 0) {
+        bit = (vertex >> b--) & 1;
+        arithmeticEncoder->encode(
+          bit,
+          ctxTriSoup[MapOBUFTriSoup[2].getEvolve(
+            bit, ctxMap2, (ctxMap1 << 1) + v)]);
+        v = (v << 1) | bit;
+      }
 
       // third bit
       if (b >= 0) {

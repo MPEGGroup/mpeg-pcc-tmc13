@@ -984,10 +984,12 @@ void decodeTrisoupVertices(
       b--;
 
       // second bit       
-      bit = arithmeticDecoder.decode(ctxTriSoup[MapOBUFTriSoup[2].get(ctxMap2, (ctxMap1 << 1) + v)]);
-      MapOBUFTriSoup[2].evolve(bit, ctxMap2, (ctxMap1 << 1) + v);
-      v = (v << 1) | bit;
-      b--;
+      if (b >= 0) {
+        bit = arithmeticDecoder.decode(ctxTriSoup[MapOBUFTriSoup[2].get(ctxMap2, (ctxMap1 << 1) + v)]);
+        MapOBUFTriSoup[2].evolve(bit, ctxMap2, (ctxMap1 << 1) + v);
+        v = (v << 1) | bit;
+        b--;
+      }
 
       // third bit
       if (b >= 0) {
