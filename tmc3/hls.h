@@ -430,6 +430,7 @@ struct RahtPredictionParams {
   bool raht_prediction_enabled_flag;
   int raht_prediction_threshold0;
   int raht_prediction_threshold1;
+  bool raht_prediction_skip1_flag;
 
   std::vector<int> predWeightParent;
 

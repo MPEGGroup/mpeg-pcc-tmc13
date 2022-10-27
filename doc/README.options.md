@@ -814,6 +814,10 @@ Controls a per-block threshold used to enable or disable the transform
 domain prediction of RAHT coefficients.  This threshold specifies
 the number of neighbour points that must be present.
 
+### `--rahtPredictionSkip1=0|1`
+Controls the skipping of transform domain prediction in the case that 
+there is only subnode.
+
 ### `--numberOfNearestNeighboursInPrediction=INT-VALUE`
 Attribute's maximum number of nearest neighbours to be used for
 prediction.

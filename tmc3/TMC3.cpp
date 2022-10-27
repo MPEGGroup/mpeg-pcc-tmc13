@@ -1194,6 +1194,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.rahtPredParams.raht_prediction_threshold1, 6,
     "Parent threshold for early transform-domain prediction termination")
 
+  ("rahtPredictionSkip1",
+	  params_attr.aps.rahtPredParams.raht_prediction_skip1_flag, true,
+	  "Controls the use of skipping transform-domain prediction in "
+    "one subnode condition")
+
   // NB: the cli option sets +1, the minus1 will be applied later
   ("numberOfNearestNeighborsInPrediction",
     params_attr.aps.num_pred_nearest_neighbours_minus1, 3,
@@ -1623,7 +1628,7 @@ sanitizeEncoderOpts(
     attrMeta.scalingParametersPresent = attrMeta.attr_offset
       || attrMeta.attr_scale_minus1 || attrMeta.attr_frac_bits;
 
-    // behaviour of canonical_point_order_flag is affected by 
+    // behaviour of canonical_point_order_flag is affected by
     // max_points_per_sort_log2_plus1
     if (attr_aps.max_points_per_sort_log2_plus1 > 0)
       attr_aps.canonical_point_order_flag = false;
@@ -1697,6 +1702,12 @@ sanitizeEncoderOpts(
       attr_aps.adaptive_prediction_threshold = 0;
     }
 
+    if (
+      attr_aps.attr_encoding == AttributeEncoding::kRAHTransform
+      && !attr_aps.rahtPredParams.raht_prediction_enabled_flag) {
+      attr_aps.rahtPredParams.raht_prediction_skip1_flag = false;
+    }
+
     if (!params.encoder.gps.geom_angular_mode_enabled_flag) {
       if (attr_aps.spherical_coord_flag)
         err.warn() << it.first
@@ -1707,7 +1718,6 @@ sanitizeEncoderOpts(
 
     if (!params.encoder.gps.interPredictionEnabledFlag)
       attr_aps.attrInterPredictionEnabled = false;
-
   }
 
   // convert floating point values of Lasers' Theta and H to fixed point

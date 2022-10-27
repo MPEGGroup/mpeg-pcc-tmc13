@@ -708,6 +708,7 @@ uraht_process(
 
       // generate weights, occupancy mask, and fwd transform buffers
       // for all siblings of the current node.
+      int nodeCnt = 0;
       for (iLast = i; iLast < iEnd; iLast++) {
         int nextNode = iLast > i
           && !isSibling(weightsLf[iLast].pos, weightsLf[i].pos, level + 3);
@@ -720,6 +721,9 @@ uraht_process(
         nodeQp[nodeIdx][1] = weightsLf[iLast].qp[1] >> regionQpShift;
 
         occupancy |= 1 << nodeIdx;
+
+        if (rahtPredParams.raht_prediction_skip1_flag)
+          nodeCnt++;
 
         if (isEncoder) {
           for (int k = 0; k < numAttrs; k++)
@@ -748,7 +752,12 @@ uraht_process(
         int parentNeighIdx[19];
 
         int parentNeighCount = 0;
-        if (*numGrandParentNeighIt < rahtPredParams.raht_prediction_threshold0) {
+        if (rahtPredParams.raht_prediction_skip1_flag && nodeCnt == 1) {
+          enablePrediction = false;
+          parentNeighCount = 19;
+        }
+        else if (
+          *numGrandParentNeighIt < rahtPredParams.raht_prediction_threshold0) {
           enablePrediction = false;
         } else {
           findNeighbours(
