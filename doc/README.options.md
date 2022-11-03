@@ -697,6 +697,10 @@ Specifies the block size used for global motion compensation.
 ### `--globalMotionWindowSize=INT-VALUE`
 Specifies the window size used in global motion compensation
 
+### `--deriveGMThreshold=0|1`
+(Encoder only)
+Controls whether the global motion thresholds derived at the encoder.
+
 ### `--use_cuboidal_regions_in_GM_estimation=0|1`
 (Encoder only)
 Controls the use of cuboidal regions with square cross-section in xy-plane

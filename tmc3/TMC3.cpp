@@ -1094,6 +1094,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.interGeom.motion_window_size, 512,
     "Window size for global moton compensation")
 
+  ("deriveGMThreshold",
+    params.encoder.interGeom.deriveGMThreshold, false,
+    "Derive thresholds for applying global motion compensation")
+
   ("use_cuboidal_regions_in_GM_estimation",
     params.encoder.interGeom.useCuboidalRegionsInGMEstimation, false,
     "Use cuboidal regions with square cross-section in xy-plane for "
@@ -1579,6 +1583,13 @@ sanitizeEncoderOpts(
       params.encoder.gps.globalMotionEnabled = false;
     else
       params.encoder.interGeom.motionSrc = InterGeomEncOpts::kInternalLMSGMSrc;
+  }
+
+  if (
+    params.encoder.gps.globalMotionEnabled
+    && params.encoder.interGeom.motionSrc
+      == InterGeomEncOpts::kInternalLMSGMSrc) {
+    params.encoder.interGeom.deriveGMThreshold = true;
   }
 
   if (params.encoder.gps.interPredictionEnabledFlag)

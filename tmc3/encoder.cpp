@@ -39,6 +39,7 @@
 #include <limits>
 #include <set>
 #include <stdexcept>
+#include <numeric>
 
 #include "Attribute.h"
 #include "AttributeCommon.h"
@@ -205,6 +206,54 @@ PCCTMC3Encoder3::compress(
         deriveMotionParams(params);
       }
     }
+  }
+  if (params->gps.globalMotionEnabled && params->interGeom.deriveGMThreshold) {
+    const auto pointCount = inputPointCloud.getPointCount();
+    const auto bbox = inputPointCloud.computeBoundingBox();
+    const int histScale = 100;
+
+    const int minZ = std::max(bbox.min.z(), -4000);
+    const int maxZ = std::min(bbox.max.z(), -500);
+
+    const int histRange = (maxZ - minZ) / histScale;
+    std::vector<int> histInp(histRange), midVals(histRange);
+    std::vector<float> probs(histRange);
+
+    for (auto i = 0; i < pointCount; i++) {
+      auto scaledZ = (inputPointCloud[i].z() - minZ) / histScale;
+      if (scaledZ >= 0 && scaledZ < histRange)
+        histInp[scaledZ]++;
+    }
+
+    for (size_t i = 0; i < histRange; ++i)
+      midVals[i] = minZ + int((i + 0.5) * histScale);
+
+    const float sum = std::accumulate(histInp.begin(), histInp.end(), 0.);
+
+    for (size_t i = 0; i < histRange; ++i)
+      probs[i] = histInp[i] / sum;
+
+    const float mean =
+      std::inner_product(probs.begin(), probs.end(), midVals.begin(), 0.);
+
+    float variance = 0.0;
+    for (size_t i = 0; i < histRange; ++i)
+      variance += probs[i] * pow((midVals[i] - mean), 2);
+
+    const int topIdx =
+      std::max_element(histInp.begin(), histInp.end()) - histInp.begin();
+    const int top = midVals[topIdx];
+
+    const int delta = 1.5 * std::sqrt(variance);
+    const int leftOffset =
+      std::max(minZ, top - delta) * params->codedGeomScale;
+    const int rightOffset =
+      std::min(maxZ, top + delta) * params->codedGeomScale;
+    if (params->gps.predgeom_enabled_flag)
+      _refFrameSph.updateThresholds(_frameCounter, leftOffset, rightOffset);
+    else if (!params->gps.trisoup_enabled_flag)
+      params->interGeom.motionParams.updateThresholds(
+        _frameCounter, leftOffset, rightOffset);
   }
 
   // placeholder to "activate" the parameter sets

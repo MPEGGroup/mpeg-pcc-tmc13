@@ -87,21 +87,22 @@ public:
           motionMatrix[i][j] = std::round((*(it++)) * scaleFactor);
       for (int j = 0; j < 3; j++)
         transVec[i][j] = std::round((*(it++)) * qs);
-      threshVec[i].first = std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
-      threshVec[i].second = std::round((*(it++)) * qs); // quantizeParameter(*(it++));
+      threshVec[i].first =
+        std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
+      threshVec[i].second =
+        std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
     }
   }
-  void
-    setMotionParams(std::pair<int, int> thresh, std::vector<int> matrix, Vec3<int> trans)
+  void setMotionParams(
+    std::pair<int, int> thresh, std::vector<int> matrix, Vec3<int> trans)
   {
     motionMatrix.push_back(matrix);
     threshVec.push_back(thresh);
     transVec.push_back(trans);
   }
-  template <typename T>
-  void
-  getMotionParams(
-    std::pair<int, int> &th, std::vector<T> &mat, Vec3<int> &tr) const
+  template<typename T>
+  void getMotionParams(
+    std::pair<int, int>& th, std::vector<T>& mat, Vec3<int>& tr) const
   {
     if (frameCounter > threshVec.size()) {
       std::cout << "Accessing unassigned values\n";
@@ -111,6 +112,19 @@ public:
     for (auto i = 0; i < 9; i++)
       mat[i] = motionMatrix[frameCounter][i];
     tr = transVec[frameCounter];
+  }
+  void updateThresholds(
+    const int frameCounter, const int leftThresh, const int rightTresh)
+  {
+    // todo: use variable instead of array for thresholds
+    if (threshVec.size() > frameCounter)
+      threshVec[frameCounter] = {rightTresh, leftThresh};
+    else if (threshVec.size() == frameCounter) {
+      /* Do nothing - last frame*/
+    } else {
+      throw std::runtime_error(
+        "Check: frameCounter > threshVec.size()");
+    }
   }
 };
 //=============================================================================
@@ -197,6 +211,7 @@ struct InterGeomEncOpts {
 
   MotionParameters motionParams;
 	bool useCuboidalRegionsInGMEstimation;
+  bool deriveGMThreshold;
 
   std::vector<int> motion_block_size;
   int motion_window_size;

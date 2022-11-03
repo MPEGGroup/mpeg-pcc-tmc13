@@ -564,8 +564,12 @@ public:
   void setGlobalMotionEnabled(bool GlobalMotionEnabled){
     globalMotionEnabled = GlobalMotionEnabled;
   }
-
-private:
+  void updateThresholds(
+    const int frameCounter, const int leftThresh, const int rightTresh)
+  {
+    motionParams.updateThresholds(frameCounter, leftThresh, rightTresh);
+  }
+ private:
   std::vector<std::map<int, pcc::point_t>> refPointVals;
   std::vector<std::map<int, pcc::point_t>> refPointValsGlob;
   std::vector<std::map<int, pcc::point_t>> refPointValsCur;
