@@ -1273,14 +1273,17 @@ write(
           bs.writeSe(gbh.gm_matrix[3 * i + j]);
       }
     }
-    bs.writeSe(gbh.gm_thresh.first);
-    bs.writeSe(gbh.gm_thresh.second);
     if (!gps.predgeom_enabled_flag) {
       bs.writeUe(gbh.lpu_type);
       bs.write(gbh.min_zero_origin_flag);
       if (gbh.lpu_type != 0)
         for (int i = 0; i < 3; i++)
           bs.writeUe(gbh.motion_block_size[i]);
+    }
+    if (gps.predgeom_enabled_flag || !gbh.lpu_type)
+    {
+      bs.writeSe(gbh.gm_thresh.first);
+      bs.writeSe(gbh.gm_thresh.second);
     }
   }
 
@@ -1406,8 +1409,7 @@ parseGbh(
           gbh.gm_matrix[3 * i + j] = val;
       }
     }
-    bs.readSe(&gbh.gm_thresh.first);
-    bs.readSe(&gbh.gm_thresh.second);
+
     if (!gps.predgeom_enabled_flag) {
       bs.readUe(&gbh.lpu_type);
       // temporal...
@@ -1415,7 +1417,12 @@ parseGbh(
       if (gbh.lpu_type != 0)
         for (int i = 0; i < 3; i++)
           bs.readUe(&gbh.motion_block_size[i]);
-   }
+    }
+    if (gps.predgeom_enabled_flag || !gbh.lpu_type)
+    {
+      bs.readSe(&gbh.gm_thresh.first);
+      bs.readSe(&gbh.gm_thresh.second);
+    }
   }
 
   bs.byteAlign();
