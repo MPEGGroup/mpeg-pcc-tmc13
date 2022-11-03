@@ -1020,7 +1020,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUe(aps.max_points_per_sort_log2_plus1);
     }
 
-    if (aps.lodParametersPresent())
+    if (
+      aps.lodParametersPresent()
+      && aps.num_pred_nearest_neighbours_minus1 >= 2)
       bs.write(aps.predictionWithDistributionEnabled);
   }
 
@@ -1148,7 +1150,9 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.max_points_per_sort_log2_plus1);
     }
 
-    if (aps.lodParametersPresent())
+    if (
+      aps.lodParametersPresent()
+      && aps.num_pred_nearest_neighbours_minus1 >= 2)
       bs.read(&aps.predictionWithDistributionEnabled);
   }
 
