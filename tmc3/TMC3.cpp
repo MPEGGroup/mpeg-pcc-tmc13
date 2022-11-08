@@ -779,6 +779,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  4: Uniform square partition\n"
     "  5: n-point spans of input")
 
+  ("safeTrisoupPartionning",
+    params.encoder.partition.safeTrisoupPartionning, true,
+    "Use safer partitioning to not break Trisoup surfaces\n"
+    "  This is compatible with partitionMethod 2 and 4, but sliceMaxPoints\n"
+    "  may be exceeded.")
+
   ("partitionOctreeDepth",
     params.encoder.partition.octreeDepth, 1,
     "Depth of octree partition for partitionMethod=4")
@@ -1535,6 +1541,11 @@ sanitizeEncoderOpts(
 
     params.encoder.gps.geom_unique_points_flag = true;
     params.encoder.gps.inferred_direct_coding_mode = 0;
+  }
+
+  // Disable partitionning changes for Trisoup if Trisoup is not used
+  if (!params.encoder.gps.trisoup_enabled_flag) {
+    params.encoder.partition.safeTrisoupPartionning = false;
   }
 
   // tweak qtbt generation when trisoup is /isn't enabled

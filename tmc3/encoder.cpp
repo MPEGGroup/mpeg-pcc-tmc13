@@ -325,6 +325,15 @@ PCCTMC3Encoder3::compress(
   //      slices conform to any codec limits.
   //  todo(df): consider requiring partitioning function to sort the input
   //            points and provide ranges rather than a set of indicies.
+
+  // use the largest trisoup node size as a partitioning boundary for
+  // consistency between slices with different trisoup node sizes.
+  int partitionBoundaryLog2 = 0;
+  if (!params->trisoupNodeSizesLog2.empty())
+    partitionBoundaryLog2 = *std::max_element(
+      params->trisoupNodeSizesLog2.begin(),
+      params->trisoupNodeSizesLog2.end());
+
   do {
     for (int t = 0; t < tileMaps.size(); t++) {
       const auto& tile = tileMaps[t];
@@ -345,14 +354,6 @@ PCCTMC3Encoder3::compress(
       auto partitionMethod = params->partition.method;
       if (tileCloud.getPointCount() < params->partition.sliceMaxPoints)
         partitionMethod = PartitionMethod::kNone;
-
-      // use the largest trisoup node size as a partitioning boundary for
-      // consistency between slices with different trisoup node sizes.
-      int partitionBoundaryLog2 = 0;
-      if (!params->trisoupNodeSizesLog2.empty())
-        partitionBoundaryLog2 = *std::max_element(
-          params->trisoupNodeSizesLog2.begin(),
-          params->trisoupNodeSizesLog2.end());
 
       //Slice partition of current tile
       std::vector<Partition> curSlices;
@@ -417,6 +418,15 @@ PCCTMC3Encoder3::compress(
     _sliceId = partition.sliceId;
     _tileId = partition.tileId;
     _sliceOrigin = sliceCloud.computeBoundingBox().min;
+
+    if (params->partition.safeTrisoupPartionning) {
+      int partitionBoundary = 1 << partitionBoundaryLog2;
+
+      _sliceOrigin[0] -= (_sliceOrigin[0] % partitionBoundary);
+      _sliceOrigin[1] -= (_sliceOrigin[1] % partitionBoundary);
+      _sliceOrigin[2] -= (_sliceOrigin[2] % partitionBoundary);
+    }
+
     compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);
   }
 

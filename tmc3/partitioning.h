@@ -81,6 +81,9 @@ struct PartitionParams {
 
   // Baseline tile width. (0 => disabled)
   int tileSize;
+
+  // use safe partitionning for Trisoup, aligning nodes to a global grid
+  bool safeTrisoupPartionning;
 };
 
 //============================================================================
@@ -149,7 +152,8 @@ void refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& inputPointCloud,
   Vec3<int> sliceArrNum,
-  std::vector<Partition>& slices);
+  std::vector<Partition>& slices,
+  int partitionBoundary = 0);
 
 //============================================================================
 

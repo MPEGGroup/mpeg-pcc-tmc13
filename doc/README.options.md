@@ -292,6 +292,12 @@ merge small slices together.
 Tile dimension to use when performing initial partitioning.  A value of zero
 disables tile partitioning.
 
+### `--safeTrisoupPartionning=0|1`
+When uniform partitioning along longest edge or uniform square partitioning is
+used additionnal constraints are added on section boundaries to ensure not
+splitting withing Trisoup nodes. This may result in slices containing more than
+`sliceMaxPoints` points, and/or in a not perfectly uniform partitioning.
+
 
 General options
 ---------------

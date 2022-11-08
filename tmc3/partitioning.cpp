@@ -247,7 +247,8 @@ partitionByUniformGeom(
     slices.end());
 
   // refine slicesto meet max/min point constraints
-  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+  refineSlicesByAdjacentInfo(
+    params, cloud, sliceArrNum, slices, partitionBoundary);
 
   return slices;
 }
@@ -341,7 +342,8 @@ partitionByUniformSquare(
   }
 
   // refine slicesto meet max/min point constraints
-  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+  refineSlicesByAdjacentInfo(
+    params, cloud, sliceArrNum, slices, partitionBoundary);
 
   return slices;
 }
@@ -538,14 +540,18 @@ maxEdgeAxis(const PCCPointSet3& cloud, std::vector<int32_t>& sliceIndexes)
 }
 
 //============================================================================
-// evenly split slice into several partitions no larger than maxPoints
+// When partitionBoundary <= 0,
+//   evenly split slice into several partitions no larger than maxPoints
+// Otherwise, try to keep boundaries more suited for Trisoup.
+//   in that case, partitions might be larger than maxPoints
 
 void
 splitSlice(
   CM_Nodes& splitingSlice,
   std::vector<CM_Nodes>& newlist,
   const PCCPointSet3& cloud,
-  int maxPoints)
+  int maxPoints,
+  int partitionBoundary)
 {
   auto& aIndexes = splitingSlice.nodes[0].pointCloudIndex;
 
@@ -558,19 +564,51 @@ splitSlice(
 
   int numSplit = std::ceil((double)aIndexes.size() / (double)maxPoints);
   int splitsize = aIndexes.size() / numSplit;
+
+  std::vector<int> splitIndices;
+  if(partitionBoundary > 0) {
+    maxPoints = (splitsize + maxPoints) / 2;
+
+    std::vector<int> indices;
+    indices.push_back(0);
+    for (int i = 0; i < aIndexes.size() - 1; ++i) {
+      if (cloud[aIndexes[i + 1]][splitAxis] - cloud[aIndexes[i]][splitAxis] > partitionBoundary
+          || ((cloud[aIndexes[i]][splitAxis] + 1) % partitionBoundary == 0)
+          && (cloud[aIndexes[i + 1]][splitAxis] != cloud[aIndexes[i]][splitAxis])) {
+        indices.push_back(i + 1);
+      }
+    }
+    indices.push_back(aIndexes.size() - 1);
+
+    splitIndices.push_back(0);
+    int prev = 0;
+    for (int i = 1; i < indices.size(); ++i) {
+      if (indices[i] - prev > (maxPoints)) {
+        splitIndices.push_back(indices[i - 1]);
+        prev = indices[i - 1];
+      }
+    }
+    numSplit = splitIndices.size();
+  }
+  else {
+    splitIndices.reserve(numSplit);
+    for (int i = 0; i < numSplit; ++i) {
+      splitIndices.push_back(i * splitsize);
+    }
+  }
+
   std::vector<Partition> splitPartitions;
   splitPartitions.resize(numSplit);
 
   for (int i = 0; i < numSplit - 1; i++) {
     auto& indexes = splitPartitions[i].pointIndexes;
     indexes.insert(
-      indexes.begin(), aIndexes.begin() + i * splitsize,
-      aIndexes.begin() + (i + 1) * splitsize);
+      indexes.begin(), aIndexes.begin() + splitIndices[i],
+      aIndexes.begin() + splitIndices[i + 1]);
   }
   auto& indexes = splitPartitions[numSplit - 1].pointIndexes;
   indexes.insert(
-    indexes.begin(), aIndexes.begin() + (numSplit - 1) * splitsize,
-    aIndexes.end());
+    indexes.begin(), aIndexes.begin() + splitIndices.back(), aIndexes.end());
 
   newlist.resize(numSplit);
   for (int i = 0; i < numSplit; i++) {
@@ -606,8 +644,11 @@ refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& cloud,
   Vec3<int> sliceArrNum,
-  std::vector<Partition>& slices)
+  std::vector<Partition>& slices,
+  int partitionBoundary)
 {
+  if (!params.safeTrisoupPartionning)
+    partitionBoundary = 0;
   int maxPoints = params.sliceMaxPoints;  
   int minPoints = params.sliceMinPoints;
 
@@ -692,7 +733,7 @@ refineSlicesByAdjacentInfo(
   int listNum = list.size();
   for (int i = 0; i < listNum; i++) {
     if (tmplist[i].total > maxPoints) {
-      splitSlice(list[i], newlist, cloud, maxPoints);
+      splitSlice(list[i], newlist, cloud, maxPoints, partitionBoundary);
       for (int j = 0; j < newlist.size(); j++) {
         newSlice.push_back(newlist[j]);
       }
