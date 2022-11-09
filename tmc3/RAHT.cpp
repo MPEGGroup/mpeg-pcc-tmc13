@@ -764,6 +764,7 @@ uraht_process(
   // descend tree
   weightsLf.resize(1);
   attrsLf.resize(numAttrs);
+  int trainZeros = 0;
   for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
     int numNodes = weightsHf.size() - levelHfPos[level];
     weightsLf.resize(weightsLf.size() + numNodes);
@@ -964,9 +965,64 @@ uraht_process(
           }
         }
 
+        // decision for RDOQ
+        int64_t sumCoeff = 0;
+        bool flagRDOQ = false;
+        if (isEncoder) {
+          int64_t Dist2 = 0;
+          int Ratecoeff = 0;
+          int64_t lambda0;
+
+          for (int k = 0; k < numAttrs; k++) {
+            //auto q = Quantizer(qpLayer[std::min(k, int(quantizers.size()) - 1)] + nodeQp[idx]);
+            auto quantizers = qpset.quantizers(qpLayer, nodeQp[idx]);
+            auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
+            auto coeff = transformBuf[k][idx].round();
+            Dist2 += coeff * coeff;
+            auto Qcoeff = q.quantize(coeff << kFixedPointAttributeShift);
+            sumCoeff += std::abs(Qcoeff);
+            //Ratecoeff += !!Qcoeff; // sign
+            Ratecoeff += int(std::log2(1 + std::abs(Qcoeff)) * 256.);
+            if (!k)
+              lambda0 = q.scale(1);
+
+          }
+
+          int LUTbins[11] = { 1,2,3, 5,5, 7,7, 9,9 ,11 ,11 };
+          int Rate = LUTbins[trainZeros > 10 ? 10 : trainZeros];
+          if (trainZeros > 10) {
+            int temp = trainZeros - 11;
+            // prefix k =2
+            temp += 1;
+            int a = 0;
+            while (temp) {
+              a++;
+              temp >>= 1;
+
+            }
+            Rate += 2 * a - 1;
+            // suffix  k=2
+            Rate += 2;
+          }
+          Rate += (Ratecoeff + 128) >> 8;
+
+          int64_t lambda = lambda0 * lambda0 * (numAttrs == 1 ? 25 : 35);
+          flagRDOQ = (Dist2 << 26) < lambda * Rate;
+        }
+
+        // Track RL for RDOQ
+        if (flagRDOQ || sumCoeff == 0)
+          trainZeros++;
+        else
+          trainZeros = 0;
+
+
         // The RAHT transform
         auto quantizers = qpset.quantizers(qpLayer, nodeQp[idx]);
         for (int k = 0; k < numAttrs; k++) {
+          if (flagRDOQ) // apply RDOQ
+            transformBuf[k][idx].val = 0;
+
           auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
           if (isEncoder) {
@@ -1053,6 +1109,8 @@ uraht_process(
     FixedPoint attrRecDc[3];
     FixedPoint sqrtWeight;
     sqrtWeight.val = isqrt(uint64_t(weight) << (2 * FixedPoint::kFracBits));
+
+    int64_t sumCoeff = 0;
     for (int k = 0; k < numAttrs; k++) {
       if (isEncoder)
         attrSum[k] = attrsLf[i * numAttrs + k];
@@ -1093,6 +1151,8 @@ uraht_process(
             q.quantize(coeff << kFixedPointAttributeShift);
           transformBuf[1] =
             divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+
+          sumCoeff += std::abs(q.quantize(coeff << kFixedPointAttributeShift));
         } else {
           int64_t coeff = *coeffBufItK[k]++;
           transformBuf[1] =
@@ -1111,6 +1171,15 @@ uraht_process(
         if (w == 1)
           attrRec[out + k] = transformBuf[0].round();
       }
+
+      // Track RL for RDOQ
+      if (isEncoder) {
+        if (sumCoeff == 0)
+          trainZeros++;
+        else
+          trainZeros = 0;
+      }
+
     }
 
     attrsHfIt += (weight - 1) * numAttrs;
