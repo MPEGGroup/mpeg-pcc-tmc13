@@ -977,10 +977,10 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-    bs.write(aps.raht_prediction_enabled_flag);
-    if (aps.raht_prediction_enabled_flag) {
-      bs.writeUe(aps.raht_prediction_threshold0);
-      bs.writeUe(aps.raht_prediction_threshold1);
+    bs.write(aps.rahtPredParams.raht_prediction_enabled_flag);
+    if (aps.rahtPredParams.raht_prediction_enabled_flag) {
+      bs.writeUe(aps.rahtPredParams.raht_prediction_threshold0);
+      bs.writeUe(aps.rahtPredParams.raht_prediction_threshold1);
     }
   }
 
@@ -1112,10 +1112,10 @@ parseAps(const PayloadBuffer& buf)
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-    bs.read(&aps.raht_prediction_enabled_flag);
-    if (aps.raht_prediction_enabled_flag) {
-      bs.readUe(&aps.raht_prediction_threshold0);
-      bs.readUe(&aps.raht_prediction_threshold1);
+    bs.read(&aps.rahtPredParams.raht_prediction_enabled_flag);
+    if (aps.rahtPredParams.raht_prediction_enabled_flag) {
+      bs.readUe(&aps.rahtPredParams.raht_prediction_threshold0);
+      bs.readUe(&aps.rahtPredParams.raht_prediction_threshold1);
     }
   }
 

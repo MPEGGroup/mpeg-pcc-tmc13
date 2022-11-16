@@ -1137,14 +1137,10 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
-  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
-                                    aps.raht_prediction_threshold1};
-
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
-    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
-    voxelCount, coefficients.data());
+    aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
+    attributes.data(), attribCount, voxelCount, coefficients.data());
 
   // Entropy encode.
   int zeroRun = 0;
@@ -1206,14 +1202,10 @@ AttributeEncoder::encodeColorsTransformRaht(
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
-  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
-                                    aps.raht_prediction_threshold1};
-
   // Transform.
   regionAdaptiveHierarchicalTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
-    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
-    voxelCount, coefficients.data());
+    aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
+    attributes.data(), attribCount, voxelCount, coefficients.data());
 
   // Entropy encode.
   int values[attribCount];

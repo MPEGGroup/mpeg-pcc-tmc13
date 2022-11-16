@@ -426,6 +426,22 @@ struct SequenceParameterSet {
 
 //============================================================================
 
+struct RahtPredictionParams {
+  bool raht_prediction_enabled_flag;
+  int raht_prediction_threshold0;
+  int raht_prediction_threshold1;
+
+  std::vector<int> predWeightParent;
+
+  RahtPredictionParams()
+  {
+    predWeightParent = {4, 2, 2, 2, 1, 1, 1, 1, 1, 2,
+                        1, 2, 2, 1, 1, 1, 1, 1, 1};
+  }
+};
+
+//============================================================================
+
 struct GeometryParameterSet {
   int gps_geom_parameter_set_id;
   int gps_seq_parameter_set_id;
@@ -763,9 +779,7 @@ struct AttributeParameterSet {
   bool aps_slice_qp_deltas_present_flag;
 
   //--- raht parameters
-  bool raht_prediction_enabled_flag;
-  int raht_prediction_threshold0;
-  int raht_prediction_threshold1;
+  RahtPredictionParams rahtPredParams;
 
   //--- lifting parameters
   bool scalable_lifting_enabled_flag;

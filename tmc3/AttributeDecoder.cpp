@@ -551,11 +551,9 @@ AttributeDecoder::decodeReflectancesRaht(
   }
 
   std::vector<int> attributes(attribCount * voxelCount);
-  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
-                                    aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    aps.rahtPredParams, qpSet,
     pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
     voxelCount, coefficients.data());
 
@@ -614,11 +612,9 @@ AttributeDecoder::decodeColorsRaht(
   }
 
   std::vector<int> attributes(attribCount * voxelCount);
-  const int rahtPredThreshold[2] = {aps.raht_prediction_threshold0,
-                                    aps.raht_prediction_threshold1};
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.raht_prediction_enabled_flag, rahtPredThreshold, qpSet,
+    aps.rahtPredParams, qpSet,
     pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
     voxelCount, coefficients.data());
 

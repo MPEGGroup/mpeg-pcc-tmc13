@@ -38,15 +38,14 @@
 
 #include "FixedPoint.h"
 #include "quantization.h"
+#include "hls.h"
 
-#include "quantization.h"
 #include <vector>
 
 namespace pcc {
 
 void regionAdaptiveHierarchicalTransform(
-  bool raht_prediction_enabled_flag,
-  const int predictionThreshold[2],
+  const RahtPredictionParams& rahtPredParams,
   const QpSet& qpset,
   const Qps* pointQPOffset,
   int64_t* mortonCode,
@@ -56,8 +55,7 @@ void regionAdaptiveHierarchicalTransform(
   int* coefficients);
 
 void regionAdaptiveHierarchicalInverseTransform(
-  bool raht_prediction_enabled_flag,
-  const int predictionThreshold[2],
+  const RahtPredictionParams &rahtPredParams,
   const QpSet& qpset,
   const Qps* pointQpOffset,
   int64_t* mortonCode,

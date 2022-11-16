@@ -1183,15 +1183,15 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  2: Hierarchical neighbourhood prediction as lifting transform")
 
   ("rahtPredictionEnabled",
-    params_attr.aps.raht_prediction_enabled_flag, true,
+    params_attr.aps.rahtPredParams.raht_prediction_enabled_flag, true,
     "Controls the use of transform-domain prediction")
 
   ("rahtPredictionThreshold0",
-    params_attr.aps.raht_prediction_threshold0, 2,
+    params_attr.aps.rahtPredParams.raht_prediction_threshold0, 2,
     "Grandparent threshold for early transform-domain prediction termination")
 
   ("rahtPredictionThreshold1",
-    params_attr.aps.raht_prediction_threshold1, 6,
+    params_attr.aps.rahtPredParams.raht_prediction_threshold1, 6,
     "Parent threshold for early transform-domain prediction termination")
 
   // NB: the cli option sets +1, the minus1 will be applied later
