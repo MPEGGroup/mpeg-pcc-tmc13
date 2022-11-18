@@ -208,9 +208,9 @@ struct GeometryNeighPattern {
 // the occupancy state of previously coded neighbours is used to refine
 // the neighbour pattern and derive external adjacency counts for each child.
 GeometryNeighPattern makeGeometryNeighPattern(
+  bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& currentPosition,
   int codedAxesPrevLvl,
-
   const MortonMap3D& occupancyAtlas);
 
 void makeGeometryAdvancedNeighPattern(

@@ -171,7 +171,6 @@ makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& position,
   int codedAxesPrevLvl,
-  int codedAxesCurLvl,
   const MortonMap3D& occupancyAtlas)
 {
   const int mask = occupancyAtlas.cubeSize() - 1;
@@ -210,73 +209,20 @@ makeGeometryNeighPattern(
 
   // NB: the process of updating neighpattern below also derives
   // the occupancy contextualisation bits.
-  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0};
+  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0, {0, 0, 0}};
 
   if (!gnp.neighPattern || !adjacent_child_contextualization_enabled_flag)
-
     return gnp;
 
-  if (
-    x > 0 && gnp.neighPattern & 2
-  )
-    gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x - 1, y, z, gnp, 0, codedAxesCurLvl & 4);
+  if (x > 0 && gnp.neighPattern & 2)
+    gnp.adjNeighOcc[0] = occupancyAtlas.getChildOcc(x - 1, y, z);
 
-  if (y > 0 && gnp.neighPattern & 4 )
-    gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y - 1, z, gnp, 1, codedAxesCurLvl & 2);
+  if (y > 0 && gnp.neighPattern & 4)
+    gnp.adjNeighOcc[1] = occupancyAtlas.getChildOcc(x, y - 1, z);
 
   if (z > 0 && gnp.neighPattern & 16)
-    gnp = updatePatternFromNeighOccupancy(
-      occupancyAtlas, x, y, z - 1, gnp, 2, codedAxesCurLvl & 1);
+    gnp.adjNeighOcc[2] = occupancyAtlas.getChildOcc(x, y, z - 1);
 
-  return gnp;
-}
-//----------------------------------------------------------------------------
-
-GeometryNeighPattern
-makeGeometryNeighPattern(
-  const Vec3<int32_t>& position,
-  int codedAxesPrevLvl,
-  const MortonMap3D& occupancyAtlas)
-{
-  const int mask = occupancyAtlas.cubeSize() - 1;
-  const int cubeSizeMinusOne = mask;
-  const int32_t x = position[0] & mask;
-  const int32_t y = position[1] & mask;
-  const int32_t z = position[2] & mask;
-  uint8_t neighPattern;
-
-  const int sx = codedAxesPrevLvl & 4 ? 1 : 0;
-  const int sy = codedAxesPrevLvl & 2 ? 1 : 0;
-  const int sz = codedAxesPrevLvl & 1 ? 1 : 0;
-
-  if (
-    x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
-    && z < cubeSizeMinusOne) {
-    neighPattern = occupancyAtlas.get(x + 1, y, z, sx, sy, sz);
-    neighPattern |= occupancyAtlas.get(x - 1, y, z, sx, sy, sz) << 1;
-    neighPattern |= occupancyAtlas.get(x, y - 1, z, sx, sy, sz) << 2;
-    neighPattern |= occupancyAtlas.get(x, y + 1, z, sx, sy, sz) << 3;
-    neighPattern |= occupancyAtlas.get(x, y, z - 1, sx, sy, sz) << 4;
-    neighPattern |= occupancyAtlas.get(x, y, z + 1, sx, sy, sz) << 5;
-  } else {
-    neighPattern = occupancyAtlas.getWithCheck(x + 1, y, z, sx, sy, sz);
-    neighPattern |= occupancyAtlas.getWithCheck(x - 1, y, z, sx, sy, sz) << 1;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y - 1, z, sx, sy, sz) << 2;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y + 1, z, sx, sy, sz) << 3;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y, z - 1, sx, sy, sz) << 4;
-    neighPattern |= occupancyAtlas.getWithCheck(x, y, z + 1, sx, sy, sz) << 5;
-  }
-
-  // Above, the neighbour pattern corresponds directly to the six same
-  // sized neighbours of the given node.
-  // The patten is then refined by examining the available children
-  // of the same neighbours.
-
-  // NB: the process of updating neighpattern below also derives
-  // the occupancy contextualisation bits.
-  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0};
   return gnp;
 }
 

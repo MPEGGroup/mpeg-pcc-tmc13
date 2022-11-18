@@ -1735,6 +1735,7 @@ decodeGeometryOctree(
           &occupancyAtlasOrigin);
 
         gnp = makeGeometryNeighPattern(
+          gps.adjacent_child_contextualization_enabled_flag,
           node0.pos, codedAxesPrevLvl, occupancyAtlas);
 
       } else {
