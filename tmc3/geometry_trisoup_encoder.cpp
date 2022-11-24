@@ -52,7 +52,7 @@ encodeGeometryTrisoup(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMemOctree,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
-  PCCPointSet3& predPointCloud,
+  const CloudFrame& refFrame,
   const SequenceParameterSet& sps,
   const InterGeomEncOpts& interParams)
 {
@@ -60,7 +60,7 @@ encodeGeometryTrisoup(
   pcc::ringbuf<PCCOctree3Node> nodes;
   encodeGeometryOctree(
     optOctree, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes,
-    predPointCloud, sps, interParams);
+    refFrame, sps, interParams);
 
   // resume encoding with the last encoder
   pcc::EntropyEncoder* arithmeticEncoder = arithmeticEncoders.back().get();

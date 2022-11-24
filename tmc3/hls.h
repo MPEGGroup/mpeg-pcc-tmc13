@@ -426,6 +426,9 @@ struct SequenceParameterSet {
 
   // Indicates that context state may be propagated between slices.
   bool entropy_continuation_enabled_flag;
+
+  // Indicates that inter-frame prediction may be used in the sequence
+  bool inter_frame_prediction_enabled_flag;
 };
 
 //============================================================================

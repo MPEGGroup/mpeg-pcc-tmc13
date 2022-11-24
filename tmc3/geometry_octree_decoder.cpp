@@ -1452,11 +1452,18 @@ decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
-  pcc::ringbuf<PCCOctree3Node>* nodesRemaining
-  ,PCCPointSet3& predPointCloud,
+  pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
+  const CloudFrame* refFrame,
   const Vec3<int> minimum_position
 )
 {
+  const bool isInter = gbh.interPredictionEnabledFlag;
+
+  PCCPointSet3 predPointCloud;
+
+  if (isInter)
+    predPointCloud = refFrame->cloud;
+
   // init main fifo
   //  -- worst case size is the last level containing every input poit
   //     and each point being isolated in the previous level.
@@ -1544,8 +1551,6 @@ decodeGeometryOctree(
   // saved state for use with parallel bistream coding.
   // the saved state is restored at the start of each parallel octree level
   std::unique_ptr<GeometryOctreeDecoder> savedState;
-
-  bool isInter = gbh.interPredictionEnabledFlag;
 
   // global motion is here
   PCCPointSet3 pointPredictorWorld;
@@ -2029,13 +2034,13 @@ decodeGeometryOctree(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
-  PCCPointSet3& predPointCloud,
+  const CloudFrame* refFrame,
   const Vec3<int> minimum_position
 )
 {
   decodeGeometryOctree(
     gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoder, nullptr,
-    predPointCloud, minimum_position);
+    refFrame, minimum_position);
 }
 
 //-------------------------------------------------------------------------
@@ -2047,14 +2052,14 @@ decodeGeometryOctreeScalable(
   int minGeomNodeSizeLog2,
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
-  EntropyDecoder& arithmeticDecoder
-  , PCCPointSet3& predPointCloud
+  EntropyDecoder& arithmeticDecoder,
+  const CloudFrame* refFrame
 )
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
     gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoder,
-    &nodes, predPointCloud, { 0, 0, 0 });
+    &nodes, refFrame, { 0, 0, 0 });
 
   if (minGeomNodeSizeLog2 > 0) {
     size_t size =

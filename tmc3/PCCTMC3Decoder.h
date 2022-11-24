@@ -99,7 +99,10 @@ private:
   void decodeConstantAttribute(const PayloadBuffer& buf);
   bool dectectFrameBoundary(const PayloadBuffer* buf);
   void outputCurrentCloud(Callbacks* callback);
+  void storeCurrentCloudAsRef();
+
   void startFrame();
+  void emplaceRefFrame(const SequenceParameterSet& sps);
 
   //==========================================================================
 
@@ -138,10 +141,6 @@ private:
   // The current output cloud
   CloudFrame _outCloud;
 
-  // The reference pointcloud buffer (a one entry buffer) that may be
-  // used to predict a frame.
-  PCCPointSet3 _refPointCloud;
- 
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 
@@ -150,12 +149,18 @@ private:
   std::map<int, GeometryParameterSet> _gpss;
   std::map<int, AttributeParameterSet> _apss;
 
+  // mapping sps id to reference Frame buffer
+  std::map<int, CloudFrame> _refFrameSeq;
+
   // Metadata that allows slices/tiles to be indentified by their bounding box
   TileInventory _tileInventory;
 
   // The active SPS
   const SequenceParameterSet* _sps;
   const GeometryParameterSet* _gps;
+
+  // The active reference frame
+  const CloudFrame* _refFrame;
 
   GeometryBrickHeader _gbh;
 

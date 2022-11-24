@@ -1661,8 +1661,11 @@ sanitizeEncoderOpts(
     params.encoder.interGeom.deriveGMThreshold = true;
   }
 
-  if (params.encoder.gps.interPredictionEnabledFlag)
+  if (params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
+
+    params.encoder.sps.inter_frame_prediction_enabled_flag = true;
+  }
 
   // Separate bypass bin coding only when cabac_bypass_stream is disabled
   if (params.encoder.sps.cabac_bypass_stream_enabled_flag)
@@ -2099,7 +2102,10 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   // The reconstructed point cloud
   CloudFrame recon;
-  auto* reconPtr = params->reconstructedDataPath.empty() ? nullptr : &recon;
+  auto* reconPtr =
+    params->reconstructedDataPath.empty()
+    && !params->encoder.sps.inter_frame_prediction_enabled_flag
+    ? nullptr : &recon;
 
   auto bytestreamLenFrameStart = bytestreamFile.tellp();
 
@@ -2115,7 +2121,7 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   clock->stop();
 
-  if (reconPtr)
+  if (!params->reconstructedDataPath.empty())
     writeOutputFrame(params->reconstructedDataPath, {}, recon, recon.cloud);
 
   return 0;

@@ -47,6 +47,7 @@
 #include "ringbuf.h"
 #include "tables.h"
 #include "TMC3.h"
+#include "geometry.h"
 namespace pcc {
 
 //============================================================================
@@ -865,7 +866,7 @@ void encodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
-  PCCPointSet3& predPointCloud,
+  const CloudFrame& refFrame,
   const SequenceParameterSet& sps,
   const InterGeomEncOpts& interParams);
 
@@ -877,7 +878,7 @@ void decodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
-  PCCPointSet3& predPointCloud,
+  const CloudFrame* refFrame,
   const Vec3<int> minimum_position
 
 );

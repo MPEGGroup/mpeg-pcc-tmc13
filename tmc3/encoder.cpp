@@ -482,6 +482,11 @@ PCCTMC3Encoder3::compress(
     compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);
   }
 
+  if (_sps->inter_frame_prediction_enabled_flag) {
+    // buffer the current frame for potential use in prediction
+    _refFrame = *reconCloud;
+  }
+
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
     scaleGeometry(
@@ -942,8 +947,6 @@ PCCTMC3Encoder3::compressPartition(
     if (_gps->predgeom_enabled_flag){
       _refFrameSph.insert(_posSph);
     }
-    else
-      predPointCloud = pointCloud;
   }
 
   // Note the current slice id for loss detection with entropy continuation
@@ -956,11 +959,6 @@ PCCTMC3Encoder3::compressPartition(
 
   if (reconCloud)
     appendSlice(reconCloud->cloud);
-  for (int count = 0; count < predPointCloud.getPointCount(); count++) {
-    // In decoder, the reconstructed is stored without a shift of _sliceOrigin. To avoide mismatch, encoder should do the same.
-    predPointCloud[count] += _sliceOrigin;
-  }
-
 }
 
 //----------------------------------------------------------------------------
@@ -1068,7 +1066,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   } else if (!_gps->trisoup_enabled_flag) {
     encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders, predPointCloud, *_sps,
+      arithmeticEncoders, _refFrame, *_sps,
       params->interGeom);
   }
   else
@@ -1078,7 +1076,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPointsTrisoup - 1;
     encodeGeometryTrisoup(
       params->trisoup, params->geom, *_gps, gbh, pointCloud,
-      *_ctxtMemOctreeGeom, arithmeticEncoders, predPointCloud,
+      *_ctxtMemOctreeGeom, arithmeticEncoders, _refFrame,
       *_sps, params->interGeom);
   }
 

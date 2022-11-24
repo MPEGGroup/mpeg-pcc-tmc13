@@ -74,6 +74,7 @@ PCCTMC3Decoder3::init()
   _spss.clear();
   _gpss.clear();
   _apss.clear();
+  _refFrameSeq.clear();
 
   _ctxtMemOctreeGeom.reset(new GeometryOctreeContexts);
   _ctxtMemPredGeom.reset(new PredGeomContexts);
@@ -158,6 +159,15 @@ PCCTMC3Decoder3::outputCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
   _accumCloud.clear();
 }
 
+void
+PCCTMC3Decoder3::storeCurrentCloudAsRef()
+{
+  if (_sps->inter_frame_prediction_enabled_flag && !_suppressOutput) {
+    _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud = _accumCloud;
+;
+  }
+}
+
 //============================================================================
 
 void
@@ -169,6 +179,18 @@ PCCTMC3Decoder3::startFrame()
 
   // the following could be set once when the SPS is discovered
   _outCloud.setParametersFrom(*_sps, _params.outputFpBits);
+  // create a new reference frame for the sps, if needed
+  emplaceRefFrame(*_sps);
+}
+
+//============================================================================
+
+void
+PCCTMC3Decoder3::emplaceRefFrame(const SequenceParameterSet& sps)
+{
+  if (sps.inter_frame_prediction_enabled_flag) {
+    _refFrameSeq.emplace(std::make_pair(sps.sps_seq_parameter_set_id, CloudFrame(_outCloud)));
+  }
 }
 
 //============================================================================
@@ -199,6 +221,7 @@ PCCTMC3Decoder3::decompress(
   //  - this will activate the sps for GeometryBrick and AttrParamInventory
   //  - after outputing the current frame, the output must be reinitialized
   if (dectectFrameBoundary(buf)) {
+    storeCurrentCloudAsRef();
     outputCurrentCloud(callback);
     _outputInitialized = false;
   }
@@ -247,11 +270,6 @@ PCCTMC3Decoder3::decompress(
     _attrDecoder.reset();
     // Avoid dropping an actual frame
     _suppressOutput = false;
-
-    if (!attrInterPredParams.getPointCount())
-      attrInterPredParams.referencePointCloud = _currentPointCloud;
-    // save the decoded pointcloud in the reference buffer
-    std::swap(_refPointCloud, _currentPointCloud);
 
     return decodeGeometryBrick(*buf);
 
@@ -333,6 +351,10 @@ PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
   assert(!_gpss.empty());
   _sps = &_spss.cbegin()->second;
   _gps = &_gpss.cbegin()->second;
+
+  _refFrame = _sps->inter_frame_prediction_enabled_flag
+    ? &_refFrameSeq[_sps->sps_seq_parameter_set_id]
+    : nullptr;
 }
 
 //--------------------------------------------------------------------------
@@ -347,6 +369,10 @@ PCCTMC3Decoder3::activateParameterSets(const AttributeParamInventoryHdr& hdr)
   assert(!_gpss.empty());
   _sps = &_spss.cbegin()->second;
   _gps = &_gpss.cbegin()->second;
+
+  _refFrame = _sps->inter_frame_prediction_enabled_flag
+    ? &_refFrameSeq[_sps->sps_seq_parameter_set_id]
+    : nullptr;
 }
 
 //==========================================================================
@@ -470,20 +496,20 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
     if (!_params.minGeomNodeSizeLog2) {
       decodeGeometryOctree(
         *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec
-        ,_refPointCloud
+        ,_refFrame
         ,_sps->seqBoundingBoxOrigin
 	  );
     } else {
       decodeGeometryOctreeScalable(
         *_gps, _gbh, _params.minGeomNodeSizeLog2, _currentPointCloud,
         *_ctxtMemOctreeGeom, aec
-        ,_refPointCloud
+        ,_refFrame
 	  );
     }
   } else {
     decodeGeometryTrisoup(
       *_gps, _gbh, _currentPointCloud, *_ctxtMemOctreeGeom, aec,
-      _refPointCloud, _sps->seqBoundingBoxOrigin);
+      _refFrame, _sps->seqBoundingBoxOrigin);
   }
 
   if (_gps->interPredictionEnabledFlag)
