@@ -157,6 +157,18 @@ categories:
         # override dist2 at particular rate points (lossy geometry only)
         seq_lod: { r01: 8, r02: 9 }
 
+      innovizQC1:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      innovizQC2:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      innovizQC3:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
       # cat1-solid
       basketball_player_vox11_00000200:  { enablePlanar: 0 }
       dancer_vox11_00000001:             { enablePlanar: 0 }

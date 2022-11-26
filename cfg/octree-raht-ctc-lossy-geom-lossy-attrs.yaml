@@ -121,6 +121,10 @@ categories:
       qnxadas-junction-exit:
       qnxadas-motorway-join:
       qnxadas-navigating-bends:
+      innovizQC1:
+      innovizQC2:
+      innovizQC3:
+
       # cat1-solid
       basketball_player_vox11_00000200:  { enablePlanar: 0 }
       dancer_vox11_00000001:             { enablePlanar: 0 }

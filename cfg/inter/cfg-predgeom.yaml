@@ -5,7 +5,15 @@ encflags:
  # Some sequences input order is not characteristic of a real
  # system.  This will make it so.
  - sortInputByAzimuth: '$eval{ ${needs_azimuth_presort} || 0 }'
- - motionVectorPath: '${zero_motion_file}'
+ -
+   - !conditional '"${group}" eq "cat3-frame"'
+   - 
+     - !conditional '"${lidar-type}" eq "spinning"'
+     - interPredictionEnabled: 1
+     - motionVectorPath: '${zero_motion_file}'
+   - 
+     - !conditional '"${lidar-type}" eq "non-spinning"'
+     - interPredictionEnabled: 0
 
  # use predictive geometry, default to azimuthal sort
  - geomTreeType: 1

@@ -62,6 +62,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -117,6 +118,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -172,6 +174,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 64
     lasersTheta: >
       -0.461611, -0.451281, -0.440090, -0.430000, -0.418945, -0.408667,
@@ -229,6 +232,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -266,6 +270,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -303,6 +308,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -340,6 +346,7 @@ sequences:
     group: cat3-frame
     src-geometry-precision: 18
     src-unit-metres: 0.001
+    lidar-type: spinning
     numLasers: 16
     lasersTheta: >
       -0.268099, -0.230939, -0.194419, -0.158398, -0.122788, -0.087491,
@@ -363,3 +370,72 @@ sequences:
      - seqSizeWhd: '262143, 262143, 262143'
     pcerrorflags:
      - resolution: 30000
+
+  innovizQC1:
+    global_motion_file: 'gps-innovizqc1-matrix.txt'
+    src-dir: InnovizQC1
+    src: '{0000..0299}.ply'
+    first-frame: 0
+    frame-rate: 15
+    num-frames: 300
+    group: cat3-frame
+    src-geometry-precision: 16
+    src-unit-metres: 0.01
+    lidar-type: non-spinning
+    seq_lod: 10
+    seq_lod_bias: '1,1,8'
+    has_refl: 1
+    bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - autoSeqBbox: 0
+     - seqOrigin: '-32768, -32768, -32768'
+     - seqSizeWhd: '65535, 65535, 65535'
+    pcerrorflags:
+     - resolution: 3000
+
+  innovizQC2:
+    global_motion_file: 'gps-innovizqc2-matrix.txt'
+    src-dir: InnovizQC2
+    src: '{0000..0299}.ply'
+    first-frame: 0
+    frame-rate: 15
+    num-frames: 300
+    group: cat3-frame
+    src-geometry-precision: 16
+    src-unit-metres: 0.01
+    lidar-type: non-spinning
+    seq_lod: 10
+    seq_lod_bias: '1,1,8'
+    has_refl: 1
+    bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - autoSeqBbox: 0
+     - seqOrigin: '-32768, -32768, -32768'
+     - seqSizeWhd: '65535, 65535, 65535'
+    pcerrorflags:
+     - resolution: 3000
+
+  innovizQC3:
+    global_motion_file: 'gps-innovizqc3-matrix.txt'
+    src-dir: InnovizQC3
+    src: '{0000..0299}.ply'
+    first-frame: 0
+    frame-rate: 15
+    num-frames: 300
+    group: cat3-frame
+    src-geometry-precision: 16
+    src-unit-metres: 0.01
+    lidar-type: non-spinning
+    seq_lod: 10
+    seq_lod_bias: '1,1,8'
+    has_refl: 1
+    bitdepth_refl: 8
+    encflags:
+     # fix the size of the bounding box to align frames for predictive coding
+     - autoSeqBbox: 0
+     - seqOrigin: '-32768, -32768, -32768'
+     - seqSizeWhd: '65535, 65535, 65535'
+    pcerrorflags:
+     - resolution: 3000
