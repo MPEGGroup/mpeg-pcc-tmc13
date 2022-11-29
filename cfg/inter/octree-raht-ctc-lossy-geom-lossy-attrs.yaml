@@ -54,6 +54,11 @@ categories:
        - partitionMethod: 0
        - maxNumQtBtBeforeOt: 6
        - planarModeIdcmUse: 32
+     - gmThresholdHistScale: '$eval{ ${gm-thresh-hist-scale} || 100 }'
+     - gmThresholdMinZ: '$eval{ ${gm-thresh-min-z} || -4000 }'
+     - gmThresholdMaxZ: '$eval{ ${gm-thresh-max-z} || -500 }'
+     - gmThresholdLeftScale: '$eval{ ${gm-thresh-left-scale} || 1.5 }'
+     - gmThresholdRightScale: '$eval{ ${gm-thresh-right-scale} || 1.5 }'
 
      ####
      # attribute coding (common options -- relies on option ordering)

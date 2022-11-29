@@ -701,6 +701,31 @@ Specifies the window size used in global motion compensation
 (Encoder only)
 Controls whether the global motion thresholds derived at the encoder.
 
+### `--gmThresholdHistScale=0|1`
+(Encoder only)
+Specifies a scale value used to compute histogram in the derivation of 
+global motion compensation thresholds. 
+
+### `--gmThresholdMinZ=0|1`
+(Encoder only)
+Specifies a maximum z value used to compute histogram in the derivation of 
+global motion compensation thresholds. 
+
+### `--gmThresholdMaxZ=0|1`
+(Encoder only)
+Specifies a minimum z value used to compute histogram in the derivation of 
+global motion compensation thresholds. 
+
+### `--gmThresholdLeftScale=0|1`
+(Encoder only)
+Specifies a scale value used to calculate the lower threshold to apply 
+global motion compensation. 
+
+### `--gmThresholdRightScale=0|1`
+(Encoder only)
+Specifies a scale value used to calculate the upper threshold to apply 
+global motion compensation. 
+
 ### `--use_cuboidal_regions_in_GM_estimation=0|1`
 (Encoder only)
 Controls the use of cuboidal regions with square cross-section in xy-plane
@@ -1002,6 +1027,7 @@ candidate for attribute coding. A value of -1 indicates that the full
 range is used for the search.
 
 ### `--attrInterPredTranslationThresh=INT-VALUE`
+(Encoder only)
 Specifies the maximum translation threshold used to disable inter 
 predicion for attributes. 
 

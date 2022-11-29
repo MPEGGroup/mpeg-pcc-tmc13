@@ -210,10 +210,10 @@ PCCTMC3Encoder3::compress(
   if (params->gps.globalMotionEnabled && params->interGeom.deriveGMThreshold) {
     const auto pointCount = inputPointCloud.getPointCount();
     const auto bbox = inputPointCloud.computeBoundingBox();
-    const int histScale = 100;
+    const int histScale = params->interGeom.gmThresholdHistScale;
 
-    const int minZ = std::max(bbox.min.z(), -4000);
-    const int maxZ = std::min(bbox.max.z(), -500);
+    const int minZ = std::max(bbox.min.z(), params->interGeom.gmThresholdMinZ);
+    const int maxZ = std::min(bbox.max.z(), params->interGeom.gmThresholdMaxZ);
 
     const int histRange = (maxZ - minZ) / histScale;
     std::vector<int> histInp(histRange), midVals(histRange);
@@ -244,11 +244,14 @@ PCCTMC3Encoder3::compress(
       std::max_element(histInp.begin(), histInp.end()) - histInp.begin();
     const int top = midVals[topIdx];
 
-    const int delta = 1.5 * std::sqrt(variance);
+    const int deltaLeft =
+      params->interGeom.gmThresholdLeftScale * std::sqrt(variance);
+    const int deltaRight =
+      params->interGeom.gmThresholdRightScale * std::sqrt(variance);
     const int leftOffset =
-      std::max(minZ, top - delta) * params->codedGeomScale;
+      std::max(minZ, top - deltaLeft) * params->codedGeomScale;
     const int rightOffset =
-      std::min(maxZ, top + delta) * params->codedGeomScale;
+      std::min(maxZ, top + deltaRight) * params->codedGeomScale;
     if (params->gps.predgeom_enabled_flag)
       _refFrameSph.updateThresholds(_frameCounter, leftOffset, rightOffset);
     else if (!params->gps.trisoup_enabled_flag)

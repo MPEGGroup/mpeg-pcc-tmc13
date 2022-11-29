@@ -1098,6 +1098,26 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.interGeom.deriveGMThreshold, false,
     "Derive thresholds for applying global motion compensation")
 
+  ("gmThresholdHistScale",
+    params.encoder.interGeom.gmThresholdHistScale, 100.0f,
+    "Scale value used for histogram computation in GM threshold deriation")
+
+  ("gmThresholdMinZ",
+    params.encoder.interGeom.gmThresholdMinZ, -4000,
+    "Min Z value used for histogram computation in GM threshold deriation")
+
+  ("gmThresholdMaxZ",
+    params.encoder.interGeom.gmThresholdMaxZ, -500,
+    "Max Z value used for histogram computation in GM threshold deriation")
+
+  ("gmThresholdLeftScale",
+    params.encoder.interGeom.gmThresholdLeftScale, 1.5f,
+    "Scale value to calculate lower threshold to apply GM")
+
+  ("gmThresholdRightScale",
+    params.encoder.interGeom.gmThresholdRightScale, 1.5f,
+    "Scale value to calculate upper threshold to apply GM")
+
   ("use_cuboidal_regions_in_GM_estimation",
     params.encoder.interGeom.useCuboidalRegionsInGMEstimation, false,
     "Use cuboidal regions with square cross-section in xy-plane for "

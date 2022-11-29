@@ -212,6 +212,11 @@ struct InterGeomEncOpts {
   MotionParameters motionParams;
 	bool useCuboidalRegionsInGMEstimation;
   bool deriveGMThreshold;
+  float gmThresholdHistScale;
+  int gmThresholdMinZ;
+  int gmThresholdMaxZ;
+  float gmThresholdLeftScale;
+  float gmThresholdRightScale;
 
   std::vector<int> motion_block_size;
   int motion_window_size;
