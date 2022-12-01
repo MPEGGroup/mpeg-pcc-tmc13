@@ -108,6 +108,7 @@ categories:
          - attrOffset: 0
          - attrScale: 1
          - attribute: color
+     - attrInterPredTranslationThresh: '$eval{ ${translation-thresh} || 1000 }'
 
     decflags:
      - mode: 1

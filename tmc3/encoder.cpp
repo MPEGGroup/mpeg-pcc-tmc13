@@ -1061,7 +1061,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   if(gbh.interPredictionEnabledFlag){
     const double scale = 65536.;  
     const double thr1_pre = 0.1 / attrInterPredParams.frameDistance;
-    const double thr2_pre = 1000.;
+    const double thr2_pre = params->attrInterPredTranslationThreshold;
 
     const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
     const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);

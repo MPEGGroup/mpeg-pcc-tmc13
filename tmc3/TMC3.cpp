@@ -1345,13 +1345,23 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.quant_neigh_weight, {16, 8, 4},
     "Factors used to derive quantization weights (transformType=1)")
 
-  ("attributeInterPredictionEnabled", params_attr.aps.attrInterPredictionEnabled, true, "Enable inter prediction for attributes")
+  ("attributeInterPredictionEnabled", 
+    params_attr.aps.attrInterPredictionEnabled, true, 
+    "Enable inter prediction for attributes")
 
-  ("attrInterPredSearchRange", params_attr.aps.attrInterPredSearchRange, 128, "Search range for nearest neighbour search in inter prediction candidate\n -1: Full range")
+  ("attrInterPredSearchRange", 
+    params_attr.aps.attrInterPredSearchRange, 128, 
+    "Search range for nearest neighbour search in inter prediction candidate"
+    "-1: Full range")
+
+  ("attrInterPredTranslationThresh", 
+    params.encoder.attrInterPredTranslationThreshold, 1000., 
+    "Maximum translation threshold used to disable attr inter prediction")
 
   ("QPShiftStep",
     params_attr.aps.qpShiftStep, 0,
-    "QP shift step used to derive the QP shift for attrbute coding in inter predicted pictures")
+    "QP shift step used to derive the QP shift for attrbute coding "
+    "in inter predicted pictures")
 
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.

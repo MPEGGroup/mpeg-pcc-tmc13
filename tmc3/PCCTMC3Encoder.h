@@ -148,6 +148,9 @@ struct EncoderParams {
 
   // Period of random access points (managed by SequenceEncoder)
   int randomAccessPeriod;
+
+  // Maximum translation threshold used to disable attr inter pred
+  double attrInterPredTranslationThreshold;
 };
 
 //============================================================================

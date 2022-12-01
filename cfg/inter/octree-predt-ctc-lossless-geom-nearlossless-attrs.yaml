@@ -119,6 +119,7 @@ categories:
        - attrScale: 1
        - colourMatrix: 0
        - attribute: color
+     - attrInterPredTranslationThresh: '$eval{ ${translation-thresh} || 1000 }'
 
     decflags:
      - mode: 1

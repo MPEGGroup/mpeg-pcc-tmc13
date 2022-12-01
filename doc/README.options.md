@@ -996,10 +996,14 @@ based on morton code in case the number of LoDs is equal to 1.
 ### `--attributeInterPredictionEnabled=0|1`
 Controls the activation of inter prediction of attribute.
 
-### `--attributeInterPredSearchRange=INT-VALUE`
+### `--attrInterPredSearchRange=INT-VALUE`
 Specifies the search range for nearest neighbour search in inter prediction 
 candidate for attribute coding. A value of -1 indicates that the full 
 range is used for the search.
+
+### `--attrInterPredTranslationThresh=INT-VALUE`
+Specifies the maximum translation threshold used to disable inter 
+predicion for attributes. 
 
 ### `--QPShiftStep=INT-VALUE`
 (Encoder only)
