@@ -832,6 +832,9 @@ PCCTMC3Encoder3::compressPartition(
     attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred = attr_aps.attrInterPredictionEnabled && _gbh.interPredictionEnabledFlag ;
     attrInterPredParams.paramsForInterRAHT.coeff_AC_InterPred = attrInterPredParams.enableAttrInterPred;
  
+    attrInterPredParams.attrInterIntraSliceRDO =
+      attr_enc.attrInterIntraSliceRDO && attr_aps.attrInterPredictionEnabled;
+
     // Convert cartesian positions to spherical for use in attribute coding.
     // NB: this retains the original cartesian positions to restore afterwards
     std::vector<pcc::point_t> altPositions;

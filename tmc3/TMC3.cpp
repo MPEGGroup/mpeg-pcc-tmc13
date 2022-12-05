@@ -1409,6 +1409,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "QP shift step used to derive the QP shift for attrbute coding "
     "in inter predicted pictures")
 
+  ("attrInterIntraSliceRDO", params_attr.encoder.attrInterIntraSliceRDO, false,
+    "Enable rate and distortion optimization to choose between intra or inter"
+    "prediction for a slice")
+
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.
   (po::Section("Recolouring"))

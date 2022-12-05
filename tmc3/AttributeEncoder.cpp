@@ -470,8 +470,8 @@ AttributeEncoder::encode(
   AttributeBrickHeader& abh,
   AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud,
-  PayloadBuffer* payload
-  , AttributeInterPredParams &attrInterPredParams)
+  PayloadBuffer* payload,
+  AttributeInterPredParams& attrInterPredParams)
 {
   if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
     AttrRawEncoder::encode(sps, desc, attr_aps, abh, pointCloud, payload);
@@ -486,10 +486,22 @@ AttributeEncoder::encode(
   // generate LoDs if necessary
   if (attr_aps.lodParametersPresent() && _lods.empty())
     _lods.generate(
-      attr_aps, abh, pointCloud.getPointCount() - 1, 0, pointCloud, attrInterPredParams);
+      attr_aps, abh, pointCloud.getPointCount() - 1, 0, pointCloud,
+      attrInterPredParams);
 
   PCCResidualsEncoder encoder(attr_aps, abh, ctxtMem);
   encoder.start(sps, int(pointCloud.getPointCount()));
+
+  int dataLen = 0;
+  bool onlyIntra = false;
+
+  PCCPointSet3 pointCloudOnlyIntra;
+  PCCResidualsEncoder encoderOnlyIntra(attr_aps, abh, ctxtMem);
+  if (attrInterPredParams.codeAttributeSecondPass()) {
+    encoderOnlyIntra.start(sps, int(pointCloud.getPointCount()));
+    attrInterPredParams.setLambda(attr_aps.init_qp_minus4);
+    pointCloudOnlyIntra = pointCloud;
+  }
 
   if (desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
@@ -498,13 +510,72 @@ AttributeEncoder::encode(
         desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
       break;
 
-    case AttributeEncoding::kPredictingTransform:
-      encodeReflectancesPred(desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
-      break;
+    case AttributeEncoding::kPredictingTransform: {
+      encodeReflectancesPred(
+        desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
+      if (
+        attrInterPredParams.codeAttributeSecondPass()) {
+        attrInterPredParams.rateEstimate = encoder.stop();
+        dataLen = attrInterPredParams.rateEstimate;
+        const auto costInter = attrInterPredParams.getCost();
+        assert(attrInterPredParams.enableAttrInterPred);
 
-    case AttributeEncoding::kLiftingTransform:
-      encodeReflectancesLift(desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
+        attrInterPredParams.enableAttrInterPred = false;
+        attrInterPredParams.distEstimate = 0.;
+        const auto lodTemp = _lods;
+        if (attr_aps.lodParametersPresent())
+          _lods.generate(
+            attr_aps, abh, pointCloudOnlyIntra.getPointCount() - 1, 0, pointCloudOnlyIntra,
+            attrInterPredParams);
+        encodeReflectancesPred(
+          desc, attr_aps, qpSet, pointCloudOnlyIntra, encoderOnlyIntra, attrInterPredParams);
+        attrInterPredParams.rateEstimate = encoderOnlyIntra.stop();
+        const auto costIntra = attrInterPredParams.getCost();
+
+        attrInterPredParams.enableAttrInterPred = true;
+
+        if (costInter > costIntra) {
+          pointCloud = pointCloudOnlyIntra;
+          dataLen = attrInterPredParams.rateEstimate;
+          onlyIntra = true;
+        } else
+          _lods = lodTemp;
+      }
       break;
+    }
+    case AttributeEncoding::kLiftingTransform: {
+      encodeReflectancesLift(
+        desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
+      if (attrInterPredParams.codeAttributeSecondPass()) {
+        attrInterPredParams.rateEstimate = encoder.stop();
+        dataLen = attrInterPredParams.rateEstimate;
+        const auto costInter = attrInterPredParams.getCost();
+        assert(attrInterPredParams.enableAttrInterPred);
+
+        attrInterPredParams.enableAttrInterPred = false;  // Set for intra run
+        attrInterPredParams.distEstimate = 0.;
+        const auto lodTemp = _lods;
+        if (attr_aps.lodParametersPresent())
+          _lods.generate(
+            attr_aps, abh, pointCloudOnlyIntra.getPointCount() - 1, 0,
+            pointCloudOnlyIntra, attrInterPredParams);
+        encodeReflectancesLift(
+          desc, attr_aps, qpSet, pointCloudOnlyIntra, encoderOnlyIntra,
+          attrInterPredParams);
+        attrInterPredParams.rateEstimate = encoderOnlyIntra.stop();
+        const auto costIntra = attrInterPredParams.getCost();
+
+        attrInterPredParams.enableAttrInterPred = true; // Set it back 
+
+        if (costInter > costIntra) {
+          pointCloud = pointCloudOnlyIntra;
+          dataLen = attrInterPredParams.rateEstimate;
+          onlyIntra = true;
+        } else
+          _lods = lodTemp;
+      }
+      break;
+    }
 
     case AttributeEncoding::kRaw:
       // Already handled
@@ -534,18 +605,25 @@ AttributeEncoder::encode(
       || desc.attr_num_dimensions_minus1 == 2);
   }
 
-  uint32_t acDataLen = encoder.stop();
+  uint32_t acDataLen =
+    attrInterPredParams.codeAttributeSecondPass() ? dataLen : encoder.stop();
+
+  PCCResidualsEncoder& encoderRef = onlyIntra ? encoderOnlyIntra : encoder;
+  if (onlyIntra) {
+    abh.disableAttrInterPred = true;
+    attrInterPredParams.enableAttrInterPred = false;
+  }
 
   // write abh
   write(sps, attr_aps, abh, payload);
   _abh = nullptr;
 
   std::copy_n(
-    encoder.arithmeticEncoder.buffer(), acDataLen,
+    encoderRef.arithmeticEncoder.buffer(), acDataLen,
     std::back_inserter(*payload));
 
   // save the context state for re-use by a future slice if required
-  ctxtMem = encoder.getCtx();
+  ctxtMem = encoderRef.getCtx();
 }
 
 //----------------------------------------------------------------------------
@@ -667,12 +745,13 @@ AttributeEncoder::encodeReflectancesPred(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCPointSet3& pointCloud,
-  PCCResidualsEncoder& encoder
-  ,
-    const AttributeInterPredParams& attrInterPredParams)
+  PCCResidualsEncoder& encoder,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const uint32_t pointCount = pointCloud.getPointCount();
   const int64_t clipMax = (1ll << desc.bitdepth) - 1;
+  attrInterPredParams.distEstimate = 0.;
+
   PCCResidualsEntropyEstimator context;
   int zeroRunAcc = 0;
   std::vector<int> zerorun;
@@ -684,7 +763,7 @@ AttributeEncoder::encodeReflectancesPred(
 
   std::vector<int64_t> quantWeights;
   computeQuantizationWeights(
-    _lods.predictors, quantWeights, aps.quant_neigh_weight, 
+    _lods.predictors, quantWeights, aps.quant_neigh_weight,
     attrInterPredParams.enableAttrInterPred);
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
@@ -697,17 +776,16 @@ AttributeEncoder::encodeReflectancesPred(
     auto& predictor = _lods.predictors[predictorIndex];
     predictor.predMode = 0;
 
-    bool predModeEligible =
-      predModeEligibleRefl(desc, aps, pointCloud, _lods.indexes, predictor, attrInterPredParams);
+    bool predModeEligible = predModeEligibleRefl(
+      desc, aps, pointCloud, _lods.indexes, predictor, attrInterPredParams);
     if (predModeEligible)
       decidePredModeRefl(
         desc, aps, pointCloud, _lods.indexes, predictorIndex, predictor,
         encoder, context, quant[0], attrInterPredParams);
 
     const uint64_t reflectance = pointCloud.getReflectance(pointIndex);
-    const attr_t predictedReflectance =
-      predictor.predictReflectance(pointCloud, _lods.indexes
-      , attrInterPredParams);
+    const attr_t predictedReflectance = predictor.predictReflectance(
+      pointCloud, _lods.indexes, attrInterPredParams);
     const int64_t quantAttValue = reflectance;
     const int64_t quantPredAttValue = predictedReflectance;
 
@@ -729,6 +807,10 @@ AttributeEncoder::encodeReflectancesPred(
       quantPredAttValue + reconstructedDelta;
     const attr_t reconstructedReflectance =
       attr_t(PCCClip(reconstructedQuantAttValue, int64_t(0), clipMax));
+
+    if (attrInterPredParams.attrInterIntraSliceRDO)
+      attrInterPredParams.distEstimate += std::abs(
+        reconstructedReflectance - pointCloud.getReflectance(pointIndex));
 
     if (!attValue0)
       ++zeroRunAcc;
@@ -1424,17 +1506,16 @@ AttributeEncoder::encodeReflectancesLift(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCPointSet3& pointCloud,
-  PCCResidualsEncoder& encoder
-  ,
-    const AttributeInterPredParams& attrInterPredParams)
+  PCCResidualsEncoder& encoder,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const size_t pointCount = pointCloud.getPointCount();
   std::vector<uint64_t> weights;
-
-
+  attrInterPredParams.distEstimate = 0.;
 
   if (!aps.scalable_lifting_enabled_flag) {
-    PCCComputeQuantizationWeights(_lods.predictors, weights, attrInterPredParams.enableAttrInterPred);
+    PCCComputeQuantizationWeights(
+      _lods.predictors, weights, attrInterPredParams.enableAttrInterPred);
   } else {
     computeQuantizationWeightsScalable(
       _lods.predictors, _lods.numPointsInLod, pointCount, 0, weights);
@@ -1448,7 +1529,6 @@ AttributeEncoder::encodeReflectancesLift(
     reflectances[index] =
       int32_t(pointCloud.getReflectance(_lods.indexes[index]))
       << kFixedPointAttributeShift;
-    
   }
 
   std::vector<int64_t> reflectancesRef;
@@ -1465,11 +1545,11 @@ AttributeEncoder::encodeReflectancesLift(
     const size_t lodIndex = lodCount - i - 1;
     const size_t startIndex = _lods.numPointsInLod[lodIndex - 1];
     const size_t endIndex = _lods.numPointsInLod[lodIndex];
-    PCCLiftPredict(_lods.predictors, startIndex, endIndex, true, reflectances ,
-      attrInterPredParams.enableAttrInterPred, reflectancesRef
-    );
+    PCCLiftPredict(
+      _lods.predictors, startIndex, endIndex, true, reflectances,
+      attrInterPredParams.enableAttrInterPred, reflectancesRef);
     PCCLiftUpdate(
-      _lods.predictors, weights, startIndex, endIndex, true, reflectances ,
+      _lods.predictors, weights, startIndex, endIndex, true, reflectances,
       attrInterPredParams.enableAttrInterPred);
   }
 
@@ -1517,10 +1597,13 @@ AttributeEncoder::encodeReflectancesLift(
   }
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   for (size_t f = 0; f < pointCount; ++f) {
+    const auto refOrig = pointCloud.getReflectance(_lods.indexes[f]);
     const int64_t refl =
       divExp2RoundHalfInf(reflectances[f], kFixedPointAttributeShift);
-    pointCloud.setReflectance(
-      _lods.indexes[f], attr_t(PCCClip(refl, int64_t(0), maxReflectance)));
+    const auto refRec = attr_t(PCCClip(refl, int64_t(0), maxReflectance));
+    pointCloud.setReflectance(_lods.indexes[f], refRec);
+    if (attrInterPredParams.attrInterIntraSliceRDO)
+      attrInterPredParams.distEstimate += std::abs(refRec - refOrig);
   }
 }
 

@@ -221,9 +221,25 @@ struct AttributeInterPredParams {
   PCCPointSet3 referencePointCloud;
   int frameDistance;
   bool enableAttrInterPred;
+  bool attrInterIntraSliceRDO;
+  double lambda;
+  int rateEstimate;
+  double distEstimate;
+  double getCost() const
+  {
+    return distEstimate + lambda * rateEstimate;
+  }
+  void setLambda(const int qpMinus4) {
+    lambda = 
+      std::pow(0.85 * std::pow(2., (qpMinus4 / 3)), 0.5);
+  }
   int getPointCount() const { return referencePointCloud.getPointCount(); }
   void clear() { referencePointCloud.clear(); }
   AttributeInterPredParamsForRAHT paramsForInterRAHT;
+  bool codeAttributeSecondPass()
+  {
+    return attrInterIntraSliceRDO && enableAttrInterPred;
+  }
 };
 
 //---------------------------------------------------------------------------

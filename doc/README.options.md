@@ -1058,6 +1058,11 @@ predicion for attributes.
 Specifies the QP shift step used to derive the QP shift for attribute coding 
 in inter predicted frames.
 
+### `--attrInterIntraSliceRDO=0|1`
+(Encoder only)
+Specifies whether slice level RDO id performed to select inter/intra prediction
+of a slice.
+
 Attribute recolouring (encoder only)
 ------------------------------------
 

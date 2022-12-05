@@ -62,6 +62,10 @@ struct EncoderAttributeParams {
   // Threshold for choosing dist2 out of the population of nearest neighbour
   // distances.
   float dist2PercentileEstimate;
+
+  // Indicates whether RDO is used to select intra/inter prediction 
+  // for a slice
+  bool attrInterIntraSliceRDO;
 };
 
 //----------------------------------------------------------------------------

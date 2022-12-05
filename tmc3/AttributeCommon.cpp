@@ -48,9 +48,8 @@ AttributeLods::generate(
   const AttributeBrickHeader& abh,
   int geom_num_points_minus1,
   int minGeomNodeSizeLog2,
-  const PCCPointSet3& cloud
-  , const AttributeInterPredParams& attrInterPredParams  
-  )
+  const PCCPointSet3& cloud,
+  const AttributeInterPredParams& attrInterPredParams)
 {
   _aps = aps;
   _abh = abh;
@@ -60,11 +59,8 @@ AttributeLods::generate(
 
   buildPredictorsFast(
     aps, abh, cloud, minGeomNodeSizeLog2, geom_num_points_minus1, predictors,
-    numPointsInLod, indexes
-    ,
-    attrInterPredParams.enableAttrInterPred, attrInterPredParams,
-    numPointsInLodRef, indexesRef    
-    );
+    numPointsInLod, indexes, attrInterPredParams.enableAttrInterPred,
+    attrInterPredParams, numPointsInLodRef, indexesRef);
 
   assert(predictors.size() == cloud.getPointCount());
   for (auto& predictor : predictors) {
