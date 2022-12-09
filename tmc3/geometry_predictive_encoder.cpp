@@ -1233,7 +1233,7 @@ mortonSort(PCCPointSet3& cloud, int begin, int end, int depth)
 Vec3<int>
 originFromLaserAngle(const PCCPointSet3& cloud)
 {
-  Vec3<int> origin;
+  Vec3<int> origin = 0;
   auto numPoints = cloud.getPointCount();
   int i;
 
