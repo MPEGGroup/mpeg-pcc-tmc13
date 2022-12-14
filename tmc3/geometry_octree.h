@@ -289,6 +289,9 @@ public:
   //  allocate and reset CtxIdxMap to 127
   void reset(int userBitS1, int userBitS2);
 
+  // initialize coder LUT
+  void init(const uint8_t* initValue);
+
   //  deallocate CtxIdxMap
   void clear();
 
@@ -326,6 +329,15 @@ CtxMapDynamicOBUF::reset(int userBitS1, int userBitS2)
   std::memset(Nseen, 0, sizeof * Nseen * (1 << maxTreeDepth) * S2);
   CtxIdxMap = new uint8_t[S1 * S2];
   std::memset(CtxIdxMap, 127, sizeof * CtxIdxMap * S1 * S2);
+}
+
+inline void
+CtxMapDynamicOBUF::init(const uint8_t* initValue) {
+
+  for (int j = 0; j < S2; j++) {
+    for (int i = 0; i < S1; i++)
+      CtxIdxMap[idx(i, j)] = initValue[j];
+  }
 }
 
 inline void

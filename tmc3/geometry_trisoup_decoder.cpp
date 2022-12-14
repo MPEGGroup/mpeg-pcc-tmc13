@@ -150,15 +150,14 @@ decodeGeometryTrisoup(
 
   // Determine neighbours
   std::vector<uint16_t> neighbNodes;
-  std::vector<int> indexBefore;
-  std::vector<std::vector<int>> perpVertexStart;
-  determineTrisoupNeighbours(nodes, neighbNodes, indexBefore, perpVertexStart, blockWidth);
+  std::vector<std::array<int, 18>> edgePattern;
+  determineTrisoupNeighbours(nodes, neighbNodes, edgePattern, blockWidth);;
 
 
   // Decode vertex presence and position into bitstream  
   std::vector<bool> segind;
   std::vector<uint8_t> vertices;
-  decodeTrisoupVertices(segind, vertices, neighbNodes, indexBefore, perpVertexStart, bitDropped, gps, gbh, arithmeticDecoder); 
+  decodeTrisoupVertices(segind, vertices, neighbNodes, edgePattern, bitDropped, gps, gbh, arithmeticDecoder);
 
 
   PCCPointSet3 recPointCloud;
@@ -185,10 +184,9 @@ decodeGeometryTrisoup(
 void determineTrisoupNeighbours(
   const ringbuf<PCCOctree3Node>& leaves,
   std::vector<uint16_t>& neighbNodes,
-  std::vector<int>& indexBefore,
-  std::vector<std::vector<int>>& perpVertexStart,
+  std::vector<std::array<int, 18>>& edgePattern,
   const int defaultBlockWidth) {
-  
+
   // Width of block.
   // in future, may override with leaf blockWidth
   const int32_t blockWidth = defaultBlockWidth;
@@ -217,16 +215,16 @@ void determineTrisoupNeighbours(
 
     // ------------ edges along x
     // in node
-    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos000, posNode + posW00, ii + 0, 1})); // far bottom edge
-    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos0W0, posNode + posWW0, ii + 2,  2})); // far top edge
-    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos00W, posNode + posW0W, ii + 8,  4})); // near bottom edge
-    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos0WW, posNode + posWWW, ii + 10,  8})); // near top edge 
+    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos000, posNode + posW00, ii + 0, 1 })); // far bottom edge
+    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos0W0, posNode + posWW0, ii + 2,  2 })); // far top edge
+    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos00W, posNode + posW0W, ii + 8,  4 })); // near bottom edge
+    segments.push_back(TrisoupSegmentNeighbours({ posNode + pos0WW, posNode + posWWW, ii + 10,  8 })); // near top edge
     // left 
     auto posLeft = posNode - posW00;
     segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos000, posLeft + posW00, ii2 + 0, 16 })); // far bottom edge
-    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos0W0, posLeft + posWW0, ii2 + 2,  32})); // far top edge
-    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos00W, posLeft + posW0W, ii2 + 8,  64})); // near bottom edge
-    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos0WW, posLeft + posWWW, ii2 + 10,  128})); // near top edge
+    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos0W0, posLeft + posWW0, ii2 + 2,  32 })); // far top edge
+    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos00W, posLeft + posW0W, ii2 + 8,  64 })); // near bottom edge
+    segments.push_back(TrisoupSegmentNeighbours({ posLeft + pos0WW, posLeft + posWWW, ii2 + 10,  128 })); // near top edge
     //right
     auto posRight = posNode + posW00;
     segments.push_back(TrisoupSegmentNeighbours({ posRight + pos000, posRight + posW00, ii3 + 0, 256 })); // far bottom edge
@@ -272,89 +270,101 @@ void determineTrisoupNeighbours(
     segments.push_back(TrisoupSegmentNeighbours({ posFar + posWW0, posFar + posWWW, ii3 + 6,  1024 })); // top right edge
     segments.push_back(TrisoupSegmentNeighbours({ posFar + posW00, posFar + posW0W, ii3 + 7,  2048 })); // bottom right edge
   }
-  
-  // Sort the list and find unique segments.  
+
+  // Sort the list and find unique segments.
   std::sort(segments.begin(), segments.end());
-  
+
   // find neighbourgs for unique segments
   TrisoupSegmentNeighbours localSegment = segments[0];
-  
 
-  auto it = segments.begin() + 1;  
+
+  auto it = segments.begin() + 1;
   neighbNodes.clear();
-  indexBefore.clear();
   std::vector<int> correspondanceUnique(segments.size(), -1);
 
-  int uniqueIndex = 0; 
-  int uniqueIndexBefore = -1;
-  std::vector<int> uniquePerpVertexStart;  
-  
-  for (; it != segments.end() ; it++) {
-    if (localSegment.startpos != it->startpos || localSegment.endpos != it->endpos) {      
-      
+  int uniqueIndex = 0;
+  std::array<int, 18> pattern = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
+  for (; it != segments.end(); it++) {
+    if (localSegment.startpos != it->startpos || localSegment.endpos != it->endpos) {
+
       if (localSegment.neighboursMask & 15) {
+        // the segment is a true segment and not only accumulation of copies; then push and jump to next segment
         neighbNodes.push_back(localSegment.neighboursMask);
-        indexBefore.push_back(uniqueIndexBefore); 
-        perpVertexStart.push_back(uniquePerpVertexStart);       
-        
+        edgePattern.push_back(pattern);
+
         uniqueIndex++;
-        uniqueIndexBefore = -1;
-        uniquePerpVertexStart.clear();
+        for (int v = 0; v < 18; v++)
+          pattern[v] = -1;
       }
-      localSegment =*it;     
-    } 
+      localSegment = *it;
+    }
     else {
       // segment[i] is the same as localSegment
       // Accumulate into localSegment       
       localSegment.neighboursMask |= it->neighboursMask;
-    }   
+    }
     correspondanceUnique[it->index] = uniqueIndex;
 
-    
-    if (it->neighboursMask >=256 && it->neighboursMask <= 2048) { // lookinbg for vertex before (x left or y front or z below) 
+    // ---------- neighbouring vertex parallel before
+    if (it->neighboursMask >= 256 && it->neighboursMask <= 2048) { // lookinbg for vertex before (x left or y front or z below)
       int indexBefore = it->index - 24;
-      
-      if (correspondanceUnique[indexBefore] != -1) {
-        uniqueIndexBefore = correspondanceUnique[indexBefore];       
-      }      
-    }
-    static const int perpVertexStartIndex[12][2] =       { {1,4}, {0,4}, {1,5}, {0,7}, {0,1},{1,2},{2,3},{0,3},{4,9},{4,8},{5,9},{7,8} };
-    static const int perpVertexStartOrientation[12][2] = { {0,0}, {0,0}, {1,0}, {1,0}, {0,0},{1,0},{1,1},{1,0},{1,0},{1,0},{1,1},{1,1} }; // 0=away from, 1=toward  StartPos
 
-    if (( it->neighboursMask  & 4095)<=8) { // looking for perpendicalar vertices from startPoint 
-      const int maskIdx = (1 << 30) - 1;
-      int indexLow = it->index % 12;   
-      
-      int indexPerp = it->index  - indexLow + perpVertexStartIndex[indexLow][0];
-      int Vidx = correspondanceUnique[indexPerp];
-      if (Vidx != -1) {
-        bool flag = false;
-        for (int k = 0; k < uniquePerpVertexStart.size(); k++) {
-          flag = flag || Vidx == (uniquePerpVertexStart[k] & maskIdx);
-        }
-        if (!flag)
-          uniquePerpVertexStart.push_back(Vidx + (perpVertexStartOrientation[indexLow][0] << 30));
+      if (correspondanceUnique[indexBefore] != -1) {
+        pattern[0] = correspondanceUnique[indexBefore];
       }
-     
-       
-      indexPerp = it->index  - indexLow + perpVertexStartIndex[indexLow][1];
-      Vidx = correspondanceUnique[indexPerp];
-      if (Vidx != -1) {
-        bool flag = false;
-        for (int k = 0; k < uniquePerpVertexStart.size(); k++) {
-          flag = flag || Vidx == (uniquePerpVertexStart[k] & maskIdx);
-        }
-        if (!flag)
-          uniquePerpVertexStart.push_back(Vidx + (perpVertexStartOrientation[indexLow][1] << 30));
+    }
+
+    // ---------    8-bit pattern = 0 before, 1-4 perp, 5-12 others
+    static const int localEdgeindex[12][11] = {
+      { 4,  1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 0
+      { 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 1
+      { 1,  5,  4,  9,  0,  8, -1, -1, -1, -1, -1}, // vertex 2
+      { 0,  7,  4,  8,  2, 10,  1,  9, -1, -1, -1}, // vertex 3
+      {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 4
+      { 1,  0,  9,  4, -1, -1, -1, -1, -1, -1, -1}, // vertex 5
+      { 3,  2,  0, 10, 11,  9,  8,  7,  5,  4, -1}, // vertex 6
+      { 0,  1,  2,  8, 10,  4,  5, -1, -1, -1, -1}, // vertex 7
+      { 4,  9,  1,  0, -1, -1, -1, -1, -1, -1, -1}, // vertex 8
+      { 4,  0,  1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 9
+      { 5,  9,  1,  2,  8,  0, -1, -1, -1, -1, -1}, // vertex 10
+      { 7,  8,  0, 10,  5,  2,  3,  9,  1, -1, -1}  // vertex 11
+    };
+    static const int patternIndex[12][11] = {
+      { 3,  4, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 0
+      { 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 1
+      { 2,  3,  5,  8, 15, 17, -1, -1, -1, -1, -1}, // vertex 2
+      { 2,  3,  5,  8,  9, 12, 15, 17, -1, -1, -1}, // vertex 3
+      {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 4
+      { 1,  7, 10, 14, -1, -1, -1, -1, -1, -1, -1}, // vertex 5
+      { 1,  2,  6,  9, 10, 11, 13, 14, 15, 16, -1}, // vertex 6
+      { 2,  5,  8,  9, 12, 15, 17, -1, -1, -1, -1}, // vertex 7
+      { 1,  4,  7, 14, -1, -1, -1, -1, -1, -1, -1}, // vertex 8
+      { 1,  7, 14, -1, -1, -1, -1, -1, -1, -1, -1}, // vertex 9
+      { 1,  2,  6, 14, 15, 16, -1, -1, -1, -1, -1}, // vertex 10
+      { 1,  2,  6,  9, 11, 13, 14, 15, 16, -1, -1}  // vertex 11
+    };
+
+    if ((it->neighboursMask & 4095) <= 8) { // true edge, not a copy; so done as many times a nodes for the  true edge
+      int indexLow = it->index % 12;   // true edge index within node
+      for (int v = 0; v < 11; v++) {
+        if (localEdgeindex[indexLow][v] == -1)
+          break;
+
+        int indexV = it->index - indexLow + localEdgeindex[indexLow][v]; // index of segment
+        int Vidx = correspondanceUnique[indexV];
+        if (Vidx != -1)  // check if already coded
+          pattern[patternIndex[indexLow][v]] = Vidx;
+        else
+          std::cout << "#" << indexLow << "/" << v << " ";
+
       }
-      
     }
 
   }
   if (localSegment.neighboursMask & 15) {
     neighbNodes.push_back(localSegment.neighboursMask);
-    indexBefore.push_back(uniqueIndexBefore);
-    perpVertexStart.push_back(uniquePerpVertexStart);
+    edgePattern.push_back(pattern);
   }
 }
 //============================================================================
@@ -876,14 +886,14 @@ void decodeTrisoupVertices(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   std::vector<uint16_t>& neighbNodes,
-  std::vector<int>& indexBefore,
-  std::vector<std::vector<int>>& perpVertexStart,
+  std::vector<std::array<int, 18>>& edgePattern,
   int bitDropped,
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   pcc::EntropyDecoder& arithmeticDecoder) {
   const int nbitsVertices = gbh.trisoupNodeSizeLog2(gps) - bitDropped;
   const int max2bits = nbitsVertices > 1 ? 3 : 1;
+  const int mid2bits = nbitsVertices > 1 ? 2 : 1;
 
   int iV = 0;
   std::vector<int> correspondanceSegment2V;
@@ -892,89 +902,132 @@ void decodeTrisoupVertices(
 
   CtxModelDynamicOBUF ctxTriSoup;
   CtxMapDynamicOBUF MapOBUFTriSoup[3];
-  MapOBUFTriSoup[0].reset(10, 7); // flag
-  MapOBUFTriSoup[1].reset(10, 6);  // first bit position
-  MapOBUFTriSoup[2].reset(10, 6 + 1);  // second bit position
+  MapOBUFTriSoup[0].reset(14+1, 7); // flag
+  MapOBUFTriSoup[1].reset(10+1+3+1, 6);  // first bit position
+  MapOBUFTriSoup[2].reset(10+1+3+1, 6 + 1);  // second bit position
+
+  const uint8_t initValue0[128] = {
+     15,  15,  15,  15,  15,  15,  15,  15,  15,  15,  42,  96,  71,  37,  15,
+     15,  22,  51,  15,  15,  30,  27,  15,  15,  64,  15,  48,  15, 224, 171,
+    127,  24, 127,  34,  80,  46, 141,  44,  66,  49, 127, 116, 140, 116, 105,
+     39, 127, 116, 114,  46, 172, 109,  60,  73, 181, 161, 112,  65, 240, 159,
+    127, 127, 127,  87, 183, 127, 116, 116, 195,  88, 152, 141, 228, 141, 127,
+     80, 127, 127, 160,  92, 224, 167, 129, 135, 240, 183, 240, 184, 240, 240,
+    127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+    127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+    127, 127, 127, 127, 127, 127, 127, 127
+  };
+  const uint8_t initValue1[64] = {
+    116, 127, 118,  15, 104,  56,  97,  15,  96,  15,  29,  15,  95,  15,  46,
+     15, 196, 116, 182,  53, 210, 104, 163,  69, 169,  15, 114,  15, 121,  15,
+    167,  63, 240, 127, 184,  92, 240, 163, 197,  77, 239,  73, 179,  59, 213,
+     48, 185, 108, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+    127, 127, 127, 127
+  };
+  const uint8_t initValue2[128] = {
+    141, 127, 127, 127, 189,  81,  36, 127, 143, 105, 103, 116, 201,  60,  38,
+    116, 116, 127,  15, 127, 153,  59,  15, 116,  69, 105,  15, 127, 158,  93,
+     36,  79, 141, 161, 116, 127, 197, 102,  53, 127, 177, 125,  88,  79, 209,
+     75, 102,  28,  95,  74,  72,  56, 189,  62,  78,  18,  88, 116,  28,  45,
+    237, 100, 152,  35, 141, 240, 127, 127, 208, 133, 101, 141, 186, 210, 168,
+     98, 201, 124, 138,  15, 195, 194, 103,  94, 229,  82, 167,  23,  92, 197,
+    112,  59, 185,  87, 156,  79, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+    127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
+    127, 127, 127, 127, 127, 127, 127, 127
+  };
+  MapOBUFTriSoup[0].init(initValue0);
+  MapOBUFTriSoup[1].init(initValue1);
+  MapOBUFTriSoup[2].init(initValue2);
+
   for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
+    // reduced neighbour contexts
     int ctxE = (!!(neighbNodes[i] & 1)) + (!!(neighbNodes[i] & 2)) + (!!(neighbNodes[i] & 4)) + (!!(neighbNodes[i] & 8)) - 1; // at least one node is occupied 
     int ctx0 = (!!(neighbNodes[i] & 16)) + (!!(neighbNodes[i] & 32)) + (!!(neighbNodes[i] & 64)) + (!!(neighbNodes[i] & 128));
     int ctx1 = (!!(neighbNodes[i] & 256)) + (!!(neighbNodes[i] & 512)) + (!!(neighbNodes[i] & 1024)) + (!!(neighbNodes[i] & 2048));
+    int direction = neighbNodes[i] >> 13; // 0=x, 1=y, 2=z
 
-    int direction = neighbNodes[i] >> 13;
+    // construct pattern
+    auto patternIdx = edgePattern[i];
+    int pattern = 0;
+    int patternClose  = 0;
+    int patternClosest  = 0;
+    int nclosestPattern = 0;
 
-    int beforeCtx = 0;
-    int Vbefore = 0;
-    int nclose = 0;
-    int nfar = 0;
+    int towardOrAway[18] = { // 0 = toward; 1 = away
+      0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
 
-    // compute data relative to preceding (before) vertex along edge direction (presence and position) 
-    // vertices are on gbh.trisoupNodeSizeLog2(gps) - bitDropped bits
+    int mapping18to9[3][9] = {
+      { 0, 1, 2, 3,  4, 15, 14, 5,  7},
+      { 0, 1, 2, 3,  9, 15, 14, 7, 12},
+      { 0, 1, 2, 9, 10, 15, 14, 7, 12}
+    };
 
-    if (indexBefore[i] != -1 && gbh.trisoupNodeSizeLog2(gps) <= 4) {
-      beforeCtx = segind[indexBefore[i]];
-      if (correspondanceSegment2V[indexBefore[i]] != -1) {
-        Vbefore = 1 + vertices[correspondanceSegment2V[indexBefore[i]]] >> std::max(0, nbitsVertices - 2);
+    for (int v = 0; v < 9; v++) {
+      int v18 = mapping18to9[direction][v];
 
-        int v2bits = max2bits - (vertices[correspondanceSegment2V[indexBefore[i]]] >> std::max(0, nbitsVertices - 2));
-        if (v2bits <= 0)
-          nclose++;
-        if (v2bits >= max2bits)
-          nfar++;
-      }
-    }
-
-    // count number of perp vertices close to current edge; find their position 
-    int occupPerp = 0;
-    auto perpVS = perpVertexStart[i];
-    int maxVal = (1 << nbitsVertices) - 1;
-
-    for (int k = 0; k < perpVS.size(); k++) {
-      const int maskIdx = (1 << 30) - 1;
-      int idxEdge = perpVS[k] & maskIdx;
-
-      if (segind[idxEdge]) {
-        occupPerp++;
-        int idxVertex = correspondanceSegment2V[idxEdge];
-        int vertexPos = vertices[idxVertex] >> std::max(0, nbitsVertices - 2); // on 2 bits
-
-        int orientation = perpVS[k] >> 30;
-        if (orientation) {// if toward then reverse to away 
-          vertexPos = max2bits - vertexPos; // 0 is closest, 3 is farthest
+      if (patternIdx[v18] != -1) {
+        int idxEdge = patternIdx[v18];
+        if (segind[idxEdge]) {
+          pattern |= 1 << v;
+          int vertexPos2bits = vertices[correspondanceSegment2V[idxEdge]] >> std::max(0, nbitsVertices - 2);
+          if (towardOrAway[v18])
+            vertexPos2bits = max2bits - vertexPos2bits; // reverses for away
+          if (vertexPos2bits >= mid2bits)
+            patternClose |= 1 << v;
+          if (vertexPos2bits >= max2bits)
+            patternClosest |= 1 << v;
+          nclosestPattern += vertexPos2bits >= max2bits && v <= 4;
         }
-
-        if (vertexPos <= 0)
-          nclose++;
-        if (vertexPos >= max2bits)
-          nfar++;
       }
     }
-    int perpStartCtx = (4 - direction) - occupPerp + 1 - beforeCtx;   // in [0,5]
-    int nmiddle = occupPerp + beforeCtx - nfar - nclose;
-    bool flagTouch = nclose > 0;
+
+    int missedCloseStart = /*!(pattern & 1)*/ + !(pattern & 2) + !(pattern & 4);
+    int nclosestStart = !!(patternClosest & 1) + !!(patternClosest & 2) + !!(patternClosest & 4);
+    if (direction == 0) {
+      missedCloseStart +=  !(pattern & 8) + !(pattern & 16);
+      nclosestStart +=  !!(patternClosest & 8) + !!(patternClosest & 16);
+    }
+    if (direction == 1) {
+      missedCloseStart +=  !(pattern & 8);
+      nclosestStart +=  !!(patternClosest & 8) - !!(patternClosest & 16) ;
+    }
+    if (direction == 2) {
+      nclosestStart +=  - !!(patternClosest & 8) - !!(patternClosest & 16) ;
+    }
+
+    // reorganize neighbours of vertex /edge (endpoint) independently on xyz
+    int neighbEdge = (neighbNodes[i] >> 0) & 15;
+    int neighbEnd = (neighbNodes[i] >> 4) & 15;
+    int neighbStart = (neighbNodes[i] >> 8) & 15;
+    if (direction == 2) {
+      neighbEdge = ((neighbNodes[i] >> 0 + 0) & 1);
+      neighbEdge += ((neighbNodes[i] >> 0 + 3) & 1) << 1;
+      neighbEdge += ((neighbNodes[i] >> 0 + 1) & 1) << 2;
+      neighbEdge += ((neighbNodes[i] >> 0 + 2) & 1) << 3;
+
+      neighbEnd = ((neighbNodes[i] >> 4 + 0) & 1);
+      neighbEnd += ((neighbNodes[i] >> 4 + 3) & 1) << 1;
+      neighbEnd += ((neighbNodes[i] >> 4 + 1) & 1) << 2;
+      neighbEnd += ((neighbNodes[i] >> 4 + 2) & 1) << 3;
+
+      neighbStart = ((neighbNodes[i] >> 8 + 0) & 1);
+      neighbStart += ((neighbNodes[i] >> 8 + 3) & 1) << 1;
+      neighbStart += ((neighbNodes[i] >> 8 + 1) & 1) << 2;
+      neighbStart += ((neighbNodes[i] >> 8 + 2) & 1) << 3;
+    }
 
     // encode flag vertex
-    bool c;
 
-
-    int ctxMap1 = (Vbefore * 4 + ctxE) * 4 + std::min(nclose, 3);
-    bool full01 = ((ctx0 == 4) || (ctx1 == 4));
-    int ctxMap2 = full01 << 8;
-    if (!full01) { // none is full 
-      ctxMap2 |= (neighbNodes[i] >> 4) & 255;
-    }
-    else { // one is full, very rarely both 
-      ctxMap2 |= (ctx0 == 4) << 7;
-      if (ctx0 == 4)
-        ctxMap2 |= ((neighbNodes[i] >> 8) & 15) << 3;
-      else
-        ctxMap2 |= ((neighbNodes[i] >> 4) & 15) << 3;
-      // three bits to spare 
-      ctxMap2 |= perpStartCtx;
-    }
-    c = MapOBUFTriSoup[0].decodeEvolve(
-      &arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
-
-
+    int ctxMap1 = std::min(nclosestPattern, 2) * 15 * 2 +  (neighbEdge-1) * 2 + ((ctx1 == 4));    // 2* 15 *3 = 90 -> 7 bits
+    int ctxMap2 = neighbEnd << 11;
+    ctxMap2 |= (patternClose & (0b00000110)) << 9 - 1 ; // perp that do not depend on direction = to start
+    ctxMap2 |= direction << 7;
+    ctxMap2 |= (patternClose & (0b00011000))<< 5-3; // perp that  depend on direction = to start or to end
+    ctxMap2 |= (patternClose & (0b00000001))<< 4;  // before
+    int orderedPclosePar = (((pattern >> 5) & 3) << 2) + (!!(pattern & 128) << 1) + !!(pattern & 256);
+    ctxMap2 |= orderedPclosePar;
+    bool c = MapOBUFTriSoup[0].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
 
     segind.push_back(c);
     correspondanceSegment2V.push_back(-1);
@@ -984,33 +1037,40 @@ void decodeTrisoupVertices(
       correspondanceSegment2V.back() = iV;
 
       uint8_t v = 0;
-      int ctxFullNbounds = (4 * (std::max(1, ctx0) - 1) + (std::max(1, ctx1) - 1)) * 2 + (ctxE == 3);
-      int b = gbh.trisoupNodeSizeLog2(gps) - bitDropped - 1;
+      int ctxFullNbounds = (4 * (ctx0 <= 1 ? 0 : (ctx0 >= 3 ? 2 : 1)) + (std::max(1, ctx1) - 1)) * 2 + (ctxE == 3);
+      int b = nbitsVertices - 1;
 
       // first bit
-      ctxMap1 = ctxFullNbounds * 2 + flagTouch;
-      ctxMap2 = perpStartCtx << 7;
-      ctxMap2 |= beforeCtx << 6;
-      ctxMap2 |= std::min(3, nfar) << 4;
-      ctxMap2 |= std::min(3, nclose) << 2;
-      ctxMap2 |= std::min(3, nmiddle);
-      int bit = MapOBUFTriSoup[1].decodeEvolve(
-        &arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
+      ctxMap1 = ctxFullNbounds * 2 + (nclosestStart > 0);
+      ctxMap2 = missedCloseStart << 8;
+      ctxMap2 |= (patternClosest & 1) << 7;
+      ctxMap2 |= direction << 5;
+      ctxMap2 |= patternClose & (0b00011111);
+      int orderedPclosePar = (((patternClose >> 5) & 3) << 2) + (!!(patternClose & 128) << 1) + !!(patternClose & 256);
 
+      int bit = MapOBUFTriSoup[1].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
       v = (v << 1) | bit;
       b--;
 
       // second bit
       if (b >= 0) {
-        bit = MapOBUFTriSoup[2].decodeEvolve(
-          &arithmeticDecoder, ctxTriSoup, ctxMap2, (ctxMap1 << 1) + v);
+        ctxMap1 = ctxFullNbounds * 2 + (nclosestStart > 0);
+        ctxMap2 = missedCloseStart << 8;
+        ctxMap2 |= (patternClose & 1) << 7;
+        ctxMap2 |= (patternClosest & 1) << 6;
+        ctxMap2 |= direction << 4;
+        ctxMap2 |= (patternClose & (0b00011111)) >> 1;
+        ctxMap2 = (ctxMap2 << 4) + orderedPclosePar;
+
+        bit = MapOBUFTriSoup[2].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, (ctxMap1 << 1) + v);
         v = (v << 1) | bit;
         b--;
       }
 
+
       // third bit
       if (b >= 0) {
-        int ctxFullNboundsReduced1 = (6 * (ctx0 >> 1) + perpStartCtx) * 2 + (ctxE == 3);
+        int ctxFullNboundsReduced1 = (6 * (ctx0 >> 1) + missedCloseStart) * 2 + (ctxE == 3);
         v = (v << 1) | arithmeticDecoder.decode(ctxTempV2[4 * ctxFullNboundsReduced1 + v]);
         b--;
       }

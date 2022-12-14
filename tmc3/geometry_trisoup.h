@@ -97,16 +97,14 @@ void determineTrisoupVertices(
 void determineTrisoupNeighbours(
   const ringbuf<PCCOctree3Node>& leaves, 
   std::vector<uint16_t>& neighbNodes, 
-  std::vector<int>& indexBefore,
-  std::vector<std::vector<int>>& perpVertexStart,
+  std::vector<std::array<int, 18>>& edgePattern,
   const int defaultBlockWidth);
 
 void encodeTrisoupVertices(  
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   std::vector<uint16_t>& neighbNodes,
-  std::vector<int>& indexBefore,
-  std::vector<std::vector<int>>& perpVertexStart,
+  std::vector<std::array<int, 18>>& edgePattern,
   int bitDropped,
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
@@ -116,8 +114,7 @@ void decodeTrisoupVertices(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   std::vector<uint16_t>& neighbNodes,
-  std::vector<int>& indexBefore,
-  std::vector<std::vector<int>>& perpVertexStart,
+  std::vector<std::array<int, 18>>& edgePattern,
   int bitDropped,
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
