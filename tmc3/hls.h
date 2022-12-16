@@ -806,6 +806,7 @@ struct AttributeParameterSet {
   bool aps_slice_qp_deltas_present_flag;
 
   //--- raht parameters
+  bool raht_increased_buffer_precision_flag;
   RahtPredictionParams rahtPredParams;
 
   //--- lifting parameters

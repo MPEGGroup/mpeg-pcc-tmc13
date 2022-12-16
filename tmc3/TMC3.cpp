@@ -1214,6 +1214,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: Hierarchical neighbourhood prediction\n"
     "  2: Hierarchical neighbourhood prediction as lifting transform")
 
+  ("rahtIncreasedBufferPrecisionEnabled",
+    params_attr.aps.raht_increased_buffer_precision_flag, true,
+    "Controls the use of increased precision in RAHT buffer "
+    "to avoiding rounding operations")
+
   ("rahtPredictionEnabled",
     params_attr.aps.rahtPredParams.raht_prediction_enabled_flag, true,
     "Controls the use of transform-domain prediction")

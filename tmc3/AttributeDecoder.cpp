@@ -553,9 +553,9 @@ AttributeDecoder::decodeReflectancesRaht(
   std::vector<int> attributes(attribCount * voxelCount);
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.rahtPredParams, qpSet,
-    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
-    voxelCount, coefficients.data());
+    aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
+    attributes.data(), attribCount, voxelCount, coefficients.data(),
+    aps.raht_increased_buffer_precision_flag);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -614,9 +614,9 @@ AttributeDecoder::decodeColorsRaht(
   std::vector<int> attributes(attribCount * voxelCount);
 
   regionAdaptiveHierarchicalInverseTransform(
-    aps.rahtPredParams, qpSet,
-    pointQpOffsets.data(), mortonCode.data(), attributes.data(), attribCount,
-    voxelCount, coefficients.data());
+    aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
+    attributes.data(), attribCount, voxelCount, coefficients.data(),
+    aps.raht_increased_buffer_precision_flag);
 
   int clipMax = (1 << desc.bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {

@@ -838,6 +838,11 @@ Coding method to use for the current attribute:
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
   | 3     | Uncompressed (PCM)                                         |
 
+### `--rahtIncreasedBufferPrecisionEnabled=0|1`
+Controls the use of higher precision numbers in buffers for RAHT. When
+it is enabled, it also avoid using fixed point rounding operations during
+the transform.
+
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients
 from spatially upsampling the DC values of neighbouring parent nodes

@@ -52,7 +52,8 @@ void regionAdaptiveHierarchicalTransform(
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients);
+  int* coefficients,
+  const bool removeRoundingOps);
 
 void regionAdaptiveHierarchicalInverseTransform(
   const RahtPredictionParams &rahtPredParams,
@@ -62,6 +63,7 @@ void regionAdaptiveHierarchicalInverseTransform(
   int* attributes,
   const int attribCount,
   const int voxelCount,
-  int* coefficients);
+  int* coefficients,
+  const bool removeRoundingOps);
 
 } /* namespace pcc */
