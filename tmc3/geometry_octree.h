@@ -266,14 +266,21 @@ struct CtxModelOctreeOccupancy {
 
 struct CtxModelDynamicOBUF {
   static const int kCtxFactorShift = 3;
-  AdaptiveBitModelFast contexts[256 >> kCtxFactorShift];
+  static const int kNumContexts = 256 >> kCtxFactorShift;
+  AdaptiveBitModelFast contexts[kNumContexts];
+  static const int kContextsInitProbability[kNumContexts];
+
+  CtxModelDynamicOBUF()
+  {
+    for (int i = 0; i < kNumContexts; i++)
+      contexts[i].probability = kContextsInitProbability[i];
+  }
 
   AdaptiveBitModelFast& operator[](int idx)
   {
     return contexts[idx >> kCtxFactorShift];
   }
 };
-
 
 //============================================================================
 
