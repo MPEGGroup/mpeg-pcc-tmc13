@@ -292,6 +292,8 @@ GeometryOctreeDecoder::resetMap()
     _MapOccupancySparse[i][6].reset(6 + 5 + 1, 12 - 5);
     _MapOccupancySparse[i][7].reset(6 + 5 + 1, 11 - 5);
   }
+
+  memset(_BufferOBUFleaves, 0, sizeof(uint8_t) * CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth));
 }
 
 //============================================================================
@@ -786,12 +788,10 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
 
     int bit;
     if (Sparse) {
-      bit = _MapOccupancySparse[interCtx][i].decodeEvolve(
-        _arithmeticDecoder, _CtxMapDynamicOBUF, ctx2, ctx1);
+      bit = _MapOccupancySparse[interCtx][i].decodeEvolve(_arithmeticDecoder, _CtxMapDynamicOBUF, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves);
     }
     else {
-      bit = _MapOccupancy[interCtx][i].decodeEvolve(
-        _arithmeticDecoder, _CtxMapDynamicOBUF, ctx2, ctx1);
+      bit = _MapOccupancy[interCtx][i].decodeEvolve(_arithmeticDecoder, _CtxMapDynamicOBUF, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves);
     }
 
     // update partial occupancy of current node

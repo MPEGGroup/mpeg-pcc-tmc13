@@ -304,6 +304,8 @@ GeometryOctreeEncoder::resetMap()
     _MapOccupancySparse[i][6].reset(6 + 5 + 1, 12 - 5);
     _MapOccupancySparse[i][7].reset(6 + 5 + 1, 11 - 5);
   }
+
+  memset(_BufferOBUFleaves, 0, sizeof(uint8_t) * CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth));
 }
 
 //============================================================================
@@ -315,6 +317,8 @@ GeometryOctreeEncoder::clearMap()
       _MapOccupancy[j][i].clear();
       _MapOccupancySparse[j][i].clear();
     }
+
+  std::cout << "Size used buffer OBUF LEAF = " << _OBUFleafNumber << "\n";
 }
 
 //============================================================================
@@ -823,13 +827,10 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
     // encode
     int bit = (occupancy >> i) & 1;
     if (Sparse) {
-      auto obufIdx =
-        _MapOccupancySparse[interCtx][i].getEvolve(bit, ctx2, ctx1);
-      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[obufIdx]);
+      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[_MapOccupancySparse[interCtx][i].getEvolve(bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves)]);
     }
     else {
-      auto obufIdx = _MapOccupancy[interCtx][i].getEvolve(bit, ctx2, ctx1);
-      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[obufIdx]);
+      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[_MapOccupancy[interCtx][i].getEvolve(bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves)]);
     }
 
     // update partial occupancy of current node

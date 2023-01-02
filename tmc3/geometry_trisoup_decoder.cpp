@@ -966,6 +966,10 @@ void decodeTrisoupVertices(
   MapOBUFTriSoup[1].init(initValue1);
   MapOBUFTriSoup[2].init(initValue2);
 
+  uint8_t _BufferOBUFleaves[CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth)];
+  memset(_BufferOBUFleaves, 0, sizeof(uint8_t) * CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth));
+  int _OBUFleafNumber = 0;
+
   for (int i = 0; i <= gbh.num_unique_segments_minus1; i++) {
     // reduced neighbour contexts
     int ctxE = (!!(neighbNodes[i] & 1)) + (!!(neighbNodes[i] & 2)) + (!!(neighbNodes[i] & 4)) + (!!(neighbNodes[i] & 8)) - 1; // at least one node is occupied 
@@ -1054,7 +1058,7 @@ void decodeTrisoupVertices(
     ctxMap2 |= (patternClose & (0b00000001))<< 4;  // before
     int orderedPclosePar = (((pattern >> 5) & 3) << 2) + (!!(pattern & 128) << 1) + !!(pattern & 256);
     ctxMap2 |= orderedPclosePar;
-    bool c = MapOBUFTriSoup[0].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
+    bool c = MapOBUFTriSoup[0].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves);
 
     segind.push_back(c);
     correspondanceSegment2V.push_back(-1);
@@ -1075,7 +1079,7 @@ void decodeTrisoupVertices(
       ctxMap2 |= patternClose & (0b00011111);
       int orderedPclosePar = (((patternClose >> 5) & 3) << 2) + (!!(patternClose & 128) << 1) + !!(patternClose & 256);
 
-      int bit = MapOBUFTriSoup[1].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1);
+      int bit = MapOBUFTriSoup[1].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves);
       v = (v << 1) | bit;
       b--;
 
@@ -1089,7 +1093,7 @@ void decodeTrisoupVertices(
         ctxMap2 |= (patternClose & (0b00011111)) >> 1;
         ctxMap2 = (ctxMap2 << 4) + orderedPclosePar;
 
-        bit = MapOBUFTriSoup[2].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, (ctxMap1 << 1) + v);
+        bit = MapOBUFTriSoup[2].decodeEvolve(&arithmeticDecoder, ctxTriSoup, ctxMap2, (ctxMap1 << 1) + v, &_OBUFleafNumber, _BufferOBUFleaves);
         v = (v << 1) | bit;
         b--;
       }
