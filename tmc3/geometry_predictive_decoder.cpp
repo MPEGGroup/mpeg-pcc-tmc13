@@ -80,8 +80,12 @@ private:
   int decodeNumChildren();
   GPredicter::Mode decodePredMode();
   int decodePredIdx();
-  int32_t decodeResPhi(int predIdx, int boundPhi, bool interFlag);
-  int32_t decodeResR(int multiplier, int predIdx, const bool interFlag);
+  int32_t decodeResPhi(int predIdx, int boundPhi, bool interFlag
+    , int refNodeIdx
+  );
+  int32_t decodeResR(int multiplier, int predIdx, const bool interFlag
+    , int refNodeIdx
+  );
 
   Vec3<int32_t> decodeResidual(
     int mode,
@@ -89,12 +93,19 @@ private:
     int rPred,
     int* azimuthSpeed,
     int predIdx,
-    bool interFlag);
+    bool interFlag
+    , int refNodeIdx
+  );
 
   Vec3<int32_t> decodeResidual2();
-  int32_t decodePhiMultiplier(GPredicter::Mode mode, bool interFlag);
-  bool decodeInterFlag(const uint8_t interFlagBuffer);
-  bool decodeRefNodeFlag();
+  int32_t decodePhiMultiplier(GPredicter::Mode mode, bool interFlag
+    , int refNodeIdx
+    , int predIdx
+  );
+  bool decodeInterFlag(const uint8_t interFlagBuffer
+  );
+  int decodeRefNodeIdx();
+  //bool decodeRefNodeFlag();
   int32_t decodeQpOffset();
   bool decodeEndOfTreesFlag();
 
@@ -243,32 +254,43 @@ PredGeomDecoder::decodeResidual2()
 //----------------------------------------------------------------------------
 
 int32_t
-PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode, const bool interFlag)
+PredGeomDecoder::decodePhiMultiplier(GPredicter::Mode mode, const bool interFlag
+  , int refNodeIdx
+  , int predIdx
+)
 {
   if (!_geom_angular_mode_enabled_flag)
     return 0;
-
+  int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0)
+      : (predIdx ? 1 : 0);
   int interCtxIdx = interFlag ? 1 : 0;
-  if (!_aed->decode(_ctxPhiGtN[interCtxIdx][0]))
+
+  if (!_aed->decode(_ctxPhiGtN[interCtxIdx][ctxL][0]))
+  ///if (!_aed->decode(_ctxPhiGtN[interCtxIdx][0]))
     return 0;
 
   int value = 1;
-  value += _aed->decode(_ctxPhiGtN[interCtxIdx][1]);
+  value += _aed->decode(_ctxPhiGtN[interCtxIdx][ctxL][1]);
+  //value += _aed->decode(_ctxPhiGtN[interCtxIdx][1]);
   if (value == 1) {
-    const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
+    const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx][ctxL]);
+    //const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
     return sign ? -1 : 1;
   }
 
-  auto* ctxs = &_ctxResidualPhi[interCtxIdx][0] - 1;
+  auto* ctxs = &_ctxResidualPhi[interCtxIdx][ctxL][0] - 1;
+  //auto* ctxs = &_ctxResidualPhi[interCtxIdx][0] - 1;
   value = 1;
   for (int n = 3; n > 0; n--)
     value = (value << 1) | _aed->decode(ctxs[value]);
   value ^= 1 << 3;
 
   if (value == 7)
-    value += _aed->decodeExpGolomb(0, _ctxEGPhi[interCtxIdx]);
+    value += _aed->decodeExpGolomb(0, _ctxEGPhi[interCtxIdx][ctxL]);
+    //value += _aed->decodeExpGolomb(0, _ctxEGPhi[interCtxIdx]);
 
-  const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
+  const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx][ctxL]);
+  //const auto sign = _aed->decode(_ctxSignPhi[interCtxIdx]);
   return sign ? -(value + 2) : (value + 2);
 }
 
@@ -283,11 +305,20 @@ PredGeomDecoder::decodeInterFlag(const uint8_t interFlagBuffer)
 
 //----------------------------------------------------------------------------
 
+int
+PredGeomDecoder::decodeRefNodeIdx()
+{
+  int refNodeIdx = _aed->decode(_ctxRefNodeIdx[0]);
+  refNodeIdx = (refNodeIdx << 1) + _aed->decode(_ctxRefNodeIdx[1 + refNodeIdx]);
+  return refNodeIdx;
+}
+#if 0
 bool
 PredGeomDecoder::decodeRefNodeFlag()
 {
   return _aed->decode(_ctxRefNodeFlag) ? true : false;
 }
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -314,13 +345,16 @@ PredGeomDecoder::decodeEndOfTreesFlag()
 //-------------------------------------------------------------------------
 
 int32_t
-PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag)
+PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag
+  , int refNodeIdx
+)
 {
   if (boundPhi == 0)
     return 0;
 
   int interCtxIdx = interFlag ? 1 : 0;
-  int ctxL = predIdx ? 1 : 0;
+  int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0) : (predIdx ? 1 : 0);
+  //int ctxL = predIdx ? 1 : 0;
 
   if (!_aed->decode(_ctxResPhiGTZero[interCtxIdx][ctxL]))
     return 0;
@@ -328,22 +362,38 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag)
   int absVal = 1;
   if (boundPhi > 1)
     absVal += _aed->decode(_ctxResPhiGTOne[interCtxIdx][ctxL]);
+  int interEGkCtxIdx = interFlag ? (refNodeIdx > 1 ? 2 : 1) : 0;
   if (absVal == 2 && boundPhi > 2)
+    absVal += _aed->decodeExpGolomb(
+      1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
+      _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
+#if 0
     absVal += _aed->decodeExpGolomb(
       1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
       _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
+#endif
 
+  bool sign = _aed->decode(_ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
+  _resPhiOldSign = interFlag ? (refNodeIdx > 1 ? 3 : 2) : (sign ? 1 : 0);
+#if 0
   bool sign = _aed->decode(
     _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? 2 : (sign ? 1 : 0);
+#endif
   return sign ? -absVal : absVal;
 }
 //----------------------------------------------------------------------------
-int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, const bool interFlag)
+int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, const bool interFlag
+  , int refNodeIdx
+)
 {
   const int interCtx = interFlag;
-  int ctxL = predIdx == 0 /* parent */;
-  int ctxLR = ctxL + (multiplier ? 2 : 0);
+  int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0)
+      : (predIdx ? 1 : 0);
+  //int ctxL = predIdx == 0 /* parent */;
+  int ctxLR = ctxL + (interFlag ? (abs(multiplier) > 2 ? 2 : 0)
+      : (multiplier ? 2 : 0));
+  //int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   if (!_aed->decode(_ctxResRGTZero[interCtx][ctxLR]))
     return 0;
@@ -369,7 +419,9 @@ int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, con
 }
 //----------------------------------------------------------------------------
 Vec3<int32_t>
-PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimuthSpeed, int predIdx, const bool interFlag)
+PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimuthSpeed, int predIdx, const bool interFlag
+  , int refNodeIdx
+)
 {
   Vec3<int32_t> residual;
   int interCtxIdx = interFlag ? 1 : 0;
@@ -380,12 +432,16 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
 
   if (_azimuth_scaling_enabled_flag) {
     // N.B. mode is always 1 with _azimuth_scaling_enabled_flag
-    residual[0] = decodeResR(multiplier, predIdx, interFlag);
+    residual[0] = decodeResR(multiplier, predIdx, interFlag
+      , refNodeIdx
+    );
 
     int r = rPred + residual[0] << 3;
     auto speedTimesR = int64_t(_geomAngularAzimuthSpeed) * r;
     int phiBound = divExp2RoundHalfInf(speedTimesR, _azimuthTwoPiLog2 + 1);
-    residual[1] = decodeResPhi(predIdx, phiBound, interFlag);
+    residual[1] = decodeResPhi(predIdx, phiBound, interFlag
+      , refNodeIdx
+    );
     if (r && !phiBound) {
       const int32_t pi = 1 << (_azimuthTwoPiLog2 - 1);
       int32_t speedTimesR32 = speedTimesR;
@@ -481,11 +537,14 @@ PredGeomDecoder::decodeTree(
       numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
 
-    bool interFlag = false, refNodeFlag = false;
+    bool interFlag = false; int refNodeIdx = 0;
+    //bool interFlag = false, refNodeFlag = false;
     if (isInterEnabled)
-      interFlag = decodeInterFlag(interFlagBuffer);
+      interFlag = decodeInterFlag(interFlagBuffer
+      );
     if (interFlag)
-      refNodeFlag = decodeRefNodeFlag();
+      refNodeIdx = decodeRefNodeIdx();
+      //refNodeFlag = decodeRefNodeFlag();
 
     auto mode = GPredicter::Mode(1);
     int predIdx = 0;
@@ -494,7 +553,10 @@ PredGeomDecoder::decodeTree(
         predIdx = decodePredIdx();
       else
         mode = decodePredMode();
-    int qphi = decodePhiMultiplier(mode, interFlag);
+    int qphi = decodePhiMultiplier(mode, interFlag
+      , refNodeIdx
+      , predIdx
+    );
 
     point_t pred;
     if (!interFlag || prevNodeIdx == -1) {
@@ -519,18 +581,39 @@ PredGeomDecoder::decodeTree(
     } else {
       auto prevPos = outA[prevNodeIdx];
       std::pair<bool, point_t> interPred;
+      auto parentPos = outA[_nodeIdxToParentIdx[curNodeIdx]];
+      switch (refNodeIdx) {
+      case 0:
+        interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
+        break;
+      case 1:
+        interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
+        break;
+      case 2:
+        interPred = refFrameSph.getClosestGlobPred(prevPos[1], prevPos[2]);
+        break;
+      case 3:
+        interPred = refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
+        break;
+      }
+#if 0
       if (!refNodeFlag)
         interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
       else
         interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
+#endif
       assert(interPred.first);
       pred = interPred.second;
+      if (refNodeIdx > 1)
+        pred[1] = parentPos[1];
     }
 
     int azimuthSpeed;
 
     auto residual =
-      decodeResidual(mode, qphi, pred[0], &azimuthSpeed, predIdx, interFlag);
+      decodeResidual(mode, qphi, pred[0], &azimuthSpeed, predIdx, interFlag
+        , refNodeIdx
+      );
 
     if (!_geom_angular_mode_enabled_flag)
       for (int k = 0; k < 3; k++)

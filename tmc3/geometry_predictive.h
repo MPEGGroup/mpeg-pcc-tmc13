@@ -96,7 +96,8 @@ protected:
   AdaptiveBitModel _ctxNumDupPointsGt0;
   AdaptiveBitModel _ctxNumDupPoints;
   AdaptiveBitModel _ctxInterFlag[32];
-  AdaptiveBitModel _ctxRefNodeFlag;
+  AdaptiveBitModel _ctxRefNodeIdx[3];
+  //AdaptiveBitModel _ctxRefNodeFlag;
 
   AdaptiveBitModel _ctxResidual2GtN[2][3];
   AdaptiveBitModel _ctxSign2[3];
@@ -107,10 +108,16 @@ protected:
   AdaptiveBitModel _ctxQpOffsetSign;
   AdaptiveBitModel _ctxQpOffsetAbsEgl;
 
+  AdaptiveBitModel _ctxPhiGtN[2][2][2];
+  AdaptiveBitModel _ctxSignPhi[2][2];
+  AdaptiveBitModel _ctxEGPhi[2][2];
+  AdaptiveBitModel _ctxResidualPhi[2][2][7];
+#if 0
   AdaptiveBitModel _ctxPhiGtN[2][2];
   AdaptiveBitModel _ctxSignPhi[2];
   AdaptiveBitModel _ctxEGPhi[2];
   AdaptiveBitModel _ctxResidualPhi[2][7];
+#endif
 
   AdaptiveBitModel _ctxEndOfTrees;
   AdaptiveBitModel _ctxResRGTZero[2][4];
@@ -120,16 +127,20 @@ protected:
   AdaptiveBitModel _ctxResRExpGolombSuf[2][4][10];
 
   AdaptiveBitModel _ctxResPhiGTZero[2][2];
-  AdaptiveBitModel _ctxResPhiSign[2][2+2];
+  AdaptiveBitModel _ctxResPhiSign[2][2+2+1]; 
+  //AdaptiveBitModel _ctxResPhiSign[2][2+2];
   AdaptiveBitModel _ctxResPhiGTOne[2][2];
-  AdaptiveBitModel _ctxResPhiExpGolombPre[2][2][4];
-  AdaptiveBitModel _ctxResPhiExpGolombSuf[2][2][4];
+  AdaptiveBitModel _ctxResPhiExpGolombPre[3][2][4];
+  AdaptiveBitModel _ctxResPhiExpGolombSuf[3][2][4];
+  //AdaptiveBitModel _ctxResPhiExpGolombPre[2][2][4];
+  //AdaptiveBitModel _ctxResPhiExpGolombSuf[2][2][4];
 
   AdaptiveBitModel _ctxResRSign[3][2][8];
 
   bool _prevInterFlag = false;
   bool _precSignR = false;
-  int _resPhiOldSign = 2;
+  int _resPhiOldSign = 3;
+  //int _resPhiOldSign = 2;
   int _precAzimuthStepDelta = 0;
 };
 
@@ -451,6 +462,39 @@ public:
     return std::pair<bool, point_t>(false, 0);
   }
 
+  std::pair<bool, point_t> getClosestGlobPred(int currAzim, int currLaserId)
+  {
+      const auto& refPoints = refPointValsGlob;
+      auto quantizedPhi = computePhiQuantized(currAzim);
+      if (refPoints[currLaserId].size()) {
+          auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
+          if (idx == refPoints[currLaserId].end())
+              return std::pair<bool, point_t>(false, 0);
+          else
+              return std::pair<bool, point_t>(true, idx->second);
+      }
+      return std::pair<bool, point_t>(false, 0);
+  }
+
+  std::pair<bool, point_t> getNextClosestGlobPred(int currAzim, int currLaserId)
+  {
+      const auto& refPoints = refPointValsGlob;
+      auto quantizedPhi = computePhiQuantized(currAzim);
+      if (refPoints[currLaserId].size()) {
+          auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
+          if (idx == refPoints[currLaserId].end())
+              return std::pair<bool, point_t>(false, 0);
+          else
+              quantizedPhi = computePhiQuantized(idx->second[1]);
+          idx = refPoints[currLaserId].upper_bound(quantizedPhi);
+          if (idx == refPoints[currLaserId].end())
+              return std::pair<bool, point_t>(false, 0);
+          else
+              return std::pair<bool, point_t>(true, idx->second);
+      }
+      return std::pair<bool, point_t>(false, 0);
+  }
+
   int computePhiQuantized(const int val)
   {
     int offset = azimScaleLog2 ? (1 << (azimScaleLog2 - 1)) : 0;
@@ -502,6 +546,7 @@ public:
             refPointValsGlob[pt[2]].at(phiQ) = pt;
         }
       }
+#if 0
       for (auto laserId = 0; laserId < numLasers; laserId++) {
         auto& ptsZero = refPointValsCur[laserId];
         auto& ptsGlob = refPointValsGlob[laserId];
@@ -544,6 +589,7 @@ public:
           }
         }
       }
+#endif
       for (auto laserId = 0; laserId < numLasers; laserId++)
         refPointVals[laserId] = std::move(refPointValsCur[laserId]);
     } else {
