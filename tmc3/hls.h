@@ -500,6 +500,11 @@ struct GeometryParameterSet {
   // Enables trisoup
   bool trisoup_enabled_flag;
 
+  // Enable non cubic nodes on start edges of a slice
+  bool non_cubic_node_start_edge;
+  // Enable non cubic nodes on end edges of a slice
+  bool non_cubic_node_end_edge;
+
   // sampling value of trisoup decoding process
   // a value of zero set the automatic sampling value setting to avoid over point of slice MAX points(sliceMaxPoints)
   int trisoup_sampling_value;
@@ -696,6 +701,14 @@ struct GeometryBrickHeader {
 
   // Indicates if fine ray tracing must be used for trisoup nodes
   bool trisoup_fine_ray_tracing_flag;
+
+  // bounding box information of trisoup volume inside the slice
+  int slice_bb_pos_bits;
+  int slice_bb_pos_log2_scale;
+  Vec3<int> slice_bb_pos;
+  int slice_bb_width_bits;
+  int slice_bb_width_log2_scale;
+  Vec3<int> slice_bb_width;
 
   // 'Header' information that appears at the end of the data unit
   GeometryBrickFooter footer;

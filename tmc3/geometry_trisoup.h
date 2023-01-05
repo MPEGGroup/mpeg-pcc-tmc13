@@ -90,6 +90,8 @@ void determineTrisoupVertices(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,  
   const PCCPointSet3& pointCloud,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
   const int defaultBlockWidth,
   const int bitDropped,
   int distanceSearchEncoder);
@@ -132,6 +134,8 @@ void decodeTrisoupCommon(
   std::vector<CentroidDrift>& drifts,
   PCCPointSet3& pointCloud,
   PCCPointSet3& recPointCloud,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
   int defaultBlockWidth,
   int poistionClipValue,
   uint32_t samplingValue,
@@ -145,8 +149,8 @@ void decodeTrisoupCommon(
 
 int findDominantAxis(
   std::vector<Vertex>& leafVertices,
-  uint32_t blockWidth, 
-  Vec3<int32_t> blockCentroid ); 
+  Vec3<uint32_t> blockWidth,
+  Vec3<int32_t> blockCentroid);
 
 void rayTracingAlongdirection(
   std::vector<Vec3<int32_t>>& refinedVerticesBlock,
@@ -205,6 +209,30 @@ struct TrisoupSegmentNeighbours {
   int index;        // index of segment, to reorder after sorting 
   uint16_t neighboursMask;   
 };
+
+
+enum{
+  POS_000 = 0,
+  POS_W00 = 1,
+  POS_0W0 = 2,
+  POS_WW0 = 3,
+  POS_00W = 4,
+  POS_W0W = 5,
+  POS_0WW = 6,
+  POS_WWW = 7
+};
+
+void nonCubicNode
+(
+ const GeometryParameterSet& gps,
+ const GeometryBrickHeader& gbh,
+ const Vec3<int32_t>& leafpos,
+ const int32_t blockWidth,
+ const Box3<int32_t>& bbox,
+ Vec3<int32_t>& newp,
+ Vec3<int32_t>& neww,
+ Vec3<int32_t>* corner
+ );
 
 
 

@@ -947,6 +947,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.trisoup.improvedVertexDetermination, true,
     "Trisoup activate improved determination of vertex position (encoder only)")
 
+  ("trisoupNonCubicNodeNearOriginSideEnabled",
+    params.encoder.gps.non_cubic_node_start_edge, true,
+    "Trisoup activate non-cubic-node near the origin side of the slice bounding box")
+
+  ("trisoupNonCubicNodeFarFromOriginSideEnabled",
+    params.encoder.gps.non_cubic_node_end_edge, true,
+    "Trisoup activate non-cubic-node far from the origin side of the slice bounding box")
+
   ("positionQuantisationEnabled",
     params.encoder.gps.geom_scaling_enabled_flag, false,
     "Enable in-loop quantisation of positions")

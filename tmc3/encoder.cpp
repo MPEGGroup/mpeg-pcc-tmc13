@@ -683,25 +683,6 @@ PCCTMC3Encoder3::compressPartition(
   pointCloud.clear();
   pointCloud = inputPointCloud;
 
-  // Offset the point cloud to account for (preset) _sliceOrigin.
-  // The new maximum bounds of the offset cloud
-  Vec3<int> maxBound{0};
-
-  const size_t pointCount = pointCloud.getPointCount();
-  for (size_t i = 0; i < pointCount; ++i) {
-    const point_t point = (pointCloud[i] -= _sliceOrigin);
-    for (int k = 0; k < 3; ++k) {
-      const int k_coord = int(point[k]);
-      assert(k_coord >= 0);
-      if (maxBound[k] < k_coord)
-        maxBound[k] = k_coord;
-    }
-  }
-
-  // todo(df): don't update maxBound if something is forcing the value?
-  // NB: size is max - min + 1
-  _sliceBoxWhd = maxBound + 1;
-
   // apply a custom trisoup node size
   params->gbh.trisoup_node_size_log2_minus2 = 0;
   if (_gps->trisoup_enabled_flag) {
@@ -709,6 +690,47 @@ PCCTMC3Encoder3::compressPartition(
     params->gbh.trisoup_node_size_log2_minus2 =
       params->trisoupNodeSizesLog2[idx] - 2;
   }
+
+  // Offset the point cloud to account for (preset) _sliceOrigin.
+  // The new maximum bounds of the offset cloud
+  const size_t pointCount = pointCloud.getPointCount();
+  for (size_t i = 0; i < pointCount; ++i) {
+    pointCloud[i] -= _sliceOrigin;
+  }
+  // the encoded coordinate system is non-negative.
+  Box3<int32_t> bbox = pointCloud.computeBoundingBox();
+
+  if ( _gps->trisoup_enabled_flag ){
+    params->gbh.slice_bb_pos   = 0;
+    params->gbh.slice_bb_width = 0;
+    int mask = ( 1 << params->gbh.trisoupNodeSizeLog2(params->gps) ) - 1;
+    params->gbh.slice_bb_pos_bits = 0;
+    params->gbh.slice_bb_pos_log2_scale = 0;
+    params->gbh.slice_bb_width_bits = 0;
+    params->gbh.slice_bb_width_log2_scale = 0;
+    if( params->gps.non_cubic_node_start_edge ) {
+      params->gbh.slice_bb_pos   = bbox.min;
+      if( ( bbox.min[0] & mask ) ||
+          ( bbox.min[1] & mask ) ||
+          ( bbox.min[2] & mask ) ) {
+        params->gbh.slice_bb_pos_bits = numBits( params->gbh.slice_bb_pos.max() );
+        params->gbh.slice_bb_pos_log2_scale = 0;
+      }
+    }
+    if( params->gps.non_cubic_node_end_edge ) {
+      params->gbh.slice_bb_width = bbox.max - params->gbh.slice_bb_pos;
+      if( ( bbox.max[0] & mask ) ||
+          ( bbox.max[1] & mask ) ||
+          ( bbox.max[2] & mask ) ) {
+        params->gbh.slice_bb_width_bits = numBits( params->gbh.slice_bb_width.max() );
+        params->gbh.slice_bb_width_log2_scale = 0;
+      }
+    }
+  }
+
+  // todo(df): don't update maxBound if something is forcing the value?
+  // NB: size is max - min + 1
+  _sliceBoxWhd = bbox.max + 1;
 
   // geometry encoding
   if (1) {
@@ -969,6 +991,12 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     params->gbh.trisoup_adaptive_halo_flag;
   gbh.trisoup_fine_ray_tracing_flag =
     params->gbh.trisoup_fine_ray_tracing_flag;
+  gbh.slice_bb_pos   = params->gbh.slice_bb_pos;
+  gbh.slice_bb_width = params->gbh.slice_bb_width;
+  gbh.slice_bb_pos_bits = params->gbh.slice_bb_pos_bits;
+  gbh.slice_bb_pos_log2_scale = params->gbh.slice_bb_pos_log2_scale;
+  gbh.slice_bb_width_bits = params->gbh.slice_bb_width_bits;
+  gbh.slice_bb_width_log2_scale = params->gbh.slice_bb_width_log2_scale;
   gbh.interPredictionEnabledFlag = _codeCurrFrameAsInter;
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;

@@ -582,6 +582,16 @@ trisoup triangles for ray tracing.
 ### `--trisoupFineRayTracingEnabled=0|1`
 Controls the activation of additional ray tracing from non-integer origin.
 
+### `--trisoupNonCubicNodeNearOriginSideEnabled=0|1`
+Controls the activation of the non cubic nodes near the origin side of
+the slice bounding box. When enabled, the encoder will determine the bounding
+box origin to be used for the TriSoup volume in each slice.
+
+### `--trisoupNonCubicNodeFarFromOriginSideEnabled=0|1`
+Controls the activation of the non cubic nodes far from the origin side of
+the slice bounding box. When enabled, the encoder will determine the bounding
+size to be used for the TriSoup volume in each slice.
+
 ### `--trisoupImprovedEncoderEnabled=0|1`
 (Encoder only)
 Controls the activation of improved determination of trisoup vertex position.

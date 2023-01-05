@@ -95,7 +95,9 @@ encodeGeometryTrisoup(
   std::vector<bool> segind;
   std::vector<uint8_t> vertices;
   determineTrisoupVertices(
-    nodes, segind, vertices, pointCloud, blockWidth, bitDropped,
+    nodes, segind, vertices, pointCloud,
+    gps, gbh,
+    blockWidth, bitDropped,
     distanceSearchEncoder);
 
   // Determine neighbours
@@ -127,7 +129,8 @@ encodeGeometryTrisoup(
   if (gps.trisoup_sampling_value > 0) {
     subsample = gps.trisoup_sampling_value;
     decodeTrisoupCommon(
-      nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth,
+      nodes, segind, vertices, drifts, pointCloud, recPointCloud,
+      gps, gbh, blockWidth,
       maxval, subsample, bitDropped, isCentroidDriftActivated, false,
       haloFlag, adaptiveHaloFlag, fineRayFlag, NULL);
     std::cout << "Sub-sampling " << subsample << " gives "
@@ -136,7 +139,8 @@ encodeGeometryTrisoup(
     int maxSubsample = 1 << gbh.trisoupNodeSizeLog2(gps);
     for (subsample = 1; subsample <= maxSubsample; subsample++) {
       decodeTrisoupCommon(
-        nodes, segind, vertices, drifts, pointCloud, recPointCloud, blockWidth,
+        nodes, segind, vertices, drifts, pointCloud, recPointCloud,
+        gps, gbh, blockWidth,
         maxval, subsample, bitDropped, isCentroidDriftActivated, false,
         haloFlag, adaptiveHaloFlag, fineRayFlag, NULL);
       std::cout << "Sub-sampling " << subsample << " gives "
@@ -171,10 +175,16 @@ determineTrisoupVertices(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   const PCCPointSet3& pointCloud,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
   const int defaultBlockWidth,
   const int bitDropped,
   int distanceSearchEncoder)
 {
+  Box3<int32_t> sliceBB;
+  sliceBB.min = gbh.slice_bb_pos << gbh.slice_bb_pos_log2_scale;
+  sliceBB.max = sliceBB.min + ( gbh.slice_bb_width << gbh.slice_bb_width_log2_scale );
+
   // Put all leaves' edges into a list.
   std::vector<TrisoupSegmentEnc> segments;
   segments.reserve(12 * leaves.size());
@@ -185,147 +195,49 @@ determineTrisoupVertices(
     // in future, may override with leaf blockWidth
     const int32_t blockWidth = defaultBlockWidth;
 
-    // Eight corners of block.
-    const Vec3<int32_t> pos000({0, 0, 0});
-    const Vec3<int32_t> posW00({blockWidth, 0, 0});
-    const Vec3<int32_t> pos0W0({0, blockWidth, 0});
-    const Vec3<int32_t> posWW0({blockWidth, blockWidth, 0});
-    const Vec3<int32_t> pos00W({0, 0, blockWidth});
-    const Vec3<int32_t> posW0W({blockWidth, 0, blockWidth});
-    const Vec3<int32_t> pos0WW({0, blockWidth, blockWidth});
-    const Vec3<int32_t> posWWW({blockWidth, blockWidth, blockWidth});
+    Vec3<int32_t> newP, newW, corner[8];
+    nonCubicNode( gps, gbh, leaf.pos, defaultBlockWidth, sliceBB, newP, newW, corner );
 
     // x: left to right; y: bottom to top; z: far to near
     TrisoupSegmentEnc seg000W00 =  // far bottom edge
-      {leaf.pos + pos000,
-       leaf.pos + posW00,
-       12 * i + 0,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction x
+      {newP + corner[POS_000], newP + corner[POS_W00], 12 * i + 0, -1, -1, 0, 0, 0, 0}; // direction x
     TrisoupSegmentEnc seg0000W0 =  // far left edge
-      {leaf.pos + pos000,
-       leaf.pos + pos0W0,
-       12 * i + 1,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction y
+      {newP + corner[POS_000], newP + corner[POS_0W0], 12 * i + 1, -1, -1, 0, 0, 0, 0}; // direction y
     TrisoupSegmentEnc seg0W0WW0 =  // far top edge
-      {leaf.pos + pos0W0,
-       leaf.pos + posWW0,
-       12 * i + 2,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction x
+      {newP + corner[POS_0W0], newP + corner[POS_WW0], 12 * i + 2, -1, -1, 0, 0, 0, 0}; // direction x
     TrisoupSegmentEnc segW00WW0 =  // far right edge
-      {leaf.pos + posW00,
-       leaf.pos + posWW0,
-       12 * i + 3,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction y
+      {newP + corner[POS_W00], newP + corner[POS_WW0], 12 * i + 3, -1, -1, 0, 0, 0, 0}; // direction y
     TrisoupSegmentEnc seg00000W =  // bottom left edge
-      {leaf.pos + pos000,
-       leaf.pos + pos00W,
-       12 * i + 4,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction z
+      {newP + corner[POS_000], newP + corner[POS_00W], 12 * i + 4, -1, -1, 0, 0, 0, 0}; // direction z
     TrisoupSegmentEnc seg0W00WW =  // top left edge
-      {leaf.pos + pos0W0,
-       leaf.pos + pos0WW,
-       12 * i + 5,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction z
+      {newP + corner[POS_0W0], newP + corner[POS_0WW], 12 * i + 5, -1, -1, 0, 0, 0, 0}; // direction z
     TrisoupSegmentEnc segWW0WWW =  // top right edge
-      {leaf.pos + posWW0,
-       leaf.pos + posWWW,
-       12 * i + 6,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction z
+      {newP + corner[POS_WW0], newP + corner[POS_WWW], 12 * i + 6, -1, -1, 0, 0, 0, 0}; // direction z
     TrisoupSegmentEnc segW00W0W =  // bottom right edge
-      {leaf.pos + posW00,
-       leaf.pos + posW0W,
-       12 * i + 7,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction z
+      {newP + corner[POS_W00], newP + corner[POS_W0W], 12 * i + 7, -1, -1, 0, 0, 0, 0}; // direction z
     TrisoupSegmentEnc seg00WW0W =  // near bottom edge
-      {leaf.pos + pos00W,
-       leaf.pos + posW0W,
-       12 * i + 8,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction x
+      {newP + corner[POS_00W], newP + corner[POS_W0W], 12 * i + 8, -1, -1, 0, 0, 0, 0}; // direction x
     TrisoupSegmentEnc seg00W0WW =  // near left edge
-      {leaf.pos + pos00W,
-       leaf.pos + pos0WW,
-       12 * i + 9,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction y
+      {newP + corner[POS_00W], newP + corner[POS_0WW], 12 * i + 9, -1, -1, 0, 0, 0, 0}; // direction y
     TrisoupSegmentEnc seg0WWWWW =  // near top edge
-      {leaf.pos + pos0WW,
-       leaf.pos + posWWW,
-       12 * i + 10,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};                         // direction x
+      {newP + corner[POS_0WW], newP + corner[POS_WWW], 12 * i + 10, -1, -1, 0, 0, 0, 0}; // direction x
     TrisoupSegmentEnc segW0WWWW =  // near right edge
-      {leaf.pos + posW0W,
-       leaf.pos + posWWW,
-       12 * i + 11,
-       -1,
-       -1,
-       0,
-       0,
-       0,
-       0};  // // direction y
+      {newP + corner[POS_W0W], newP + corner[POS_WWW], 12 * i + 11, -1, -1, 0, 0, 0, 0}; // direction y
 
     // Each voxel votes for a position along each edge it is close to
     const int tmin = 1;
-    const int tmax = blockWidth - tmin - 1;
+    const Vec3<int> tmax( newW.x() - tmin - 1,
+                          newW.y() - tmin - 1,
+                          newW.z() - tmin - 1 );
     const int tmin2 = distanceSearchEncoder;
-    const int tmax2 = blockWidth - tmin2 - 1;
+    const Vec3<int> tmax2( newW.x() - tmin2 - 1,
+                           newW.y() - tmin2 - 1,
+                           newW.z() - tmin2 - 1 );
     for (int j = leaf.start; j < leaf.end; j++) {
-      Vec3<int> voxel = pointCloud[j] - leaf.pos;
+      Vec3<int> voxel = pointCloud[j] - newP;
 
-      // parameter indicating threshold of how close voxels must be to edge ----------- 1 -------------------
+      // parameter indicating threshold of how close voxels must be to edge
+      // ----------- 1 -------------------
       // to be relevant
       if (voxel[1] < tmin && voxel[2] < tmin) {
         seg000W00.count++;
@@ -335,11 +247,11 @@ determineTrisoupVertices(
         seg0000W0.count++;
         seg0000W0.distanceSum += voxel[1];
       }  // far left edge
-      if (voxel[1] > tmax && voxel[2] < tmin) {
+      if (voxel[1] > tmax.y() && voxel[2] < tmin) {
         seg0W0WW0.count++;
         seg0W0WW0.distanceSum += voxel[0];
       }  // far top edge
-      if (voxel[0] > tmax && voxel[2] < tmin) {
+      if (voxel[0] > tmax.x() && voxel[2] < tmin) {
         segW00WW0.count++;
         segW00WW0.distanceSum += voxel[1];
       }  // far right edge
@@ -347,36 +259,37 @@ determineTrisoupVertices(
         seg00000W.count++;
         seg00000W.distanceSum += voxel[2];
       }  // bottom left edge
-      if (voxel[0] < tmin && voxel[1] > tmax) {
+      if (voxel[0] < tmin && voxel[1] > tmax.y()) {
         seg0W00WW.count++;
         seg0W00WW.distanceSum += voxel[2];
       }  // top left edge
-      if (voxel[0] > tmax && voxel[1] > tmax) {
+      if (voxel[0] > tmax.x() && voxel[1] > tmax.y()) {
         segWW0WWW.count++;
         segWW0WWW.distanceSum += voxel[2];
       }  // top right edge
-      if (voxel[0] > tmax && voxel[1] < tmin) {
+      if (voxel[0] > tmax.x() && voxel[1] < tmin) {
         segW00W0W.count++;
         segW00W0W.distanceSum += voxel[2];
       }  // bottom right edge
-      if (voxel[1] < tmin && voxel[2] > tmax) {
+      if (voxel[1] < tmin && voxel[2] > tmax.z()) {
         seg00WW0W.count++;
         seg00WW0W.distanceSum += voxel[0];
       }  // near bottom edge
-      if (voxel[0] < tmin && voxel[2] > tmax) {
+      if (voxel[0] < tmin && voxel[2] > tmax.z()) {
         seg00W0WW.count++;
         seg00W0WW.distanceSum += voxel[1];
       }  // near left edge
-      if (voxel[1] > tmax && voxel[2] > tmax) {
+      if (voxel[1] > tmax.y() && voxel[2] > tmax.z()) {
         seg0WWWWW.count++;
         seg0WWWWW.distanceSum += voxel[0];
       }  // near top edge
-      if (voxel[0] > tmax && voxel[2] > tmax) {
+      if (voxel[0] > tmax.x() && voxel[2] > tmax.z()) {
         segW0WWWW.count++;
         segW0WWWW.distanceSum += voxel[1];
       }  // near right edge
 
-      // parameter indicating threshold of how close voxels must be to edge ----------- 2 -------------------
+      // parameter indicating threshold of how close voxels must be to edge
+      // ----------- 2 -------------------
       // to be relevant
       if (voxel[1] < tmin2 && voxel[2] < tmin2) {
         seg000W00.count2++;
@@ -386,11 +299,11 @@ determineTrisoupVertices(
         seg0000W0.count2++;
         seg0000W0.distanceSum2 += voxel[1];
       }  // far left edge
-      if (voxel[1] > tmax2 && voxel[2] < tmin2) {
+      if (voxel[1] > tmax2.y() && voxel[2] < tmin2) {
         seg0W0WW0.count2++;
         seg0W0WW0.distanceSum2 += voxel[0];
       }  // far top edge
-      if (voxel[0] > tmax2 && voxel[2] < tmin2) {
+      if (voxel[0] > tmax2.x() && voxel[2] < tmin2) {
         segW00WW0.count2++;
         segW00WW0.distanceSum2 += voxel[1];
       }  // far right edge
@@ -398,31 +311,31 @@ determineTrisoupVertices(
         seg00000W.count2++;
         seg00000W.distanceSum2 += voxel[2];
       }  // bottom left edge
-      if (voxel[0] < tmin2 && voxel[1] > tmax2) {
+      if (voxel[0] < tmin2 && voxel[1] > tmax2.y()) {
         seg0W00WW.count2++;
         seg0W00WW.distanceSum2 += voxel[2];
       }  // top left edge
-      if (voxel[0] > tmax2 && voxel[1] > tmax2) {
+      if (voxel[0] > tmax2.x() && voxel[1] > tmax2.y()) {
         segWW0WWW.count2++;
         segWW0WWW.distanceSum2 += voxel[2];
       }  // top right edge
-      if (voxel[0] > tmax2 && voxel[1] < tmin2) {
+      if (voxel[0] > tmax2.x() && voxel[1] < tmin2) {
         segW00W0W.count2++;
         segW00W0W.distanceSum2 += voxel[2];
       }  // bottom right edge
-      if (voxel[1] < tmin2 && voxel[2] > tmax2) {
+      if (voxel[1] < tmin2 && voxel[2] > tmax2.z()) {
         seg00WW0W.count2++;
         seg00WW0W.distanceSum2 += voxel[0];
       }  // near bottom edge
-      if (voxel[0] < tmin2 && voxel[2] > tmax2) {
+      if (voxel[0] < tmin2 && voxel[2] > tmax2.z()) {
         seg00W0WW.count2++;
         seg00W0WW.distanceSum2 += voxel[1];
       }  // near left edge
-      if (voxel[1] > tmax2 && voxel[2] > tmax2) {
+      if (voxel[1] > tmax2.y() && voxel[2] > tmax2.z()) {
         seg0WWWWW.count2++;
         seg0WWWWW.distanceSum2 += voxel[0];
       }  // near top edge
-      if (voxel[0] > tmax2 && voxel[2] > tmax2) {
+      if (voxel[0] > tmax2.x() && voxel[2] > tmax2.z()) {
         segW0WWWW.count2++;
         segW0WWWW.distanceSum2 += voxel[1];
       }  // near right edge

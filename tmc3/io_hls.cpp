@@ -696,6 +696,11 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     if(!gps.predgeom_enabled_flag)
       bs.write(gps.trisoup_enabled_flag);
 
+    if (gps.trisoup_enabled_flag){
+      bs.write(gps.non_cubic_node_start_edge);
+      bs.write(gps.non_cubic_node_end_edge);
+    }
+
     if (gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag && gps.inferred_direct_coding_mode)
       bs.write(gps.geom_planar_disabled_idcm_angular_flag);
 
@@ -864,6 +869,11 @@ parseGps(const PayloadBuffer& buf)
   if (gps_extension_flag) {
     if(!gps.predgeom_enabled_flag)
       bs.read(&gps.trisoup_enabled_flag);
+
+    if (gps.trisoup_enabled_flag) {
+      bs.read(&gps.non_cubic_node_start_edge);
+      bs.read(&gps.non_cubic_node_end_edge);
+    }
 
     if (
       gps.geom_planar_mode_enabled_flag && gps.geom_angular_mode_enabled_flag
@@ -1276,6 +1286,28 @@ write(
     if (gbh.trisoup_halo_flag)
       bs.write(gbh.trisoup_adaptive_halo_flag);
     bs.write(gbh.trisoup_fine_ray_tracing_flag);
+
+    int _write_bits = 0;
+    if( gps.non_cubic_node_start_edge ){
+      bs.writeUe( gbh.slice_bb_pos_bits );
+      if( gbh.slice_bb_pos_bits > 0 ) {
+        bs.writeUe( gbh.slice_bb_pos_log2_scale );
+        _write_bits = gbh.slice_bb_pos_bits;
+        bs.writeUn( _write_bits, gbh.slice_bb_pos[0] );
+        bs.writeUn( _write_bits, gbh.slice_bb_pos[1] );
+        bs.writeUn( _write_bits, gbh.slice_bb_pos[2] );
+      }
+    }
+    if( gps.non_cubic_node_end_edge ){
+      bs.writeUe( gbh.slice_bb_width_bits );
+      if( gbh.slice_bb_width_bits > 0 ) {
+        bs.writeUe( gbh.slice_bb_width_log2_scale );
+        _write_bits = gbh.slice_bb_width_bits;
+        bs.writeUn( _write_bits, gbh.slice_bb_width[0] );
+        bs.writeUn( _write_bits, gbh.slice_bb_width[1] );
+        bs.writeUn( _write_bits, gbh.slice_bb_width[2] );
+      }
+    }
   }
 
   if (gps.predgeom_enabled_flag) {
@@ -1406,6 +1438,34 @@ parseGbh(
     if (gbh.trisoup_halo_flag)
       bs.read(&gbh.trisoup_adaptive_halo_flag);
     bs.read(&gbh.trisoup_fine_ray_tracing_flag);
+
+    gbh.slice_bb_pos_bits = 0;
+    gbh.slice_bb_pos_log2_scale = 0;
+    gbh.slice_bb_pos = 0;
+    gbh.slice_bb_width_bits = 0;
+    gbh.slice_bb_width_log2_scale = 0;
+    gbh.slice_bb_width = 0;
+    int _read_bits = 0;
+    if( gps.non_cubic_node_start_edge ){
+      bs.readUe( &gbh.slice_bb_pos_bits );
+      if( gbh.slice_bb_pos_bits > 0 ) {
+        bs.readUe( &gbh.slice_bb_pos_log2_scale );
+        _read_bits = gbh.slice_bb_pos_bits;
+        bs.readUn( _read_bits, &gbh.slice_bb_pos[0] );
+        bs.readUn( _read_bits, &gbh.slice_bb_pos[1] );
+        bs.readUn( _read_bits, &gbh.slice_bb_pos[2] );
+      }
+    }
+    if( gps.non_cubic_node_end_edge ){
+      bs.readUe( &gbh.slice_bb_width_bits );
+      if( gbh.slice_bb_width_bits > 0 ) {
+        bs.readUe( &gbh.slice_bb_width_log2_scale );
+        _read_bits = gbh.slice_bb_width_bits;
+        bs.readUn( _read_bits, &gbh.slice_bb_width[0] );
+        bs.readUn( _read_bits, &gbh.slice_bb_width[1] );
+        bs.readUn( _read_bits, &gbh.slice_bb_width[2] );
+      }
+    }
   }
 
   gbh.pgeom_min_radius = 0;
