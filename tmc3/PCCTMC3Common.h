@@ -206,12 +206,24 @@ struct PCCNeighborInfo {
 
 //---------------------------------------------------------------------------
 
+struct AttributeInterPredParamsForRAHT {
+  int voxelCount = 0;
+  std::vector<int64_t> mortonCode;
+  std::vector<int> attributes;
+  int64_t coeff_DC = 0;
+  bool coeff_DC_InterPred = false;
+  bool coeff_AC_InterPred = false;
+};
+
+//---------------------------------------------------------------------------
+
 struct AttributeInterPredParams {
   PCCPointSet3 referencePointCloud;
   int frameDistance;
   bool enableAttrInterPred;
   int getPointCount() const { return referencePointCloud.getPointCount(); }
   void clear() { referencePointCloud.clear(); }
+  AttributeInterPredParamsForRAHT paramsForInterRAHT;
 };
 
 //---------------------------------------------------------------------------

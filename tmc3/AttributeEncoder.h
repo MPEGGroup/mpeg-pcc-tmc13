@@ -65,7 +65,7 @@ public:
     AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload
-    , const AttributeInterPredParams &attrInterPredParams
+    , AttributeInterPredParams &attrInterPredParams
     ) override;
 
   bool isReusable(
@@ -112,7 +112,8 @@ protected:
     const AttributeParameterSet& aps,
     const QpSet& qpSet,
     PCCPointSet3& pointCloud,
-    PCCResidualsEncoder& encoder);
+    PCCResidualsEncoder& encoder,
+    AttributeInterPredParams& attrInterPredParams);
 
   void encodeColorsTransformRaht(
     const AttributeDescription& desc,

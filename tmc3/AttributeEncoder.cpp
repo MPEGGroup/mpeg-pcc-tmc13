@@ -471,7 +471,7 @@ AttributeEncoder::encode(
   AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud,
   PayloadBuffer* payload
-  , const AttributeInterPredParams &attrInterPredParams)
+  , AttributeInterPredParams &attrInterPredParams)
 {
   if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
     AttrRawEncoder::encode(sps, desc, attr_aps, abh, pointCloud, payload);
@@ -495,7 +495,7 @@ AttributeEncoder::encode(
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
       encodeReflectancesTransformRaht(
-        desc, attr_aps, qpSet, pointCloud, encoder);
+        desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
       break;
 
     case AttributeEncoding::kPredictingTransform:
@@ -1113,7 +1113,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCPointSet3& pointCloud,
-  PCCResidualsEncoder& encoder)
+  PCCResidualsEncoder& encoder,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -1142,7 +1143,8 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   regionAdaptiveHierarchicalTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
     attributes.data(), attribCount, voxelCount, coefficients.data(),
-    aps.raht_increased_buffer_precision_flag);
+    aps.raht_increased_buffer_precision_flag,
+    attrInterPredParams);
 
   // Entropy encode.
   int zeroRun = 0;
@@ -1166,7 +1168,13 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     const attr_t reflectance =
       attr_t(PCCClip(val, minReflectance, maxReflectance));
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
+    attributes[attribCount * n] = reflectance;
   }
+
+  attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount;
+  attrInterPredParams.paramsForInterRAHT.mortonCode = mortonCode;
+  attrInterPredParams.paramsForInterRAHT.attributes = attributes;
+
 }
 
 //----------------------------------------------------------------------------
@@ -1203,12 +1211,15 @@ AttributeEncoder::encodeColorsTransformRaht(
     attributes[attribCount * n + 2] = color[2];
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
+  
+  AttributeInterPredParams attrInterPredParams;
 
   // Transform.
   regionAdaptiveHierarchicalTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
     attributes.data(), attribCount, voxelCount, coefficients.data(),
-    aps.raht_increased_buffer_precision_flag);
+    aps.raht_increased_buffer_precision_flag,
+    attrInterPredParams);
 
   // Entropy encode.
   int values[attribCount];

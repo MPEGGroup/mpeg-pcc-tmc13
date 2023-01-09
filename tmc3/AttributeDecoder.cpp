@@ -201,7 +201,7 @@ AttributeDecoder::decode(
   size_t payloadLen,
   AttributeContexts& ctxtMem,
   PCCPointSet3& pointCloud  ,
-   const AttributeInterPredParams& attrInterPredParams
+  AttributeInterPredParams& attrInterPredParams
   )
 {
   if (attr_aps.attr_encoding == AttributeEncoding::kRaw) {
@@ -223,7 +223,7 @@ AttributeDecoder::decode(
   if (attr_desc.attr_num_dimensions_minus1 == 0) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeReflectancesRaht(attr_desc, attr_aps, qpSet, decoder, pointCloud);
+      decodeReflectancesRaht(attr_desc, attr_aps, qpSet, decoder, pointCloud, attrInterPredParams);
       break;
 
     case AttributeEncoding::kPredictingTransform:
@@ -518,7 +518,8 @@ AttributeDecoder::decodeReflectancesRaht(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCResidualsDecoder& decoder,
-  PCCPointSet3& pointCloud)
+  PCCPointSet3& pointCloud,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -556,7 +557,8 @@ AttributeDecoder::decodeReflectancesRaht(
   regionAdaptiveHierarchicalInverseTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
     attributes.data(), attribCount, voxelCount, coefficients.data(),
-    aps.raht_increased_buffer_precision_flag);
+    aps.raht_increased_buffer_precision_flag,
+    attrInterPredParams);
 
   const int64_t maxReflectance = (1 << desc.bitdepth) - 1;
   const int64_t minReflectance = 0;
@@ -565,7 +567,12 @@ AttributeDecoder::decodeReflectancesRaht(
     const attr_t reflectance =
       attr_t(PCCClip(val, minReflectance, maxReflectance));
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
+    attributes[attribCount * n] = reflectance;
   }
+
+  attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount;
+  attrInterPredParams.paramsForInterRAHT.mortonCode = mortonCode;
+  attrInterPredParams.paramsForInterRAHT.attributes = attributes;
 }
 
 //----------------------------------------------------------------------------
@@ -613,11 +620,14 @@ AttributeDecoder::decodeColorsRaht(
   }
 
   std::vector<int> attributes(attribCount * voxelCount);
+  
+  AttributeInterPredParams attrInterPredParams;
 
   regionAdaptiveHierarchicalInverseTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
     attributes.data(), attribCount, voxelCount, coefficients.data(),
-    aps.raht_increased_buffer_precision_flag);
+    aps.raht_increased_buffer_precision_flag,
+    attrInterPredParams);
 
   int clipMax = (1 << desc.bitdepth) - 1;
   for (int n = 0; n < voxelCount; n++) {

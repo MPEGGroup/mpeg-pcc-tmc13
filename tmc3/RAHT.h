@@ -39,7 +39,7 @@
 #include "FixedPoint.h"
 #include "quantization.h"
 #include "hls.h"
-
+#include "PCCTMC3Common.h"
 #include <vector>
 
 namespace pcc {
@@ -53,7 +53,8 @@ void regionAdaptiveHierarchicalTransform(
   const int attribCount,
   const int voxelCount,
   int* coefficients,
-  const bool removeRoundingOps);
+  const bool removeRoundingOps,
+  AttributeInterPredParams& attrInterPredParams);
 
 void regionAdaptiveHierarchicalInverseTransform(
   const RahtPredictionParams &rahtPredParams,
@@ -64,6 +65,7 @@ void regionAdaptiveHierarchicalInverseTransform(
   const int attribCount,
   const int voxelCount,
   int* coefficients,
-  const bool removeRoundingOps);
+  const bool removeRoundingOps,
+  AttributeInterPredParams& attrInterPredParams);
 
 } /* namespace pcc */

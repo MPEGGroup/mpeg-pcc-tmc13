@@ -66,7 +66,7 @@ public:
     size_t payloadLen,
     AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud, 
-    const AttributeInterPredParams& attrInterPredParams
+    AttributeInterPredParams& attrInterPredParams
     ) = 0;
 
   // Indicates if the attribute decoder can decode the given aps
@@ -93,7 +93,7 @@ public:
     AttributeContexts& ctxtMem,
     PCCPointSet3& pointCloud,
     PayloadBuffer* payload, 
-    const AttributeInterPredParams &attrInterPredParams
+    AttributeInterPredParams &attrInterPredParams
   ) = 0;
 
   // Indicates if the attribute decoder can decode the given aps

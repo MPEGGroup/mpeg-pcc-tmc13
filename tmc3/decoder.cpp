@@ -546,6 +546,9 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   attrInterPredParams.enableAttrInterPred = attr_aps.attrInterPredictionEnabled && !abh.disableAttrInterPred;
   abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange; 
 
+  attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred = attr_aps.attrInterPredictionEnabled && _gbh.interPredictionEnabledFlag;
+  attrInterPredParams.paramsForInterRAHT.coeff_AC_InterPred = attrInterPredParams.enableAttrInterPred;
+
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;
 
   // replace the attribute decoder if not compatible
