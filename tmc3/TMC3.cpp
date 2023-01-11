@@ -1086,6 +1086,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.globalMotionEnabled, false,
     "Enable global motion compensation for inter prediction")
 
+  ("resamplingEnabled",
+    params.encoder.gps.resamplingEnabled, false,
+    "Enable resampling of reference frame in inter prediction")
+
   ("motionVectorPath",
     params.motionVectorPath, {},
     "File path containing motion vector information")

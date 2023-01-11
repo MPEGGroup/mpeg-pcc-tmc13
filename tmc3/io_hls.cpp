@@ -711,8 +711,10 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       bs.write(gps.interPredictionEnabledFlag);
     if (gps.interPredictionEnabledFlag) {
       bs.write(gps.globalMotionEnabled);
-      if (gps.predgeom_enabled_flag)
+      if (gps.predgeom_enabled_flag) {
         bs.writeUe(gps.interAzimScaleLog2);
+        bs.write(gps.resamplingEnabled);
+      }
       bs.write(gps.gof_geom_entropy_continuation_enabled_flag);
     }
 
@@ -887,8 +889,10 @@ parseGps(const PayloadBuffer& buf)
       bs.read(&gps.interPredictionEnabledFlag);
     if (gps.interPredictionEnabledFlag) {
       bs.read(&gps.globalMotionEnabled);
-      if (gps.predgeom_enabled_flag)
+      if (gps.predgeom_enabled_flag) {
         bs.readUe(&gps.interAzimScaleLog2);
+        bs.read(&gps.resamplingEnabled);
+      }
       bs.read(&gps.gof_geom_entropy_continuation_enabled_flag);
     }
 

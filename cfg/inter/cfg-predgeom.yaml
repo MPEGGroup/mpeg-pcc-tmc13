@@ -11,6 +11,7 @@ encflags:
      - !conditional '"${lidar-type}" eq "spinning"'
      - interPredictionEnabled: 1
      - motionVectorPath: '${zero_motion_file}'
+     - resamplingEnabled: '${need_resampling}'
    - 
      - !conditional '"${lidar-type}" eq "non-spinning"'
      - interPredictionEnabled: 0
@@ -90,10 +91,10 @@ categories:
      - secondaryResidualDisabled: 1
 
 sequences:
-  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' }
-  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' }
-  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' }
-  qnxadas-junction-approach: { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' }
-  qnxadas-junction-exit:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' }
-  qnxadas-motorway-join:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' }
-  qnxadas-navigating-bends:  { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' }
+  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' , need_resampling: 0}
+  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' , need_resampling: 0}
+  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', inter_azim_scale_log2: '(4 + 7)' , need_resampling: 0}
+  qnxadas-junction-approach: { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' , need_resampling: 0}
+  qnxadas-junction-exit:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' , need_resampling: 0}
+  qnxadas-motorway-join:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' , need_resampling: 0}
+  qnxadas-navigating-bends:  { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', inter_azim_scale_log2: '(8 + 7)' , need_resampling: 0}
