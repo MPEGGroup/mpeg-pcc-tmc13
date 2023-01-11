@@ -104,7 +104,7 @@ private:
   );
   bool decodeInterFlag(const uint8_t interFlagBuffer
   );
-  int decodeRefNodeIdx();
+  int decodeRefNodeIdx(const bool globalMotionEnabled);
   //bool decodeRefNodeFlag();
   int32_t decodeQpOffset();
   bool decodeEndOfTreesFlag();
@@ -306,10 +306,13 @@ PredGeomDecoder::decodeInterFlag(const uint8_t interFlagBuffer)
 //----------------------------------------------------------------------------
 
 int
-PredGeomDecoder::decodeRefNodeIdx()
+PredGeomDecoder::decodeRefNodeIdx(const bool globalMotionEnabled)
 {
-  int refNodeIdx = _aed->decode(_ctxRefNodeIdx[0]);
-  refNodeIdx = (refNodeIdx << 1) + _aed->decode(_ctxRefNodeIdx[1 + refNodeIdx]);
+  int refNodeIdx = 0;
+  if (globalMotionEnabled)
+    refNodeIdx = _aed->decode(_ctxRefNodeIdx[0]);
+  refNodeIdx =
+    (refNodeIdx << 1) + _aed->decode(_ctxRefNodeIdx[1 + refNodeIdx]);
   return refNodeIdx;
 }
 #if 0
@@ -543,7 +546,7 @@ PredGeomDecoder::decodeTree(
       interFlag = decodeInterFlag(interFlagBuffer
       );
     if (interFlag)
-      refNodeIdx = decodeRefNodeIdx();
+      refNodeIdx = decodeRefNodeIdx(refFrameSph.getGlobalMotionEnabled());
       //refNodeFlag = decodeRefNodeFlag();
 
     auto mode = GPredicter::Mode(1);

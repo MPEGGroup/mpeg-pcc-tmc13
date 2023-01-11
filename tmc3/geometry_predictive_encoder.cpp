@@ -135,7 +135,7 @@ public:
   );
   void encodeInterFlag(const bool interFlag, const uint8_t interFlagBuffer
   );
-  void encodeRefNodeIdx(int refNodeIdx);
+  void encodeRefNodeIdx(int refNodeIdx, bool globalMotionEnabled);
   //void encodeRefNodeFlag(bool refNodeFlag);
   void encodeQpOffset(int dqp);
   void encodeEndOfTreesFlag(int endFlag);
@@ -167,6 +167,7 @@ public:
     bool interFlag,
     bool interEnabledFlag,
     int refNodeIdx,
+    bool globalMotionEnabled,
     //bool refNodeFlag,
     const uint8_t interFlagBuffer,
     float best_known_bits);
@@ -626,9 +627,10 @@ PredGeomEncoder::encodeInterFlag(bool interFlag, const uint8_t interFlagBuffer)
 //----------------------------------------------------------------------------
 
 void
-PredGeomEncoder::encodeRefNodeIdx(int refNodeIdx)
+PredGeomEncoder::encodeRefNodeIdx(int refNodeIdx, bool globalMotionEnabled)
 {
-  _aec->encode((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
+  if (globalMotionEnabled)
+    _aec->encode((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
   _aec->encode(refNodeIdx & 1, _ctxRefNodeIdx[1 + (refNodeIdx >> 1)]);
 }
 #if 0
@@ -671,7 +673,7 @@ PredGeomEncoder::estimateBits(
   int rPred,
   bool interFlag,
   bool interEnabledFlag,
-  int refNodeIdx,
+  int refNodeIdx, bool globalMotionEnabled,
   //bool refNodeFlag,
   const uint8_t interFlagBuffer,
   float best_known_bits)
@@ -690,7 +692,8 @@ PredGeomEncoder::estimateBits(
       bits += estimate(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
     }
   } else {
-    bits += estimate((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
+    if (globalMotionEnabled)
+      bits += estimate((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
     bits += estimate(refNodeIdx & 1, _ctxRefNodeIdx[1 + (refNodeIdx >> 1)]);
 #if 0
     bits += estimate(refNodeFlag, _ctxRefNodeFlag);
@@ -880,8 +883,10 @@ PredGeomEncoder::encodeTree(
 
         if (!_azimuth_scaling_enabled_flag && !predicter.isValid(mode))
           continue;
-        for (auto interFlag = 0; interFlag < (isInterEnabled ? 5 : 1);
-        //for (auto interFlag = 0; interFlag < (isInterEnabled ? 3 : 1);
+        for (auto interFlag = 0; interFlag
+             < (isInterEnabled ? (refFrameSph.getGlobalMotionEnabled() ? 5 : 3)
+                               : 1);
+             //for (auto interFlag = 0; interFlag < (isInterEnabled ? 3 : 1);
              interFlag++) {
           point_t pred = 0;
           int refNodeIdx = 0;
@@ -914,15 +919,18 @@ PredGeomEncoder::encodeTree(
               refNodeIdx = 0;
               break;
             case 2:
-              interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
+              interPred =
+                refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
               refNodeIdx = 1;
               break;
             case 3:
-              interPred = refFrameSph.getClosestGlobPred(prevPos[1], prevPos[2]);
+              interPred =
+                refFrameSph.getClosestGlobPred(prevPos[1], prevPos[2]);
               refNodeIdx = 2;
               break;
             case 4:
-              interPred = refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
+              interPred =
+                refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
               refNodeIdx = 3;
               break;
             default:
@@ -947,13 +955,11 @@ PredGeomEncoder::encodeTree(
               break;
             }
 #endif
-            if (interPred.first)
-            {
+            if (interPred.first) {
               pred = interPred.second;
               if (refNodeIdx > 1)
                 pred[1] = parentPos[1];
-            }
-            else
+            } else
               continue;
           }
           auto residual = point - pred;
@@ -1035,9 +1041,9 @@ PredGeomEncoder::encodeTree(
           auto bits = estimateBits(
             mode, predIdx, residual, qphi, pred[0], interFlag, isInterEnabled,
             refNodeIdx,
+            refFrameSph.getGlobalMotionEnabled(),
             //refNodeFlag,
-            interFlagBuffer, best.bits
-          );
+            interFlagBuffer, best.bits);
 
           if (unusable[iMode])
             bits = std::numeric_limits<decltype(bits)>::max();
@@ -1065,7 +1071,7 @@ PredGeomEncoder::encodeTree(
     if (isInterEnabled)
       encodeInterFlag(best.interFlag, interFlagBuffer);
     if (best.interFlag)
-      encodeRefNodeIdx(best.refNodeIdx);
+      encodeRefNodeIdx(best.refNodeIdx, refFrameSph.getGlobalMotionEnabled());
       //encodeRefNodeFlag(best.refNodeFlag);
     else {
       if (_azimuth_scaling_enabled_flag)

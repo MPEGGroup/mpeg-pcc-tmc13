@@ -612,6 +612,7 @@ public:
   void setGlobalMotionEnabled(bool GlobalMotionEnabled){
     globalMotionEnabled = GlobalMotionEnabled;
   }
+  bool getGlobalMotionEnabled() { return globalMotionEnabled; }
   void updateThresholds(
     const int frameCounter, const int leftThresh, const int rightTresh)
   {
