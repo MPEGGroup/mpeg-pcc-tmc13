@@ -247,7 +247,8 @@ populateCuboidBlocks(
   Box3<int32_t> bbox,
   int LPUnumInAxis[3])
 {
-  for (size_t i = 0; i < pointCloud.getPointCount(); ++i) {
+  const int samples = 4;
+  for (size_t i = 0; i < pointCloud.getPointCount(); i += samples) {
     std::unordered_map<int, bool> lpuToAdd;
     const Vec3<int> point = pointCloud[i];
     for (size_t m = 0; m < th_dists.size(); m++) {
@@ -372,7 +373,7 @@ decodeCuboidGlobalMotion(
   }
 
   const int blockSize = LPUnumInAxis[0] * LPUnumInAxis[1] * LPUnumInAxis[2];
-  std::vector<bool> isWorldList(false, blockSize);
+  std::vector<bool> isWorldList(blockSize, false);
 
   // decoding
   for (int idx = 0; idx < blockSize; idx++)

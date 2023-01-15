@@ -54,6 +54,10 @@ categories:
        - partitionMethod: 0
        - maxNumQtBtBeforeOt: 6
        - planarModeIdcmUse: 32
+     -
+       - !conditional '"${lidar-type}" eq "spinning"'
+       # using cuboid LPU with spinning sequences
+       - lpuType: 1
      - gmThresholdHistScale: '$eval{ ${gm-thresh-hist-scale} || 100 }'
      - gmThresholdMinZ: '$eval{ ${gm-thresh-min-z} || -4000 }'
      - gmThresholdMaxZ: '$eval{ ${gm-thresh-max-z} || -500 }'
