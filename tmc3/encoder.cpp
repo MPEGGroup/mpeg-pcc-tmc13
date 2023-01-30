@@ -1071,7 +1071,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   {
     // limit the number of points to the slice limit
     // todo(df): this should be derived from the level
-    gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPoints - 1;
+    gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPointsTrisoup - 1;
     encodeGeometryTrisoup(
       params->trisoup, params->geom, *_gps, gbh, pointCloud,
       *_ctxtMemOctreeGeom, arithmeticEncoders, predPointCloud,

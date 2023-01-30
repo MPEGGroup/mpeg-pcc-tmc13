@@ -73,6 +73,9 @@ struct PartitionParams {
   // Depth of octree used in partitioning
   int octreeDepth;
 
+  // Maximum number of reconstructed points per slice with Trisoup
+  int sliceMaxPointsTrisoup;
+
   // Maximum number of points per slice
   int sliceMaxPoints;
 

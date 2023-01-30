@@ -8,6 +8,11 @@ categories:
      - mode: 0
 
      ##
+     # partitioning for trisoup
+     - sliceMaxPointsTrisoup: 1100000
+     - sliceMaxPoints: 900000
+     - sliceMinPoints: 449000
+     ##
      # geometry parameters (trisoup)
      - neighbourAvailBoundaryLog2: 8
      - intra_pred_max_node_size_log2: 6

@@ -789,6 +789,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.partition.octreeDepth, 1,
     "Depth of octree partition for partitionMethod=4")
 
+  ("sliceMaxPointsTrisoup",
+    params.encoder.partition.sliceMaxPointsTrisoup, 1100000,
+    "Maximum number of points per slice")
+
   ("sliceMaxPoints",
     params.encoder.partition.sliceMaxPoints, 1100000,
     "Maximum number of points per slice")

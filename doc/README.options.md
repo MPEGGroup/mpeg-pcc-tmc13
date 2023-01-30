@@ -280,6 +280,10 @@ Sets the depth of the octree for slice generation using
 The input point cloud is decomposed using an octree with the configured
 depth.  Each occupied leaf of the octree represents a single slice.
 
+### `--sliceMaxPointsTrisoup=INT-VALUE`
+Upper limit to the number of reconstructed points in each slice with trisoup.
+Trisoup reconstruction is subsampled until this constraint is satisfied.
+
 ### `--sliceMaxPoints=INT-VALUE`
 Upper limit to the number of in each slice.  Slices are split until
 this constraint is satisfied.
