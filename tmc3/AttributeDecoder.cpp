@@ -83,6 +83,7 @@ PCCResidualsDecoder::start(
 {
   arithmeticDecoder.setBuffer(buf_len, buf);
   arithmeticDecoder.enableBypassStream(sps.cabac_bypass_stream_enabled_flag);
+  arithmeticDecoder.setBypassBinCodingWithoutProbUpdate(sps.bypass_bin_coding_without_prob_update);
   arithmeticDecoder.start();
 }
 

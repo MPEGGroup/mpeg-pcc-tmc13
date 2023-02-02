@@ -1041,6 +1041,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     arithmeticEncoders.emplace_back(new EntropyEncoder(maxAcBufLen, nullptr));
     auto& aec = arithmeticEncoders.back();
     aec->enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+    aec->setBypassBinCodingWithoutProbUpdate(_sps->bypass_bin_coding_without_prob_update);
     aec->start();
   }
 

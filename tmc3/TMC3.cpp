@@ -813,6 +813,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.sps.entropy_continuation_enabled_flag, false,
     "Propagate context state between slices")
 
+  ("bypassBinCodingWithoutProbUpdate",
+    params.encoder.sps.bypass_bin_coding_without_prob_update, true,
+    "Codes the bypass bins without using probability update"
+    "Only applies when cabac_bypass_stream_enabled_flag is 0.")
+
   ("GoFGeometryEntropyContinuationEnabled",
     params.encoder.gps.gof_geom_entropy_continuation_enabled_flag, false,
     "Propagate context state between P frames in GoF")
@@ -1654,6 +1659,10 @@ sanitizeEncoderOpts(
 
   if (params.encoder.gps.interPredictionEnabledFlag)
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
+
+  // Separate bypass bin coding only when cabac_bypass_stream is disabled
+  if (params.encoder.sps.cabac_bypass_stream_enabled_flag)
+    params.encoder.sps.bypass_bin_coding_without_prob_update = false;
 
   // support disabling attribute coding (simplifies configuration)
   if (params.disableAttributeCoding) {

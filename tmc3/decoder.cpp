@@ -458,6 +458,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   EntropyDecoder aec;
   aec.setBuffer(buf.size() - gbhSize - gbfSize, buf.data() + gbhSize);
   aec.enableBypassStream(_sps->cabac_bypass_stream_enabled_flag);
+  aec.setBypassBinCodingWithoutProbUpdate(_sps->bypass_bin_coding_without_prob_update);
   aec.start();
 
   if (_gps->predgeom_enabled_flag) {

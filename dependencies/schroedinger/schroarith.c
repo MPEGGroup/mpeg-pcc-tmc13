@@ -230,3 +230,15 @@ schro_arith_decode_bit (SchroArith * arith, uint16_t *probability)
 {
   return _schro_arith_decode_bit (arith, probability);
 }
+
+void
+schro_arith_encode_bypass_bit(SchroArith * arith, int value)
+{
+  _schro_arith_encode_bypass_bit(arith, value);
+}
+
+int
+schro_arith_decode_bypass_bit(SchroArith * arith)
+{
+  return _schro_arith_decode_bypass_bit(arith);
+}

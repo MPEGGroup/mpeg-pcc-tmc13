@@ -128,6 +128,13 @@ namespace dirac {
 
     //------------------------------------------------------------------------
 
+    void setBypassBinCodingWithoutProbUpdate(bool bypass_bin_coding_without_prob_update)
+    {
+      _bypass_bin_coding_without_prob_update = bypass_bin_coding_without_prob_update;
+    }
+
+    //------------------------------------------------------------------------
+
     void start()
     {
       if (!_cabac_bypass_stream_enabled_flag)
@@ -165,8 +172,12 @@ namespace dirac {
     void encode(int bit)
     {
       if (!_cabac_bypass_stream_enabled_flag) {
-        uint16_t probability = 0x8000;  // p=0.5
-        schro_arith_encode_bit(&impl, &probability, bit);
+        if (_bypass_bin_coding_without_prob_update)
+          schro_arith_encode_bypass_bit(&impl, bit);
+        else {
+          uint16_t probability = 0x8000;  // p=0.5
+          schro_arith_encode_bit(&impl, &probability, bit);
+        }
         return;
       }
 
@@ -216,6 +227,9 @@ namespace dirac {
     // Controls entropy coding method for bypass bins
     bool _cabac_bypass_stream_enabled_flag = false;
 
+    // Controls separate coding of bypass bins
+    bool _bypass_bin_coding_without_prob_update = false;
+
     ChunkStreamBuilder _chunkStream;
   };
 
@@ -234,6 +248,13 @@ namespace dirac {
     void enableBypassStream(bool cabac_bypass_stream_enabled_flag)
     {
       _cabac_bypass_stream_enabled_flag = cabac_bypass_stream_enabled_flag;
+    }
+
+    //------------------------------------------------------------------------
+
+    void setBypassBinCodingWithoutProbUpdate(bool bypass_bin_coding_without_prob_update)
+    {
+      _bypass_bin_coding_without_prob_update = bypass_bin_coding_without_prob_update;
     }
 
     //------------------------------------------------------------------------
@@ -276,8 +297,12 @@ namespace dirac {
     int decode()
     {
       if (!_cabac_bypass_stream_enabled_flag) {
-        uint16_t probability = 0x8000;  // p=0.5
-        return schro_arith_decode_bit(&impl, &probability);
+        if (_bypass_bin_coding_without_prob_update)
+          return schro_arith_decode_bypass_bit(&impl);
+        else {
+          uint16_t probability = 0x8000;  // p=0.5
+          return schro_arith_decode_bit(&impl, &probability);
+        }
       }
 
       return _chunkReader.readBypassBit();
@@ -334,6 +359,9 @@ namespace dirac {
 
     // Controls entropy coding method for bypass bins
     bool _cabac_bypass_stream_enabled_flag = false;
+
+    // Controls separate coding of bypass bins
+    bool _bypass_bin_coding_without_prob_update = false;
 
     // Parser for chunked bypass stream representation
     ChunkStreamReader _chunkReader;

@@ -420,6 +420,10 @@ struct SequenceParameterSet {
   // encoded as ep bins via CABAC.
   bool cabac_bypass_stream_enabled_flag;
 
+  // Simpler bypass coding of bins by separating them from context bins
+  // Only applies when cabac_bypass_stream_enabled_flag is 0
+  bool bypass_bin_coding_without_prob_update;
+
   // Indicates that context state may be propagated between slices.
   bool entropy_continuation_enabled_flag;
 };

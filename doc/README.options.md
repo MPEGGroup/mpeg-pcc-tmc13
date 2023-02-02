@@ -343,6 +343,9 @@ Controls the propagation of entropy coding state (context values) between
 slices in the same frame.  When enabled, each slice (except the first) has
 a coding dependency on the previous slice.
 
+### `--bypassBinCodingWithoutProbUpdate=0|1`
+Controls the coding of bypass bins without any probability update; this 
+enables to reduce some complexity in coding the bypass bins. 
 
 Geometry coding
 ---------------

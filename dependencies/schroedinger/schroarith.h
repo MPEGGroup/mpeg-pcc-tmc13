@@ -41,6 +41,10 @@ void schro_arith_encode_bit (SchroArith *arith, uint16_t *probability,  int valu
 
 int schro_arith_decode_bit (SchroArith *arith, uint16_t *probability);
 
+void schro_arith_encode_bypass_bit(SchroArith *arith, int value);
+
+int schro_arith_decode_bypass_bit(SchroArith *arith);
+
 #ifdef SCHRO_ARITH_DEFINE_INLINE
 static inline int
 _schro_arith_decode_bit (SchroArith *arith, uint16_t *probability)
@@ -182,6 +186,86 @@ maxbit (unsigned int x)
   }
   return i;
 #endif
+}
+
+static inline int
+_schro_arith_decode_bypass_bit(SchroArith *arith)
+{
+  unsigned int value;
+  register unsigned int range = arith->range[1];
+  register unsigned int code_minus_low = arith->code;
+
+  if (!--arith->cntr) {
+    code_minus_low |= arith->read(arith->io_priv) << 8;
+    arith->cntr = 8;
+  }
+  code_minus_low <<= 1;
+
+  value = (code_minus_low >= range);
+
+  if (value) {
+    code_minus_low -= range;
+  }
+  arith->range[1] = range;
+  arith->code = code_minus_low;
+
+  return value;
+}
+
+static inline void
+_schro_arith_encode_bypass_bit(SchroArith *arith, int value)
+{
+  uint32_t r0old = arith->range[0];
+  uint32_t r1old = arith->range[1];
+  int ctrold = arith->cntr;
+
+  arith->cntr++;
+  arith->range[0] <<= 1;
+  if (value)
+    arith->range[0] += arith->range[1];
+
+  if (arith->cntr == 8) {
+    if (arith->range[0] < (1 << 24) &&
+      (arith->range[0] + arith->range[1]) >= (1 << 24)) {
+      // NB: carry cannot occur on the first byte since:
+      //  - requires initial low=ff80, range=8000 for seq of False
+      //  - requires initial low=8000, range=8000 for seq of True
+      //  - requires initial low=0001, range=ffff for seq of True
+      arith->carry++;
+    } else {
+      if (arith->range[0] >= (1 << 24)) {
+        // NB: output_byte is always valid here since:
+        //  - given the initial value of low = 0, range = ffff
+        //  - the largest value of low after the first bit=1 is ff00 (p=ff01)
+        //  - coding subsequent symbols cannot cause low > 7fff00
+        // => minimum initial value of low that can trigger this = 2
+        //    (this is not a valid initial condition)
+        //  - with range = 8000 (the maximum renormalised range)
+        //  - minimum initial value of low to trigger = 8080
+        arith->output_byte++;
+        while (arith->carry) {
+          arith->write(arith->output_byte, arith->io_priv);
+          arith->output_byte = 0x00;
+          arith->carry--;
+        }
+      }
+      else {
+        while (arith->carry) {
+          arith->write(arith->output_byte, arith->io_priv);
+          arith->output_byte = 0xff;
+          arith->carry--;
+        }
+      }
+      if (!arith->first_byte)
+        arith->write(arith->output_byte, arith->io_priv);
+      else
+        arith->first_byte = 0;
+      arith->output_byte = arith->range[0] >> 16;
+    }
+
+    arith->range[0] &= 0xffff;
+    arith->cntr = 0;
+  }
 }
 
 #else /* SCHRO_ARITH_DEFINE_INLINE */

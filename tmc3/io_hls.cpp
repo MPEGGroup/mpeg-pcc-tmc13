@@ -459,6 +459,9 @@ write(const SequenceParameterSet& sps)
 
   bool sps_extension_flag = false;
   bs.write(sps_extension_flag);
+
+  bs.write(sps.bypass_bin_coding_without_prob_update);
+
   bs.byteAlign();
 
   return buf;
@@ -560,10 +563,10 @@ parseSps(const PayloadBuffer& buf)
   if (sps.entropy_continuation_enabled_flag)
     assert(sps.profile.slice_reordering_constraint_flag);
 
+  sps.bypass_bin_coding_without_prob_update = false;
   bool sps_extension_flag = bs.read();
   if (sps_extension_flag) {
-    // todo(df): sps_extension_data;
-    assert(!sps_extension_flag);
+    bs.read(&sps.bypass_bin_coding_without_prob_update);
   }
   bs.byteAlign();
 

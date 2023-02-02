@@ -61,6 +61,7 @@ public:
   using Base::enableBypassStream;
   using Base::encode;
   using Base::setBuffer;
+  using Base::setBypassBinCodingWithoutProbUpdate;
   using Base::start;
   using Base::stop;
 
@@ -99,6 +100,7 @@ public:
   using Base::enableBypassStream;
   using Base::flushAndRestart;
   using Base::setBuffer;
+  using Base::setBypassBinCodingWithoutProbUpdate;
   using Base::start;
   using Base::stop;
 

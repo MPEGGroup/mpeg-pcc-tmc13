@@ -110,6 +110,7 @@ PCCResidualsEncoder::start(const SequenceParameterSet& sps, int pointCount)
   int maxAcBufLen = pointCount * 3 * 2 + 1024;
   arithmeticEncoder.setBuffer(maxAcBufLen, nullptr);
   arithmeticEncoder.enableBypassStream(sps.cabac_bypass_stream_enabled_flag);
+  arithmeticEncoder.setBypassBinCodingWithoutProbUpdate(sps.bypass_bin_coding_without_prob_update);
   arithmeticEncoder.start();
 }
 
