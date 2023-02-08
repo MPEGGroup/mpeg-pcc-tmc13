@@ -178,3 +178,8 @@ categories:
         gm-thresh-max-z: 250
         gm-thresh-left-scale: 0.2
         gm-thresh-right-scale: 0.5
+
+      cognataQC1:
+      cognataQC2:
+      cognataQC3:
+      cognataQC4:

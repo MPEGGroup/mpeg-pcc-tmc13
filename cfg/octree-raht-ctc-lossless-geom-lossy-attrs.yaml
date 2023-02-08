@@ -127,6 +127,10 @@ categories:
       innovizQC1:
       innovizQC2:
       innovizQC3:
+      cognataQC1:
+      cognataQC2:
+      cognataQC3:
+      cognataQC4:
 
       # cat1-solid
       basketball_player_vox11_00000200:  { enablePlanar: 0 }

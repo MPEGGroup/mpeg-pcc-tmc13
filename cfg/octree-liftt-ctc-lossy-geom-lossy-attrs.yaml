@@ -35,6 +35,15 @@ categories:
            r05: 0.3
            r06: 0.375
      -
+       - !conditional '"${src-dir}" =~ m{^cognataQC}'
+       - positionQuantizationScale:
+           r01: 0.001953125
+           r02: 0.00390625
+           r03: 0.0078125
+           r04: 0.015625
+           r05: 0.03125
+           r06: 0.125
+     -
        - !conditional '${numLasers}'
        - angularEnabled: 1
        - numLasers: '${numLasers}'
@@ -175,6 +184,22 @@ categories:
         seq_lod: { r01: 8, r02: 9 }
 
       innovizQC3:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC1:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC2:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC3:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC4:
         # override dist2 at particular rate points (lossy geometry only)
         seq_lod: { r01: 8, r02: 9 }
 

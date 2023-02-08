@@ -202,3 +202,19 @@ categories:
         gm-thresh-max-z: 250
         gm-thresh-left-scale: 0.2
         gm-thresh-right-scale: 0.5
+
+      cognataQC1:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC2:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC3:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }
+
+      cognataQC4:
+        # override dist2 at particular rate points (lossy geometry only)
+        seq_lod: { r01: 8, r02: 9 }

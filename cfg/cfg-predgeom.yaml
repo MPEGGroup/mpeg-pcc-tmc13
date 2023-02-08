@@ -80,3 +80,7 @@ sequences:
   qnxadas-junction-exit:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
   qnxadas-motorway-join:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
   qnxadas-navigating-bends:  { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
+  cognataQC1:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
+  cognataQC2:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
+  cognataQC3:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
+  cognataQC4:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}  
