@@ -92,6 +92,9 @@ categories:
      -
        - !conditional '${has_colour}'
        - predWeightBlending: 1
+     -
+       - !conditional '"${lidar-type}" eq "non-spinning"'
+       - attributeInterPredictionEnabled: 0
 
      ##
      # attribute coding -- reflectance

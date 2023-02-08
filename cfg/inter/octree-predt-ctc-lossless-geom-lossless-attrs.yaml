@@ -91,6 +91,9 @@ categories:
          - spherical_coord_flag: 1
        - intraLodPredictionSkipLayers: 0
        - interComponentPredictionEnabled: 0
+       -
+         - !conditional '"${lidar-type}" eq "non-spinning"'
+         - attributeInterPredictionEnabled: 0
 
        ##
        # attribute coding -- reflectance

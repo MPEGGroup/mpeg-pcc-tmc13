@@ -88,6 +88,9 @@ categories:
        - !conditional '${numLasers}'
        - lod_neigh_bias: '1,1,1'
        - spherical_coord_flag: 1
+     -
+       - !conditional '"${lidar-type}" eq "non-spinning"'
+       - attributeInterPredictionEnabled: 0
 
      ##
      # attribute coding -- reflectance
