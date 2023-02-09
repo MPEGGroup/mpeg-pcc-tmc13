@@ -1260,7 +1260,12 @@ write(
 
   if (!gps.predgeom_enabled_flag) {
     int tree_depth_minus1 = gbh.tree_depth_minus1();
-    bs.writeUe(tree_depth_minus1);
+    if (!gps.trisoup_enabled_flag)
+      bs.writeUe(tree_depth_minus1);
+    else {
+      int tree_depth = tree_depth_minus1 + 1;
+      bs.writeUe(tree_depth);
+    }
     if (gps.qtbt_enabled_flag)
       for (int i = 0; i <= tree_depth_minus1; i++)
         bs.writeUn(3, gbh.tree_lvl_coded_axis_list[i]);
@@ -1408,7 +1413,13 @@ parseGbh(
   gbh.geom_stream_cnt_minus1 = 0;
   if (!gps.predgeom_enabled_flag) {
     int tree_depth_minus1;
-    bs.readUe(&tree_depth_minus1);
+    if (!gps.trisoup_enabled_flag)
+      bs.readUe(&tree_depth_minus1);
+    else {
+      int tree_depth;
+      bs.readUe(&tree_depth);
+      tree_depth_minus1 = tree_depth - 1;
+    }
 
     gbh.tree_lvl_coded_axis_list.resize(tree_depth_minus1 + 1, 7);
     if (gps.qtbt_enabled_flag)
