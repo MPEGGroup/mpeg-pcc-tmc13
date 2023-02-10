@@ -94,8 +94,7 @@ categories:
            r04: 34
            r05: 28
            r06: 22
-       # NB: raht doesn't yet support qpChromaOffset
-       - qpChromaOffset: 0
+       - qpChromaOffset: -1
        - bitdepth: 8
        - attrOffset: 0
        - attrScale: 1

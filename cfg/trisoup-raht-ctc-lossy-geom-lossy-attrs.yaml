@@ -58,8 +58,7 @@ categories:
            r02: 34
            r03: 28
            r04: 22
-       # NB: raht doesn't yet support quantizationStepChroma
-       - qpChromaOffset: 0
+       - qpChromaOffset: -2
        - bitdepth: 8
        - attribute: color
 
