@@ -10,7 +10,6 @@ encflags:
    - 
      - !conditional '"${lidar-type}" eq "spinning"'
      - interPredictionEnabled: 1
-     - motionVectorPath: '${zero_motion_file}'
      - resamplingEnabled: '${need_resampling}'
    - 
      - !conditional '"${lidar-type}" eq "non-spinning"'
