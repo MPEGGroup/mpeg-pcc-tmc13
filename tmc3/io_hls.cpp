@@ -732,7 +732,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
     if (!gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag)
       bs.write(gps.octree_angular_extension_flag);
 
-    bs.write(gps.geom_octree_depth_planar_eligibiity_enabled_flag);
+    if (gps.geom_planar_mode_enabled_flag)
+      bs.write(gps.geom_octree_depth_planar_eligibiity_enabled_flag);
 
     if (!gps.predgeom_enabled_flag && gps.geom_planar_mode_enabled_flag)
       bs.write(gps.geom_multiple_planar_mode_enable_flag);
