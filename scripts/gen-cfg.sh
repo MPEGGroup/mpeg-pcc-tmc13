@@ -35,6 +35,42 @@ done
 
 extra_args=("$@")
 
+inter_sequences=(
+	ford_01_q1mm
+	ford_02_q1mm
+	ford_03_q1mm
+	qnxadas-junction-approach
+	qnxadas-junction-exit
+	qnxadas-motorway-join
+	qnxadas-navigating-bends
+	innovizQC1
+	innovizQC2
+	innovizQC3
+)
+
+# dirty hard mapping of motion files to sequences
+declare -A inter_sequences_motion_octree=(
+	[ford_01_q1mm]=../global-motion-files/globalMotion/ford_01_q1mm-global-motion-matrix-estimated.txt
+	[ford_02_q1mm]=../global-motion-files/globalMotion/ford_02_q1mm-global-motion-matrix-estimated.txt
+	[ford_03_q1mm]=../global-motion-files/globalMotion/ford_03_q1mm-global-motion-matrix-estimated.txt
+	[qnxadas-junction-approach]=../global-motion-files/globalMotion/qnxadas-junction-approach-global-motion-matrix-estimated.txt
+	[qnxadas-junction-exit]=../global-motion-files/globalMotion/qnxadas-junction-exit-global-motion-matrix-estimated.txt
+	[qnxadas-motorway-join]=../global-motion-files/globalMotion/qnxadas-motorway-join-global-motion-matrix-estimated.txt
+	[qnxadas-navigating-bends]=../global-motion-files/globalMotion/qnxadas-navigating-bends-global-motion-matrix-estimated.txt
+	[innovizQC1]=../global-motion-files/globalMotion/gps-innovizqc1-matrix.txt
+	[innovizQC2]=../global-motion-files/globalMotion/gps-innovizqc2-matrix.txt
+	[innovizQC3]=../global-motion-files/globalMotion/gps-innovizqc3-matrix.txt
+)
+declare -A inter_sequences_motion_predgeom=(
+	[ford_01_q1mm]=../global-motion-files/globalMotion/ford_01_q1mm-global-motion-matrix-estimated.txt
+	[ford_02_q1mm]=../global-motion-files/globalMotion/ford_02_q1mm-global-motion-matrix-estimated.txt
+	[ford_03_q1mm]=../global-motion-files/globalMotion/ford_03_q1mm-global-motion-matrix-estimated.txt
+	[qnxadas-junction-approach]=../global-motion-files/globalMotion/qnxadas-junction-approach-global-motion-matrix-estimated.txt
+	[qnxadas-junction-exit]=../global-motion-files/globalMotion/qnxadas-junction-exit-global-motion-matrix-estimated.txt
+	[qnxadas-motorway-join]=../global-motion-files/globalMotion/qnxadas-motorway-join-global-motion-matrix-estimated.txt
+	[qnxadas-navigating-bends]=../global-motion-files/globalMotion/qnxadas-navigating-bends-global-motion-matrix-estimated.txt
+)
+
 ##
 # NB: it is important that the configs in each config set are
 # capable of being merged together by gen-cfg.pl.  Ie, no two
@@ -103,6 +139,28 @@ do_one_cfgset() {
 
 	rm -f "$outdir/config-merged.yaml"
 	src_cfg_dir=${old_src_cfg_dir}
+
+	if [[ "$pred" == "inter" ]]
+	then
+		for seq in ${inter_sequences[@]}
+		do
+			for d in $(find $outdir -name $seq -type d)
+			do
+				local vars=$(find $d/* -type d)
+				local item="inter_sequences_motion_${geom}[$seq]"
+				local src_motion="${!item}"
+				if [[ "$vars" == "" ]]
+				then
+					[ -z "$src_motion" ] || cp ${src_cfg_dir}$src_motion $d
+				else
+					for var in $vars
+					do
+						[ -z "$src_motion" ] || cp ${src_cfg_dir}$src_motion $var
+					done
+				fi
+			done
+		done
+	fi
 }
 
 if [[ "$all" != "1" ]]
