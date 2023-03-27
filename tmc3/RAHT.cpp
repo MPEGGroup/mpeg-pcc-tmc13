@@ -1297,26 +1297,30 @@ uraht_process(
 
           }
 
-          int LUTbins[11] = { 1,2,3, 5,5, 7,7, 9,9 ,11 ,11 };
-          int Rate = LUTbins[trainZeros > 10 ? 10 : trainZeros];
-          if (trainZeros > 10) {
-            int temp = trainZeros - 11;
-            // prefix k =2
-            temp += 1;
-            int a = 0;
-            while (temp) {
-              a++;
-              temp >>= 1;
+          if (sumCoeff < 3) {
+            int LUTbins[11] = { 1,2,3, 5,5, 7,7, 9,9 ,11 ,11 };
+            int Rate = LUTbins[trainZeros > 10 ? 10 : trainZeros];
+            if (trainZeros > 10) {
+              int temp = trainZeros - 11;
+              // prefix k =2
+              temp += 1;
+              int a = 0;
+              while (temp) {
+                a++;
+                temp >>= 1;
 
+              }
+              Rate += 2 * a - 1;
+              // suffix  k=2
+              Rate += 2;
             }
-            Rate += 2 * a - 1;
-            // suffix  k=2
-            Rate += 2;
-          }
-          Rate += (Ratecoeff + 128) >> 8;
+            //Rate = Rate / std::max(1, trainZeros);
+            Rate += (Ratecoeff + 128) >> 8;
 
-          int64_t lambda = lambda0 * lambda0 * (numAttrs == 1 ? 25 : 35);
-          flagRDOQ = (Dist2 << 26) < lambda * Rate;
+            int64_t lambda = lambda0 * lambda0 * (numAttrs == 1 ? 25 : 35);
+            flagRDOQ = (Dist2 << 26) < lambda * Rate;
+          }
+
         }
 
         // Track RL for RDOQ
