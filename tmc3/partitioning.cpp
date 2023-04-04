@@ -247,7 +247,7 @@ partitionByUniformGeom(
     slices.end());
 
   // refine slicesto meet max/min point constraints
-  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices, tileID);
 
   return slices;
 }
@@ -341,7 +341,7 @@ partitionByUniformSquare(
   }
 
   // refine slicesto meet max/min point constraints
-  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices, tileID);
 
   return slices;
 }
@@ -438,7 +438,7 @@ partitionByOctreeDepth(
   } while (!splitByDepth);
 
   // refine slicesto meet max/min point constraints
-  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices);
+  refineSlicesByAdjacentInfo(params, cloud, sliceArrNum, slices, tileID);
 
   return slices;
 }
@@ -606,7 +606,8 @@ refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& cloud,
   Vec3<int> sliceArrNum,
-  std::vector<Partition>& slices)
+  std::vector<Partition>& slices,
+  const int tileID)
 {
   int maxPoints = params.sliceMaxPoints;
   int minPoints = params.sliceMinPoints;
@@ -850,7 +851,7 @@ refineSlicesByAdjacentInfo(
   for (int i = 0; i < slices.size(); i++) {
     auto& slice = slices[i];
     slice.sliceId = i;
-    slice.tileId = -1;
+    slice.tileId = tileID;
   }
 }
 //============================================================================
