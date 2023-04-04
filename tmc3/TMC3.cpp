@@ -1635,12 +1635,12 @@ sanitizeEncoderOpts(
       }
     }
 
-    if (attr_aps.init_qp_minus4 < 0 || attr_aps.init_qp_minus4 + 4 > 51)
-      err.error() << it.first << ".qp must be in the range [4,51]\n";
+    if (attr_aps.init_qp_minus4 < 0 || attr_aps.init_qp_minus4 + 4 > 99)
+      err.error() << it.first << ".qp must be in the range [4,99]\n";
 
-    if (std::abs(attr_aps.aps_chroma_qp_offset) > 51 - 4) {
+    if (std::abs(attr_aps.aps_chroma_qp_offset) > 99 - 4) {
       err.error() << it.first
-                  << ".qpChromaOffset must be in the range [-47,47]\n";
+                  << ".qpChromaOffset must be in the range [-95,95]\n";
     }
   }
 }
