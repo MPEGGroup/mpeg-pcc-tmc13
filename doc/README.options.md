@@ -490,12 +490,10 @@ of the input (unquantised) point cloud co-ordinate system.
 The number of known laser angles and positions for use in angular mode.
 
 ### `--lasersTheta=FLOAT-VALUE-LIST`
-The elevation angle, theta, of each known laser used by the angular
-mode.  Each elevation angle is expressed in radians relative to the x-y
-plane (range: $\left[-\pi, \pi\right]$.  The zero angle describes a
-horizontal laser.  Positive angles represent an elevation above the
-horizontal.  Negative angles represent an elevation below the
-horizontal.
+The tangent of the elevation angle of each known laser used by the angular
+mode.  The zero value of laserTheta describes a horizontal laser.  
+Positive values of laserTheta represent an elevation above the horizontal.  
+Negative values of laserTheta represent an elevation below the horizontal.
 
 The software will convert the floating point angles to an 18 bit fixed
 point representation.
