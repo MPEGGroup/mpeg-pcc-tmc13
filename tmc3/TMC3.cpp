@@ -917,7 +917,7 @@ ParseParameters(int argc, char* argv[], Parameters& params)
 
   ("lasersTheta",
     params.encoder.lasersTheta, {},
-    "Vertical laser angle in angular mode")
+    "Tangent of vertical laser angle in angular mode")
 
   ("lasersZ",
     params.encoder.lasersZ, {},
