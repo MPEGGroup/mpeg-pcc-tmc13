@@ -390,7 +390,6 @@ PCCTMC3Encoder3::compress(
     PCCPointSet3 sliceSrcCloud =
       getPartition(inputPointCloud, quantizedInput, partition.pointIndexes);
 
-    _sliceId = partition.sliceId;
     _tileId = partition.tileId;
     _sliceOrigin = sliceCloud.computeBoundingBox().min;
     compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);

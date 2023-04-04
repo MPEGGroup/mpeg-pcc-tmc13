@@ -149,7 +149,8 @@ void refineSlicesByAdjacentInfo(
   const PartitionParams& params,
   const PCCPointSet3& inputPointCloud,
   Vec3<int> sliceArrNum,
-  std::vector<Partition>& slices);
+  std::vector<Partition>& slices,
+  const int tileID);
 
 //============================================================================
 

@@ -1688,7 +1688,8 @@ parseTileInventory(const PayloadBuffer& buf)
 
   for (int i = 0; i < num_tiles; i++) {
     int tile_id = i;
-    bs.readUn(inventory.tile_id_bits, &tile_id);
+    if (inventory.tile_id_bits)
+      bs.readUn(inventory.tile_id_bits, &tile_id);
 
     Vec3<int> tile_origin;
     if (auto tileOriginBits = inventory.tile_origin_bits_minus1 + 1) {
