@@ -313,8 +313,8 @@ PredGeomEncoder::encodeQpOffset(int dqp)
   if (dqp == 0)
     return;
 
-  _aec->encode(dqp < 0, _ctxQpOffsetSign);
   _aec->encodeExpGolomb(abs(dqp) - 1, 0, _ctxQpOffsetAbsEgl);
+  _aec->encode(dqp < 0, _ctxQpOffsetSign);
 }
 
 //----------------------------------------------------------------------------
