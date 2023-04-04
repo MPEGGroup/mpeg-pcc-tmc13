@@ -391,9 +391,8 @@ GeometryOctreeEncoder::determinePlanarMode(
 
   // Determine which adjacent planes are occupied
   // The low plane is at position axis - 1
-  bool lowAdjPlaneOccupied = adjacent_child_contextualization_enabled_flag
-    ? KAdjNeighIdxMask[planeId][1] & gnp.adjNeighOcc[planeId]
-    : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][0]) & 1;
+  bool lowAdjPlaneOccupied = 
+    (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][0]) & 1;
 
   // The high adjacent plane is at position axis + 1
   bool highAdjPlaneOccupied = !pos
