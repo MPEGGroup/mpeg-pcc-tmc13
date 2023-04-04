@@ -658,7 +658,7 @@ uraht_process(
   numGrandParentNeigh.resize(numPoints);
 
   // quant layer selection
-  auto qpLayer = 0;
+  auto qpLayer = -1;
 
   // descend tree
   weightsLf.resize(1);
