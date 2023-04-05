@@ -30,7 +30,7 @@ categories:
        - positionQuantizationScale:
            r01: 0.03125
            r02: 0.0625
-           r03: 0.0125
+           r03: 0.125
            r04: 0.2
            r05: 0.3
            r06: 0.375
