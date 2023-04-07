@@ -211,7 +211,7 @@ void determineTrisoupNeighbours(
     int ii2 = ii + 12;
     int ii3 = ii + 24;
     // x: left to right; y: bottom to top; z: far to near
-    auto posNode = leaf.pos;
+    auto posNode = leaf.pos + blockWidth;
 
     // ------------ edges along x
     // in node
@@ -422,13 +422,7 @@ trisoupVertexArc(int32_t x, int32_t y, int32_t Width_x, int32_t Width_y)
 bool
 boundaryinsidecheck(const Vec3<int32_t> a, const int bbsize)
 {
-  if (a[0] < 0 || a[0] > bbsize)
-    return false;
-  if (a[1] < 0 || a[1] > bbsize)
-    return false;
-  if (a[2] < 0 || a[2] > bbsize)
-    return false;
-  return true;
+  return a[0] >= 0 && a[0] <= bbsize && a[1] >= 0 && a[1] <= bbsize && a[2] >= 0 && a[2] <= bbsize;
 }
 
 //---------------------------------------------------------------------------
@@ -442,8 +436,11 @@ rayIntersectsTriangle(
   const Vec3<int32_t>& h,
   int32_t a,
   Vec3<int32_t>& outIntersectionPoint,
+  Vec3<int32_t>& outIntersectionPointUp,
+  Vec3<int32_t>& outIntersectionPointDown,
   int direction,
-  int haloTriangle)
+  int haloTriangle,
+  int thickness)
 {  
   Vec3<int32_t> s = rayOrigin - TriangleVertex0;
   int32_t u = (s * h) / a;  
@@ -457,6 +454,12 @@ rayIntersectsTriangle(
   int32_t t = (edge2 * (q >> kTrisoupFpBits)) / a;  
   // outIntersectionPoint = rayOrigin + ((rayVector * t) >> kTrisoupFpBits);  
   outIntersectionPoint[direction] +=  t;
+
+  outIntersectionPointUp = outIntersectionPoint;
+  outIntersectionPointUp[direction] += thickness;
+
+  outIntersectionPointDown = outIntersectionPoint;
+  outIntersectionPointDown[direction] -= thickness;
 
   return u >= -haloTriangle && v >= -haloTriangle && w >= -haloTriangle;
 }
@@ -626,6 +629,7 @@ decodeTrisoupCommon(
     // Find up to 12 vertices for this leaf.
     std::vector<Vertex> leafVertices;
     std::vector<Vec3<int32_t>> refinedVerticesBlock;
+    refinedVerticesBlock.reserve(blockWidth * blockWidth * 4);
 
     for (int j = 0; j < 12; j++) {
       TrisoupSegment& segment = segments[i * 12 + j];
@@ -640,19 +644,7 @@ decodeTrisoupCommon(
       Vec3<int32_t> direction = segment.endpos - segment.startpos;
       uint32_t segment_len = direction.max();
 
-      // vertex to list of points 
-      Vec3<int32_t> foundvoxel = segment.startpos;
-      for (int k = 0; k <= 2; k++) {
-        if (direction[k])
-          foundvoxel[k] += segment.vertex == (segment_len >> bitDropped) - 1 ? segment_len - 1 : segment.vertex << bitDropped;
-        if (segment.startpos[k] - nodepos[k] > 0) // back to B-1 if B
-          foundvoxel[k]--;
-      }
-
-      if (boundaryinsidecheck(foundvoxel, poistionClipValue))
-        refinedVerticesBlock.push_back(foundvoxel);
-
-      // Get 3D position of point of intersection.      
+      // Get 3D position of point of intersection.
       Vec3<int32_t> point = (segment.startpos - nodepos) << kTrisoupFpBits;
       point -= kTrisoupFpHalf; // the volume is [-0.5; B-0.5]^3 
 
@@ -663,15 +655,24 @@ decodeTrisoupCommon(
         point[0] += distance; // in {0,1,...,B-1}
       else if (direction[1])
         point[1] += distance;
-      else  // direction[2] 
+      else  // direction[2]
         point[2] += distance;
 
-      // Add vertex to list of points.     
       leafVertices.push_back({ point, 0, 0 });
+
+      // Add vertex to list of points.
+      if (bitDropped || samplingValue > 1) {
+        Vec3<int32_t> foundvoxel = (point + truncateValue) >> kTrisoupFpBits;
+        if (boundaryinsidecheck(foundvoxel, blockWidth - 1))
+          refinedVerticesBlock.push_back(nodepos + foundvoxel);
+      }
+
     }
 
     // Skip leaves that have fewer than 3 vertices.
     if (leafVertices.size() < 3) {
+      std::sort(refinedVerticesBlock.begin(), refinedVerticesBlock.end());
+      refinedVerticesBlock.erase(std::unique(refinedVerticesBlock.begin(), refinedVerticesBlock.end()), refinedVerticesBlock.end());
       refinedVertices.insert(refinedVertices.end(), refinedVerticesBlock.begin(), refinedVerticesBlock.end());
       continue;
     }
@@ -827,9 +828,15 @@ decodeTrisoupCommon(
         if (driftQ < 0)
           driftDQ = -driftDQ;
       }
-     
+
       blockCentroid += (driftDQ * normalV) >> 6;
-    } // end refinement of the centroid 
+      blockCentroid[0] = std::max(-kTrisoupFpHalf, blockCentroid[0]);
+      blockCentroid[1] = std::max(-kTrisoupFpHalf, blockCentroid[1]);
+      blockCentroid[2] = std::max(-kTrisoupFpHalf, blockCentroid[2]);
+      blockCentroid[0] = std::min(((blockWidth - 1) << kTrisoupFpBits) + kTrisoupFpHalf - 1, blockCentroid[0]);
+      blockCentroid[1] = std::min(((blockWidth - 1) << kTrisoupFpBits) + kTrisoupFpHalf - 1, blockCentroid[1]);
+      blockCentroid[2] = std::min(((blockWidth - 1) << kTrisoupFpBits) + kTrisoupFpHalf - 1, blockCentroid[2]);
+    } // end refinement of the centroid
 
 
     // Divide vertices into triangles around centroid
@@ -840,9 +847,9 @@ decodeTrisoupCommon(
     Vec3<int32_t> posNode = nodepos << kTrisoupFpBits;
 
     if (triCount > 3) {
-      Vec3<int32_t> foundvoxel = (posNode + blockCentroid + truncateValue) >> kTrisoupFpBits;
-      if (boundaryinsidecheck(foundvoxel, poistionClipValue))
-        refinedVerticesBlock.push_back(foundvoxel);
+      Vec3<int32_t> foundvoxel = (blockCentroid + truncateValue) >> kTrisoupFpBits;
+      if (boundaryinsidecheck(foundvoxel, blockWidth - 1))
+        refinedVerticesBlock.push_back(nodepos + foundvoxel);
     }
 
     for (int triIndex = 0; triIndex < (triCount == 3 ? 1 : triCount); triIndex++) {
@@ -859,7 +866,7 @@ decodeTrisoupCommon(
       int maxRange[3];
       for (int k = 0; k < 3; k++) {
         minRange[k] = std::max(0, std::min(std::min(v0[k], v1[k]), v2[k]) + truncateValue >> kTrisoupFpBits);
-        maxRange[k] = std::min(33, std::max(std::max(v0[k], v1[k]), v2[k]) + truncateValue >> kTrisoupFpBits);
+        maxRange[k] = std::min(127, std::max(std::max(v0[k], v1[k]), v2[k]) + truncateValue >> kTrisoupFpBits);
       }
 
       // precompute for rays 
@@ -883,8 +890,8 @@ decodeTrisoupCommon(
         if (directionExcluded == direction) // exclude most parallel direction
           continue;
         rayTracingAlongdirection(
-          refinedVerticesBlock, direction, samplingValue, posNode, minRange,
-          maxRange, edge1, edge2, v0, poistionClipValue, haloFlag,
+          refinedVerticesBlock, direction, samplingValue, bitDropped, blockWidth, nodepos , minRange,
+          maxRange, edge1, edge2, v0, haloFlag,
           adaptiveHaloFlag, fineRayflag);
       }
 
@@ -896,10 +903,6 @@ decodeTrisoupCommon(
 
   }// end loop on leaves
 
- // remove points present twice or more 
-  std::sort(refinedVertices.begin(), refinedVertices.end());
-  refinedVertices.erase( std::unique(refinedVertices.begin(), refinedVertices.end()), refinedVertices.end());
-  
   // Move list of points to pointCloud.
   recPointCloud.resize(refinedVertices.size());
   for (int i = 0; i < refinedVertices.size(); i++) {
@@ -1184,13 +1187,14 @@ void rayTracingAlongdirection(
   std::vector<Vec3<int32_t>>& refinedVerticesBlock,
   int direction,
   uint32_t samplingValue,
-  Vec3<int32_t> posNode,
+  int bitDropped,
+  int blockWidth,
+  Vec3<int32_t> nodepos,
   int minRange[3],
   int maxRange[3],
   Vec3<int32_t> edge1,
   Vec3<int32_t> edge2,
   Vec3<int32_t> v0,
-  int poistionClipValue,
   bool haloFlag,
   bool adaptiveHaloFlag,
   bool fineRayflag) {
@@ -1215,8 +1219,23 @@ void rayTracingAlongdirection(
 
 
   // ray tracing
-  const int haloTriangle =
-    haloFlag ? (adaptiveHaloFlag ? 32 * samplingValue : 32) : 0;
+  int haloTriangle = 0;
+  int haloBit = (((1 << bitDropped) - 1) << kTrisoupFpBits) / blockWidth; // 28
+  haloBit = (haloBit * 24) / 32;
+  haloBit = haloBit > 40 ? 40 : haloBit;
+
+  if (haloFlag) {
+    if (samplingValue > 1) {
+      haloTriangle = haloFlag ? (adaptiveHaloFlag ? 50 * samplingValue : 50) : 0;
+      haloTriangle = haloTriangle > 100 ? 100 : haloTriangle;
+    }
+    else {
+      haloTriangle = haloBit;
+    }
+  }
+
+  int thickness = samplingValue > 1 ? 16 : 32;
+
   for (int32_t g1 = startposG1; g1 <= endposG1; g1 += samplingValue) {
     rayOrigin[g1pos[direction]] = g1 << kTrisoupFpBits;
 
@@ -1226,13 +1245,29 @@ void rayTracingAlongdirection(
 
       // middle ray at integer position 
       Vec3<int32_t>  intersection = rayOrigin;
-      bool foundIntersection = rayIntersectsTriangle(rayOrigin, v0, edge1, edge2, h, a, intersection, direction, haloTriangle);
+      Vec3<int32_t> intersectionUp = rayOrigin;
+      Vec3<int32_t> intersectionDown = rayOrigin;
+      bool foundIntersection = rayIntersectsTriangle(rayOrigin, v0, edge1, edge2, h, a, intersection, intersectionUp, intersectionDown, direction, haloTriangle, thickness);
       if (foundIntersection) {
-        Vec3<int32_t> foundvoxel = (posNode + intersection + truncateValue) >> kTrisoupFpBits;
-        if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
-          refinedVerticesBlock.push_back(foundvoxel);
-          continue; // ray interected , no need to launch other rays  
+        Vec3<int32_t>foundvoxel;
+
+        if (true || samplingValue == 1) {
+          foundvoxel = (intersectionUp + truncateValue) >> kTrisoupFpBits;
+          if (boundaryinsidecheck(foundvoxel, blockWidth-1)) {
+            refinedVerticesBlock.push_back(nodepos + foundvoxel);
+          }
+          foundvoxel = (intersectionDown + truncateValue) >> kTrisoupFpBits;
+          if (boundaryinsidecheck(foundvoxel, blockWidth-1)) {
+            refinedVerticesBlock.push_back(nodepos + foundvoxel);
+          }
         }
+
+        foundvoxel = (intersection + truncateValue) >> kTrisoupFpBits;
+        if (boundaryinsidecheck(foundvoxel, blockWidth-1)) {
+          refinedVerticesBlock.push_back(nodepos + foundvoxel);
+          continue; // ray interected , no need to launch other rays
+        }
+
       }
 
       // if ray not interected then  augment +- offset
@@ -1248,11 +1283,11 @@ void rayTracingAlongdirection(
           rayOrigin2[g2pos[direction]] += Offset2[pos] * offset;
 
           Vec3<int32_t> intersection = rayOrigin2;
-          if (rayIntersectsTriangle(rayOrigin2, v0, edge1, edge2, h, a, intersection, direction, haloTriangle)) {
-            Vec3<int32_t> foundvoxel = (posNode + intersection + truncateValue) >> kTrisoupFpBits;
-            if (boundaryinsidecheck(foundvoxel, poistionClipValue)) {
-              refinedVerticesBlock.push_back(foundvoxel);
-              break; // ray interected , no need to launch other rays  
+          if (rayIntersectsTriangle(rayOrigin2, v0, edge1, edge2, h, a, intersection, intersectionUp, intersectionDown, direction, haloTriangle, thickness)) {
+            Vec3<int32_t> foundvoxel = (intersection + truncateValue) >> kTrisoupFpBits;
+            if (boundaryinsidecheck(foundvoxel, blockWidth-1)) {
+              refinedVerticesBlock.push_back(nodepos + foundvoxel);
+              break; // ray interected , no need to launch other rays
             }
           }
 

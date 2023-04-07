@@ -10,7 +10,7 @@ categories:
      ##
      # partitioning for trisoup
      - sliceMaxPointsTrisoup: 1100000
-     - sliceMaxPoints: 900000
+     - sliceMaxPoints: 1000000
      - sliceMinPoints: 449000
      ##
      # geometry parameters (trisoup)
@@ -25,9 +25,6 @@ categories:
        - !conditional '"${group}" eq "dense"'
        - planarEnabled: '${enablePlanar}'
      - planarModeIdcmUse: 0
-     -
-       - !conditional '"${group}" eq "sparse" || "${group}" eq "scant"'
-       - trisoupHaloEnabled: '${Halo}'
      - positionQuantizationScale: '$eval{ 1 / (1 << ( ${src-geometry-precision} - ${test-depth} )) }'
      - trisoupNodeSizeLog2:
          r01: '$eval{5 + ${trisoupNodeSizeLog2-offset}}'
@@ -40,7 +37,7 @@ categories:
          r02: 1
          r03: 1
          r04: 0
-     - trisoupFineRayTracingEnabled: 1
+     - trisoupFineRayTracingEnabled: 0
      - trisoupImprovedEncoderEnabled: 1
 
      ####
@@ -95,29 +92,29 @@ categories:
       redandblack_viewdep_vox12:         { enablePlanar: 0, test-depth: 11, trisoupNodeSizeLog2-offset: 0 }
       soldier_viewdep_vox12:             { enablePlanar: 0, test-depth: 11, trisoupNodeSizeLog2-offset: 0 }
       # cat1-sparse
-      arco_valentino_dense_vox12:        { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      egyptian_mask_vox12:               { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      palazzo_carignano_dense_vox14:     { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      shiva_00035_vox12:                 { enablePlanar: 1, Halo: 1, test-depth: 10, trisoupNodeSizeLog2-offset: 1 }
-      stanford_area_2_vox16:             { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      stanford_area_4_vox16:             { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      staue_klimt_vox12:                 { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      ulb_unicorn_hires_vox15:           { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      ulb_unicorn_vox13:                 { enablePlanar: 1, Halo: 0, test-depth: 11, trisoupNodeSizeLog2-offset: 2 }
+      arco_valentino_dense_vox12:        { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      egyptian_mask_vox12:               { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      palazzo_carignano_dense_vox14:     { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      shiva_00035_vox12:                 { enablePlanar: 1, test-depth: 10, trisoupNodeSizeLog2-offset: 1 }
+      stanford_area_2_vox16:             { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      stanford_area_4_vox16:             { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      staue_klimt_vox12:                 { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      ulb_unicorn_hires_vox15:           { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      ulb_unicorn_vox13:                 { enablePlanar: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 2 }
       # cat1-scant
-      arco_valentino_dense_vox20:        { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      egyptian_mask_vox20:               { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      facade_00009_vox20:                { enablePlanar: 1, Halo: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
-      facade_00015_vox20:                { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      facade_00064_vox20:                { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      frog_00067_vox20:                  { enablePlanar: 1, Halo: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
-      head_00039_vox20:                  { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 1 }
-      house_without_roof_00057_vox20:    { enablePlanar: 1, Halo: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
-      landscape_00014_vox20:             { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      palazzo_carignano_dense_vox20:     { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      shiva_00035_vox20:                 { enablePlanar: 1, Halo: 1, test-depth: 10, trisoupNodeSizeLog2-offset: 1 }
-      stanford_area_2_vox20:             { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      stanford_area_4_vox20:             { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      staue_klimt_vox20:                 { enablePlanar: 1, Halo: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
-      ulb_unicorn_hires_vox20:           { enablePlanar: 1, Halo: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
-      ulb_unicorn_vox20:                 { enablePlanar: 1, Halo: 0, test-depth: 11, trisoupNodeSizeLog2-offset: 2 }
+      arco_valentino_dense_vox20:        { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      egyptian_mask_vox20:               { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      facade_00009_vox20:                { enablePlanar: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
+      facade_00015_vox20:                { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      facade_00064_vox20:                { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      frog_00067_vox20:                  { enablePlanar: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
+      head_00039_vox20:                  { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 1 }
+      house_without_roof_00057_vox20:    { enablePlanar: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 1 }
+      landscape_00014_vox20:             { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      palazzo_carignano_dense_vox20:     { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      shiva_00035_vox20:                 { enablePlanar: 1, test-depth: 10, trisoupNodeSizeLog2-offset: 1 }
+      stanford_area_2_vox20:             { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      stanford_area_4_vox20:             { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      staue_klimt_vox20:                 { enablePlanar: 1, test-depth:  9, trisoupNodeSizeLog2-offset: 0 }
+      ulb_unicorn_hires_vox20:           { enablePlanar: 1, test-depth: 12, trisoupNodeSizeLog2-offset: 0 }
+      ulb_unicorn_vox20:                 { enablePlanar: 1, test-depth: 11, trisoupNodeSizeLog2-offset: 2 }
