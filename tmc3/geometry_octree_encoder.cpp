@@ -788,10 +788,18 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
     // encode
     int bit = (occupancy >> i) & 1;
     if (Sparse) {
-      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[_MapOccupancySparse[interCtx][i].getEvolve(bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves)]);
+      auto obufIdx = _MapOccupancySparse[interCtx][i].getEvolve(
+        bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves);
+      _arithmeticEncoder->encode(
+        bit, obufIdx >> 3, _CtxMapDynamicOBUF[obufIdx],
+        _CtxMapDynamicOBUF.obufSingleBound);
     }
     else {
-      _arithmeticEncoder->encode(bit, _CtxMapDynamicOBUF[_MapOccupancy[interCtx][i].getEvolve(bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves)]);
+      auto obufIdx = _MapOccupancy[interCtx][i].getEvolve(
+        bit, ctx2, ctx1, &_OBUFleafNumber, _BufferOBUFleaves);
+      _arithmeticEncoder->encode(
+        bit, obufIdx >> 3, _CtxMapDynamicOBUF[obufIdx],
+        _CtxMapDynamicOBUF.obufSingleBound);
     }
 
     // update partial occupancy of current node

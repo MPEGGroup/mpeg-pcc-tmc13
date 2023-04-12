@@ -270,11 +270,15 @@ struct CtxModelDynamicOBUF {
   static const int kNumContexts = 256 >> kCtxFactorShift;
   AdaptiveBitModelFast contexts[kNumContexts];
   static const int kContextsInitProbability[kNumContexts];
+  uint16_t obufSingleBound[33];
 
   CtxModelDynamicOBUF()
   {
     for (int i = 0; i < kNumContexts; i++)
       contexts[i].probability = kContextsInitProbability[i];
+    for (int i = 0; i <= 32; i++) {
+      obufSingleBound[i] = obufSingleBoundOrigin[i];
+    }
   }
 
   AdaptiveBitModelFast& operator[](int idx)
@@ -413,7 +417,9 @@ inline int
 CtxMapDynamicOBUF::decodeEvolveLeaf(EntropyDecoder* _arithmeticDecoder, CtxModelDynamicOBUF& _ctxMapOccupancy, int leafPos, uint8_t* BufferOBUFleaves, int i) {
   int maskI = (1 << kLeafDepth) - 1;
   uint8_t* ctxIdx = &BufferOBUFleaves[leafPos * (1 << kLeafDepth) + (i & maskI)];
-  int bit = _arithmeticDecoder->decode(_ctxMapOccupancy[*ctxIdx]);
+  int bit = _arithmeticDecoder->decode(
+    (*ctxIdx) >> 3, _ctxMapOccupancy[*ctxIdx],
+    _ctxMapOccupancy.obufSingleBound);
 
   // coder index evolves
   if (bit)
@@ -440,7 +446,9 @@ CtxMapDynamicOBUF::decodeEvolve(EntropyDecoder* _arithmeticDecoder, CtxModelDyna
     int idxTree = idx(iP, j);  // index ofelements in the tree tables
 
     uint8_t* ctxIdx = &(CtxIdxMap[idxTree]); // get coder index
-    bit = _arithmeticDecoder->decode(_ctxMapOccupancy[*ctxIdx]);
+    bit = _arithmeticDecoder->decode(
+      (*ctxIdx) >> 3, _ctxMapOccupancy[*ctxIdx],
+      _ctxMapOccupancy.obufSingleBound);
 
     // coder index evolves
     if (bit)

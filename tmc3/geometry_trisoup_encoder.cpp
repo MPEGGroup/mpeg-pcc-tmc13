@@ -549,8 +549,11 @@ encodeTrisoupVertices(
     ctxMap2 |= (patternClose & (0b00000001))<< 4;  // before
     int orderedPclosePar = (((pattern >> 5) & 3) << 2) + (!!(pattern & 128) << 1) + !!(pattern & 256);
     ctxMap2 |= orderedPclosePar;
-
-    arithmeticEncoder->encode((int)segind[i], ctxTriSoup[MapOBUFTriSoup[0].getEvolve(segind[i], ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves)]);
+    auto index0 = MapOBUFTriSoup[0].getEvolve(
+      segind[i], ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves);
+    arithmeticEncoder->encode(
+      (int)segind[i], index0 >> 3, ctxTriSoup[index0],
+      ctxTriSoup.obufSingleBound);
 
     // encode position vertex
     if (segind[i]) {
@@ -570,7 +573,11 @@ encodeTrisoupVertices(
       int orderedPclosePar = (((patternClose >> 5) & 3) << 2) + (!!(patternClose & 128) << 1) + !!(patternClose & 256);
 
       int bit = (vertex >> b--) & 1;
-      arithmeticEncoder->encode(bit, ctxTriSoup[MapOBUFTriSoup[1].getEvolve(bit, ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves)]);
+
+      auto index1 = MapOBUFTriSoup[1].getEvolve(
+        bit, ctxMap2, ctxMap1, &_OBUFleafNumber, _BufferOBUFleaves);
+      arithmeticEncoder->encode(
+        bit, index1 >> 3, ctxTriSoup[index1], ctxTriSoup.obufSingleBound);
       v = bit;
 
       // second bit
@@ -584,7 +591,11 @@ encodeTrisoupVertices(
         ctxMap2 = (ctxMap2 << 4) + orderedPclosePar;
 
         bit = (vertex >> b--) & 1;
-        arithmeticEncoder->encode(bit, ctxTriSoup[MapOBUFTriSoup[2].getEvolve(bit, ctxMap2, (ctxMap1 << 1) + v, &_OBUFleafNumber, _BufferOBUFleaves)]);
+        auto index2 = MapOBUFTriSoup[2].getEvolve(
+          bit, ctxMap2, (ctxMap1 << 1) + v, &_OBUFleafNumber,
+          _BufferOBUFleaves);
+        arithmeticEncoder->encode(
+          bit, index2 >> 3, ctxTriSoup[index2], ctxTriSoup.obufSingleBound);
         v = (v << 1) | bit;
       }
 

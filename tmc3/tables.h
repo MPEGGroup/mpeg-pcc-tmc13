@@ -48,6 +48,7 @@ extern const uint8_t kNeighPattern9to5[9];
 extern const uint8_t kNeighPattern9to3[9];
 extern const uint8_t kNeighPattern10to7[10];
 extern const uint8_t kNeighPattern7to5[7];
+extern const uint16_t obufSingleBoundOrigin[33];
 
 // Identifies the X-Y rotation to be performed given a neighbour pattern
 //  0 => none
