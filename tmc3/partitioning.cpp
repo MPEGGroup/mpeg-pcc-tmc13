@@ -456,7 +456,7 @@ tilePartition(const PartitionParams& params, const PCCPointSet3& cloud)
   // let tile_origin = floor(pos / tile_size)
   // append pointIdx to tileMap[tile_origin]
   Box3<int32_t> bbox = cloud.computeBoundingBox();
-  int maxtileNum = std::ceil(double(bbox.max.max()) / tileSize);
+  int maxtileNum = std::floor(double(bbox.max.max()) / tileSize) + 1;
   int tileNumlog2 = ceillog2(maxtileNum);
   std::vector<int> partMap(1 << (3 * tileNumlog2));
 
