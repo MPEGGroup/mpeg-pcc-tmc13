@@ -120,7 +120,14 @@ operator<(const TrisoupSegmentNeighbours& s1, const TrisoupSegmentNeighbours& s2
   return false;
 }
 
-
+bool
+operator==(const TrisoupSegment& s1, const TrisoupSegment& s2)
+{
+  if (s1.startpos == s2.startpos && s1.endpos == s2.endpos)
+    return true;
+  else
+    return false;
+}
 
 //============================================================================
 
@@ -276,7 +283,6 @@ void determineTrisoupNeighbours(
 
   // find neighbourgs for unique segments
   TrisoupSegmentNeighbours localSegment = segments[0];
-
 
   auto it = segments.begin() + 1;
   neighbNodes.clear();

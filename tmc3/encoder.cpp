@@ -439,6 +439,21 @@ PCCTMC3Encoder3::compress(
           curSlices[i].pointIndexes[p] = tile[curSlices[i].pointIndexes[p]];
         }
       }
+      if (!params->trisoupNodeSizesLog2.empty()) {
+        for (int i = 0; i < curSlices.size(); i++) {
+          for (int p = 0; p < curSlices[i].pointIndexesPadding.size(); p++) {
+            curSlices[i].pointIndexesPadding[p] =
+              tile[curSlices[i].pointIndexesPadding[p]];
+          }
+        }
+
+        for (int i = 0; i < curSlices.size(); i++) {
+          for (int p = 0; p < curSlices[i].pointIndexesPadding2.size(); p++) {
+            curSlices[i].pointIndexesPadding2[p] =
+              tile[curSlices[i].pointIndexesPadding2[p]];
+          }
+        }
+      }
 
       partitions.slices.insert(
         partitions.slices.end(), curSlices.begin(), curSlices.end());
@@ -466,6 +481,17 @@ PCCTMC3Encoder3::compress(
     PCCPointSet3 sliceCloud =
       getPartition(quantizedInput.cloud, partition.pointIndexes);
 
+    PCCPointSet3 sliceCloudPadding;
+    if (!params->trisoupNodeSizesLog2.empty()) {
+      sliceCloudPadding =
+        getPartition(quantizedInput.cloud, partition.pointIndexesPadding);
+
+      PCCPointSet3 sliceCloudPadding2 =
+        getPartition(quantizedInput.cloud, partition.pointIndexesPadding2);
+
+      sliceCloudPadding.append(sliceCloudPadding2);
+    }
+
     PCCPointSet3 sliceSrcCloud =
       getPartition(inputPointCloud, quantizedInput, partition.pointIndexes);
 
@@ -473,15 +499,8 @@ PCCTMC3Encoder3::compress(
     _tileId = partition.tileId;
     _sliceOrigin = sliceCloud.computeBoundingBox().min;
 
-    if (params->partition.safeTrisoupPartionning) {
-      int partitionBoundary = 1 << partitionBoundaryLog2;
-
-      _sliceOrigin[0] -= (_sliceOrigin[0] % partitionBoundary);
-      _sliceOrigin[1] -= (_sliceOrigin[1] % partitionBoundary);
-      _sliceOrigin[2] -= (_sliceOrigin[2] % partitionBoundary);
-    }
-
-    compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud, &reconCloudAlt);
+    compressPartition(sliceCloud, sliceSrcCloud, sliceCloudPadding, params,
+      callback, reconCloud, &reconCloudAlt);
   }
 
   if (_sps->inter_frame_prediction_enabled_flag) {
@@ -680,6 +699,7 @@ void
 PCCTMC3Encoder3::compressPartition(
   const PCCPointSet3& inputPointCloud,
   const PCCPointSet3& originPartCloud,
+  const PCCPointSet3& paddingPointCloud,
   EncoderParams* params,
   PCCTMC3Encoder3::Callbacks* callback,
   CloudFrame* reconCloud,
@@ -692,6 +712,8 @@ PCCTMC3Encoder3::compressPartition(
 
   pointCloud.clear();
   pointCloud = inputPointCloud;
+  if (paddingPointCloud.getPointCount() != 0)
+    pointCloudPadding = paddingPointCloud;
 
   // apply a custom trisoup node size
   params->gbh.trisoup_node_size_log2_minus2 = 0;
@@ -707,6 +729,13 @@ PCCTMC3Encoder3::compressPartition(
   for (size_t i = 0; i < pointCount; ++i) {
     pointCloud[i] -= _sliceOrigin;
   }
+  if (pointCloudPadding.getPointCount() != 0) {
+    const size_t pointCountPadding = pointCloudPadding.getPointCount();
+    for (size_t i = 0; i < pointCountPadding; ++i) {
+      const point_t point = (pointCloudPadding[i] -= _sliceOrigin);
+    }
+  }
+
   // the encoded coordinate system is non-negative.
   Box3<int32_t> bbox = pointCloud.computeBoundingBox();
 
@@ -1114,7 +1143,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     // todo(df): this should be derived from the level
     gbh.footer.geom_num_points_minus1 = params->partition.sliceMaxPointsTrisoup - 1;
     encodeGeometryTrisoup(
-      params->trisoup, params->geom, *_gps, gbh, pointCloud,
+      params->trisoup, params->geom, *_gps, gbh, pointCloud, pointCloudPadding,
       *_ctxtMemOctreeGeom, arithmeticEncoders, _refFrame,
       *_sps, params->interGeom);
   }

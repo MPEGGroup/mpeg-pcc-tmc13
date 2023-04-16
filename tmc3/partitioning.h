@@ -109,6 +109,12 @@ struct Partition {
 
   // Point indexes of the source point cloud that form this partition.
   std::vector<int32_t> pointIndexes;
+
+  // Point indexes of the source point cloud that form the padding of this partition.
+  std::vector<int32_t> pointIndexesPadding;
+
+  // Point indexes of the source point cloud that form the padding of this partition.
+  std::vector<int32_t> pointIndexesPadding2;
 };
 
 //----------------------------------------------------------------------------

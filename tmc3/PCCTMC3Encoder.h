@@ -179,6 +179,7 @@ public:
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
     const PCCPointSet3& originPartCloud,
+    const PCCPointSet3& paddingPointCloud,
     EncoderParams* params,
     Callbacks*,
     CloudFrame* reconstructedCloud = nullptr,
@@ -199,6 +200,7 @@ private:
 
 private:
   PCCPointSet3 pointCloud;
+  PCCPointSet3 pointCloudPadding;
 
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;

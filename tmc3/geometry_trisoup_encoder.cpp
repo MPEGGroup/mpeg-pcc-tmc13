@@ -33,6 +33,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <numeric>
+#include <algorithm>
+#include <unordered_set>
 #include "geometry_trisoup.h"
 
 #include "pointset_processing.h"
@@ -50,6 +53,7 @@ encodeGeometryTrisoup(
   const GeometryParameterSet& gps,
   GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud,
+  PCCPointSet3& pointCloudPadding,
   GeometryOctreeContexts& ctxtMemOctree,
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   const CloudFrame& refFrame,
@@ -58,6 +62,54 @@ encodeGeometryTrisoup(
 {
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
+
+  int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
+
+  // Partition padding into nodes
+  Box3<int32_t> box = pointCloud.computeBoundingBox();
+  Box3<int32_t> boxP = pointCloudPadding.computeBoundingBox();
+
+  Vec3<int32_t> min = {0};
+  Vec3<int32_t> max = {0};
+
+  max[0] += (box.max[0] % blockWidth == 0 ? box.max[0] + 16 : box.max[0] + (blockWidth - box.max[0] % blockWidth));
+  max[1] += (box.max[1] % blockWidth == 0 ? box.max[1] + 16 : box.max[1] + (blockWidth - box.max[1] % blockWidth));
+  max[2] += (box.max[2] % blockWidth == 0 ? box.max[2] + 16 : box.max[2] + (blockWidth - box.max[2] % blockWidth));
+
+  Box3<int32_t> originalBox = Box3<int32_t>(min, max);
+
+  std::vector<PCCOctree3Node> nodesPadded;
+  std::vector<int> indices(pointCloudPadding.getPointCount());
+  if (pointCloudPadding.getPointCount() != 0) {
+    std::iota(indices.begin(), indices.end(), 0);
+    std::vector<Vec3<int>> mapping(pointCloudPadding.getPointCount());
+    for (int i = 0; i < pointCloudPadding.getPointCount(); i++) {
+      mapping[i][0] = (pointCloudPadding[i][0] < 0 ? pointCloudPadding[i][0]/blockWidth - 1 : pointCloudPadding[i][0]/blockWidth) * blockWidth;
+      mapping[i][1] = (pointCloudPadding[i][1] < 0 ? pointCloudPadding[i][1]/blockWidth - 1 : pointCloudPadding[i][1]/blockWidth) * blockWidth;
+      mapping[i][2] = (pointCloudPadding[i][2] < 0 ? pointCloudPadding[i][2]/blockWidth - 1 : pointCloudPadding[i][2]/blockWidth) * blockWidth;
+    }
+    std::sort(indices.begin(), indices.end(), [&](int A, int B) -> bool {return mapping[A] < mapping[B];});
+
+    Vec3<int> v = mapping[indices[0]];
+    PCCOctree3Node n;
+    n.pos = mapping[indices[0]];
+    n.start = 0;
+    for (int i = 1; i < pointCloudPadding.getPointCount(); i++){
+      if (v != mapping[indices[i]]){
+        v = mapping[indices[i]];
+        n.end = i; // -1 ?
+        nodesPadded.push_back(n);
+        n.pos = mapping[indices[i]];
+        n.start = i;
+      }
+      if (i == pointCloudPadding.getPointCount() - 1){
+        n.end = i;
+        nodesPadded.push_back(n);
+      }
+    }
+  }
+  // End: Partition padding into nodes
+
   encodeGeometryOctree(
     optOctree, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes,
     refFrame, sps, interParams);
@@ -65,7 +117,6 @@ encodeGeometryTrisoup(
   // resume encoding with the last encoder
   pcc::EntropyEncoder* arithmeticEncoder = arithmeticEncoders.back().get();
 
-  int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
   const int maxVertexPrecisionLog2 = gbh.trisoup_vertex_quantization_bits
     ? gbh.trisoup_vertex_quantization_bits
     : gbh.trisoupNodeSizeLog2(gps);
@@ -98,7 +149,7 @@ encodeGeometryTrisoup(
     nodes, segind, vertices, pointCloud,
     gps, gbh,
     blockWidth, bitDropped,
-    distanceSearchEncoder);
+    distanceSearchEncoder, nodesPadded, pointCloudPadding, indices, originalBox);
 
   // Determine neighbours
   std::vector<uint16_t> neighbNodes;
@@ -179,17 +230,24 @@ determineTrisoupVertices(
   const GeometryBrickHeader& gbh,
   const int defaultBlockWidth,
   const int bitDropped,
-  int distanceSearchEncoder)
+  int distanceSearchEncoder,
+  const std::vector<PCCOctree3Node>& nodesPadded,
+  const PCCPointSet3& pointCloudPadding,
+  std::vector<int> indices,
+  Box3<int32_t> originalBox)
 {
   Box3<int32_t> sliceBB;
   sliceBB.min = gbh.slice_bb_pos << gbh.slice_bb_pos_log2_scale;
   sliceBB.max = sliceBB.min + ( gbh.slice_bb_width << gbh.slice_bb_width_log2_scale );
+  std::cout << "SliceBB: " << sliceBB << std::endl;
 
   // Put all leaves' edges into a list.
   std::vector<TrisoupSegmentEnc> segments;
-  segments.reserve(12 * leaves.size());
-  for (int i = 0; i < leaves.size(); i++) {
-    const auto& leaf = leaves[i];
+  std::unordered_set<TrisoupSegmentEnc, SegmentHash> lookup;
+  segments.reserve(12 * (leaves.size()) + 12 * (nodesPadded.size()));
+  for (int i = 0; i < leaves.size() + nodesPadded.size(); i++) {
+    PCCOctree3Node leaf =
+      i < leaves.size() ? leaves[i] : nodesPadded[i - leaves.size()];
 
     // Width of block.
     // in future, may override with leaf blockWidth
@@ -233,9 +291,13 @@ determineTrisoupVertices(
     const Vec3<int> tmax2( newW.x() - tmin2 - 1,
                            newW.y() - tmin2 - 1,
                            newW.z() - tmin2 - 1 );
+    Vec3<int> voxel;
     for (int j = leaf.start; j < leaf.end; j++) {
-      Vec3<int> voxel = pointCloud[j] - newP;
-
+      if (i < leaves.size()){
+        voxel = pointCloud[j] - newP;
+      } else {
+        voxel = pointCloudPadding[indices[j]] - newP;
+      }
       // parameter indicating threshold of how close voxels must be to edge
       // ----------- 1 -------------------
       // to be relevant
@@ -342,18 +404,58 @@ determineTrisoupVertices(
     }
 
     // Push segments onto list.
-    segments.push_back(seg000W00);  // far bottom edge
-    segments.push_back(seg0000W0);  // far left edge
-    segments.push_back(seg0W0WW0);  // far top edge
-    segments.push_back(segW00WW0);  // far right edge
-    segments.push_back(seg00000W);  // bottom left edge
-    segments.push_back(seg0W00WW);  // top left edge
-    segments.push_back(segWW0WWW);  // top right edge
-    segments.push_back(segW00W0W);  // bottom right edge
-    segments.push_back(seg00WW0W);  // near bottom edge
-    segments.push_back(seg00W0WW);  // near left edge
-    segments.push_back(seg0WWWWW);  // near top edge
-    segments.push_back(segW0WWWW);  // near right edge
+    if (i < leaves.size()){
+      segments.push_back(seg000W00);  // far bottom edge
+      segments.push_back(seg0000W0);  // far left edge
+      segments.push_back(seg0W0WW0);  // far top edge
+      segments.push_back(segW00WW0);  // far right edge
+      segments.push_back(seg00000W);  // bottom left edge
+      segments.push_back(seg0W00WW);  // top left edge
+      segments.push_back(segWW0WWW);  // top right edge
+      segments.push_back(segW00W0W);  // bottom right edge
+      segments.push_back(seg00WW0W);  // near bottom edge
+      segments.push_back(seg00W0WW);  // near left edge
+      segments.push_back(seg0WWWWW);  // near top edge
+      segments.push_back(segW0WWWW);  // near right edge
+
+      lookup.insert(seg000W00);  // far bottom edge
+      lookup.insert(seg0000W0);  // far left edge
+      lookup.insert(seg0W0WW0);  // far top edge
+      lookup.insert(segW00WW0);  // far right edge
+      lookup.insert(seg00000W);  // bottom left edge
+      lookup.insert(seg0W00WW);  // top left edge
+      lookup.insert(segWW0WWW);  // top right edge
+      lookup.insert(segW00W0W);  // bottom right edge
+      lookup.insert(seg00WW0W);  // near bottom edge
+      lookup.insert(seg00W0WW);  // near left edge
+      lookup.insert(seg0WWWWW);  // near top edge
+      lookup.insert(segW0WWWW);  // near right edge
+    } else {
+      if (lookup.find(seg000W00) != lookup.end())
+        segments.push_back(seg000W00);  // far bottom edge
+      if (lookup.find(seg0000W0) != lookup.end())
+        segments.push_back(seg0000W0);  // far left edge
+      if (lookup.find(seg0W0WW0) != lookup.end())
+        segments.push_back(seg0W0WW0);  // far top edge
+      if (lookup.find(segW00WW0) != lookup.end())
+        segments.push_back(segW00WW0);  // far right edge
+      if (lookup.find(seg00000W) != lookup.end())
+        segments.push_back(seg00000W);  // bottom left edge
+      if (lookup.find(seg0W00WW) != lookup.end())
+        segments.push_back(seg0W00WW);  // top left edge
+      if (lookup.find(segWW0WWW) != lookup.end())
+        segments.push_back(segWW0WWW);  // top right edge
+      if (lookup.find(segW00W0W) != lookup.end())
+        segments.push_back(segW00W0W);  // bottom right edge
+      if (lookup.find(seg00WW0W) != lookup.end())
+        segments.push_back(seg00WW0W);  // near bottom edge
+      if (lookup.find(seg00W0WW) != lookup.end())
+        segments.push_back(seg00W0WW);  // near left edge
+      if (lookup.find(seg0WWWWW) != lookup.end())
+        segments.push_back(seg0WWWWW);  // near top edge
+      if (lookup.find(segW0WWWW) != lookup.end())
+        segments.push_back(segW0WWWW);  // near right edge
+    }
   }
 
   // Sort the list and find unique segments.

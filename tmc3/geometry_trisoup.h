@@ -94,7 +94,11 @@ void determineTrisoupVertices(
   const GeometryBrickHeader& gbh,
   const int defaultBlockWidth,
   const int bitDropped,
-  int distanceSearchEncoder);
+  int distanceSearchEncoder,
+  const std::vector<PCCOctree3Node>& nodesPadded,
+  const PCCPointSet3& pointCloudPadding,
+  std::vector<int> indices,
+  Box3<int32_t> originalBox);
 
 void determineTrisoupNeighbours(
   const ringbuf<PCCOctree3Node>& leaves, 
@@ -200,7 +204,20 @@ struct TrisoupSegmentEnc : public TrisoupSegment {
   int count;        // count of voxels adjacent to this segment
   int distanceSum;  // sum of distances (along segment) of adjacent voxels  
   int count2;        // count of voxels adjacent to this segment
-  int distanceSum2;  // sum of distances (along segment) of adjacent voxels  
+  int distanceSum2;  // sum of distances (along segment) of adjacent voxels
+};
+
+struct SegmentHash {
+  std::size_t operator()(const TrisoupSegmentEnc& s) const
+  {
+    std::size_t h1 = std::hash<int>()(s.startpos[0]);
+    std::size_t h2 = std::hash<int>()(s.startpos[1]);
+    std::size_t h3 = std::hash<int>()(s.startpos[2]);
+    std::size_t h4 = std::hash<int>()(s.endpos[0]);
+    std::size_t h5 = std::hash<int>()(s.endpos[1]);
+    std::size_t h6 = std::hash<int>()(s.endpos[2]);
+    return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4) ^ (h6 << 5); // Combine the six hash values
+  }
 };
 
 struct TrisoupSegmentNeighbours {
@@ -244,8 +261,7 @@ bool operator<(const TrisoupSegment& s1, const TrisoupSegment& s2);
 
 bool operator<(const TrisoupSegmentNeighbours& s1, const TrisoupSegmentNeighbours& s2);
 
-
-
+bool operator==(const TrisoupSegment& s1, const TrisoupSegment& s2);
 
 //============================================================================
 

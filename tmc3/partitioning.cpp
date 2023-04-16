@@ -51,10 +51,13 @@ struct CM_Node {  //node == partition
   int yArr;
   int zArr;
   std::vector<int32_t> pointCloudIndex;
+  std::vector<int32_t> pointCloudIndexPadding;
+  std::vector<int32_t> pointCloudIndexPadding2;
 };
 
 struct CM_Nodes {  //nodes == merged partition
   int total;
+  int totalPadding;
   double xEvg;
   double yEvg;
   double zEvg;
@@ -310,19 +313,61 @@ partitionByUniformSquare(
       }
     }
     int p = 0;
+    int th = std::min(partitionBoundary, 8);; // should be at least 8
     for (int n = 0; n < cloud.getPointCount(); n++) {
       p = int(cloud[n][maxEdgeAxis]) / sliceSize;
       auto& slice = slicesFirstAxis[p];
       slice.pointIndexes.push_back(n);
+      if (int(cloud[n][maxEdgeAxis]) - (sliceSize * p) <= th
+          && int(cloud[n][maxEdgeAxis]) - (sliceSize * p) >= 0
+          && p > 0){
+        auto& slice = slicesFirstAxis[p-1];
+        slice.pointIndexesPadding.push_back(n);
+      }
+      if (int(cloud[n][maxEdgeAxis]) - (sliceSize * p) >= sliceSize - th
+          && int(cloud[n][maxEdgeAxis]) - (sliceSize * p) <= sliceSize){
+        auto& slice = slicesFirstAxis[p+1];
+        slice.pointIndexesPadding.push_back(n);
+      }
     }
 
     int q = 0;
     for (int s = 0; s < slicesFirstAxis.size(); s++) {
       auto& sliceRough = slicesFirstAxis[s];
-      for (int n = 0; n < sliceRough.pointIndexes.size(); n++) {
-        q = int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) / sliceSize;
-        auto& slice = slices[s * secondSliceNum + q];
-        slice.pointIndexes.push_back(sliceRough.pointIndexes[n]);
+      for (int n = 0; n < (sliceRough.pointIndexes.size() + sliceRough.pointIndexesPadding.size()); n++) {
+        if (n >= sliceRough.pointIndexes.size()) {
+          int j = n - sliceRough.pointIndexes.size();
+          q = int(cloud[sliceRough.pointIndexesPadding[j]][midEdgeAxis]) / sliceSize;
+          auto& slice = slices[s * secondSliceNum + q];
+          slice.pointIndexesPadding.push_back(sliceRough.pointIndexesPadding[j]);
+          if (int(cloud[sliceRough.pointIndexesPadding[j]][midEdgeAxis]) - (sliceSize * q) <= th
+              && int(cloud[sliceRough.pointIndexesPadding[j]][midEdgeAxis]) - (sliceSize * q) >= 0
+              && q > 0){
+            auto& slice = slices[s * secondSliceNum + (q-1)];
+            slice.pointIndexesPadding.push_back(sliceRough.pointIndexes[j]);
+          }
+          if (int(cloud[sliceRough.pointIndexesPadding[j]][midEdgeAxis]) - (sliceSize * q) >= sliceSize - th
+              && int(cloud[sliceRough.pointIndexesPadding[j]][midEdgeAxis]) - (sliceSize * q) <= sliceSize){
+            auto& slice = slices[s * secondSliceNum + (q+1)];
+            slice.pointIndexesPadding.push_back(sliceRough.pointIndexes[j]);
+          }
+        }
+        else {
+          q = int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) / sliceSize;
+          auto& slice = slices[s * secondSliceNum + q];
+          slice.pointIndexes.push_back(sliceRough.pointIndexes[n]);
+          if (int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) - (sliceSize * q) <= th
+              && int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) - (sliceSize * q) >= 0
+              && q > 0){
+            auto& slice = slices[s * secondSliceNum + (q-1)];
+            slice.pointIndexesPadding.push_back(sliceRough.pointIndexes[n]);
+          }
+          if (int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) - (sliceSize * q) >= sliceSize - th
+              && int(cloud[sliceRough.pointIndexes[n]][midEdgeAxis]) - (sliceSize * q) <= sliceSize){
+            auto& slice = slices[s * secondSliceNum + (q+1)];
+            slice.pointIndexesPadding.push_back(sliceRough.pointIndexes[n]);
+          }
+        }
       }
     }
     slicesFirstAxis.clear();
@@ -554,6 +599,7 @@ splitSlice(
   int partitionBoundary)
 {
   auto& aIndexes = splitingSlice.nodes[0].pointCloudIndex;
+  auto& aIndexesPadding = splitingSlice.nodes[0].pointCloudIndexPadding;
 
   // Split along the longest edge at the median point
   int splitAxis = maxEdgeAxis(cloud, aIndexes);
@@ -561,11 +607,18 @@ splitSlice(
     aIndexes.begin(), aIndexes.end(), [&](int32_t a, int32_t b) {
       return cloud[a][splitAxis] < cloud[b][splitAxis];
     });
+  std::stable_sort(
+    aIndexesPadding.begin(), aIndexesPadding.end(), [&](int32_t a, int32_t b) {
+      return cloud[a][splitAxis] < cloud[b][splitAxis];
+    });
 
   int numSplit = std::ceil((double)aIndexes.size() / (double)maxPoints);
   int splitsize = aIndexes.size() / numSplit;
 
   std::vector<int> splitIndices;
+  std::vector<int> splitIndicesPadding;
+  std::vector<int> splitIndicesPadding1;
+  std::vector<int> splitIndicesPadding2;
   if(partitionBoundary > 0) {
     maxPoints = (splitsize + maxPoints) / 2;
 
@@ -589,6 +642,41 @@ splitSlice(
       }
     }
     numSplit = splitIndices.size();
+
+    int index = 1;
+    splitIndicesPadding.resize(numSplit);
+    splitIndicesPadding[0] = 0;
+    for (int i = 0; i < aIndexesPadding.size() - 1; ++i) {
+      if (cloud[aIndexesPadding[i + 1]][splitAxis] >= cloud[aIndexes[splitIndices[index]]][splitAxis]){
+        splitIndicesPadding[index] = i + 1;
+        ++ index;
+        if (index >= numSplit) break;
+      }
+    }
+
+    int th = std::min(partitionBoundary, 8);
+    index = 1;
+    splitIndicesPadding1.resize(numSplit);
+    for (int i = 0; i < aIndexes.size() - 1; ++i) {
+      int diff = cloud[aIndexes[i]][splitAxis] - cloud[aIndexes[splitIndices[index]]][splitAxis];
+      if (diff > 0 && diff < th){
+        splitIndicesPadding1[index] = i;
+      }
+      if (diff >= th)
+       ++ index;
+       if (index > splitIndices.size() - 1) break;
+    }
+    splitIndicesPadding2.resize(numSplit);
+    index = 1;
+    for (int i = 0; i < aIndexes.size() - 1; ++i) {
+      if (index > splitIndices.size() - 1) break;
+      int diff = cloud[aIndexes[i]][splitAxis] - cloud[aIndexes[splitIndices[index]]][splitAxis];
+      if (diff < 0 && diff > -th){
+        splitIndicesPadding2[index] = i;
+        ++ index;
+        continue;
+      }
+    }
   }
   else {
     splitIndices.reserve(numSplit);
@@ -597,6 +685,7 @@ splitSlice(
     }
   }
 
+  // Default slice
   std::vector<Partition> splitPartitions;
   splitPartitions.resize(numSplit);
 
@@ -610,6 +699,45 @@ splitSlice(
   indexes.insert(
     indexes.begin(), aIndexes.begin() + splitIndices.back(), aIndexes.end());
 
+  std::vector<Partition> splitPartitionsPadding;
+  std::vector<Partition> splitPartitionsPadding2;
+
+  if (partitionBoundary > 0) {
+    splitPartitionsPadding.resize(numSplit);
+
+    for (int i = 0; i < numSplit - 1; i++) {
+      auto& indexesPadding = splitPartitionsPadding[i].pointIndexes;
+      indexesPadding.insert(
+        indexesPadding.begin(),
+        aIndexesPadding.begin() + splitIndicesPadding[i],
+        aIndexesPadding.begin() + splitIndicesPadding[i + 1]);
+    }
+    auto& indexesPadding = splitPartitionsPadding[numSplit - 1].pointIndexes;
+    indexesPadding.insert(
+      indexesPadding.begin(),
+      aIndexesPadding.begin() + splitIndicesPadding.back(),
+      aIndexesPadding.end());
+
+    // Padding 2
+    splitPartitionsPadding2.resize(numSplit);
+
+    for (int i = 0; i < numSplit - 1; i++) {
+      auto& indexesPadding = splitPartitionsPadding2[i].pointIndexes;
+      indexesPadding.insert(
+        indexesPadding.begin(), aIndexes.begin() + splitIndices[i + 1],
+        aIndexes.begin() + splitIndicesPadding1[i + 1]);
+      if (i != 0) {
+        indexesPadding.insert(
+          indexesPadding.end(), aIndexes.begin() + splitIndicesPadding2[i],
+          aIndexes.begin() + splitIndices[i]);
+      }
+    }
+    auto& indexesPaddingx = splitPartitionsPadding2[numSplit - 1].pointIndexes;
+    indexesPaddingx.insert(
+      indexesPaddingx.begin(), aIndexes.begin() + splitIndicesPadding2.back(),
+      aIndexes.begin() + splitIndices.back());
+  }
+
   newlist.resize(numSplit);
   for (int i = 0; i < numSplit; i++) {
     auto& Indexes = splitPartitions[i].pointIndexes;
@@ -619,7 +747,17 @@ splitSlice(
     newlist[i].nodes.push_back(CM_Node());
     newlist[i].nodes[0].pointCloudIndex.resize(Indexes.size());
     newlist[i].nodes[0].pointCloudIndex = Indexes;
+
     newlist[i].nodes[0].cnt = Indexes.size();
+    if (partitionBoundary > 0) {
+      auto& IndexesPadding = splitPartitionsPadding[i].pointIndexes;
+      auto& IndexesPadding2 = splitPartitionsPadding2[i].pointIndexes;
+      newlist[i].nodes[0].pointCloudIndexPadding.resize(IndexesPadding.size());
+      newlist[i].nodes[0].pointCloudIndexPadding = IndexesPadding;
+      newlist[i].nodes[0].pointCloudIndexPadding2.resize(
+        IndexesPadding2.size());
+      newlist[i].nodes[0].pointCloudIndexPadding2 = IndexesPadding2;
+    }
   }
 }
 
@@ -687,6 +825,7 @@ refineSlicesByAdjacentInfo(
     list[i].yEvg = second;
     list[i].zEvg = third;
     list[i].total = slicePartition[first][second][third].pointIndexes.size();
+    list[i].totalPadding = slicePartition[first][second][third].pointIndexesPadding.size();
     list[i].nodes[0].cnt =
       slicePartition[first][second][third].pointIndexes.size();
     list[i].nodes[0].xArr = list[i].xEvg;
@@ -699,10 +838,16 @@ refineSlicesByAdjacentInfo(
   for (int i = 0; i < list.size(); i++) {
     for (int n = 0; n < list[i].nodes.size(); n++) {
       list[i].nodes[n].pointCloudIndex.resize(list[i].total);
+      list[i].nodes[n].pointCloudIndexPadding.resize(list[i].totalPadding);
       for (int idx = 0; idx < list[i].total; idx++) {
         list[i].nodes[n].pointCloudIndex[idx] =
           slicePartition[list[i].xEvg][list[i].yEvg][list[i].zEvg]
             .pointIndexes[idx];
+      }
+      for (int idx = 0; idx < list[i].totalPadding; idx++) {
+        list[i].nodes[n].pointCloudIndexPadding[idx] =
+          slicePartition[list[i].xEvg][list[i].yEvg][list[i].zEvg]
+            .pointIndexesPadding[idx];
       }
     }
   }
@@ -880,12 +1025,30 @@ refineSlicesByAdjacentInfo(
     }
   }
 
+  for (int i = 0; i < list.size(); i++){
+    refinedSlice[i].pointIndexesPadding.resize(0);
+    refinedSlice[i].pointIndexesPadding.insert(
+      refinedSlice[i].pointIndexesPadding.end(),
+      list[i].nodes[0].pointCloudIndexPadding.begin(),
+      list[i].nodes[0].pointCloudIndexPadding.end());
+  }
+
   for (int i = list.size(); i < list.size() + newSlice.size(); i++) {
     refinedSlice[i].pointIndexes.resize(0);
     refinedSlice[i].pointIndexes.insert(
       refinedSlice[i].pointIndexes.end(),
       newSlice[i - list.size()].nodes[0].pointCloudIndex.begin(),
       newSlice[i - list.size()].nodes[0].pointCloudIndex.end());
+    refinedSlice[i].pointIndexesPadding.resize(0);
+    refinedSlice[i].pointIndexesPadding.insert(
+      refinedSlice[i].pointIndexesPadding.end(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndexPadding.begin(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndexPadding.end());
+    refinedSlice[i].pointIndexesPadding2.resize(0);
+    refinedSlice[i].pointIndexesPadding2.insert(
+      refinedSlice[i].pointIndexesPadding2.end(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndexPadding2.begin(),
+      newSlice[i - list.size()].nodes[0].pointCloudIndexPadding2.end());
   }
   slices = refinedSlice;
   for (int i = 0; i < slices.size(); i++) {
