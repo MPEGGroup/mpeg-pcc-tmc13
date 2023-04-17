@@ -789,7 +789,7 @@ decodeTrisoupCommon(
         int DZ = 2*half/3; 
 
         if (abs(drift) >= DZ) {
-          driftQ = (abs(drift) - DZ + 2*half) >> 6 + bitDropped2;
+          driftQ = (abs(drift) - DZ + 2*half+2*half/3) >> 6 + bitDropped2;
           if (drift < 0)
             driftQ = -driftQ;
         }
