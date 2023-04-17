@@ -770,14 +770,13 @@ decodeTrisoupCommon(
         for (int p = leaves[i].start; p < leaves[i].end; p++) {
           auto point = (pointCloud[p] - nodepos) << kTrisoupFpBits;
 
-         Vec3<int32_t> CP = crossProduct(normalV, point - blockCentroid) >> kTrisoupFpBits;
-         int dist = std::max(std::max(std::abs(CP[0]) , std::abs(CP[1])) , std::abs(CP[2]));
-         dist >>= kTrisoupFpBits;
-          
-          if (dist <= maxD) {
-            int w = 1 + 4 * (maxD - dist);
-            counter += w;
-            drift += w * ( (normalV * (point - blockCentroid)) >> kTrisoupFpBits );
+          Vec3<int64_t> CP = crossProduct(normalV, point - blockCentroid) >> kTrisoupFpBits;
+          int64_t dist = isqrt(CP[0]*CP[0] + CP[1]*CP[1] + CP[2]*CP[2]);
+          dist >>= kTrisoupFpBits;
+          if ((dist<<10) <= 1774*maxD) {
+            int32_t w = (1<<10) + 4 * (1774 *maxD - ((1<<10)*dist));
+            counter += w>>10;
+            drift += (w>>10) * ( (normalV * (point - blockCentroid)) >> kTrisoupFpBits );
           }
         }
 
