@@ -674,6 +674,105 @@ determineContextAngleForPlanar(
 
 //============================================================================
 
+void
+fracReduction(Rational& scale)
+{
+  int m = scale.numerator, n = scale.denominator;
+  while (m != n) {
+    if (m > n)
+      m -= n;
+    else
+      n -= m;
+  }
+
+  int i = 1;
+  while (scale.numerator != i * m)
+    i++;
+  scale.numerator = i;
+
+  int j = 1;
+  while (scale.denominator != j * m)
+    j++;
+  scale.denominator = j;
+}
+
+//============================================================================
+
+void
+compensateZCoordinate(
+  PCCPointSet3& pointCloud,
+  const GeometryParameterSet* gps,
+  Rational scale,
+  const Vec3<int>& angularOrigin,
+  double& outputUnitLength,
+  Vec3<int>& outputOrigin)
+{
+  fracReduction(scale);
+  int num = scale.numerator;
+  int den = scale.denominator;
+ 
+  const int numLasers = gps->numLasers();
+  const int* thetaLaser = gps->angularTheta.data();
+  const int* zLaser = gps->angularZ.data();
+
+  int minDelta = std::numeric_limits<int>::max();
+  for (int i = 1; i < numLasers; i++) {
+    minDelta = std::min(minDelta, std::abs(thetaLaser[i] - thetaLaser[i - 1]));
+  }
+  minDelta = minDelta >> 1;
+
+  int64_t pos[3];
+  int pointCount = pointCloud.getPointCount();
+  for (int i = 0; i < pointCount; i++) {
+    for (int j = 0; j < 3; j++) {
+      if (den == 1) {
+        pos[j] = (pointCloud[i][j] - angularOrigin[j]) * num;
+      } else
+        pos[j] =
+          divApprox((pointCloud[i][j] - angularOrigin[j]) * num, den, 0);
+    }
+
+    int64_t r2 = pos[0] * pos[0] + pos[1] * pos[1];
+    int64_t r3 = isqrt(r2 + pos[2] * pos[2]);
+    int64_t r = isqrt(r2);
+
+    //find laser index
+    int theta32 = pos[2] * irsqrt(r2) >> 22;
+    auto end = thetaLaser + numLasers - 1;
+    auto it = std::upper_bound(thetaLaser + 1, end, theta32);
+    if (theta32 - *std::prev(it) <= *it - theta32)
+      --it;
+    int laserIndex = std::distance(thetaLaser, it);
+
+    //Revise Z
+    int64_t zL;
+    if (den == 1) {
+      zL = zLaser[laserIndex] * num;
+    } else {
+      zL = divApprox(zLaser[laserIndex] * num, den, 0);
+    }
+    int64_t zC = ((r * thetaLaser[laserIndex] - (zL << 15)) + (1 << 17)) >> 18;
+    bool condition1 = ((r3 * minDelta * den + (1 << 17)) >> 18) > num;
+    bool condition2 = std::abs(pos[2] - zC) * den < num;
+    if (condition1 && condition2)
+      pos[2] = zC;
+
+    for (int j = 0; j < 3; j++) {
+      if (den == 1) {
+        pointCloud[i][j] = pos[j] + angularOrigin[j] * num;
+      } else {
+        pointCloud[i][j] = pos[j] + divApprox(angularOrigin[j] * num, den, 0);
+      }
+    }
+  }
+
+  // output parameters
+  outputUnitLength /= double(scale);
+  outputOrigin *= double(scale);
+}
+
+//============================================================================
+
 int
 findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
 {

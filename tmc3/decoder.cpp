@@ -171,6 +171,21 @@ PCCTMC3Decoder3::storeCurrentCloudAsRef()
 //============================================================================
 
 void
+PCCTMC3Decoder3::compensateZ()
+{
+  if (!_gps->geom_z_compensation_enabled_flag)
+    return;
+
+  auto plyScale = reciprocal(_sps->seqGeomScale);
+  plyScale.numerator *= 1000;
+  auto laserOrigin = _gps->gpsAngularOrigin;
+  compensateZCoordinate(
+    _accumCloud, _gps, plyScale, laserOrigin, _outCloud.outputUnitLength,
+    _outCloud.outputOrigin);
+}
+//============================================================================
+
+void
 PCCTMC3Decoder3::startFrame()
 {
   _outputInitialized = true;
@@ -211,6 +226,8 @@ PCCTMC3Decoder3::decompress(
   }
 
   if (!buf) {
+    compensateZ();
+
     // flush decoder, output pending cloud if any
     outputCurrentCloud(callback);
     return 0;
@@ -222,6 +239,7 @@ PCCTMC3Decoder3::decompress(
   //  - after outputing the current frame, the output must be reinitialized
   if (dectectFrameBoundary(buf)) {
     storeCurrentCloudAsRef();
+    compensateZ();
     outputCurrentCloud(callback);
     _outputInitialized = false;
   }

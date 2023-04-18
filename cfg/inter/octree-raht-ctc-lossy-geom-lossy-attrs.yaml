@@ -46,6 +46,7 @@ categories:
        - lasersZ: '${lasersZ}'
        - lasersNumPhiPerTurn:  '${lasersNumPhiPerTurn}'
        - planarBufferDisabled: 1
+       - zCompensationEnabled: 1
 
      # default qtbt and planar with cat3-frame exception
      - maxNumQtBtBeforeOt: 4

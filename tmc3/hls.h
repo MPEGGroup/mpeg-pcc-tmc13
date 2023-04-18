@@ -546,6 +546,9 @@ struct GeometryParameterSet {
   // Enables angular coding in octree/predgeom
   bool geom_angular_mode_enabled_flag;
 
+  //Enables z compensation when using octree
+  bool geom_z_compensation_enabled_flag;
+
   // Enables disabling residual2 in lossy predtree geometry coding
   bool residual2_disabled_flag;
 

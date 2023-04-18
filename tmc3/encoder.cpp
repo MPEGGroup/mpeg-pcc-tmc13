@@ -487,6 +487,15 @@ PCCTMC3Encoder3::compress(
     _refFrame = *reconCloud;
   }
 
+  if (_gps->geom_z_compensation_enabled_flag && reconCloud) {
+    auto plyScale = reciprocal(_sps->seqGeomScale);
+    plyScale.numerator *= 1000;
+    auto laserOrigin = _gps->gpsAngularOrigin;
+    compensateZCoordinate(
+      reconCloud->cloud, _gps, plyScale, laserOrigin,
+      reconCloud->outputUnitLength, reconCloud->outputOrigin);
+  }
+
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
     scaleGeometry(

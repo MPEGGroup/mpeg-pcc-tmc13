@@ -100,6 +100,7 @@ private:
   bool dectectFrameBoundary(const PayloadBuffer* buf);
   void outputCurrentCloud(Callbacks* callback);
   void storeCurrentCloudAsRef();
+  void compensateZ();
 
   void startFrame();
   void emplaceRefFrame(const SequenceParameterSet& sps);

@@ -771,6 +771,16 @@ int determineContextAngleForPlanar(
   int* contextAnglePhiY,
   Vec3<uint32_t> quantMasks);
 
+void fracReduction(Rational& scale);
+
+void compensateZCoordinate(
+  PCCPointSet3& pointCloud,
+  const GeometryParameterSet* gps,
+  Rational scale,
+  const Vec3<int>& angularOrigin,
+  double& outputUnitLength,
+  Vec3<int>& outputOrigin);
+
 //---------------------------------------------------------------------------
 
 inline int

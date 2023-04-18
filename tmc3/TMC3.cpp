@@ -1014,6 +1014,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_mode_enabled_flag, false,
     "Controls angular contextualisation of occupancy")
 
+  ("zCompensationEnabled",
+    params.encoder.gps.geom_z_compensation_enabled_flag, false,
+    "Enables z compensation when using octree")
+
   ("secondaryResidualDisabled",
     params.encoder.gps.residual2_disabled_flag, false,
     "Controls disabling of quantized cartesian residual in lossy pred tree")
@@ -1662,6 +1666,13 @@ sanitizeEncoderOpts(
   if (params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
     params.encoder.sps.inter_frame_prediction_enabled_flag = true;
+  }
+
+  if (
+    params.encoder.gps.predgeom_enabled_flag
+    || params.encoder.gps.trisoup_enabled_flag
+    || !params.encoder.gps.geom_angular_mode_enabled_flag) {
+    params.encoder.gps.geom_z_compensation_enabled_flag = false;
   }
 
   // Separate bypass bin coding only when cabac_bypass_stream is disabled

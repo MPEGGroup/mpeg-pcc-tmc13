@@ -671,6 +671,8 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
       int geom_angular_num_phi_per_turn0_minus1 =
         gps.angularNumPhiPerTurn[0] - 1;
       bs.writeUe(geom_angular_num_phi_per_turn0_minus1);
+
+      bs.write(gps.geom_z_compensation_enabled_flag);
     }
 
     for (int i = 1; i <= geom_angular_num_lidar_lasers_minus1; i++) {
@@ -801,6 +803,7 @@ parseGps(const PayloadBuffer& buf)
 
   gps.planar_buffer_disabled_flag = false;
   gps.geom_slice_angular_origin_present_flag = false;
+  gps.geom_z_compensation_enabled_flag = false;
   bs.read(&gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
     bs.read(&gps.geom_slice_angular_origin_present_flag);
@@ -835,6 +838,8 @@ parseGps(const PayloadBuffer& buf)
       int geom_angular_num_phi_per_turn0_minus1;
       bs.readUe(&geom_angular_num_phi_per_turn0_minus1);
       gps.angularNumPhiPerTurn[0] = geom_angular_num_phi_per_turn0_minus1 + 1;
+
+      bs.read(&gps.geom_z_compensation_enabled_flag);
     }
 
     for (int i = 1; i <= geom_angular_num_lidar_lasers_minus1; i++) {
