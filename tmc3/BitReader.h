@@ -197,7 +197,7 @@ uint64_t
 BitReader<ForwardIt>::readUe()
 {
   int len = 0;
-  while (!read())
+  while (read())
     len++;
 
   uint64_t value = (1ull << len) | readUn(len);

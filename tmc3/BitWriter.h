@@ -200,8 +200,9 @@ BitWriter<OutputIt>::writeUe(uint32_t value)
 {
   value++;
   int len = ilog2(value);
-  writeUn(len, 0);
-  writeUn(len + 1, value);
+  int mask = (1 << len) - 1;
+  writeUn(len, mask);
+  writeUn(len + 1, value & mask);
 }
 
 //----------------------------------------------------------------------------
@@ -212,8 +213,9 @@ BitWriter<OutputIt>::writeUe64(uint64_t value)
 {
   value++;
   int len = ilog2(value);
-  writeUn(len, 0);
-  writeUn(len + 1, value);
+  int mask = (1 << len) - 1;
+  writeUn(len, mask);
+  writeUn(len + 1, value & mask);
 }
 
 //----------------------------------------------------------------------------
