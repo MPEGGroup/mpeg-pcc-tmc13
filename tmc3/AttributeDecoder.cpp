@@ -745,7 +745,7 @@ AttributeDecoder::decodeReflectancesLift(
       auto& reflectance = reflectances[predictorIndex];
       const int64_t delta = detail;
       const int64_t reconstructedDelta = quant[0].scale(delta);
-      reflectance = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 40);
+      reflectance = divExp2RoundHalfInf(reconstructedDelta * iQuantWeight, 36);
     }
   }
 
