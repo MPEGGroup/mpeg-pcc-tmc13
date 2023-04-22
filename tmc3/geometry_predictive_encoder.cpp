@@ -860,34 +860,11 @@ PredGeomEncoder::encodeTree(
           } else {
             if (_azimuth_scaling_enabled_flag ? predIdx : iMode)
               continue;
-            auto prevPos = srcPts[prevNodeIdx];
-            std::pair<bool, point_t> interPred;
-            auto parentPos = srcPts[nodes[nodeIdx].parent];
-            switch (interFlag) {
-            case 1:
-              interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
-              refNodeIdx = 0;
-              break;
-            case 2:
-              interPred =
-                refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
-              refNodeIdx = 1;
-              break;
-            case 3:
-              interPred =
-                refFrameSph.getClosestGlobPred(prevPos[1], prevPos[2]);
-              refNodeIdx = 2;
-              break;
-            case 4:
-              interPred =
-                refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
-              refNodeIdx = 3;
-              break;
-            default:
-              std::cerr << "Unknown option; skipping encoder check.\n";
-              continue;
-              break;
-            }
+            const auto prevPos = srcPts[prevNodeIdx];
+            const auto parentPos = srcPts[nodes[nodeIdx].parent];
+            refNodeIdx = interFlag - 1;
+            const auto interPred =
+              refFrameSph.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
 
             if (interPred.first) {
               pred = interPred.second;

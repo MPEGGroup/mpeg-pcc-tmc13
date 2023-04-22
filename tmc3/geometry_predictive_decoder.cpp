@@ -565,23 +565,11 @@ PredGeomDecoder::decodeTree(
         }
       }
     } else {
-      auto prevPos = outA[prevNodeIdx];
-      std::pair<bool, point_t> interPred;
-      auto parentPos = outA[_nodeIdxToParentIdx[curNodeIdx]];
-      switch (refNodeIdx) {
-      case 0:
-        interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
-        break;
-      case 1:
-        interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
-        break;
-      case 2:
-        interPred = refFrameSph.getClosestGlobPred(prevPos[1], prevPos[2]);
-        break;
-      case 3:
-        interPred = refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
-        break;
-      }
+      const auto prevPos = outA[prevNodeIdx];
+      const auto parentPos = outA[_nodeIdxToParentIdx[curNodeIdx]];
+
+      const auto interPred =
+        refFrameSph.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
       assert(interPred.first);
       pred = interPred.second;
       if (refNodeIdx > 1)

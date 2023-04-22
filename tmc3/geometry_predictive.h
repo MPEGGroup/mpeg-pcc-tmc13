@@ -424,73 +424,33 @@ public:
     }
   }
 
-  std::pair<bool, point_t> getClosestPred(int currAzim, int currLaserId)
+  std::pair<bool, point_t> getInterPred(
+    const int currAzim, const int currLaserId, const int refNodeIdx) const
   {
-    const auto& refPoints = refPointVals;
-    auto quantizedPhi = computePhiQuantized(currAzim);
-    if (refPoints[currLaserId].size()) {
-      auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-      if (idx == refPoints[currLaserId].end())
-        return std::pair<bool, point_t>(false, 0);
-      else
-        return std::pair<bool, point_t>(true, idx->second);
-    }
-    return std::pair<bool, point_t>(false, 0);
+    static const auto INVALID_REF = std::pair<bool, point_t>(false, 0);
+    const auto& refPic = (refNodeIdx > 1) ? refPointValsGlob : refPointVals;
+    const auto& refPoints = refPic[currLaserId];
+    const bool nextPred = !(refNodeIdx & 0x1);
+    if (!refPoints.size())
+      return INVALID_REF;
+
+    const auto quantizedPhi = computePhiQuantized(currAzim);
+    auto idx = refPoints.upper_bound(quantizedPhi);
+    if (idx == refPoints.end())
+      return INVALID_REF;
+
+    if (nextPred)
+      return std::pair<bool, point_t>(true, idx->second);
+
+    // nextnextPred
+    idx = refPoints.upper_bound(idx->first);
+    if (idx == refPoints.end())
+      return INVALID_REF;
+    else
+      return std::pair<bool, point_t>(true, idx->second);
   }
 
-  std::pair<bool, point_t> getNextClosestPred(int currAzim, int currLaserId)
-  {
-    const auto& refPoints = refPointVals;
-    auto quantizedPhi = computePhiQuantized(currAzim);
-    if (refPoints[currLaserId].size()) {
-      auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-      if (idx == refPoints[currLaserId].end())
-        return std::pair<bool, point_t>(false, 0);
-      else
-        quantizedPhi = computePhiQuantized(idx->second[1]);
-      idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-      if (idx == refPoints[currLaserId].end())
-        return std::pair<bool, point_t>(false, 0);
-      else
-        return std::pair<bool, point_t>(true, idx->second);
-    }
-    return std::pair<bool, point_t>(false, 0);
-  }
-
-  std::pair<bool, point_t> getClosestGlobPred(int currAzim, int currLaserId)
-  {
-      const auto& refPoints = refPointValsGlob;
-      auto quantizedPhi = computePhiQuantized(currAzim);
-      if (refPoints[currLaserId].size()) {
-          auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-          if (idx == refPoints[currLaserId].end())
-              return std::pair<bool, point_t>(false, 0);
-          else
-              return std::pair<bool, point_t>(true, idx->second);
-      }
-      return std::pair<bool, point_t>(false, 0);
-  }
-
-  std::pair<bool, point_t> getNextClosestGlobPred(int currAzim, int currLaserId)
-  {
-      const auto& refPoints = refPointValsGlob;
-      auto quantizedPhi = computePhiQuantized(currAzim);
-      if (refPoints[currLaserId].size()) {
-          auto idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-          if (idx == refPoints[currLaserId].end())
-              return std::pair<bool, point_t>(false, 0);
-          else
-              quantizedPhi = computePhiQuantized(idx->second[1]);
-          idx = refPoints[currLaserId].upper_bound(quantizedPhi);
-          if (idx == refPoints[currLaserId].end())
-              return std::pair<bool, point_t>(false, 0);
-          else
-              return std::pair<bool, point_t>(true, idx->second);
-      }
-      return std::pair<bool, point_t>(false, 0);
-  }
-
-  int computePhiQuantized(const int val)
+  int computePhiQuantized(const int val) const
   {
     int offset = azimScaleLog2 ? (1 << (azimScaleLog2 - 1)) : 0;
     return val >= 0 ? (val + offset) >> azimScaleLog2
