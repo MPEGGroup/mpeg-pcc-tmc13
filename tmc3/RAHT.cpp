@@ -521,7 +521,7 @@ findNeighbours(
 //============================================================================
 // Generate the spatial prediction of a block.
 
-template<bool removeRoundingOps, typename It>
+template<bool rahtExtension, typename It>
 void
 intraDcPred(
   int numAttrs,
@@ -580,7 +580,7 @@ intraDcPred(
 
     // apply weighted neighbour value to masked positions
     for (int k = 0; k < numAttrs; k++)
-      if (removeRoundingOps)
+      if (rahtExtension)
         neighValue[k] *= predWeightParent[i];
       else
         neighValue[k] *= predWeightParent[i] << pcc::FixedPoint::kFracBits;
@@ -609,7 +609,7 @@ intraDcPred(
 
       // apply weighted neighbour value to masked positions
       for (int k = 0; k < numAttrs; k++)
-        if (removeRoundingOps)
+        if (rahtExtension)
           neighValue[k] *= predWeightParent[7 + i];
         else
           neighValue[k] *= predWeightParent[7 + i] << pcc::FixedPoint::kFracBits;
@@ -622,7 +622,7 @@ intraDcPred(
             auto childNeighValueIt =
               std::next(firstChild, numAttrs * childNeighIdx[i][j]);
             for (int k = 0; k < numAttrs; k++)
-              if (removeRoundingOps)
+              if (rahtExtension)
                 childNeighValue[k] = (*childNeighValueIt++)
                   * predWeightChild[i];
               else
@@ -655,7 +655,7 @@ intraDcPred(
 //============================================================================
 // Generate the spatial inter prediction of a block.
   
-  template<bool removeRoundingOps, typename It>
+  template<bool rahtExtension, typename It>
   void
 interDcPred(
   int numAttrs,
@@ -689,7 +689,7 @@ interDcPred(
         }
 
         const auto scaledNeighValue = inter_neighValue[0]
-          << (removeRoundingOps ? pcc::FixedPoint::kFracBits : 0);
+          << (rahtExtension ? pcc::FixedPoint::kFracBits : 0);
         if(10 * scaledNeighValue > limitLow && 10 * scaledNeighValue < limitHigh){
           for (int k = 0; k < numAttrs; k++){
             inter_neighValue[k] *= 1 << pcc::FixedPoint::kFracBits;
@@ -898,7 +898,7 @@ isSibling(int64_t pos0, int64_t pos1, int level)
 //============================================================================
 // Core transform process (for encoder/decoder)
 
-template<bool isEncoder, bool removeRoundingOps>
+template<bool isEncoder, bool rahtExtension>
 void
 uraht_process(
   const RahtPredictionParams& rahtPredParams,
@@ -1138,7 +1138,7 @@ uraht_process(
 
         occupancy |= 1 << nodeIdx;
 
-        if (rahtPredParams.raht_prediction_skip1_flag)
+        if (rahtExtension)
           nodeCnt++;
 
         if (isEncoder) {
@@ -1170,7 +1170,7 @@ uraht_process(
         int childNeighIdx[12][8];
 
         int parentNeighCount = 0;
-        if (rahtPredParams.raht_prediction_skip1_flag && nodeCnt == 1) {
+        if (rahtExtension && nodeCnt == 1) {
           enablePrediction = false;
           parentNeighCount = 19;
         } else if (
@@ -1190,12 +1190,12 @@ uraht_process(
           } else {
             int64_t limitLow = 0;
             int64_t limitHigh = 0;
-            intraDcPred<removeRoundingOps>(
+            intraDcPred<rahtExtension>(
               numAttrs, parentNeighIdx, childNeighIdx, occupancy,
               attrRecParent.begin(), attrRec.begin(), transformPredBuf,
               rahtPredParams, limitLow, limitHigh);
             if ( enableACInterPred ){
-              interDcPred<removeRoundingOps>(numAttrs, occupancy, attrsLf_ref.begin(), weightsLf_ref,
+              interDcPred<rahtExtension>(numAttrs, occupancy, attrsLf_ref.begin(), weightsLf_ref,
               transformInterPredBuf, i, limitLow, limitHigh);
             }         
           }
@@ -1376,7 +1376,7 @@ uraht_process(
         for (int k = 0; k < numAttrs; k++) {
           attrRecParentIt++;
           int64_t val = *attrRecParentUsIt++;
-          if (removeRoundingOps)
+          if (rahtExtension)
             transformPredBuf[k][0].val = val;
           else if (val > 0)
             transformPredBuf[k][0].val = val << (15 - 2);
@@ -1392,7 +1392,7 @@ uraht_process(
           continue;
 
         for (int k = 0; k < numAttrs; k++)
-          if (removeRoundingOps)
+          if (rahtExtension)
             attrRecUs[j * numAttrs + k] = transformPredBuf[k][nodeIdx].val;
           else
           {
@@ -1415,7 +1415,7 @@ uraht_process(
 
         for (int k = 0; k < numAttrs; k++)
           attrRec[j * numAttrs + k] =
-            removeRoundingOps ? transformPredBuf[k][nodeIdx].val : transformPredBuf[k][nodeIdx].round();
+            rahtExtension ? transformPredBuf[k][nodeIdx].val : transformPredBuf[k][nodeIdx].round();
         j++;
       }
     }
@@ -1452,7 +1452,7 @@ uraht_process(
     for (int k = 0; k < numAttrs; k++) {
       if (isEncoder)
         attrSum[k] = attrsLf[i * numAttrs + k];
-      if (removeRoundingOps)
+      if (rahtExtension)
         attrRecDc[k].val = *attrRecParentIt++;
       else
         attrRecDc[k] = *attrRecParentIt++;
@@ -1509,10 +1509,10 @@ uraht_process(
 
         attrRecDc[k] = transformBuf[0];
         attrRec[out + w * numAttrs + k] =
-          removeRoundingOps ? transformBuf[1].val : transformBuf[1].round();
+          rahtExtension ? transformBuf[1].val : transformBuf[1].round();
         if (w == 1)
           attrRec[out + k] =
-            removeRoundingOps ? transformBuf[0].val : transformBuf[0].round();
+            rahtExtension ? transformBuf[0].val : transformBuf[0].round();
       }
 
       // Track RL for RDOQ
@@ -1531,7 +1531,7 @@ uraht_process(
 
   // write-back reconstructed attributes
   assert(attrRec.size() == numAttrs * numPoints);
-  if(removeRoundingOps)
+  if(rahtExtension)
     for (auto& attr : attrRec) {
       attr += FixedPoint::kOneHalf;
       *(attributes++) = attr >> FixedPoint::kFracBits;
@@ -1569,10 +1569,10 @@ regionAdaptiveHierarchicalTransform(
   const int attribCount,
   const int voxelCount,
   int* coefficients,
-  const bool removeRoundingOps,
+  const bool rahtExtension,
   AttributeInterPredParams& attrInterPredParams)
 {
-  if (removeRoundingOps)
+  if (rahtExtension)
     uraht_process<true, true>(
       rahtPredParams, qpset, pointQpOffsets, voxelCount, attribCount, mortonCode,
       attributes, coefficients, attrInterPredParams);
@@ -1609,10 +1609,10 @@ regionAdaptiveHierarchicalInverseTransform(
   const int attribCount,
   const int voxelCount,
   int* coefficients,
-  const bool removeRoundingOps,
+  const bool rahtExtension,
   AttributeInterPredParams& attrInterPredParams)
 {
-  if (removeRoundingOps)
+  if (rahtExtension)
     uraht_process<false, true>(
       rahtPredParams, qpset, pointQpOffsets, voxelCount, attribCount,
       mortonCode, attributes, coefficients, attrInterPredParams);

@@ -841,10 +841,9 @@ Coding method to use for the current attribute:
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
   | 3     | Uncompressed (PCM)                                         |
 
-### `--rahtIncreasedBufferPrecisionEnabled=0|1`
-Controls the use of higher precision numbers in buffers for RAHT. When
-it is enabled, it also avoid using fixed point rounding operations during
-the transform.
+### `--rahtExtension=0|1`
+Enables RAHT extension tools including buffee precision increase
+and skipping transform domain prediction in one-subnode condition.
 
 ### `--rahtPredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients
@@ -860,10 +859,6 @@ the number of parent neighbour points that must be present.
 Controls a per-block threshold used to enable or disable the transform
 domain prediction of RAHT coefficients.  This threshold specifies
 the number of neighbour points that must be present.
-
-### `--rahtPredictionSkip1=0|1`
-Controls the skipping of transform domain prediction in the case that 
-there is only subnode.
 
 ### `--rahtSubnodePredictionEnabled=0|1`
 Controls the use of transform domain prediction of RAHT coefficients

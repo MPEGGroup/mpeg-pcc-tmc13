@@ -437,7 +437,6 @@ struct RahtPredictionParams {
   bool raht_prediction_enabled_flag;
   int raht_prediction_threshold0;
   int raht_prediction_threshold1;
-  bool raht_prediction_skip1_flag;
   bool raht_subnode_prediction_enabled_flag;
   std::vector<int> raht_prediction_weights;
 
@@ -814,7 +813,7 @@ struct AttributeParameterSet {
   bool aps_slice_qp_deltas_present_flag;
 
   //--- raht parameters
-  bool raht_increased_buffer_precision_flag;
+  bool raht_extension;
   RahtPredictionParams rahtPredParams;
 
   //--- lifting parameters

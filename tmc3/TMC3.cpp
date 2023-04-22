@@ -1223,10 +1223,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: Hierarchical neighbourhood prediction\n"
     "  2: Hierarchical neighbourhood prediction as lifting transform")
 
-  ("rahtIncreasedBufferPrecisionEnabled",
-    params_attr.aps.raht_increased_buffer_precision_flag, true,
-    "Controls the use of increased precision in RAHT buffer "
-    "to avoiding rounding operations")
+  ("rahtExtension",
+    params_attr.aps.raht_extension, true,
+    "Enable extensions of RAHT coding, including buffer precision increase"
+    " and skipping transform domain prediction in one-subnode condition")
 
   ("rahtPredictionEnabled",
     params_attr.aps.rahtPredParams.raht_prediction_enabled_flag, true,
@@ -1239,11 +1239,6 @@ ParseParameters(int argc, char* argv[], Parameters& params)
   ("rahtPredictionThreshold1",
     params_attr.aps.rahtPredParams.raht_prediction_threshold1, 6,
     "Parent threshold for early transform-domain prediction termination")
-
-  ("rahtPredictionSkip1",
-	  params_attr.aps.rahtPredParams.raht_prediction_skip1_flag, true,
-	  "Controls the use of skipping transform-domain prediction in "
-    "one subnode condition")
 
   ("rahtSubnodePredictionEnabled",
     params_attr.aps.rahtPredParams.raht_subnode_prediction_enabled_flag, true,
@@ -1780,7 +1775,6 @@ sanitizeEncoderOpts(
     if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
       auto& predParams = attr_aps.rahtPredParams;
       if (!predParams.raht_prediction_enabled_flag) {
-        predParams.raht_prediction_skip1_flag = false;
         predParams.raht_subnode_prediction_enabled_flag = false;
       } else {
         if (predParams.raht_subnode_prediction_enabled_flag) {
