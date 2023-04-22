@@ -360,22 +360,11 @@ PredGeomEncoder::encodeResPhi(
     _aec->encodeExpGolomb(
       absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
       _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
-#if 0
-    _aec->encodeExpGolomb(
-      absVal - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
-#endif
 
   _aec->encode(
     resPhi < 0,
     _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? (refNodeIdx > 1 ? 3 : 2) : (resPhi < 0 ? 1 : 0);
-#if 0
-  _aec->encode(
-    resPhi < 0,
-    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
-  _resPhiOldSign = interFlag ? 2 : (resPhi < 0 ? 1 : 0);
-#endif
 }
 
 //-------------------------------------------------------------------------
@@ -433,20 +422,10 @@ PredGeomEncoder::estimateResPhi(
     bits += estimateExpGolomb(
       absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
       _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
-#if 0
-    bits += estimateExpGolomb(
-      absVal - 1, 1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
-#endif
 
   bits += estimate(
       resPhi < 0,
       _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
-#if 0
-  bits += estimate(
-    resPhi < 0,
-    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
-#endif
 
   return bits;
 }
@@ -602,18 +581,6 @@ PredGeomEncoder::encodePhiMultiplier(int32_t multiplier, const bool interFlag
     _aec->encodeExpGolomb(valueMinus7, 0, _ctxEGPhi[interCtxIdx][ctxL]);
 
   _aec->encode(multiplier < 0, _ctxSignPhi[interCtxIdx][ctxL]);
-#if 0
-  _aec->encode((value >> 2) & 1, _ctxResidualPhi[interCtxIdx][0]);
-  _aec->encode(
-    (value >> 1) & 1, _ctxResidualPhi[interCtxIdx][1 + (value >> 2)]);
-  _aec->encode(
-    (value >> 0) & 1, _ctxResidualPhi[interCtxIdx][3 + (value >> 1)]);
-
-  if (valueMinus7 >= 0)
-    _aec->encodeExpGolomb(valueMinus7, 0, _ctxEGPhi[interCtxIdx]);
-
-  _aec->encode(multiplier < 0, _ctxSignPhi[interCtxIdx]);
-#endif
 }
 //----------------------------------------------------------------------------
 void
@@ -633,13 +600,6 @@ PredGeomEncoder::encodeRefNodeIdx(int refNodeIdx, bool globalMotionEnabled)
     _aec->encode((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
   _aec->encode(refNodeIdx & 1, _ctxRefNodeIdx[1 + (refNodeIdx >> 1)]);
 }
-#if 0
-void
-PredGeomEncoder::encodeRefNodeFlag(bool refNodeFlag)
-{
-  _aec->encode(refNodeFlag, _ctxRefNodeFlag);
-}
-#endif
 
 //----------------------------------------------------------------------------
 
@@ -695,9 +655,6 @@ PredGeomEncoder::estimateBits(
     if (globalMotionEnabled)
       bits += estimate((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
     bits += estimate(refNodeIdx & 1, _ctxRefNodeIdx[1 + (refNodeIdx >> 1)]);
-#if 0
-    bits += estimate(refNodeFlag, _ctxRefNodeFlag);
-#endif
   }
   if (bits > best_known_bits)  return bits;
 
@@ -734,13 +691,6 @@ PredGeomEncoder::estimateBits(
           (value >> 1) & 1, _ctxResidualPhi[interCtxIdx][ctxL][1 + (value >> 2)]);
         bits += estimate(
           (value >> 0) & 1, _ctxResidualPhi[interCtxIdx][ctxL][3 + (value >> 1)]);
-#if 0
-        bits += estimate((value >> 2) & 1, _ctxResidualPhi[interCtxIdx][0]);
-        bits += estimate(
-          (value >> 1) & 1, _ctxResidualPhi[interCtxIdx][1 + (value >> 2)]);
-        bits += estimate(
-          (value >> 0) & 1, _ctxResidualPhi[interCtxIdx][3 + (value >> 1)]);
-#endif
 
         if (valueMinus7 >= 0)
           bits += (1 + 2.0 * log2(valueMinus7 + 1));
@@ -938,23 +888,7 @@ PredGeomEncoder::encodeTree(
               continue;
               break;
             }
-#if 0
-            switch (interFlag) {
-            case 1:
-              interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
-              refNodeFlag = false;
-              break;
-            case 2:
-              interPred =
-                refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
-              refNodeFlag = true;
-              break;
-            default:
-              std::cerr << "Unknown option; skipping encoder check.\n";
-              continue;
-              break;
-            }
-#endif
+
             if (interPred.first) {
               pred = interPred.second;
               if (refNodeIdx > 1)

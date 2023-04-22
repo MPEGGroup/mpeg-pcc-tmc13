@@ -315,13 +315,6 @@ PredGeomDecoder::decodeRefNodeIdx(const bool globalMotionEnabled)
     (refNodeIdx << 1) + _aed->decode(_ctxRefNodeIdx[1 + refNodeIdx]);
   return refNodeIdx;
 }
-#if 0
-bool
-PredGeomDecoder::decodeRefNodeFlag()
-{
-  return _aed->decode(_ctxRefNodeFlag) ? true : false;
-}
-#endif
 
 //----------------------------------------------------------------------------
 
@@ -370,19 +363,9 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag
     absVal += _aed->decodeExpGolomb(
       1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
       _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
-#if 0
-    absVal += _aed->decodeExpGolomb(
-      1, _ctxResPhiExpGolombPre[interCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interCtxIdx][boundPhi - 3 > 6]);
-#endif
 
   bool sign = _aed->decode(_ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? (refNodeIdx > 1 ? 3 : 2) : (sign ? 1 : 0);
-#if 0
-  bool sign = _aed->decode(
-    _ctxResPhiSign[interCtxIdx ? 0 : ctxL][interCtxIdx ? 3 : _resPhiOldSign]);
-  _resPhiOldSign = interFlag ? 2 : (sign ? 1 : 0);
-#endif
   return sign ? -absVal : absVal;
 }
 //----------------------------------------------------------------------------
@@ -599,12 +582,6 @@ PredGeomDecoder::decodeTree(
         interPred = refFrameSph.getNextClosestGlobPred(prevPos[1], prevPos[2]);
         break;
       }
-#if 0
-      if (!refNodeFlag)
-        interPred = refFrameSph.getClosestPred(prevPos[1], prevPos[2]);
-      else
-        interPred = refFrameSph.getNextClosestPred(prevPos[1], prevPos[2]);
-#endif
       assert(interPred.first);
       pred = interPred.second;
       if (refNodeIdx > 1)

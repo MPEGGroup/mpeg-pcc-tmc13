@@ -112,12 +112,6 @@ protected:
   AdaptiveBitModel _ctxSignPhi[2][2];
   AdaptiveBitModel _ctxEGPhi[2][2];
   AdaptiveBitModel _ctxResidualPhi[2][2][7];
-#if 0
-  AdaptiveBitModel _ctxPhiGtN[2][2];
-  AdaptiveBitModel _ctxSignPhi[2];
-  AdaptiveBitModel _ctxEGPhi[2];
-  AdaptiveBitModel _ctxResidualPhi[2][7];
-#endif
 
   AdaptiveBitModel _ctxEndOfTrees;
   AdaptiveBitModel _ctxResRGTZero[2][4];
