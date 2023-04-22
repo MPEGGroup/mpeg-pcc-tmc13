@@ -1722,6 +1722,18 @@ write(
       bs.writeSe(region.attr_region_qp_offset[1]);
   }
 
+  bs.write(abh.attr_raht_ac_coeff_qp_offset_preset());
+  if (abh.attr_raht_ac_coeff_qp_offset_preset()) {
+    const auto attr_num_raht_ac_coeff_qp_layers_minus1 =
+      abh.attr_num_raht_ac_coeff_qp_layers_minus1();
+    bs.writeUe(attr_num_raht_ac_coeff_qp_layers_minus1);
+    for (auto i = 0; i <= attr_num_raht_ac_coeff_qp_layers_minus1; i++)
+      for (auto coeffIdx = 0; coeffIdx < 7; coeffIdx++) {
+        bs.writeSe(abh.attr_raht_ac_coeff_qp_delta_luma[i][coeffIdx]);
+        bs.writeSe(abh.attr_raht_ac_coeff_qp_delta_chroma[i][coeffIdx]);
+      }
+  }
+
   bs.write(abh.disableAttrInterPred);  
 
   bs.byteAlign();
@@ -1847,7 +1859,20 @@ parseAbh(
     if (sps.attributeSets[abh.attr_sps_attr_idx].attr_num_dimensions_minus1)
       bs.readSe(&region.attr_region_qp_offset[1]);
   }
-  
+
+  bool raht_ac_coeff_qp_offset_present;
+  bs.read(&raht_ac_coeff_qp_offset_present);
+  if (raht_ac_coeff_qp_offset_present) {
+    int attr_num_raht_ac_coeff_qp_layers_minus1;
+    bs.readUe(&attr_num_raht_ac_coeff_qp_layers_minus1);
+    abh.resizeRahtAcCoeffQpOffset(attr_num_raht_ac_coeff_qp_layers_minus1 + 1);
+    for (auto i = 0; i <= attr_num_raht_ac_coeff_qp_layers_minus1; i++)
+      for (auto coeffIdx = 0; coeffIdx < 7; coeffIdx++) {
+        bs.readSe(&abh.attr_raht_ac_coeff_qp_delta_luma[i][coeffIdx]);
+        bs.readSe(&abh.attr_raht_ac_coeff_qp_delta_chroma[i][coeffIdx]);
+      }
+  }
+
   bs.read(&abh.disableAttrInterPred);
 
   bs.byteAlign();

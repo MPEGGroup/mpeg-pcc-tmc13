@@ -955,6 +955,8 @@ uraht_process(
 
   int regionQpShift = 4;
 
+  const int maxAcCoeffQpOffsetLayers = qpset.rahtAcCoeffQps.size() - 1;
+
   // copy positions into internal form
   // todo(df): lift to api
   for (int i = 0; i < numPoints; i++) {
@@ -1035,6 +1037,8 @@ uraht_process(
 
   // quant layer selection
   auto qpLayer = 0;
+  // AC coeff QP offset laer
+  auto acCoeffQpLayer = -1;
 
   // descend tree
   weightsLf.resize(1);
@@ -1102,6 +1106,7 @@ uraht_process(
 
     // select quantiser according to transform layer
     qpLayer = std::min(qpLayer + 1, int(qpset.layers.size()) - 1);
+    acCoeffQpLayer++;
 
     // prepare reconstruction buffers
     //  previous reconstruction -> attrRecParent
@@ -1329,9 +1334,17 @@ uraht_process(
         else
           trainZeros = 0;
 
+        // Check if QP offset is to be applied to AC coeffiecients
+        Qps coeffQPOffset = (acCoeffQpLayer <= maxAcCoeffQpOffsetLayers && idx)
+          ? qpset.rahtAcCoeffQps[acCoeffQpLayer][idx - 1]
+          : Qps({0, 0});
+
+        Qps nodeQPOffset = {
+          nodeQp[idx][0] + coeffQPOffset[0],
+          nodeQp[idx][1] + coeffQPOffset[1]};
 
         // The RAHT transform
-        auto quantizers = qpset.quantizers(qpLayer, nodeQp[idx]);
+        auto quantizers = qpset.quantizers(qpLayer, nodeQPOffset);
         for (int k = 0; k < numAttrs; k++) {
           if (flagRDOQ) // apply RDOQ
             transformBuf[k][idx].val = 0;

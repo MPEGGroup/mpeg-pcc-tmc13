@@ -880,6 +880,8 @@ struct AttributeBrickHeader {
 
   std::vector<int> attr_layer_qp_delta_luma;
   std::vector<int> attr_layer_qp_delta_chroma;
+  std::vector<std::vector<int>> attr_raht_ac_coeff_qp_delta_luma;
+  std::vector<std::vector<int>> attr_raht_ac_coeff_qp_delta_chroma;
 
   bool attr_layer_qp_present_flag() const
   {
@@ -889,6 +891,23 @@ struct AttributeBrickHeader {
   int attr_num_qp_layers_minus1() const
   {
     return attr_layer_qp_delta_luma.size() - 1;
+  }
+
+  int attr_raht_ac_coeff_qp_offset_preset() const
+  {
+    return !attr_raht_ac_coeff_qp_delta_luma.empty();
+  }
+
+  int attr_num_raht_ac_coeff_qp_layers_minus1() const
+  {
+    return attr_raht_ac_coeff_qp_delta_luma.size() - 1;
+  }
+
+  void resizeRahtAcCoeffQpOffset(const int numLayers)
+  {
+    attr_raht_ac_coeff_qp_delta_luma.resize(numLayers, std::vector<int>(7, 0));
+    attr_raht_ac_coeff_qp_delta_chroma.resize(
+      numLayers, std::vector<int>(7, 0));
   }
 
   struct QpRegion {

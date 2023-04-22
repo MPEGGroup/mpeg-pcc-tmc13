@@ -107,6 +107,7 @@ Quantizer::scale(int64_t x) const
 typedef std::array<Quantizer, 2> Quantizers;
 typedef std::array<int, 2> Qps;
 typedef std::vector<Qps> QpLayers;
+typedef std::vector<std::vector<Qps>> RahtAcCoeffQpOffset;
 
 //============================================================================
 
@@ -122,6 +123,7 @@ typedef std::vector<QpRegionOffset> QpRegionList;
 struct QpSet {
   QpLayers layers;
   QpRegionList regions;
+  RahtAcCoeffQpOffset rahtAcCoeffQps;
   int maxQp;
   int fixedPointQpOffset;
 
@@ -147,6 +149,10 @@ QpLayers deriveLayerQps(
 
 // Determine a list of Qp offsets per region
 QpRegionList deriveQpRegions(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
+
+// Determine a list of Qp offsets for RAHT AC coefficients
+RahtAcCoeffQpOffset deriveRahtAcCoeffQpOffsets(
   const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh);
 
 // Determine the Qp configuration for an attribute slice

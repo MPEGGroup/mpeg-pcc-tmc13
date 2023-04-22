@@ -807,6 +807,8 @@ PCCTMC3Encoder3::compressPartition(
     abh.attr_qp_delta_chroma = 0;
     abh.attr_layer_qp_delta_luma = attr_enc.abh.attr_layer_qp_delta_luma;
     abh.attr_layer_qp_delta_chroma = attr_enc.abh.attr_layer_qp_delta_chroma;
+    abh.attr_raht_ac_coeff_qp_delta_luma = {};
+    abh.attr_raht_ac_coeff_qp_delta_chroma = {};
 
     if(_gbh.interPredictionEnabledFlag)
       abh.attr_qp_delta_luma = attr_aps.qpShiftStep;

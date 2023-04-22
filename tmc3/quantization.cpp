@@ -119,6 +119,27 @@ deriveQpRegions(
 
 //============================================================================
 
+RahtAcCoeffQpOffset
+deriveRahtAcCoeffQpOffsets(
+  const AttributeParameterSet& attr_aps, const AttributeBrickHeader& abh)
+{
+  RahtAcCoeffQpOffset rahtAcCoeffQpOffsets;
+  if (abh.attr_raht_ac_coeff_qp_offset_preset()) {
+    int numLayers = abh.attr_num_raht_ac_coeff_qp_layers_minus1() + 1;
+    rahtAcCoeffQpOffsets.resize(numLayers, std::vector<Qps>(7, {0, 0}));
+    for (auto i = 0; i < numLayers; i++) {
+      for (auto coeffIdx = 0; coeffIdx < 7; coeffIdx++) {
+        rahtAcCoeffQpOffsets[i][coeffIdx] = {
+          abh.attr_raht_ac_coeff_qp_delta_luma[i][coeffIdx],
+          abh.attr_raht_ac_coeff_qp_delta_chroma[i][coeffIdx]};
+      }
+    }
+  }
+  return rahtAcCoeffQpOffsets;
+}
+
+//============================================================================
+
 QpSet
 deriveQpSet(
   const AttributeDescription& attrDesc,
@@ -128,6 +149,7 @@ deriveQpSet(
   QpSet qpset;
   qpset.layers = deriveLayerQps(attr_aps, abh);
   qpset.regions = deriveQpRegions(attr_aps, abh);
+  qpset.rahtAcCoeffQps = deriveRahtAcCoeffQpOffsets(attr_aps, abh);
 
   // The mimimum Qp = 4 is always lossless; the maximum varies according to
   // bitdepth.
