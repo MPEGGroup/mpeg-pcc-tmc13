@@ -415,12 +415,12 @@ encodeTrisoupVertices(
   int iV = 0;
   std::vector<int> correspondanceSegment2V(segind.size(), -1);
 
-  AdaptiveBitModel ctxTempV2[144];
+  AdaptiveBitModel ctxTempV2[120];
 
   CtxModelDynamicOBUF ctxTriSoup;
   CtxMapDynamicOBUF MapOBUFTriSoup[3];
   MapOBUFTriSoup[0].reset(14+1, 7); // flag
-  MapOBUFTriSoup[1].reset(10+1+3+1, 6);  // first bit position
+  MapOBUFTriSoup[1].reset(10+1, 6);  // first bit position
   MapOBUFTriSoup[2].reset(10+1+3+1, 6 + 1);  // second bit position
 
   const uint8_t initValue0[128] = {
@@ -590,7 +590,7 @@ encodeTrisoupVertices(
 
       // third bit
       if (b >= 0) {
-        int ctxFullNboundsReduced1 = (6 * (ctx0 >> 1) + missedCloseStart) * 2 + (ctxE == 3);
+        int ctxFullNboundsReduced1 = (5 * (ctx0 >> 1) + missedCloseStart) * 2 + (ctxE == 3);
         bit = (vertex >> b--) & 1;
         arithmeticEncoder->encode(
           bit, ctxTempV2[4 * ctxFullNboundsReduced1 + v]);
