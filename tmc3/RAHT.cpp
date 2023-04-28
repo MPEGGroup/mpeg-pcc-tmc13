@@ -1281,6 +1281,8 @@ uraht_process(
 
         // decision for RDOQ
         int64_t sumCoeff = 0;
+        const int LUTlog[16] = {0,   256, 406, 512, 594, 662, 719,  768,
+                                812, 850, 886, 918, 947, 975, 1000, 1024};
         bool flagRDOQ = false;
         if (isEncoder) {
           int64_t Dist2 = 0;
@@ -1296,7 +1298,8 @@ uraht_process(
             auto Qcoeff = q.quantize(coeff << kFixedPointAttributeShift);
             sumCoeff += std::abs(Qcoeff);
             //Ratecoeff += !!Qcoeff; // sign
-            Ratecoeff += int(std::log2(1 + std::abs(Qcoeff)) * 256.);
+            Ratecoeff +=
+              std::abs(Qcoeff) < 15 ? LUTlog[std::abs(Qcoeff)] : LUTlog[15];
             if (!k)
               lambda0 = q.scale(1);
 
