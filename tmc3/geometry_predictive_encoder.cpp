@@ -447,9 +447,11 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx, const b
   bits += estimate(--absVal > 0, _ctxResRGTOne[interCtx][ctxLR]);
   if (absVal)
     bits += estimate(--absVal > 0, _ctxResRGTTwo[interCtx][ctxLR]);
-  if (absVal)
+  if (absVal) {
     // encode residual by expGolomb k=2
+    absVal--;
     bits += std::max(3, (ilog2(uint32_t(absVal + 4)) << 1) - 1);
+  }
 
   int ctxR =
     (_precAzimuthStepDelta ? 4 : 0) + (multiplier ? 2 : 0) + _precSignR;
