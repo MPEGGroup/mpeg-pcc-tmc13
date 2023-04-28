@@ -337,13 +337,12 @@ PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx, const boo
 
 void
 PredGeomEncoder::encodeResPhi(
-  int32_t resPhi, int predIdx, int boundPhi, const bool interFlag
-  , int refNodeIdx
-)
+  int32_t resPhi,
+  int predIdx,
+  int boundPhi,
+  const bool interFlag,
+  int refNodeIdx)
 {
-  if (boundPhi == 0)
-    return;
-
   int interCtxIdx = interFlag ? 1 : 0;
   int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0) : (predIdx ? 1 : 0);
   //int ctxL = predIdx ? 1 : 0;
@@ -353,17 +352,15 @@ PredGeomEncoder::encodeResPhi(
     return;
 
   int absVal = std::abs(resPhi);
-  if (boundPhi > 1)
-    _aec->encode(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
+  _aec->encode(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
   int interEGkCtxIdx = interFlag ? (refNodeIdx > 1 ? 2 : 1) : 0;
-  if (absVal && boundPhi > 2)
+  if (absVal)
     _aec->encodeExpGolomb(
-      absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
+      absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx],
+      _ctxResPhiExpGolombSuf[interEGkCtxIdx]);
 
   _aec->encode(
-    resPhi < 0,
-    _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
+    resPhi < 0, _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? (refNodeIdx > 1 ? 3 : 2) : (resPhi < 0 ? 1 : 0);
 }
 
@@ -397,15 +394,14 @@ PredGeomEncoder::estimateExpGolomb(
 
 float
 PredGeomEncoder::estimateResPhi(
-  int32_t resPhi, int predIdx, int boundPhi, const bool interFlag
-  , int refNodeIdx
-)
+  int32_t resPhi,
+  int predIdx,
+  int boundPhi,
+  const bool interFlag,
+  int refNodeIdx)
 {
   float bits = 0.;
   int interCtxIdx = interFlag ? 1 : 0;
-
-  if (boundPhi == 0)
-    return bits;
 
   int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0) : (predIdx ? 1 : 0);
   //int ctxL = predIdx ? 1 : 0;
@@ -415,17 +411,15 @@ PredGeomEncoder::estimateResPhi(
     return bits;
 
   int absVal = std::abs(resPhi);
-  if (boundPhi > 1)
-    bits += estimate(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
+  bits += estimate(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
   int interEGkCtxIdx = interFlag ? (refNodeIdx > 1 ? 2 : 1) : 0;
-  if (absVal && boundPhi > 2)
+  if (absVal)
     bits += estimateExpGolomb(
-      absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
+      absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx],
+      _ctxResPhiExpGolombSuf[interEGkCtxIdx]);
 
   bits += estimate(
-      resPhi < 0,
-      _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
+    resPhi < 0, _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
 
   return bits;
 }

@@ -341,13 +341,9 @@ PredGeomDecoder::decodeEndOfTreesFlag()
 //-------------------------------------------------------------------------
 
 int32_t
-PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag
-  , int refNodeIdx
-)
+PredGeomDecoder::decodeResPhi(
+  int predIdx, int boundPhi, const bool interFlag, int refNodeIdx)
 {
-  if (boundPhi == 0)
-    return 0;
-
   int interCtxIdx = interFlag ? 1 : 0;
   int ctxL = interFlag ? (refNodeIdx > 1 ? 1 : 0) : (predIdx ? 1 : 0);
   //int ctxL = predIdx ? 1 : 0;
@@ -356,15 +352,15 @@ PredGeomDecoder::decodeResPhi(int predIdx, int boundPhi, const bool interFlag
     return 0;
 
   int absVal = 1;
-  if (boundPhi > 1)
-    absVal += _aed->decode(_ctxResPhiGTOne[interCtxIdx][ctxL]);
+  absVal += _aed->decode(_ctxResPhiGTOne[interCtxIdx][ctxL]);
   int interEGkCtxIdx = interFlag ? (refNodeIdx > 1 ? 2 : 1) : 0;
-  if (absVal == 2 && boundPhi > 2)
+  if (absVal == 2)
     absVal += _aed->decodeExpGolomb(
-      1, _ctxResPhiExpGolombPre[interEGkCtxIdx][boundPhi - 3 > 6],
-      _ctxResPhiExpGolombSuf[interEGkCtxIdx][boundPhi - 3 > 6]);
+      1, _ctxResPhiExpGolombPre[interEGkCtxIdx],
+      _ctxResPhiExpGolombSuf[interEGkCtxIdx]);
 
-  bool sign = _aed->decode(_ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
+  bool sign =
+    _aed->decode(_ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
   _resPhiOldSign = interFlag ? (refNodeIdx > 1 ? 3 : 2) : (sign ? 1 : 0);
   return sign ? -absVal : absVal;
 }

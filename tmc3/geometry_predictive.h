@@ -122,12 +122,9 @@ protected:
 
   AdaptiveBitModel _ctxResPhiGTZero[2][2];
   AdaptiveBitModel _ctxResPhiSign[2][2+2+1]; 
-  //AdaptiveBitModel _ctxResPhiSign[2][2+2];
   AdaptiveBitModel _ctxResPhiGTOne[2][2];
-  AdaptiveBitModel _ctxResPhiExpGolombPre[3][2][4];
-  AdaptiveBitModel _ctxResPhiExpGolombSuf[3][2][4];
-  //AdaptiveBitModel _ctxResPhiExpGolombPre[2][2][4];
-  //AdaptiveBitModel _ctxResPhiExpGolombSuf[2][2][4];
+  AdaptiveBitModel _ctxResPhiExpGolombPre[3][4];
+  AdaptiveBitModel _ctxResPhiExpGolombSuf[3][4];
 
   AdaptiveBitModel _ctxResRSign[3][2][8];
 
