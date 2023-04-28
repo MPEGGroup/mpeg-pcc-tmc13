@@ -561,9 +561,6 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
   bs.read(&sps.entropy_continuation_enabled_flag);
-  // conformance check: reordering constraint must be set with continuation
-  if (sps.entropy_continuation_enabled_flag)
-    assert(sps.profile.slice_reordering_constraint_flag);
 
   sps.inter_frame_prediction_enabled_flag = false;
   sps.bypass_bin_coding_without_prob_update = false;
@@ -575,6 +572,12 @@ parseSps(const PayloadBuffer& buf)
       bs.read(&sps.inter_entropy_continuation_enabled_flag);
     bs.read(&sps.bypass_bin_coding_without_prob_update);
   }
+
+    // conformance check: reordering constraint must be set with continuation
+  if (
+    sps.entropy_continuation_enabled_flag
+    || sps.inter_entropy_continuation_enabled_flag)
+    assert(sps.profile.slice_reordering_constraint_flag);
 
   bs.byteAlign();
 

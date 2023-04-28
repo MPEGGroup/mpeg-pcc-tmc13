@@ -550,7 +550,8 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   // constraints
   params->sps.profile.unique_point_positions_constraint_flag = false;
   params->sps.profile.slice_reordering_constraint_flag =
-    params->sps.entropy_continuation_enabled_flag;
+    params->sps.entropy_continuation_enabled_flag
+    || params->sps.inter_entropy_continuation_enabled_flag;
 
   // use one bit to indicate frame boundaries
   params->sps.frame_ctr_bits = 1;
