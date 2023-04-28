@@ -461,6 +461,8 @@ write(const SequenceParameterSet& sps)
   bs.write(sps_extension_flag);
 
   bs.write(sps.inter_frame_prediction_enabled_flag);
+  if (sps.inter_frame_prediction_enabled_flag)
+    bs.write(sps.inter_entropy_continuation_enabled_flag);
   bs.write(sps.bypass_bin_coding_without_prob_update);
 
   bs.byteAlign();
@@ -559,18 +561,21 @@ parseSps(const PayloadBuffer& buf)
   bs.readUn(3, &sps.geometry_axis_order);
   bs.read(&sps.cabac_bypass_stream_enabled_flag);
   bs.read(&sps.entropy_continuation_enabled_flag);
-
   // conformance check: reordering constraint must be set with continuation
   if (sps.entropy_continuation_enabled_flag)
     assert(sps.profile.slice_reordering_constraint_flag);
 
   sps.inter_frame_prediction_enabled_flag = false;
   sps.bypass_bin_coding_without_prob_update = false;
+  sps.inter_entropy_continuation_enabled_flag = false;
   bool sps_extension_flag = bs.read();
   if (sps_extension_flag) {
     bs.read(&sps.inter_frame_prediction_enabled_flag);
+    if (sps.inter_frame_prediction_enabled_flag)
+      bs.read(&sps.inter_entropy_continuation_enabled_flag);
     bs.read(&sps.bypass_bin_coding_without_prob_update);
   }
+
   bs.byteAlign();
 
   return sps;
@@ -718,7 +723,6 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
         bs.writeUe(gps.interAzimScaleLog2);
         bs.write(gps.resamplingEnabled);
       }
-      bs.write(gps.gof_geom_entropy_continuation_enabled_flag);
     }
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
@@ -897,7 +901,6 @@ parseGps(const PayloadBuffer& buf)
         bs.readUe(&gps.interAzimScaleLog2);
         bs.read(&gps.resamplingEnabled);
       }
-      bs.read(&gps.gof_geom_entropy_continuation_enabled_flag);
     }
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {

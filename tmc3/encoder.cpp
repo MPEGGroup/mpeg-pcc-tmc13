@@ -1054,7 +1054,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   // forget (reset) all saved context state at boundary
   if (!gbh.entropy_continuation_flag) {
     if (
-      !_gps->gof_geom_entropy_continuation_enabled_flag
+      !_sps->inter_entropy_continuation_enabled_flag
       || !gbh.interPredictionEnabledFlag) {
       _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();

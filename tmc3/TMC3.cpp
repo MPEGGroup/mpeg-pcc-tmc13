@@ -818,9 +818,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Codes the bypass bins without using probability update"
     "Only applies when cabac_bypass_stream_enabled_flag is 0.")
 
-  ("GoFGeometryEntropyContinuationEnabled",
-    params.encoder.gps.gof_geom_entropy_continuation_enabled_flag, false,
-    "Propagate context state between P frames in GoF")
+  ("InterEntropyContinuationEnabled",
+    params.encoder.sps.inter_entropy_continuation_enabled_flag, false,
+    "Propagate context state between P frames")
 
   ("disableAttributeCoding",
     params.disableAttributeCoding, false,
@@ -1643,7 +1643,6 @@ sanitizeEncoderOpts(
 
   if (!params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.globalMotionEnabled = false;
-    params.encoder.gps.gof_geom_entropy_continuation_enabled_flag = false;
   }
 
   if (params.motionVectorPath.size() == 0) {
@@ -1662,7 +1661,6 @@ sanitizeEncoderOpts(
 
   if (params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
-
     params.encoder.sps.inter_frame_prediction_enabled_flag = true;
   }
 

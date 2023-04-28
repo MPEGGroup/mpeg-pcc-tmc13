@@ -429,6 +429,9 @@ struct SequenceParameterSet {
 
   // Indicates that inter-frame prediction may be used in the sequence
   bool inter_frame_prediction_enabled_flag;
+
+  // Indicates that context state may be propagated between frames.
+  bool inter_entropy_continuation_enabled_flag;
 };
 
 //============================================================================
@@ -596,9 +599,6 @@ struct GeometryParameterSet {
   int interAzimScaleLog2;
   bool globalMotionEnabled;
   bool resamplingEnabled;
-
-  //Permits entropy continuation enabled in GoF for inter frame coding
-  bool gof_geom_entropy_continuation_enabled_flag;
 };
 
 //============================================================================
