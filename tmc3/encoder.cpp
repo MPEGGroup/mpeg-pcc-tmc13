@@ -1058,9 +1058,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
       || !gbh.interPredictionEnabledFlag) {
       _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();
+      for (auto& ctxtMem : _ctxtMemAttrs)
+        ctxtMem.reset();
     }
-    for (auto& ctxtMem : _ctxtMemAttrs)
-      ctxtMem.reset();
   }
 
   if (_gps->predgeom_enabled_flag) {

@@ -429,9 +429,9 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
       || !_gbh.interPredictionEnabledFlag) {
       _ctxtMemOctreeGeom->reset();
       _ctxtMemPredGeom->reset();
+      for (auto& ctxtMem : _ctxtMemAttrs)
+        ctxtMem.reset();
     }
-    for (auto& ctxtMem : _ctxtMemAttrs)
-      ctxtMem.reset();
   }
 
   // set default attribute values (in case an attribute data unit is lost)
