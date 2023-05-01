@@ -136,8 +136,14 @@ private:
   // The point cloud currently being decoded
   PCCPointSet3 _currentPointCloud;
 
+  // The point cloud currently being decoded to store the spherical coordinates
+  PCCPointSet3 _reconSliceAltPositions;
+
   // The accumulated decoded slices
   PCCPointSet3 _accumCloud;
+
+  // The accumulated decoded slices in spherical corrdinates
+  PCCPointSet3 _accumCloudAltPositions;
 
   // The current output cloud
   CloudFrame _outCloud;
@@ -153,6 +159,10 @@ private:
   // mapping sps id to reference Frame buffer
   std::map<int, CloudFrame> _refFrameSeq;
 
+  // mapping sps id to reference Frame buffer with alternative geometry
+  // representation used by for attributes coding
+  std::map<int, CloudFrame> _refFrameAltSeq;
+
   // Metadata that allows slices/tiles to be indentified by their bounding box
   TileInventory _tileInventory;
 
@@ -162,6 +172,7 @@ private:
 
   // The active reference frame
   const CloudFrame* _refFrame;
+  const CloudFrame* _refFrameAlt;
 
   GeometryBrickHeader _gbh;
 

@@ -75,6 +75,7 @@ PCCTMC3Decoder3::init()
   _gpss.clear();
   _apss.clear();
   _refFrameSeq.clear();
+  _refFrameAltSeq.clear();
 
   _ctxtMemOctreeGeom.reset(new GeometryOctreeContexts);
   _ctxtMemPredGeom.reset(new PredGeomContexts);
@@ -164,7 +165,9 @@ PCCTMC3Decoder3::storeCurrentCloudAsRef()
 {
   if (_sps->inter_frame_prediction_enabled_flag && !_suppressOutput) {
     _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud = _accumCloud;
-;
+    auto& altCloud = _refFrameAltSeq[_sps->sps_seq_parameter_set_id].cloud;
+    altCloud.clear();
+    altCloud.swap(_accumCloudAltPositions);
   }
 }
 
@@ -205,6 +208,7 @@ PCCTMC3Decoder3::emplaceRefFrame(const SequenceParameterSet& sps)
 {
   if (sps.inter_frame_prediction_enabled_flag) {
     _refFrameSeq.emplace(std::make_pair(sps.sps_seq_parameter_set_id, CloudFrame(_outCloud)));
+    _refFrameAltSeq.emplace(std::make_pair(sps.sps_seq_parameter_set_id, CloudFrame(_outCloud)));
   }
 }
 
@@ -373,6 +377,9 @@ PCCTMC3Decoder3::activateParameterSets(const GeometryBrickHeader& gbh)
   _refFrame = _sps->inter_frame_prediction_enabled_flag
     ? &_refFrameSeq[_sps->sps_seq_parameter_set_id]
     : nullptr;
+  _refFrameAlt = _sps->inter_frame_prediction_enabled_flag
+    ? &_refFrameAltSeq[_sps->sps_seq_parameter_set_id]
+    : nullptr;
 }
 
 //--------------------------------------------------------------------------
@@ -390,6 +397,9 @@ PCCTMC3Decoder3::activateParameterSets(const AttributeParamInventoryHdr& hdr)
 
   _refFrame = _sps->inter_frame_prediction_enabled_flag
     ? &_refFrameSeq[_sps->sps_seq_parameter_set_id]
+    : nullptr;
+  _refFrameAlt = _sps->inter_frame_prediction_enabled_flag
+    ? &_refFrameAltSeq[_sps->sps_seq_parameter_set_id]
     : nullptr;
 }
 
@@ -654,12 +664,34 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud[i] += _sliceOrigin;
 
+  if (_refFrameAlt) {
+    Box3<int> currentFrameBox = _currentPointCloud.computeBoundingBox();
+    attrInterPredParams.referencePointCloud = _refFrameAlt->cloud;
+    int count = 0;
+    for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
+      point_t p = attrInterPredParams.referencePointCloud[i];
+      if( currentFrameBox.contains(p) ){
+        attrInterPredParams.referencePointCloud[count] = p;
+        if(attrInterPredParams.referencePointCloud.hasReflectances())
+          attrInterPredParams.referencePointCloud.setReflectance(
+            count, attrInterPredParams.referencePointCloud.getReflectance(i));
+        if(attrInterPredParams.referencePointCloud.hasColors())
+          attrInterPredParams.referencePointCloud.setColor(
+            count, attrInterPredParams.referencePointCloud.getColor(i));
+        count++;
+      }
+    }
+    attrInterPredParams.referencePointCloud.resize(count);
+  }
+
   auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
   _attrDecoder->decode(
     *_sps, attr_sps, attr_aps, abh, _gbh.footer.geom_num_points_minus1,
     _params.minGeomNodeSizeLog2, buf.data() + abhSize, buf.size() - abhSize,
     ctxtMemAttr, _currentPointCloud
     , attrInterPredParams);
+
+  _reconSliceAltPositions = _currentPointCloud;
 
   if (!attr_aps.spherical_coord_flag)
     for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
@@ -668,11 +700,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   if (attr_aps.spherical_coord_flag)
     _currentPointCloud.swapPoints(altPositions);
 
-  attrInterPredParams.referencePointCloud.clear();
-  if (attr_aps.spherical_coord_flag) {
-    attrInterPredParams.referencePointCloud = _currentPointCloud;
-    attrInterPredParams.referencePointCloud.swapPoints(altPositions);
-  }
+  _accumCloudAltPositions.append(_reconSliceAltPositions);
 
   // Note the current sliceID for loss detection
   _ctxtMemAttrSliceIds[abh.attr_sps_attr_idx] = _sliceId;

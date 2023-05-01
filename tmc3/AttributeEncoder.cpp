@@ -1221,6 +1221,26 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
 
+  if(attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred){
+    const int voxelCount_ref = int(attrInterPredParams.getPointCount());
+    attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount_ref;
+    std::vector<MortonCodeWithIndex> packedVoxel_ref(voxelCount_ref);
+    for (int n = 0; n < voxelCount_ref; n++) {
+      packedVoxel_ref[n].mortonCode = mortonAddr(attrInterPredParams.referencePointCloud[n]);
+      packedVoxel_ref[n].index = n;
+    }
+
+    sort(packedVoxel_ref.begin(), packedVoxel_ref.end());
+
+    attrInterPredParams.paramsForInterRAHT.mortonCode.resize(voxelCount_ref);
+    attrInterPredParams.paramsForInterRAHT.attributes.resize(attribCount * voxelCount_ref);
+    // Populate input arrays.
+    for (int n = 0; n < voxelCount_ref; n++) {
+      attrInterPredParams.paramsForInterRAHT.mortonCode[n] = packedVoxel_ref[n].mortonCode;
+      attrInterPredParams.paramsForInterRAHT.attributes[n] = attrInterPredParams.referencePointCloud.getReflectance(packedVoxel_ref[n].index);
+    }
+  }
+
   // Transform.
   regionAdaptiveHierarchicalTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),
@@ -1251,11 +1271,6 @@ AttributeEncoder::encodeReflectancesTransformRaht(
     pointCloud.setReflectance(packedVoxel[n].index, reflectance);
     attributes[attribCount * n] = reflectance;
   }
-
-  attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount;
-  attrInterPredParams.paramsForInterRAHT.mortonCode = mortonCode;
-  attrInterPredParams.paramsForInterRAHT.attributes = attributes;
-
 }
 
 //----------------------------------------------------------------------------

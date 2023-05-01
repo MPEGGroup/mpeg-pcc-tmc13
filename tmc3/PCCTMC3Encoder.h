@@ -181,7 +181,8 @@ public:
     const PCCPointSet3& originPartCloud,
     EncoderParams* params,
     Callbacks*,
-    CloudFrame* reconstructedCloud = nullptr);
+    CloudFrame* reconstructedCloud = nullptr,
+    CloudFrame* reconstructedCloudAltPositions = nullptr);
 
   static void deriveParameterSets(EncoderParams* params);
   static void fixupParameterSets(EncoderParams* params);
@@ -262,6 +263,7 @@ private:
   pcc::point_t minPos_ref;
 
   CloudFrame _refFrame;
+  CloudFrame _refFrameAlt;
 
 };
 

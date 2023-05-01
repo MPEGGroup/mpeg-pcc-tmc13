@@ -459,6 +459,8 @@ PCCTMC3Encoder3::compress(
   // Encode each partition:
   //  - create a pointset comprising just the partitioned points
   //  - compress
+  pcc::CloudFrame reconCloudAlt;
+
   for (const auto& partition : partitions.slices) {
     // create partitioned point set
     PCCPointSet3 sliceCloud =
@@ -479,12 +481,13 @@ PCCTMC3Encoder3::compress(
       _sliceOrigin[2] -= (_sliceOrigin[2] % partitionBoundary);
     }
 
-    compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud);
+    compressPartition(sliceCloud, sliceSrcCloud, params, callback, reconCloud, &reconCloudAlt);
   }
 
   if (_sps->inter_frame_prediction_enabled_flag) {
     // buffer the current frame for potential use in prediction
     _refFrame = *reconCloud;
+    _refFrameAlt = reconCloudAlt;
   }
 
   if (_gps->geom_z_compensation_enabled_flag && reconCloud) {
@@ -688,7 +691,8 @@ PCCTMC3Encoder3::compressPartition(
   const PCCPointSet3& originPartCloud,
   EncoderParams* params,
   PCCTMC3Encoder3::Callbacks* callback,
-  CloudFrame* reconCloud)
+  CloudFrame* reconCloud,
+  CloudFrame* reconCloudAlt)
 {
   // geometry compression consists of the following stages:
   //  - prefilter/quantize geometry (non-normative)
@@ -794,6 +798,8 @@ PCCTMC3Encoder3::compressPartition(
 
   // attributeCoding
   auto attrEncoder = makeAttributeEncoder();
+
+  PCCPointSet3 reconSliceAltPositions;
 
   // for each attribute
   for (const auto& it : params->attributeIdxMap) {
@@ -908,14 +914,33 @@ PCCTMC3Encoder3::compressPartition(
     // replace the attribute encoder if not compatible
     if (!attrEncoder->isReusable(attr_aps, abh))
       attrEncoder = makeAttributeEncoder();
-    
-	if (!attr_aps.spherical_coord_flag)
+    if (!attr_aps.spherical_coord_flag)
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
         pointCloud[i] += _sliceOrigin; 
+
+    Box3<int> currentFrameBox = pointCloud.computeBoundingBox();
+    attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
+    int count = 0;
+    for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
+      point_t p = attrInterPredParams.referencePointCloud[i];
+      if( currentFrameBox.contains(p) ){
+        attrInterPredParams.referencePointCloud[count] = p;
+        if(attrInterPredParams.referencePointCloud.hasReflectances())
+          attrInterPredParams.referencePointCloud.setReflectance(
+            count, attrInterPredParams.referencePointCloud.getReflectance(i));
+        if(attrInterPredParams.referencePointCloud.hasColors())
+          attrInterPredParams.referencePointCloud.setColor(
+            count, attrInterPredParams.referencePointCloud.getColor(i));
+        count++;
+      }
+    }
+    attrInterPredParams.referencePointCloud.resize(count);
 
     auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
     attrEncoder->encode(
       *_sps, attr_sps, attr_aps, abh, ctxtMemAttr, pointCloud, &payload, attrInterPredParams);
+
+    reconSliceAltPositions = pointCloud;
 
     if (!attr_aps.spherical_coord_flag)
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
@@ -924,23 +949,6 @@ PCCTMC3Encoder3::compressPartition(
     if (attr_aps.spherical_coord_flag){
       pointCloud.swapPoints(altPositions);
     }
-
-    if(attr_aps.spherical_coord_flag){
-      attrInterPredParams.referencePointCloud = pointCloud;
-      attrInterPredParams.referencePointCloud.swapPoints(altPositions);     
-    }
-    else{
-      attrInterPredParams.referencePointCloud.clear();
-    }
-
-    if(!attrInterPredParams.getPointCount())
-    {
-      attrInterPredParams.referencePointCloud = pointCloud;
-      for (int count = 0; count < attrInterPredParams.referencePointCloud.getPointCount(); count++) {
-        attrInterPredParams.referencePointCloud[count] += _sliceOrigin;
-      }
-    }
-
 
     clock_user.stop();
 
@@ -974,6 +982,9 @@ PCCTMC3Encoder3::compressPartition(
 
   if (reconCloud)
     appendSlice(reconCloud->cloud);
+
+  if (reconCloudAlt)
+    reconCloudAlt->cloud.append(reconSliceAltPositions);
 }
 
 //----------------------------------------------------------------------------
