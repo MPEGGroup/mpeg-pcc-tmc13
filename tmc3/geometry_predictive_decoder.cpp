@@ -497,6 +497,8 @@ PredGeomDecoder::decodeTree(
   const int NPred = _maxPredIdx + 1;
 
   std::array<std::array<int, 2>, MaxNPred> preds = {};
+  const bool frameMovingState =
+    refFrameSph.isInterEnabled() && refFrameSph.getFrameMovingState();
 
   while (!_stack.empty()) {
     auto parentNodeIdx = _stack.back();
@@ -568,8 +570,18 @@ PredGeomDecoder::decodeTree(
         refFrameSph.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
       assert(interPred.first);
       pred = interPred.second;
-      if (refNodeIdx > 1)
+      if (refNodeIdx > 1 && frameMovingState) {
+        const auto deltaPhi = pred[1] - parentPos[1];
         pred[1] = parentPos[1];
+        if (
+          deltaPhi >= (_geomAngularAzimuthSpeed >> 1)
+          || deltaPhi <= -(_geomAngularAzimuthSpeed >> 1)) {
+          int qphi0 = divApprox(
+            int64_t(deltaPhi) + (_geomAngularAzimuthSpeed >> 1),
+            _geomAngularAzimuthSpeed, 0);
+          pred[1] += qphi0 * _geomAngularAzimuthSpeed;
+        }
+      }
     }
 
     int azimuthSpeed;

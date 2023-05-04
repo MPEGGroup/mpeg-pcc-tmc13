@@ -738,6 +738,7 @@ struct GeometryBrickHeader {
   std::vector<int> gm_matrix;
   Vec3<int> gm_trans;
   std::pair<int, int> gm_thresh;
+  bool interFrameRefGmcFlag;
   std::vector<int> motion_block_size;
   int lpu_type;
   bool min_zero_origin_flag;

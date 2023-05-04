@@ -490,15 +490,6 @@ PCCTMC3Encoder3::compress(
     _refFrameAlt = reconCloudAlt;
   }
 
-  if (_gps->geom_z_compensation_enabled_flag && reconCloud) {
-    auto plyScale = reciprocal(_sps->seqGeomScale);
-    plyScale.numerator *= 1000;
-    auto laserOrigin = _gps->gpsAngularOrigin;
-    compensateZCoordinate(
-      reconCloud->cloud, _gps, plyScale, laserOrigin,
-      reconCloud->outputUnitLength, reconCloud->outputOrigin);
-  }
-
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
     scaleGeometry(
@@ -1027,7 +1018,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.interPredictionEnabledFlag = _codeCurrFrameAsInter;
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
-
+  gbh.interFrameRefGmcFlag = false;
   gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
   gbh.gm_trans = 0;
   gbh.gm_thresh = {0, 0};
@@ -1086,6 +1077,11 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   if (_gps->predgeom_enabled_flag) {
     _refFrameSph.setInterEnabled(gbh.interPredictionEnabledFlag);
+    if (!gbh.interPredictionEnabledFlag) {
+      if (_gps->globalMotionEnabled)
+        _refFrameSph.updateNextMovingStatus(false);
+      _refFrameSph.clearRefFrame();
+    }
     encodePredictiveGeometry(
       params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph,
       *_ctxtMemPredGeom, arithmeticEncoders[0].get());
@@ -1111,8 +1107,10 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   if (
     _gps->predgeom_enabled_flag && gbh.interPredictionEnabledFlag
-    && _gps->globalMotionEnabled)
+    && _gps->globalMotionEnabled) {
+    gbh.interFrameRefGmcFlag = _refFrameSph.getFrameMovingState();
     _refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+  }
 
   attrInterPredParams.frameDistance = 1;
   movingState = false;

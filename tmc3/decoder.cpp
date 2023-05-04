@@ -440,9 +440,11 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
   if (_frameCtr == 0) {
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   } else if (_firstSliceInFrame) {
-    if (_gps->globalMotionEnabled)
+    if (_gps->globalMotionEnabled) {
+      _refFrameSph.setFrameMovingState(_gbh.interFrameRefGmcFlag);
       _refFrameSph.setMotionParams(
         _gbh.gm_thresh, _gbh.gm_matrix, _gbh.gm_trans);
+    }
     _refFrameSph.updateFrame(*_gps);
   }
 
@@ -517,6 +519,8 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (_gps->predgeom_enabled_flag) {
     _refFrameSph.setInterEnabled(_gbh.interPredictionEnabledFlag);
+    if (!_gbh.interPredictionEnabledFlag)
+      _refFrameSph.clearRefFrame();    
     decodePredictiveGeometry(
       *_gps, _gbh, _currentPointCloud, &_posSph, _refFrameSph,
       *_ctxtMemPredGeom, aec);

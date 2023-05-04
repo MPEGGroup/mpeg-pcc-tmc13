@@ -456,6 +456,15 @@ public:
 
   bool isInterEnabled() { return interEnabled; }
   void setInterEnabled(bool enableFlag) { interEnabled = enableFlag; }
+  void updateNextMovingStatus(const bool status)
+  {
+    motionParams.updateNextMovingStatus(status);
+  }
+  void clearRefFrame()
+  {
+    for (auto& laserPts : refPointVals)
+      laserPts.clear();
+  }
   void advanceFrame() { motionParams.AdvanceFrame(); }
   void parseMotionParams(std::string fileName, double qs)
   {
@@ -498,51 +507,56 @@ public:
             refPointValsGlob[pt[2]].at(phiQ) = pt;
         }
       }
-      if (enableResampling) {
-        for (auto laserId = 0; laserId < numLasers; laserId++) {
-          auto& ptsZero = refPointValsCur[laserId];
-          auto& ptsGlob = refPointValsGlob[laserId];
-          for (auto& ptIter : ptsZero) {
-            pcc::point_t ptA = 0, ptB = 0;
-            auto& pt = ptIter.second;
-            auto phiQ = computePhiQuantized(pt[1]);
-            if (ptsGlob.count(phiQ)) {
-              const auto& colPt = ptsGlob[phiQ];
-              ptA = colPt;
-              if (colPt[1] < pt[1]) {
+      if (getFrameMovingState()) {
+        if (enableResampling) {
+          for (auto laserId = 0; laserId < numLasers; laserId++) {
+            auto& ptsZero = refPointValsCur[laserId];
+            auto& ptsGlob = refPointValsGlob[laserId];
+            for (auto& ptIter : ptsZero) {
+              pcc::point_t ptA = 0, ptB = 0;
+              auto& pt = ptIter.second;
+              auto phiQ = computePhiQuantized(pt[1]);
+              if (ptsGlob.count(phiQ)) {
+                const auto& colPt = ptsGlob[phiQ];
+                ptA = colPt;
+                if (colPt[1] < pt[1]) {
+                  auto idx = ptsGlob.upper_bound(phiQ);
+                  ptB = (idx == ptsGlob.end()) ? ptA : idx->second;
+                } else if (colPt[1] > pt[1]) {
+                  auto idx = ptsGlob.lower_bound(phiQ);
+                  ptB =
+                    (idx == ptsGlob.begin()) ? ptA : std::prev(idx)->second;
+                } else
+                  ptB = ptA;
+              } else {
                 auto idx = ptsGlob.upper_bound(phiQ);
-                ptB = (idx == ptsGlob.end()) ? ptA : idx->second;
-              } else if (colPt[1] > pt[1]) {
-                auto idx = ptsGlob.lower_bound(phiQ);
-                ptB = (idx == ptsGlob.begin()) ? ptA : std::prev(idx)->second;
-              } else
-                ptB = ptA;
-            } else {
-              auto idx = ptsGlob.upper_bound(phiQ);
-              auto idx1 = idx;
-              if (idx != ptsGlob.begin())
-                idx1 = std::prev(idx);
-              if (idx == ptsGlob.end())
-                idx = idx1;
-              ptA = idx->second;
-              ptB = idx1->second;
-            }
-            int64_t delAzim = ptA[1] - ptB[1];
-            int64_t delRad = (ptA[0] - ptB[0]);
-            if (!delAzim || !delRad)
-              pt[0] = ptA[0];
-            else {
-              const auto nr = delRad * (pt[1] - ptA[1]);
-              const auto dr = delAzim;
-              const bool sign =
-                ((nr > 0 && dr > 0) || (nr < 0 && dr < 0)) ? 0 : 1;
-              pt[0] = ptA[0]
-                + (1 - 2 * sign) * (std::abs(nr) + (std::abs(dr) >> 1))
-                  / std::abs(dr);
+                auto idx1 = idx;
+                if (idx != ptsGlob.begin())
+                  idx1 = std::prev(idx);
+                if (idx == ptsGlob.end())
+                  idx = idx1;
+                ptA = idx->second;
+                ptB = idx1->second;
+              }
+              int64_t delAzim = ptA[1] - ptB[1];
+              int64_t delRad = (ptA[0] - ptB[0]);
+              if (!delAzim || !delRad)
+                pt[0] = ptA[0];
+              else {
+                const auto nr = delRad * (pt[1] - ptA[1]);
+                const auto dr = delAzim;
+                const bool sign =
+                  ((nr > 0 && dr > 0) || (nr < 0 && dr < 0)) ? 0 : 1;
+                pt[0] = ptA[0]
+                  + (1 - 2 * sign) * (std::abs(nr) + (std::abs(dr) >> 1))
+                    / std::abs(dr);
+              }
             }
           }
         }
-      }
+      } else
+        for (auto laserId = 0; laserId < numLasers; laserId++)
+          refPointValsGlob[laserId] = std::move(refPointVals[laserId]);
       for (auto laserId = 0; laserId < numLasers; laserId++)
         refPointVals[laserId] = std::move(refPointValsCur[laserId]);
     } else {
@@ -568,6 +582,11 @@ public:
     const int frameCounter, const int leftThresh, const int rightTresh)
   {
     motionParams.updateThresholds(frameCounter, leftThresh, rightTresh);
+  }
+  bool getFrameMovingState() { return motionParams.getMovingStatus(); }
+  void setFrameMovingState(const bool movsts)
+  {
+    motionParams.setMovingStatus(movsts);
   }
  private:
   std::vector<std::map<int, pcc::point_t>> refPointVals;

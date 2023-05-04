@@ -46,6 +46,7 @@ private:
   std::vector<Vec3<int>> transVec;
   std::vector<std::pair<int, int>> threshVec;
   int frameCounter;
+  std::vector<bool> perFrameMovingStatus; 
 
 public:
   MotionParameters() : numFrames(0), frameCounter(-1) {}
@@ -77,6 +78,15 @@ public:
     transVec.resize(numFrames);
     threshVec.resize(numFrames);
     const int scaleFactor = 65536;
+    perFrameMovingStatus.resize(numFrames);
+    const int frameDistance = 1;
+
+    const double scale = 65536.;
+    const double thr1_pre = 0.1 / frameDistance;
+    const double thr2_pre = 250.;
+    const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
+    const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
+
     auto it = out.begin();
     for (auto i = 0; i < numFrames; i++) {
       motionMatrix[i].resize(9);
@@ -91,6 +101,21 @@ public:
         std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
       threshVec[i].second =
         std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
+      {
+        const double Rx = std::abs(
+          (motionMatrix[i][5] / scale) / (1. + motionMatrix[i][8] / scale));
+        const double Ry = std::abs(motionMatrix[i][2] / scale);
+        const double Rz = std::abs(
+          (motionMatrix[i][1] / scale) / (1. + motionMatrix[i][0] / scale));
+
+        const double Sx = std::abs(transVec[i][0]);
+        const double Sy = std::abs(transVec[i][1]);
+        const double Sz = std::abs(transVec[i][2]);
+
+        perFrameMovingStatus[i] =
+          !(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre
+           && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
+      }
     }
   }
   void setMotionParams(
@@ -99,6 +124,23 @@ public:
     motionMatrix.push_back(matrix);
     threshVec.push_back(thresh);
     transVec.push_back(trans);
+  }
+  bool getMovingStatus() 
+  {
+    if (frameCounter > perFrameMovingStatus.size()) {
+      std::cout << "Accessing unassigned values\n";
+    }
+    return perFrameMovingStatus[frameCounter];
+  }
+  void setMovingStatus(const bool movsts)  // decoder use
+  {
+    perFrameMovingStatus.push_back(movsts);
+  }
+  void updateNextMovingStatus(const bool movsts)
+  {
+    if (frameCounter + 1 > perFrameMovingStatus.size())
+      return;
+    perFrameMovingStatus[frameCounter + 1] = movsts;
   }
   template<typename T>
   void getMotionParams(
