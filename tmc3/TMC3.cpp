@@ -1412,6 +1412,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Enable rate and distortion optimization to choose between intra or inter"
     "prediction for a slice")
 
+  ("rahtInterPredictionDepthMinus1",
+    params_attr.aps.raht_inter_prediction_depth_minus1, 0,
+    "Maximun depth of inter prediction for RAHT")
+
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.
   (po::Section("Recolouring"))

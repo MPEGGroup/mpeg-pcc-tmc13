@@ -837,6 +837,7 @@ struct AttributeParameterSet {
   bool attrInterPredictionEnabled;
   int attrInterPredSearchRange;
   int qpShiftStep;
+  int raht_inter_prediction_depth_minus1;
 };
 
 //============================================================================

@@ -838,8 +838,7 @@ PCCTMC3Encoder3::compressPartition(
     attrInterPredParams.enableAttrInterPred = attr_aps.attrInterPredictionEnabled & !abh.disableAttrInterPred;
     abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;
     
-    attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred = attr_aps.attrInterPredictionEnabled && _gbh.interPredictionEnabledFlag ;
-    attrInterPredParams.paramsForInterRAHT.coeff_AC_InterPred = attrInterPredParams.enableAttrInterPred;
+    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 = attr_aps.raht_inter_prediction_depth_minus1;
  
     attrInterPredParams.attrInterIntraSliceRDO =
       attr_enc.attrInterIntraSliceRDO && attr_aps.attrInterPredictionEnabled;

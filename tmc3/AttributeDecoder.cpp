@@ -554,7 +554,7 @@ AttributeDecoder::decodeReflectancesRaht(
 
   std::vector<int> attributes(attribCount * voxelCount);
 
-  if(attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred){
+  if(attrInterPredParams.enableAttrInterPred){
     const int voxelCount_ref = int(attrInterPredParams.getPointCount());
     attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount_ref;
     std::vector<MortonCodeWithIndex> packedVoxel_ref(voxelCount_ref);

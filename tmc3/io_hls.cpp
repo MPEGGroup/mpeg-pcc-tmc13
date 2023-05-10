@@ -1043,8 +1043,13 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     }
 
     bs.write(aps.attrInterPredictionEnabled);
-    if (aps.attrInterPredictionEnabled)
-      bs.writeUe(aps.attrInterPredSearchRange);
+    if (aps.attrInterPredictionEnabled){
+      if (aps.attr_encoding == AttributeEncoding::kRAHTransform)
+        bs.writeUe(aps.raht_inter_prediction_depth_minus1);
+      else
+        bs.writeUe(aps.attrInterPredSearchRange);       
+    }
+
 
     if (
       aps.lodParametersPresent() && !aps.scalable_lifting_enabled_flag
@@ -1189,8 +1194,12 @@ parseAps(const PayloadBuffer& buf)
     }
 
     bs.read(&aps.attrInterPredictionEnabled);
-    if (aps.attrInterPredictionEnabled)
+    if (aps.attrInterPredictionEnabled){
+      if (aps.attr_encoding == AttributeEncoding::kRAHTransform)
+        bs.readUe(&aps.raht_inter_prediction_depth_minus1);
+      else
       bs.readUe(&aps.attrInterPredSearchRange);
+    }
 
     if (
       aps.lodParametersPresent() && !aps.scalable_lifting_enabled_flag

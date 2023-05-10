@@ -1043,6 +1043,9 @@ Specifies the search range for nearest neighbour search in inter prediction
 candidate for attribute coding. A value of -1 indicates that the full 
 range is used for the search.
 
+### `--rahtInterPredictionDepthMinus1=INT-VALUE`
+Specifies the max depth to apply the Inter Prediction for RAHT.
+
 ### `--attrInterPredTranslationThresh=INT-VALUE`
 (Encoder only)
 Specifies the maximum translation threshold used to disable inter 

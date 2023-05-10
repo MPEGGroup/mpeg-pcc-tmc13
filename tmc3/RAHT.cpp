@@ -169,7 +169,7 @@ reduceUnique_ref(
     ){
       weightsInWrIt_ref->weight++;
       for(int k = 0; k<numAttrs; k++)
-        *(attrsInWrIt_ref + k) += *(attrsInWrIt_ref_start);  
+        *(attrsInWrIt_ref + k) += *(attrsInWrIt_ref_start + k);  
   
       if(weightsInWrIt_ref->weight > 1){
         weightsOut_ref->push_back(*weightsInWrIt_ref_start);
@@ -946,8 +946,8 @@ uraht_process(
   std::vector<UrahtNode> weightsLf_ref, weightsHf_ref;
   std::vector<int> attrsLf_ref, attrsHf_ref;
 
-  bool enableACInterPred = attrInterPredParams.paramsForInterRAHT.coeff_AC_InterPred;
-  bool enableDCInterPred = attrInterPredParams.paramsForInterRAHT.coeff_DC_InterPred;
+  bool enableACInterPred = attrInterPredParams.enableAttrInterPred;
+  bool enableDCInterPred = attrInterPredParams.enableAttrInterPred;
 
   weightsLf.reserve(numPoints);
   attrsLf.reserve(numPoints * numAttrs);
@@ -1033,8 +1033,6 @@ uraht_process(
   numParentNeigh.resize(numPoints);
   numGrandParentNeigh.resize(numPoints);
 
-  const int numPoints_ref = enableACInterPred ? weightsLf_ref[0].weight : 0;
-
   // quant layer selection
   auto qpLayer = 0;
   // AC coeff QP offset laer
@@ -1077,7 +1075,7 @@ uraht_process(
       continue;
 
     // AC inter prediction is only enabled for the first 5 layers
-    if(level < levelHfPos.size() - 15)
+    if(level < levelHfPos.size() - (attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 + 1) * 3)
       enableACInterPred = 0;
 
     // initial scan position of the coefficient buffer
@@ -1361,10 +1359,13 @@ uraht_process(
             
             //DC inter prediction at encoder
             auto coeff_tmp = coeff;
-            if(!idx){            
-              if(enableDCInterPred)
-                coeff -= attrInterPredParams.paramsForInterRAHT.coeff_DC;
-              attrInterPredParams.paramsForInterRAHT.coeff_DC = coeff_tmp;                           
+            if(!idx){
+              if(attrInterPredParams.paramsForInterRAHT.coeff_DCs.size() != numAttrs)
+                attrInterPredParams.paramsForInterRAHT.coeff_DCs.resize(numAttrs);
+              if(enableDCInterPred){
+                coeff -= attrInterPredParams.paramsForInterRAHT.coeff_DCs[k];
+              }
+              attrInterPredParams.paramsForInterRAHT.coeff_DCs[k] = coeff_tmp;                           
             }
 
             *coeffBufItK[k]++ = coeff;
@@ -1376,9 +1377,11 @@ uraht_process(
             
             //DC inter prediction at decoder
             if(!idx){            
+              if(attrInterPredParams.paramsForInterRAHT.coeff_DCs.size()!=numAttrs)
+                attrInterPredParams.paramsForInterRAHT.coeff_DCs.resize(numAttrs);     
               if(enableDCInterPred)
-                coeff += attrInterPredParams.paramsForInterRAHT.coeff_DC;
-              attrInterPredParams.paramsForInterRAHT.coeff_DC = coeff;                           
+                coeff += attrInterPredParams.paramsForInterRAHT.coeff_DCs[k];
+              attrInterPredParams.paramsForInterRAHT.coeff_DCs[k] = coeff;                           
             }
 
             transformPredBuf[k][idx] +=

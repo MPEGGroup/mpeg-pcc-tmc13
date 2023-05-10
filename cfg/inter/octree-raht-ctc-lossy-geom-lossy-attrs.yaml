@@ -83,6 +83,9 @@ categories:
      -
        - !conditional '${numLasers}'
        - spherical_coord_flag: 1
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - rahtInterPredictionDepthMinus1: 6
 
      ##
      # attribute coding -- reflectance
