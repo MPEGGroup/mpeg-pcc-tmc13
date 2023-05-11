@@ -79,7 +79,7 @@ categories:
        - spherical_coord_flag: 1
      -
        - !conditional '"${group}" eq "cat3-frame"'
-       - rahtInterPredictionDepthMinus1: 6
+       - rahtInterPredictionDepthMinus1: 7
 
      ##
      # attribute coding -- reflectance

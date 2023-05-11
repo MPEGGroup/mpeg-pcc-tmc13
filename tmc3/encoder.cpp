@@ -834,14 +834,32 @@ PCCTMC3Encoder3::compressPartition(
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
     
-    abh.disableAttrInterPred = !movingState;
-    attrInterPredParams.enableAttrInterPred = attr_aps.attrInterPredictionEnabled & !abh.disableAttrInterPred;
-    abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;
-    
-    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 = attr_aps.raht_inter_prediction_depth_minus1;
+    abh.disableAttrInterPred =
+      (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform)
+      ? !_codeCurrFrameAsInter
+      : !movingState;
+    attrInterPredParams.enableAttrInterPred =
+      attr_aps.attrInterPredictionEnabled && !abh.disableAttrInterPred;
  
+
+    abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;
+
+    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_type =
+      attr_aps.raht_inter_prediction_type;
+    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 =
+      attr_aps.raht_inter_prediction_depth_minus1;
+    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_enabled =
+      attr_aps.attrInterPredictionEnabled;
+
     attrInterPredParams.attrInterIntraSliceRDO =
       attr_enc.attrInterIntraSliceRDO && attr_aps.attrInterPredictionEnabled;
+    if (
+      attr_aps.raht_inter_prediction_type == 0
+      && attr_aps.attr_encoding == AttributeEncoding::kRAHTransform)
+      attrInterPredParams.paramsForInterRAHT.swapBuffersRef(
+        attr_sps.attr_num_dimensions_minus1);
+
+
 
     // Convert cartesian positions to spherical for use in attribute coding.
     // NB: this retains the original cartesian positions to restore afterwards

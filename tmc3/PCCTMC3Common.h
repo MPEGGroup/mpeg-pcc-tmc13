@@ -206,12 +206,64 @@ struct PCCNeighborInfo {
 
 //---------------------------------------------------------------------------
 
+struct NodeInfoRAHT {
+  int64_t attr[3][8];
+  int64_t pos;
+};
+
+//---------------------------------------------------------------------------
+
+struct PredBufRAHT {
+  std::vector<std::vector<NodeInfoRAHT>> node;
+};
+
+//---------------------------------------------------------------------------
+
+struct AttributeInterPredBufRAHT {
+  PredBufRAHT curReflectance;
+  PredBufRAHT refReflectance;
+  PredBufRAHT curColor;
+  PredBufRAHT refColor;
+  PredBufRAHT* curRef = &curReflectance;
+  PredBufRAHT* refRef = &refReflectance;
+  PredBufRAHT* curCol = &curColor;
+  PredBufRAHT* refCol = &refColor;
+};
+
+//---------------------------------------------------------------------------
+
 struct AttributeInterPredParamsForRAHT {
   int voxelCount = 0;
   std::vector<int64_t> mortonCode;
   std::vector<int> attributes;
   std::vector<int> coeff_DCs;
   int raht_inter_prediction_depth_minus1 = 0;
+  int raht_inter_prediction_type = 0;
+  bool raht_inter_prediction_enabled = 0;
+  AttributeInterPredBufRAHT bufForInterRAHT;
+  PredBufRAHT* cur;
+  PredBufRAHT* ref;
+
+  void swapBuffersRef(const int numAttrDimMinus1)
+  {
+    if (numAttrDimMinus1 == 0) {
+      std::swap(bufForInterRAHT.curRef, bufForInterRAHT.refRef);
+      cur = bufForInterRAHT.curRef;
+      ref = bufForInterRAHT.refRef;
+    } else if (numAttrDimMinus1 == 2) {
+      std::swap(bufForInterRAHT.curCol, bufForInterRAHT.refCol);
+      cur = bufForInterRAHT.curCol;
+      ref = bufForInterRAHT.refCol;
+    } else {
+      assert(numAttrDimMinus1 == 0 || numAttrDimMinus1 == 2);
+    }
+  }
+
+  void resizeBuffers(const int treeDepth)
+  {
+    cur->node.resize(treeDepth);
+    ref->node.resize(treeDepth);
+  }
 };
 
 //---------------------------------------------------------------------------

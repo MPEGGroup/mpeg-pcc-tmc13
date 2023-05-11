@@ -117,7 +117,8 @@ protected:
     const AttributeParameterSet& aps,
     const QpSet& qpSet,
     PCCPointSet3& pointCloud,
-    PCCResidualsEncoder& encoder);
+    PCCResidualsEncoder& encoder,
+    AttributeInterPredParams& attrInterPredParams);
 
   static Vec3<int64_t> computeColorResiduals(
     const AttributeParameterSet& aps,

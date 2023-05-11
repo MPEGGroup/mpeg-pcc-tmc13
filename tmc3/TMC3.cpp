@@ -1399,6 +1399,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Search range for nearest neighbour search in inter prediction candidate"
     "-1: Full range")
 
+  ("rahtInterPredictionType",
+    params_attr.aps.raht_inter_prediction_type, 0,
+    "Type of inter prediction for RAHT")
+
   ("attrInterPredTranslationThresh", 
     params.encoder.attrInterPredTranslationThreshold, 1000., 
     "Maximum translation threshold used to disable attr inter prediction")

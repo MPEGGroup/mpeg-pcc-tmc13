@@ -244,7 +244,8 @@ AttributeDecoder::decode(
   } else if (attr_desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      decodeColorsRaht(attr_desc, attr_aps, qpSet, decoder, pointCloud);
+      decodeColorsRaht(
+        attr_desc, attr_aps, qpSet, decoder, pointCloud, attrInterPredParams);
       break;
 
     case AttributeEncoding::kPredictingTransform:
@@ -598,7 +599,8 @@ AttributeDecoder::decodeColorsRaht(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCResidualsDecoder& decoder,
-  PCCPointSet3& pointCloud)
+  PCCPointSet3& pointCloud,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -635,8 +637,6 @@ AttributeDecoder::decodeColorsRaht(
   }
 
   std::vector<int> attributes(attribCount * voxelCount);
-  
-  AttributeInterPredParams attrInterPredParams;
 
   regionAdaptiveHierarchicalInverseTransform(
     aps.rahtPredParams, qpSet, pointQpOffsets.data(), mortonCode.data(),

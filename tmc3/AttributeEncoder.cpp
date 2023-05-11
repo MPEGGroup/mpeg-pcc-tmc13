@@ -584,7 +584,8 @@ AttributeEncoder::encode(
   } else if (desc.attr_num_dimensions_minus1 == 2) {
     switch (attr_aps.attr_encoding) {
     case AttributeEncoding::kRAHTransform:
-      encodeColorsTransformRaht(desc, attr_aps, qpSet, pointCloud, encoder);
+      encodeColorsTransformRaht(
+        desc, attr_aps, qpSet, pointCloud, encoder, attrInterPredParams);
       break;
 
     case AttributeEncoding::kPredictingTransform:
@@ -1281,7 +1282,8 @@ AttributeEncoder::encodeColorsTransformRaht(
   const AttributeParameterSet& aps,
   const QpSet& qpSet,
   PCCPointSet3& pointCloud,
-  PCCResidualsEncoder& encoder)
+  PCCResidualsEncoder& encoder,
+  AttributeInterPredParams& attrInterPredParams)
 {
   const int voxelCount = int(pointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxel(voxelCount);
@@ -1307,8 +1309,6 @@ AttributeEncoder::encodeColorsTransformRaht(
     attributes[attribCount * n + 2] = color[2];
     pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
-  
-  AttributeInterPredParams attrInterPredParams;
 
   // Transform.
   regionAdaptiveHierarchicalTransform(

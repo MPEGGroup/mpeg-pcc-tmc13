@@ -126,7 +126,8 @@ protected:
     const AttributeParameterSet& aps,
     const QpSet& qpSet,
     PCCResidualsDecoder& decoder,
-    PCCPointSet3& pointCloud);
+    PCCPointSet3& pointCloud,
+    AttributeInterPredParams& attrInterPredParams);
 
   static void decodePredModeColor(
     const AttributeParameterSet& aps,
