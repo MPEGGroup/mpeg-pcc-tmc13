@@ -602,7 +602,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   attrInterPredParams.frameDistance = 1;
   attrInterPredParams.enableAttrInterPred =
-    attr_aps.attrInterPredictionEnabled && !abh.disableAttrInterPred;
+    attr_aps.attrInterPredictionEnabled && abh.enableAttrInterPred;
   
   abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange; 
 

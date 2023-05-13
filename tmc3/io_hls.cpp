@@ -1757,7 +1757,8 @@ write(
       }
   }
 
-  bs.write(abh.disableAttrInterPred);  
+  if (aps.attrInterPredictionEnabled)
+    bs.write(abh.enableAttrInterPred);  
 
   bs.byteAlign();
 }
@@ -1896,7 +1897,8 @@ parseAbh(
       }
   }
 
-  bs.read(&abh.disableAttrInterPred);
+  if (aps.attrInterPredictionEnabled)
+    bs.read(&abh.enableAttrInterPred);
 
   bs.byteAlign();
 

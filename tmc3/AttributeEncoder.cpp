@@ -611,7 +611,7 @@ AttributeEncoder::encode(
 
   PCCResidualsEncoder& encoderRef = onlyIntra ? encoderOnlyIntra : encoder;
   if (onlyIntra) {
-    abh.disableAttrInterPred = true;
+    abh.enableAttrInterPred = false;
     attrInterPredParams.enableAttrInterPred = false;
   }
 

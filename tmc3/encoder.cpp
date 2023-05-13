@@ -834,12 +834,12 @@ PCCTMC3Encoder3::compressPartition(
     // Number of regions is constrained to at most 1.
     assert(abh.qpRegions.size() <= 1);
     
-    abh.disableAttrInterPred =
+    abh.enableAttrInterPred =
       (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform)
-      ? !_codeCurrFrameAsInter
-      : !movingState;
+      ? _codeCurrFrameAsInter
+      : movingState;
     attrInterPredParams.enableAttrInterPred =
-      attr_aps.attrInterPredictionEnabled && !abh.disableAttrInterPred;
+      attr_aps.attrInterPredictionEnabled && abh.enableAttrInterPred;
  
 
     abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;

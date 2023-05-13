@@ -935,7 +935,7 @@ struct AttributeBrickHeader {
 
   int attrInterPredSearchRange;
 
-  bool disableAttrInterPred;
+  bool enableAttrInterPred;
 };
 
 //============================================================================
