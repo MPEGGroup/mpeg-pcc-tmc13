@@ -94,8 +94,8 @@ void SearchGlobalMotionPerTile(
   double QS,
   GeometryBrickHeader& gbh,
 	int th_dist,
-  const bool useCuboidalRegionsInGMEstimation
-);
+  const bool useCuboidalRegionsInGMEstimation,
+  const bool predDir);
 
 void applyGlobalMotion_with_shift(
 	PCCPointSet3& PC,
@@ -122,8 +122,8 @@ compensateWithCuboidPartition(
   const GeometryBrickHeader& gbh,
   int motion_window_size,
   const Vec3<int> minimum_position,
-	EntropyEncoder* arithmeticEncoder
-);
+  EntropyEncoder* arithmeticEncoder,
+  const bool predDir);
 
 void
 decodeCompensateWithCuboidPartition(
@@ -131,8 +131,8 @@ decodeCompensateWithCuboidPartition(
 	PCCPointSet3& pointPredictorWorld,
   const GeometryBrickHeader& gbh,
 	const Vec3<int> minimum_position,
-  EntropyDecoder* arithmeticDecoder
-);
+  EntropyDecoder* arithmeticDecoder,
+  const bool predDir);
 
   //============================================================================
 

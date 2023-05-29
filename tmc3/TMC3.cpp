@@ -160,6 +160,7 @@ public:
 
 protected:
   int compressOneFrame(Stopwatch* clock);
+  int compressOneGOF(Stopwatch* clock);
 
   void onOutputBuffer(const PayloadBuffer& buf) override;
   void onPostRecolour(const PCCPointSet3& cloud) override;
@@ -175,6 +176,13 @@ private:
   std::ofstream bytestreamFile;
 
   int frameNum;
+
+  int gofSizePlusOne;
+  // Indicates the file number of current frame
+  int currentFrame;
+  // Indicates the file number of previous I/P frame
+  int preIPFrame;
+  bool codedGOF;
 };
 
 //----------------------------------------------------------------------------
@@ -1086,6 +1094,23 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.interPredictionEnabledFlag, false,
     "Enable inter prediciton")
 
+  ("biPredictionEnabled",
+    params.encoder.gps.biPredictionEnabledFlag, 0,
+    "Enable bi-directional inter prediciton:"
+    " 0: disable bi-directional inter prediction\n"
+    " 1: enable bi-directional inter prediction using IBBB GOF structure\n"
+    " 2: enable bi-directional inter prediction using hierarchical GOF "
+    "    structure")
+
+  ("frameMergeEnabled",
+    params.encoder.gps.frameMergeEnabledFlag, false,
+    "Enable frameMerge mode for bi-directional inter prediciton")
+
+  ("predictionPeriod",
+    params.encoder.gps.biPredictionPeriod, 1,
+    "Maxium distance (in pictures) between I-frame and P-frame when "
+    "encoding a sequence using bi-direction inter prediction")  
+
   ("globalMotionEnabled",
     params.encoder.gps.globalMotionEnabled, false,
     "Enable global motion compensation for inter prediction")
@@ -1678,6 +1703,11 @@ sanitizeEncoderOpts(
 
   if (
     params.encoder.gps.predgeom_enabled_flag
+    || !params.encoder.gps.interPredictionEnabledFlag)
+    params.encoder.gps.biPredictionEnabledFlag = 0;
+
+  if (
+    params.encoder.gps.predgeom_enabled_flag
     || params.encoder.gps.trisoup_enabled_flag
     || !params.encoder.gps.geom_angular_mode_enabled_flag) {
     params.encoder.gps.geom_z_compensation_enabled_flag = false;
@@ -1808,6 +1838,10 @@ sanitizeEncoderOpts(
           predParams.setPredictionWeights();
         }
       }
+    }
+
+    if (attr_aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      params.encoder.gps.biPredictionEnabledFlag = 0;
     }
 
     if (!params.encoder.gps.geom_angular_mode_enabled_flag) {
@@ -2057,12 +2091,29 @@ SequenceEncoder::compress(Stopwatch* clock)
   }
   this->encoder.setMotionVectorFileName(params->motionVectorPath);
   const int lastFrameNum = params->firstFrameNum + params->frameCount;
-  for (frameNum = params->firstFrameNum; frameNum < lastFrameNum; frameNum++) {
-    this->encoder.setInterForCurrPic(
-      params->encoder.gps.interPredictionEnabledFlag
-      && ((frameNum - params->firstFrameNum) % params->encoder.randomAccessPeriod));
-    if (compressOneFrame(clock))
-      return -1;
+  if (!params->encoder.gps.biPredictionEnabledFlag) {
+    for (frameNum = params->firstFrameNum; frameNum < lastFrameNum;
+         frameNum++) {
+      this->encoder.setInterForCurrPic(
+        params->encoder.gps.interPredictionEnabledFlag
+        && ((frameNum - params->firstFrameNum) % params->encoder.randomAccessPeriod));
+      if (compressOneFrame(clock))
+        return -1;
+    }
+  } else {
+    preIPFrame = -1;
+    currentFrame = -1;
+    codedGOF = false;
+    for (frameNum = params->firstFrameNum; frameNum < lastFrameNum;
+         frameNum += params->encoder.randomAccessPeriod) {
+      gofSizePlusOne =
+        ((frameNum + params->encoder.randomAccessPeriod) >= lastFrameNum)
+        ? (lastFrameNum - frameNum)
+        : (params->encoder.randomAccessPeriod + 1);
+      if (compressOneGOF(clock)) {
+        return -1;
+      }
+    }
   }
 
   std::cout << "Total bitstream size " << bytestreamFile.tellp() << " B\n";
@@ -2076,7 +2127,10 @@ SequenceEncoder::compress(Stopwatch* clock)
 int
 SequenceEncoder::compressOneFrame(Stopwatch* clock)
 {
-  std::string srcName{expandNum(params->uncompressedDataPath, frameNum)};
+  const auto frameFileNum = params->encoder.gps.biPredictionEnabledFlag
+    ? (encoder.getCurrFrameIndex() + params->firstFrameNum)
+    : frameNum;
+  std::string srcName{expandNum(params->uncompressedDataPath, frameFileNum)};
   PCCPointSet3 pointCloud;
   if (
     !ply::read(srcName, _plyAttrNames, params->inputScale, pointCloud)
@@ -2124,7 +2178,9 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
 
   auto bytestreamLenFrameStart = bytestreamFile.tellp();
 
-  int ret = encoder.compress(pointCloud, &params->encoder, this, reconPtr);
+    int ret = (params->encoder.gps.biPredictionEnabledFlag == 2)
+    ? encoder.compressHGOF(pointCloud, &params->encoder, this, reconPtr)
+    : encoder.compress(pointCloud, &params->encoder, this, reconPtr);
   if (ret) {
     cout << "Error: can't compress point cloud!" << endl;
     return -1;
@@ -2139,6 +2195,98 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
   if (!params->reconstructedDataPath.empty())
     writeOutputFrame(params->reconstructedDataPath, {}, recon, recon.cloud);
 
+  return 0;
+}
+
+int
+SequenceEncoder::compressOneGOF(Stopwatch* clock)
+{
+  //Generate the indexes for I-frame and P-frame in one GOF
+  std::vector<int> IPFrameIndexes;
+  for (int i = 0; i < gofSizePlusOne;
+       i += params->encoder.gps.biPredictionPeriod)
+    IPFrameIndexes.push_back(i);
+  if (IPFrameIndexes.back() != gofSizePlusOne - 1)
+    IPFrameIndexes.push_back(gofSizePlusOne - 1);
+
+  auto const firstFrameNum = params->firstFrameNum;
+  auto const randomAccessPeriod = params->encoder.randomAccessPeriod;
+  //First process the I-frame and P-frame
+  //If the Bi-prediction is disabled, the other frames are set to P-frame
+  //Otherwise, the other frames are set to B-frame
+  for (int i = codedGOF ? 1 : 0; i < IPFrameIndexes.size(); i++) {
+    int currentIPFrame = IPFrameIndexes[i] + frameNum;
+
+    // First frame is always coded as I-frame
+    if (preIPFrame == -1) {
+      encoder.setInterForCurrPic(false);
+      encoder.setBiPredEncodeParams(false, 0, -1, -1, 0);
+      currentFrame = frameNum;
+      if (compressOneFrame(clock))
+        return -1;
+    } else {
+      const auto prevIPFrameDelta = preIPFrame - firstFrameNum;
+      if (encoder.biPredictionEligibility(
+            currentIPFrame - firstFrameNum, prevIPFrameDelta,
+            &params->encoder)) {
+        // Code the next I-frame/P-frame first
+        currentFrame = currentIPFrame;
+        encoder.setInterForCurrPic(
+          (currentFrame - firstFrameNum) % randomAccessPeriod);
+        encoder.setBiPredEncodeParams(
+          false, currentFrame - firstFrameNum, prevIPFrameDelta, -1, 1);
+        if (compressOneFrame(clock))
+          return -1;
+
+        // Code the other frames as B-frames
+        // If the hierarchical GOF sturcture is applied
+        if (params->encoder.gps.biPredictionEnabledFlag == 2) {
+          if (
+            currentIPFrame - preIPFrame - 1 != encoder.getCodeOrderListSize())
+            encoder.initBiPredEncodeParamsGOF(currentIPFrame - preIPFrame);
+
+          encoder.setRefTimesList();
+          for (int i = 0; i < encoder.getCodeOrderListSize(); i++) {
+            currentFrame = preIPFrame + encoder.getCodeOrder(i);
+            encoder.setInterForCurrPic(true);
+            encoder.setBiPredEncodeParams(
+              true, currentFrame - firstFrameNum,
+              encoder.getRefFrame(i * 2) + prevIPFrameDelta,
+              encoder.getRefFrame(i * 2 + 1) + prevIPFrameDelta,
+              encoder.getQPshift(i));
+            encoder.setCurrFrameIndexInGOF(encoder.getCodeOrder(i));
+            if (compressOneFrame(clock))
+              return -1;
+          }
+        } else {
+          // IF the IBBP GOF structure is applied
+          for (currentFrame = preIPFrame + 1; currentFrame < currentIPFrame;
+               currentFrame++) {
+            auto const frameDelta = currentFrame - firstFrameNum;
+            encoder.setInterForCurrPic(true);
+            encoder.setBiPredEncodeParams(
+              true, frameDelta, frameDelta - 1, currentIPFrame - firstFrameNum,
+              2);
+            if (compressOneFrame(clock))
+              return -1;
+          }
+        }
+      } else {
+        for (currentFrame = preIPFrame + 1; currentFrame < currentIPFrame + 1;
+             currentFrame++) {
+          auto const frameDelta = currentFrame - firstFrameNum;
+          encoder.setInterForCurrPic(frameDelta % randomAccessPeriod);
+          encoder.setBiPredEncodeParams(
+            false, frameDelta, frameDelta - 1, -1, 1);
+
+          if (compressOneFrame(clock))
+            return -1;
+        }
+      }
+    }
+    preIPFrame = currentIPFrame;
+  }
+  codedGOF = true;
   return 0;
 }
 

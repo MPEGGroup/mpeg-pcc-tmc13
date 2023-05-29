@@ -276,13 +276,10 @@ struct AttributeInterPredParams {
   double lambda;
   int rateEstimate;
   double distEstimate;
-  double getCost() const
+  double getCost() const { return distEstimate + lambda * rateEstimate; }
+  void setLambda(const int qpMinus4)
   {
-    return distEstimate + lambda * rateEstimate;
-  }
-  void setLambda(const int qpMinus4) {
-    lambda = 
-      std::pow(0.85 * std::pow(2., (qpMinus4 / 3)), 0.5);
+    lambda = std::pow(0.85 * std::pow(2., (qpMinus4 / 3)), 0.5);
   }
   int getPointCount() const { return referencePointCloud.getPointCount(); }
   void clear() { referencePointCloud.clear(); }
@@ -290,6 +287,193 @@ struct AttributeInterPredParams {
   bool codeAttributeSecondPass()
   {
     return attrInterIntraSliceRDO && enableAttrInterPred;
+  }
+};
+
+
+
+//---------------------------------------------------------------------------
+
+struct BiPredictionEncodeParams {
+  // Enable bi-prediction for current frame
+  bool codeCurrentFrameAsBFrame = false;
+
+  // The location of the current frame in the sequence
+  int currentFrameIndex;
+
+  // The bounding box size of the current frame
+  pcc::point_t boundingBoxSize;
+
+  // The location of the first reference frame in the sequence
+  int refFrameIndex;
+
+  // The location of the second reference frame in the sequence
+  int refFrameIndex2;
+
+  // The parameter to control the QP shift value of the current frame
+  int qpShiftTimes;
+
+  // The moving state of the second reference frame
+  bool movingState2;
+
+  // Point cloud that acts as the second predictor of the current point cloud's
+  // geometry occupancy
+  PCCPointSet3 predPointCloud2;
+
+  // The information of Point cloud that acts as the second predictor of the current point cloud's
+  // attribute information
+  AttributeInterPredParams attrInterPredParams2;
+
+  std::vector<int> refTimesList;
+};
+
+//---------------------------------------------------------------------------
+
+struct BiPredictionDecodeParams {
+  int preIPFrame;
+  int prePreIPFrame;
+  int preOutFrameNum;
+
+  // Point cloud that acts as the second predictor of the current point cloud's
+  // geometry occupancy
+  PCCPointSet3 refPointCloud2;
+
+  // The information of Point cloud that acts as the second predictor
+  // of the current point cloud's attribute information
+  AttributeInterPredParams attrInterPredParams2;
+
+  // The reference time information for current gof
+  std::vector<int> refTimesList;
+
+  // Indicates that the previous frame is one B-frame
+  bool preFrameAsBframe;
+
+  // The index of frame in gof
+  int currFrameInGOF;
+
+  // The input order of the frame in gof
+  int currFrameIndexInGOF;
+
+  void init()
+  {
+    preIPFrame = -1;
+    prePreIPFrame = -1;
+    preFrameAsBframe = 0;
+  }
+
+  void decrementRefTimesList(
+    const int preRefFrame, const int backRefFrame, const int currFrameIdx)
+  {
+    refTimesList[preRefFrame]--;
+    refTimesList[backRefFrame]--;
+    refTimesList[currFrameIdx]--;
+  }
+
+  bool frameReadyForOutput(const int frameIdx) const
+  {
+    return (frameIdx < refTimesList.size()) && (!refTimesList[frameIdx]);
+  }
+};
+
+//---------------------------------------------------------------------------
+
+struct HierarchicalGOFParams {
+  // The information used in hierarchical GOF structure
+  std::vector<PCCPointSet3> gof;
+  std::vector<PCCPointSet3> gof_spherical;
+  std::vector<int> codeOrderList;
+  std::vector<int> refFrameList;
+  std::vector<int> attrQPShiftList;
+  std::vector<int> refTimesList;
+
+  int currFrameIndexInGOF;
+
+  void GenerateList(
+    const int left,
+    const int right,
+    const int leftQPshift = 0,
+    const int rightQPshift = 0,
+    const int qpShiftStep = 0)
+  {
+    if ((right - left) < 2)
+      return;
+    int mid = (right + left) / 2;
+    codeOrderList.push_back(mid);
+    refFrameList.push_back(left);
+    refTimesList[left]++;
+    refTimesList[right]++;
+    refFrameList.push_back(right);
+    int midQPshift = std::max(leftQPshift, rightQPshift) + qpShiftStep;
+    attrQPShiftList.push_back(midQPshift);
+    GenerateList(left, mid, leftQPshift, midQPshift, qpShiftStep);
+    GenerateList(mid, right, midQPshift, rightQPshift, qpShiftStep);
+    return;
+  }
+
+  void clearLists()
+  {
+    codeOrderList.clear();
+    refFrameList.clear();
+    attrQPShiftList.clear();
+    refTimesList.clear();
+  }
+
+  void initializeGof(
+    const int size,
+    const PCCPointSet3& cloud1,
+    const PCCPointSet3& cloud2,
+    const PCCPointSet3& attrCloud1,
+    const PCCPointSet3& attrCloud2)
+  {
+    gof.resize(size);
+    gof[0] = cloud1;
+    gof.back() = cloud2;
+
+    gof_spherical.resize(size);
+    gof_spherical[0] = attrCloud1;
+    gof_spherical.back() = attrCloud2;
+  }
+
+  void clearGofs()
+  {
+    gof.clear();
+    gof_spherical.clear();
+  }
+
+  void updateReferenceFrames(
+    PCCPointSet3& cloud1,
+    PCCPointSet3& cloud2,
+    PCCPointSet3& attrCloud1,
+    PCCPointSet3& attrCloud2,
+    const int preRefFrame,
+    const int backRefFrame)
+  {
+    cloud1 = gof[preRefFrame];
+    cloud2 = gof[backRefFrame];
+    attrCloud1 = gof_spherical[preRefFrame];
+    attrCloud1 = gof_spherical[backRefFrame];
+  }
+
+  void reInitializeLists(const int deltaIPFrame)
+  {
+    clearLists();
+    refTimesList.resize(deltaIPFrame + 1, 1);
+    refTimesList.back()--;
+    refTimesList[0]--;
+    GenerateList(0, deltaIPFrame);
+  }
+
+  void storeReferenceFrame(
+    const int idx, const PCCPointSet3& cloud, const PCCPointSet3& attrCloud)
+  {
+    gof[idx] = cloud;
+    gof_spherical[idx] = attrCloud;
+  }
+
+  void clearFrame(const int idx)
+  {
+    gof[idx].clear();
+    gof_spherical[idx].clear();
   }
 };
 

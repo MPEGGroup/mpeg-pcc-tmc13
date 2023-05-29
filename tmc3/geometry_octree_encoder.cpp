@@ -1625,7 +1625,9 @@ applyGlobalMotion(
   PCCPointSet3& pointCloud,
   PCCPointSet3& predPointCloud,
   PCCPointSet3& pointPredictorWorld,
-  EntropyEncoder* arithmeticEncoder)
+  EntropyEncoder* arithmeticEncoder,
+  const bool predDir,
+  const BiPredictionEncodeParams& biPredEncodeParams)
 {
   PCCPointSet3 pointCloudZeroOrigin;
   pointCloudZeroOrigin = pointCloud;
@@ -1640,21 +1642,51 @@ applyGlobalMotion(
   case InterGeomEncOpts::kExternalGMSrc:
     gbh.min_zero_origin_flag = false;
     minimum_position = sps.seqBoundingBoxOrigin;
-    params.motionParams.getMotionParams(
-      gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+    if (gps.biPredictionEnabledFlag) {
+      if (predDir)
+        params.motionParams.getMotionParamsMultiple2(
+          gbh.gm_thresh2, gbh.gm_matrix2, gbh.gm_trans2,
+          biPredEncodeParams.currentFrameIndex,
+          biPredEncodeParams.refFrameIndex2);
+      else
+        params.motionParams.getMotionParamsMultiple2(
+          gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans,
+          biPredEncodeParams.currentFrameIndex,
+          biPredEncodeParams.refFrameIndex);
+    } else
+      params.motionParams.getMotionParams(
+        gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
     break;
   case InterGeomEncOpts::kInternalLMSGMSrc:
     if (params.lpuType != InterGeomEncOpts::kCuboidPartition) {
-      params.motionParams.getMotionParams(
-        gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
-      gbh.gm_thresh.first -= sps.seqBoundingBoxOrigin[2];
-      gbh.gm_thresh.second -= sps.seqBoundingBoxOrigin[2];
+      if (gps.biPredictionEnabledFlag) {
+        if (predDir)
+          params.motionParams.getMotionParamsMultiple2(
+            gbh.gm_thresh2, gbh.gm_matrix2, gbh.gm_trans2,
+            biPredEncodeParams.currentFrameIndex,
+            biPredEncodeParams.refFrameIndex2);
+        else
+          params.motionParams.getMotionParamsMultiple2(
+            gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans,
+            biPredEncodeParams.currentFrameIndex,
+            biPredEncodeParams.refFrameIndex);
+      } else {
+        params.motionParams.getMotionParams(
+          gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+      }
+      if (predDir) {
+        gbh.gm_thresh2.first -= sps.seqBoundingBoxOrigin[2];
+        gbh.gm_thresh2.second -= sps.seqBoundingBoxOrigin[2];
+      } else {
+        gbh.gm_thresh.first -= sps.seqBoundingBoxOrigin[2];
+        gbh.gm_thresh.second -= sps.seqBoundingBoxOrigin[2];
+      }
     }
     minimum_position = {0, 0, 0};
     gbh.min_zero_origin_flag = true;
     SearchGlobalMotionPerTile(
       pointCloudZeroOrigin, predPointCloud, sps.seqGeomScale, gbh,
-      params.th_dist, params.useCuboidalRegionsInGMEstimation);
+      params.th_dist, params.useCuboidalRegionsInGMEstimation, predDir);
     break;
   case InterGeomEncOpts::kInternalICPGMSrc: break;
   }
@@ -1662,14 +1694,19 @@ applyGlobalMotion(
   // compensation
   switch (params.lpuType) {
   case InterGeomEncOpts::kRoadObjClassfication:
-    compensateWithRoadObjClassfication(
-      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
-      minimum_position);
+    if (predDir)
+      compensateWithRoadObjClassfication(
+        pointPredictorWorld, gbh.gm_matrix2, gbh.gm_trans2, gbh.gm_thresh2,
+        minimum_position);
+    else
+      compensateWithRoadObjClassfication(
+        pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
+        minimum_position);
     break;
   case InterGeomEncOpts::kCuboidPartition:
     compensateWithCuboidPartition(
       pointCloudZeroOrigin, predPointCloud, pointPredictorWorld, gbh,
-      params.motion_window_size, minimum_position, arithmeticEncoder);
+      params.motion_window_size, minimum_position, arithmeticEncoder, predDir);
     break;
   }
 }
@@ -1686,8 +1723,8 @@ encodeGeometryOctree(
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
   const CloudFrame& refFrame,
-  const SequenceParameterSet& sps,
-  const InterGeomEncOpts& interParams)
+  const SequenceParameterSet& sps, const InterGeomEncOpts& interParams,
+  const BiPredictionEncodeParams& biPredEncodeParams)
 {
   PCCPointSet3 predPointCloud(refFrame.cloud);
 
@@ -1708,11 +1745,38 @@ encodeGeometryOctree(
     if (gps.globalMotionEnabled) {
       applyGlobalMotion(
         interParams, sps, gps, gbh, pointCloud, predPointCloud,
-        pointPredictorWorld, arithmeticEncoderIt->get());
+        pointPredictorWorld, arithmeticEncoderIt->get(), 0, biPredEncodeParams);
     }
 
     for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
       pointPredictorWorld[i] -= gbh.geomBoxOrigin;
+    }
+  }
+
+  bool enabledBiPred = gbh.biPredictionEnabledFlag;
+
+  // For inter prediction of the second reference frame
+  PCCPointSet3 pointPredictorWorld2;
+  if (enabledBiPred) {
+    pointPredictorWorld2 = biPredEncodeParams.predPointCloud2;
+    PCCPointSet3 predPointCloud2 = biPredEncodeParams.predPointCloud2;
+    if (gps.globalMotionEnabled) {
+      applyGlobalMotion(
+        interParams, sps, gps, gbh, pointCloud, predPointCloud2,
+        pointPredictorWorld2, arithmeticEncoderIt->get(), 1,
+        biPredEncodeParams);
+    }
+
+    for (int i = 0; i < pointPredictorWorld2.getPointCount(); i++) {
+      pointPredictorWorld2[i] -= gbh.geomBoxOrigin;
+    }
+
+    // the two reference frames are merged into one
+
+    if (gps.frameMergeEnabledFlag) {
+      pointPredictorWorld.append(pointPredictorWorld2);
+      pointPredictorWorld2.clear();
+      enabledBiPred = false;
     }
   }
 
@@ -1731,6 +1795,13 @@ encodeGeometryOctree(
   node00.numSiblingsMispredicted = 0;
   node00.predEnd = uint32_t(pointPredictorWorld.getPointCount());
   node00.predStart = uint32_t(0);
+
+  node00.predEnd2 = uint32_t(pointPredictorWorld2.getPointCount());
+  node00.predStart2 = uint32_t(0);
+  // predDir:
+  // 0: from the first reference frame;
+  // 1: from the second reference frame
+  node00.predDir = 0;
 
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
@@ -1870,6 +1941,9 @@ encodeGeometryOctree(
     // represents the largest dimension of the current node
     int nodeMaxDimLog2 = nodeSizeLog2.max();
 
+     // biprediction is diabled when there is no more children level derive
+    enabledBiPred &= ((1 << nodeSizeLog2[0]) >= 2);
+
     // if one dimension is not split, atlasShift[k] = 0
     int codedAxesPrevLvl = depth ? gbh.tree_lvl_coded_axis_list[depth - 1] : 7;
     int codedAxesCurLvl = gbh.tree_lvl_coded_axis_list[depth];
@@ -1935,6 +2009,11 @@ encodeGeometryOctree(
     // process all nodes within a single level
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
+      
+      // inter prediction from the first reference frame is enabled
+      bool enabledPred = isInter && (enabledBiPred || !node0.predDir);
+      // inter prediction from the second reference frame is enabled
+      bool enabledPred2 = isInter && (enabledBiPred || node0.predDir);
 
       // encode delta qp for each octree block
       if (numLvlsUntilQuantization == 0) {
@@ -1997,18 +2076,32 @@ encodeGeometryOctree(
 
       // sort and partition the predictor
       std::array<int, 8> predCounts = {};
+      std::array<int, 8> predCounts2 = {};
       if (isInter) {
-        countingSort(
-          PCCPointSet3::iterator(
-            &pointPredictorWorld,
-            node0.predStart),  // Need to update the predStar
-          PCCPointSet3::iterator(&pointPredictorWorld, node0.predEnd),
-          predCounts, [=](const PCCPointSet3::Proxy& proxy) {
-            const auto& point = *proxy;
-            return !!(int(point[2]) & pointSortMask[2])
-              | (!!(int(point[1]) & pointSortMask[1]) << 1)
-              | (!!(int(point[0]) & pointSortMask[0]) << 2);
-          });
+        if (enabledPred)
+          countingSort(
+            PCCPointSet3::iterator(
+              &pointPredictorWorld,
+              node0.predStart),  // Need to update the predStar
+            PCCPointSet3::iterator(&pointPredictorWorld, node0.predEnd),
+            predCounts, [=](const PCCPointSet3::Proxy& proxy) {
+              const auto& point = *proxy;
+              return !!(int(point[2]) & pointSortMask[2])
+                | (!!(int(point[1]) & pointSortMask[1]) << 1)
+                | (!!(int(point[0]) & pointSortMask[0]) << 2);
+            });
+        if (enabledPred2)
+          countingSort(
+            PCCPointSet3::iterator(
+              &pointPredictorWorld2,
+              node0.predStart2),  // Need to update the predStar
+            PCCPointSet3::iterator(&pointPredictorWorld2, node0.predEnd2),
+            predCounts2, [=](const PCCPointSet3::Proxy& proxy) {
+              const auto& point = *proxy;
+              return !!(int(point[2]) & pointSortMask[2])
+                | (!!(int(point[1]) & pointSortMask[1]) << 1)
+                | (!!(int(point[0]) & pointSortMask[0]) << 2);
+            });    
       }
 
       // generate the bitmap of child occupancy and count
@@ -2016,6 +2109,9 @@ encodeGeometryOctree(
 
       int predOccupancy = 0;
       int predFailureCount = 0;
+
+      int predOccupancy2 = 0;
+      int predFailureCount2 = 0;
 
       int occupancy = 0;
       int numSiblings = 0;
@@ -2026,12 +2122,24 @@ encodeGeometryOctree(
         }
 
         bool childOccupiedTmp = !!childCounts[i];
-        bool childPredicted = !!predCounts[i];
-        if (childPredicted) {
-          predOccupancy |= 1 << i;
+        if (enabledPred) {
+          bool childPredicted = !!predCounts[i];
+          if (childPredicted) {
+            predOccupancy |= 1 << i;
+          }
+          predFailureCount += childOccupiedTmp != childPredicted;
         }
-        predFailureCount += childOccupiedTmp != childPredicted;
+
+        if (enabledPred2) {
+          bool childPredicted = !!predCounts2[i];
+          if (childPredicted) {
+            predOccupancy2 |= 1 << i;
+          }
+          predFailureCount2 += childOccupiedTmp != childPredicted;
+        }       
       }
+      if (node0.predDir)
+        predOccupancy = predOccupancy2;
 
       bool occupancyIsPredictable =
         predOccupancy && node0.numSiblingsMispredicted <= 5;
@@ -2256,6 +2364,7 @@ encodeGeometryOctree(
       int childPointsStartIdx = node0.start;
 
       int predPointsStartIdx = node0.predStart;
+      int predPointsStartIdx2 = node0.predStart2;
       int pos_fs = 1;  // first split falg is popped
       int pos_fp = 0;
       int pos_MV = 0;
@@ -2264,6 +2373,7 @@ encodeGeometryOctree(
         if (!childCounts[i]) {
           // child is empty: skip
           predPointsStartIdx += predCounts[i];
+          predPointsStartIdx2 += predCounts2[i];
 
           continue;
         }
@@ -2291,6 +2401,23 @@ encodeGeometryOctree(
         child.predStart = predPointsStartIdx;
         predPointsStartIdx += predCounts[i];
         child.predEnd = predPointsStartIdx;
+        child.predStart2 = predPointsStartIdx2;
+        predPointsStartIdx2 += predCounts2[i];
+        child.predEnd2 = predPointsStartIdx2;
+        child.predDir = node0.predDir;
+        if (enabledBiPred) {
+          if (!predCounts2[i])
+            child.predDir = 0;
+          else if (!predCounts[i])
+            child.predDir = 1;
+          else
+            child.predDir = predFailureCount != predFailureCount2
+              ? (predFailureCount >= predFailureCount2)
+              : node0.predDir;
+        }
+
+        predFailureCount =
+          node0.predDir ? predFailureCount2 : predFailureCount; 
         child.numSiblingsMispredicted = predFailureCount;
 
         child.laserIndex = node0.laserIndex;
@@ -2389,11 +2516,12 @@ encodeGeometryOctree(
   std::vector<std::unique_ptr<EntropyEncoder>>& arithmeticEncoders,
   const CloudFrame& refFrame,
   const SequenceParameterSet& sps,
-  const InterGeomEncOpts& interParams)
+  const InterGeomEncOpts& interParams,
+  const BiPredictionEncodeParams& biPredEncodeParams)
 {
   encodeGeometryOctree(
-    opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr,
-    refFrame, sps, interParams);
+    opt, gps, gbh, pointCloud, ctxtMem, arithmeticEncoders, nullptr, refFrame,
+    sps, interParams, biPredEncodeParams);
 }
 
 //============================================================================

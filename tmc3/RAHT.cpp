@@ -319,10 +319,10 @@ expandLevel(
   auto attrsOutRdIt = attrsOut->crbegin();
 
   auto weightsInWrIt_ref = weightsIn_ref->rbegin();
-  auto weightsInRdIt_ref = std::next(weightsIn_ref->crbegin(), numNodes);
+  auto weightsInRdIt_ref = std::next(weightsIn_ref->crbegin(), enableInterPred ? numNodes : 0);
   auto weightsOutRdIt_ref = weightsOut_ref->crbegin();
   auto attrsInWrIt_ref = attrsIn_ref->rbegin();
-  auto attrsInRdIt_ref = std::next(attrsIn_ref->crbegin(), numNodes * numAttrs);
+  auto attrsInRdIt_ref = std::next(attrsIn_ref->crbegin(), (enableInterPred ? numNodes : 0) * numAttrs);
   auto attrsOutRdIt_ref = attrsOut_ref->crbegin();
 
   for (int i = 0; i < numNodes;) {
@@ -1069,6 +1069,8 @@ uraht_process(
 
   int trainZeros = 0;
   for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
+    std::cout << level << ":" << weightsHf.size() << "," << levelHfPos[level]
+              << "\n";
     int numNodes = weightsHf.size() - levelHfPos[level];
     weightsLf.resize(weightsLf.size() + numNodes);
     attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
@@ -1143,6 +1145,7 @@ uraht_process(
     auto weightsParentIt = weightsParent.begin();
     auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
 
+      std::cout << "iLast = " << weightsLf.size() << "\n";
     for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
       NodeInfoRAHT current;
       if (interPredType0 && (treeDepth < treeDepthLimit)) {

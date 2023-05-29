@@ -728,6 +728,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
         bs.writeUe(gps.interAzimScaleLog2);
         bs.write(gps.resamplingEnabled);
       }
+      bs.writeUe(gps.biPredictionEnabledFlag);
+      if (gps.biPredictionEnabledFlag)
+        bs.write(gps.frameMergeEnabledFlag);
     }
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
@@ -883,6 +886,8 @@ parseGps(const PayloadBuffer& buf)
   gps.octree_angular_extension_flag = false;
   gps.interPredictionEnabledFlag = false;
   gps.globalMotionEnabled = false;
+  gps.biPredictionEnabledFlag = false;
+  gps.frameMergeEnabledFlag = false;
   gps.geom_planar_disabled_idcm_angular_flag = false;
   gps.residual2_disabled_flag = false;
   gps.geom_octree_depth_planar_eligibiity_enabled_flag = false;
@@ -909,6 +914,9 @@ parseGps(const PayloadBuffer& buf)
         bs.readUe(&gps.interAzimScaleLog2);
         bs.read(&gps.resamplingEnabled);
       }
+      bs.readUe(&gps.biPredictionEnabledFlag);
+      if (gps.biPredictionEnabledFlag)
+        bs.read(&gps.frameMergeEnabledFlag);
     }
 
     if (gps.predgeom_enabled_flag && gps.geom_angular_mode_enabled_flag) {
@@ -1188,6 +1196,11 @@ parseAps(const PayloadBuffer& buf)
   aps.max_points_per_sort_log2_plus1 = 0;
   aps.raht_extension = false;
   aps.rahtPredParams.raht_subnode_prediction_enabled_flag = false;
+  aps.attrInterPredictionEnabled = false;
+  aps.raht_inter_prediction_type = -1;
+  aps.raht_inter_prediction_depth_minus1 = 0;
+  aps.attrInterPredSearchRange = 0;
+  aps.predictionWithDistributionEnabled = false;
   if (aps_extension_flag) {
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
       for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
@@ -1368,6 +1381,11 @@ write(
   else
     assert(!gbh.interPredictionEnabledFlag);
 
+  if (gps.biPredictionEnabledFlag)
+    bs.write(gbh.biPredictionEnabledFlag);
+  else
+    assert(!gbh.biPredictionEnabledFlag);
+
   if (gbh.interPredictionEnabledFlag && gps.globalMotionEnabled) {
     bs.write(gbh.interFrameRefGmcFlag);
     for (int i = 0; i < 4; i++) {
@@ -1380,6 +1398,18 @@ write(
           bs.writeSe(gbh.gm_matrix[3 * i + j]);
       }
     }
+    if (gbh.biPredictionEnabledFlag) {
+      for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 3; j++) {
+          if (i == 3)
+            bs.writeSe(gbh.gm_trans2[j]);
+          else if (i == j)
+            bs.writeSe(gbh.gm_matrix2[3 * i + j] - 65536);
+          else
+            bs.writeSe(gbh.gm_matrix2[3 * i + j]);
+        }
+      }
+    }
     if (!gps.predgeom_enabled_flag) {
       bs.writeUe(gbh.lpu_type);
       bs.write(gbh.min_zero_origin_flag);
@@ -1390,6 +1420,10 @@ write(
     if (gps.predgeom_enabled_flag || !gbh.lpu_type) {
       bs.writeSe(gbh.gm_thresh.first);
       bs.writeSe(gbh.gm_thresh.second);
+      if (gbh.biPredictionEnabledFlag) {
+        bs.writeSe(gbh.gm_thresh2.first);
+        bs.writeSe(gbh.gm_thresh2.second);
+      }
     }
   }
 
@@ -1531,10 +1565,17 @@ parseGbh(
     bs.read(&gbh.interPredictionEnabledFlag);
   else
     gbh.interPredictionEnabledFlag = false;
+  if (gps.biPredictionEnabledFlag)
+    bs.read(&gbh.biPredictionEnabledFlag);
+  else
+    gbh.biPredictionEnabledFlag = false;
 
   gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
   gbh.gm_trans = 0;
   gbh.gm_thresh = {0, 0};
+  gbh.gm_matrix2 = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
+  gbh.gm_trans2 = 0;
+  gbh.gm_thresh2 = {0, 0}; 
   gbh.motion_block_size = {0, 0, 0};
   gbh.interFrameRefGmcFlag = false;
   if (gbh.interPredictionEnabledFlag && gps.globalMotionEnabled) {
@@ -1551,7 +1592,19 @@ parseGbh(
           gbh.gm_matrix[3 * i + j] = val;
       }
     }
-
+    if (gbh.biPredictionEnabledFlag) {
+      for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 3; j++) {
+          bs.readSe(&val);
+          if (i == 3)
+            gbh.gm_trans2[j] = val;
+          else if (i == j)
+            gbh.gm_matrix2[3 * i + j] = 65536 + val;
+          else
+            gbh.gm_matrix2[3 * i + j] = val;
+        }
+      }
+    }
     if (!gps.predgeom_enabled_flag) {
       bs.readUe(&gbh.lpu_type);
       // temporal...
@@ -1563,6 +1616,10 @@ parseGbh(
     if (gps.predgeom_enabled_flag || !gbh.lpu_type) {
       bs.readSe(&gbh.gm_thresh.first);
       bs.readSe(&gbh.gm_thresh.second);
+      if (gbh.biPredictionEnabledFlag) {
+        bs.readSe(&gbh.gm_thresh2.first);
+        bs.readSe(&gbh.gm_thresh2.second);
+      }
     }
   }
 
@@ -1757,9 +1814,10 @@ write(
       }
   }
 
-  if (aps.attrInterPredictionEnabled)
-    bs.write(abh.enableAttrInterPred);  
-
+  if (aps.attrInterPredictionEnabled) {
+    bs.write(abh.enableAttrInterPred);
+    bs.write(abh.disableAttrInterPredForRefFrame2);
+  }
   bs.byteAlign();
 }
 
@@ -1897,8 +1955,10 @@ parseAbh(
       }
   }
 
-  if (aps.attrInterPredictionEnabled)
+  if (aps.attrInterPredictionEnabled) {
     bs.read(&abh.enableAttrInterPred);
+    bs.read(&abh.disableAttrInterPredForRefFrame2);
+  }
 
   bs.byteAlign();
 

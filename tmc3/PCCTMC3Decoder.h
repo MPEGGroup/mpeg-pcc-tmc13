@@ -100,10 +100,15 @@ private:
   bool dectectFrameBoundary(const PayloadBuffer* buf);
   void outputCurrentCloud(Callbacks* callback);
   void storeCurrentCloudAsRef();
+  void storeCurrentCloudAsBRef();
   void compensateZ();
 
   void startFrame();
   void emplaceRefFrame(const SequenceParameterSet& sps);
+
+  void outputGOFCurrentCloud(Callbacks* callback);
+  void processHierarchicalGOF();
+  void processHierarchicalGOFPost();
 
   //==========================================================================
 
@@ -192,6 +197,9 @@ private:
   AttributeInterPredParams attrInterPredParams;
 
   pcc::point_t minPos_ref;
+  
+  BiPredictionDecodeParams biPredDecodeParams;
+  HierarchicalGOFParams hGOFDecodeParams;
 };
 
 //----------------------------------------------------------------------------

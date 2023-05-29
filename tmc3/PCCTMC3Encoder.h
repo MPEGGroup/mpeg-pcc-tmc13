@@ -176,6 +176,12 @@ public:
     Callbacks*,
     CloudFrame* reconstructedCloud = nullptr);
 
+  int compressHGOF(
+    const PCCPointSet3& inputPointCloud,
+    EncoderParams* params,
+    Callbacks*,
+    CloudFrame* reconstructedCloud = nullptr);
+
   void compressPartition(
     const PCCPointSet3& inputPointCloud,
     const PCCPointSet3& originPartCloud,
@@ -190,6 +196,30 @@ public:
   void setInterForCurrPic(bool x) { _codeCurrFrameAsInter = x; }
   void setMotionVectorFileName(std::string s) { motionVectorFileName = s; }
   static void deriveMotionParams(EncoderParams* params);
+  void setRefTimesList()
+  {
+    biPredEncodeParams.refTimesList = hGOFEncodeParams.refTimesList;
+  }
+  void setBiPredEncodeParams(
+    const bool codeCurrFrameAsBFrame,
+    const int currFrameIndex,
+    const int refFrameIndex,
+    const int refFrameIndex2,
+    const int qpShift);
+  int getCurrFrameIndex() { return biPredEncodeParams.currentFrameIndex; }
+
+  void initBiPredEncodeParamsGOF(int currentPerdictionPeriod);
+  void setCurrFrameIndexInGOF(int x)
+  {
+    hGOFEncodeParams.currFrameIndexInGOF = x;
+  }
+  int getCodeOrderListSize() { return hGOFEncodeParams.codeOrderList.size(); }
+  int getCodeOrder(int x) { return hGOFEncodeParams.codeOrderList[x]; }
+  int getRefFrame(int x) { return hGOFEncodeParams.refFrameList[x]; }
+  int getQPshift(int x) { return hGOFEncodeParams.attrQPShiftList[x]; }
+
+  bool biPredictionEligibility(
+    const int curPicIndex, const int prePicIndex, EncoderParams* params);
 
 private:
   void appendSlice(PCCPointSet3& cloud);
@@ -266,6 +296,9 @@ private:
 
   CloudFrame _refFrame;
   CloudFrame _refFrameAlt;
+
+  BiPredictionEncodeParams biPredEncodeParams;
+  HierarchicalGOFParams hGOFEncodeParams;
 
 };
 

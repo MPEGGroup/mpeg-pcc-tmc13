@@ -602,6 +602,10 @@ struct GeometryParameterSet {
   int interAzimScaleLog2;
   bool globalMotionEnabled;
   bool resamplingEnabled;
+
+  int biPredictionEnabledFlag;
+  bool frameMergeEnabledFlag;
+  int biPredictionPeriod;
 };
 
 //============================================================================
@@ -735,9 +739,19 @@ struct GeometryBrickHeader {
   // Enable inter prediction
   bool interPredictionEnabledFlag;
 
+   // Indicates the biPrediction is enabled for the current slice
+  bool biPredictionEnabledFlag;
+
+  // Indicates the global motion information of the reference frame
   std::vector<int> gm_matrix;
   Vec3<int> gm_trans;
   std::pair<int, int> gm_thresh;
+
+  // Indicates the global motion information of the second reference frame (if have)
+  std::vector<int> gm_matrix2;
+  Vec3<int> gm_trans2;
+  std::pair<int, int> gm_thresh2;
+
   bool interFrameRefGmcFlag;
   std::vector<int> motion_block_size;
   int lpu_type;
@@ -936,6 +950,9 @@ struct AttributeBrickHeader {
   int attrInterPredSearchRange;
 
   bool enableAttrInterPred;
+
+  // Disable the attribute inter prediction for the second reference frame
+  bool disableAttrInterPredForRefFrame2;
 };
 
 //============================================================================

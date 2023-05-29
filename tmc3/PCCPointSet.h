@@ -535,6 +535,13 @@ public:
     return bbox;
   }
 
+  void shiftPointPositions(const pcc::point_t shiftVal)
+  {
+    const size_t pointCount = getPointCount();
+    for (size_t i = 0; i < pointCount; ++i)
+      positions[i] += shiftVal;
+  }
+
   //--------------------------------------------------------------------------
   // Determine the bounding box of the set of points given by the indicies
   // given by iterating over [begin, end)

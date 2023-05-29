@@ -63,6 +63,8 @@ encodeGeometryTrisoup(
   // trisoup uses octree coding until reaching the triangulation level.
   pcc::ringbuf<PCCOctree3Node> nodes;
 
+  BiPredictionEncodeParams biPredEncodeParams;
+  
   int blockWidth = 1 << gbh.trisoupNodeSizeLog2(gps);
 
   // Partition padding into nodes
@@ -112,7 +114,7 @@ encodeGeometryTrisoup(
 
   encodeGeometryOctree(
     optOctree, gps, gbh, pointCloud, ctxtMemOctree, arithmeticEncoders, &nodes,
-    refFrame, sps, interParams);
+    refFrame, sps, interParams, biPredEncodeParams);
 
   // resume encoding with the last encoder
   pcc::EntropyEncoder* arithmeticEncoder = arithmeticEncoders.back().get();

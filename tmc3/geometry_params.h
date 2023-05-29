@@ -38,11 +38,15 @@
 namespace pcc {
 
 //=============================================================================
+typedef std::vector<int> VecInt;
+typedef std::vector<double> VecDouble;
+typedef std::vector<std::vector<double>> VecVecDouble;
 
 class MotionParameters {
 private:
   int numFrames;
   std::vector<std::vector<int>> motionMatrix;
+  VecVecDouble motionMatrix_double;
   std::vector<Vec3<int>> transVec;
   std::vector<std::pair<int, int>> threshVec;
   int frameCounter;
@@ -75,6 +79,7 @@ public:
       std::back_inserter(out));
     numFrames = out.size() / 14;
     motionMatrix.resize(numFrames);
+    motionMatrix_double.resize(numFrames);
     transVec.resize(numFrames);
     threshVec.resize(numFrames);
     const int scaleFactor = 65536;
@@ -90,11 +95,14 @@ public:
     auto it = out.begin();
     for (auto i = 0; i < numFrames; i++) {
       motionMatrix[i].resize(9);
-      for (int j = 0; j < 9; j++)
+      motionMatrix_double[i].resize(9);
+      for (int j = 0; j < 9; j++) {
+        motionMatrix_double[i][j] = *(it);
         if (j % 3 == j / 3)
           motionMatrix[i][j] = std::round((*(it++) - 1) * scaleFactor) + 65536;
         else
           motionMatrix[i][j] = std::round((*(it++)) * scaleFactor);
+      }
       for (int j = 0; j < 3; j++)
         transVec[i][j] = std::round((*(it++)) * qs);
       threshVec[i].first =
@@ -166,6 +174,138 @@ public:
     } else {
       throw std::runtime_error(
         "Check: frameCounter > threshVec.size()");
+    }
+  }
+  void populateMatrix(
+    VecVecDouble& mat, const VecDouble& rotMat, const Vec3<int> tran) const
+  {
+    for (size_t j = 0; j < 9; j++)
+      mat[j / 3][j % 3] = rotMat[j];
+
+    mat[3][0] = tran[0];
+    mat[3][1] = tran[1];
+    mat[3][2] = tran[2];
+  }
+  void getMotionParamsMultiple(
+    VecVecDouble& mat, const int _curPicIndex, const int _prePicIndex) const
+  {
+    if (_curPicIndex > threshVec.size() || _prePicIndex > threshVec.size()) {
+      std::cout << "Accessing unassigned values\n";
+    }
+    VecVecDouble mat_tmp = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
+    VecVecDouble mat_accum = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
+
+    populateMatrix(
+      mat, motionMatrix_double[_prePicIndex], transVec[_prePicIndex]);
+
+    for (size_t i = _prePicIndex + 1; i < _curPicIndex; i++) {
+      populateMatrix(mat_tmp, motionMatrix_double[i], transVec[i]);
+
+      for (int l = 0; l < 3; l++)
+        for (int c = 0; c < 3; c++)
+          mat_accum[l][c] = mat[l][0] * mat_tmp[0][c]
+            + mat[l][1] * mat_tmp[1][c] + mat[l][2] * mat_tmp[2][c];
+      for (int i = 0; i < 3; i++)
+        mat_accum[3][i] = mat[3][0] * mat_tmp[0][i] + mat[3][1] * mat_tmp[1][i]
+          + mat[3][2] * mat_tmp[2][i] + mat_tmp[3][i];
+      mat = mat_accum;
+    }
+  }
+
+  void ReverseGlobalMotion(const VecVecDouble& M1, VecVecDouble& re) const
+  {
+    for (int i = 0; i < 3; i++) {
+      re[3][i] = -M1[3][i];
+    }
+    double rota_M1[3][3];
+    for (int l = 0; l < 3; l++) {
+      for (int c = 0; c < 3; c++) {
+        rota_M1[l][c] = M1[l][c];
+      }
+    }
+
+    double flag = GetA(rota_M1, 3);
+    double t[3][3];
+    double tmp[3][3];
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        for (int k = 0; k < 2; k++) {
+          for (int t = 0; t < 2; t++) {
+            tmp[k][t] = rota_M1[k >= i ? k + 1 : k][t >= j ? t + 1 : t];
+          }
+        }
+
+        t[j][i] = GetA(tmp, 2);
+        if ((i + j) % 2 == 1) {
+          t[j][i] = -t[j][i];
+        }
+      }
+    }
+
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        re[i][j] = t[i][j] / flag;
+      }
+    }
+  }
+
+  double GetA(double arcs[3][3], int n) const
+  {
+    if (n == 1)
+      return arcs[0][0];
+    double ans = 0;
+    double tmp[3][3] = {0.};
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n - 1; j++) {
+        for (int k = 0; k < n - 1; k++) {
+          tmp[j][k] = arcs[j + 1][(k >= i) ? k + 1 : k];
+        }
+      }
+      double t = GetA(tmp, n - 1);
+
+      ans += (i % 2 ? -1 : 1) * arcs[0][i] * t;
+    }
+    return ans;
+  }
+
+  template<typename T>
+  void getMotionParamsMultiple2(
+    std::pair<int, int>& th,
+    std::vector<T>& mat,
+    Vec3<int>& tr,
+    const int _curPicIndex,
+    const int _prePicIndex) const
+  {
+    if (_curPicIndex > threshVec.size() || _prePicIndex > threshVec.size()) {
+      std::cout << "Accessing unassigned values\n";
+    }
+
+    th = threshVec
+      [(_prePicIndex < threshVec.size()) ? _prePicIndex
+                                         : (threshVec.size() - 1)];
+
+    VecVecDouble mat_tmp = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
+
+    if (_prePicIndex < _curPicIndex) {
+      getMotionParamsMultiple(mat_tmp, _curPicIndex, _prePicIndex);
+    } else {
+      getMotionParamsMultiple(mat_tmp, _prePicIndex, _curPicIndex);
+      VecVecDouble mat_tmp2 = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+      ReverseGlobalMotion(mat_tmp, mat_tmp2);
+      mat_tmp = std::move(mat_tmp2);
+    }
+
+    const float scaleFactor = 65536.;
+
+    mat.resize(9);
+    for (int i = 0; i < 9; i++) {
+      mat[i] = (i / 3 == i % 3)
+        ? (std::round((mat_tmp[i / 3][i % 3] - 1) * scaleFactor) + scaleFactor)
+        : (std::round(mat_tmp[i / 3][i % 3] * scaleFactor));
+    }
+
+    for (int i = 0; i < 3; i++) {
+      tr[i] = mat_tmp[3][i];
     }
   }
 };

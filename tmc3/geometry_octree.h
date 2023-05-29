@@ -72,6 +72,13 @@ struct PCCOctree3Node {
   uint32_t predStart;
   uint32_t predEnd;
 
+  // Range of second predictor's point indexes spanned by node
+  uint32_t predStart2;
+  uint32_t predEnd2;
+
+  // Indicates the prediction direction
+  bool predDir;
+
   // The number of mispredictions in determining the occupancy
   // map of the child nodes in this node's parent.
   int8_t numSiblingsMispredicted;
@@ -893,7 +900,8 @@ void encodeGeometryOctree(
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
   const CloudFrame& refFrame,
   const SequenceParameterSet& sps,
-  const InterGeomEncOpts& interParams);
+  const InterGeomEncOpts& interParams,
+  const BiPredictionEncodeParams& biPredEncodeParams);
 
 void decodeGeometryOctree(
   const GeometryParameterSet& gps,
@@ -904,6 +912,7 @@ void decodeGeometryOctree(
   EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
   const CloudFrame* refFrame,
+  PCCPointSet3& predPointCloud2,
   const Vec3<int> minimum_position
 
 );

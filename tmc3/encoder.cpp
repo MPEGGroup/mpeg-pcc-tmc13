@@ -90,7 +90,10 @@ PCCTMC3Encoder3::compress(
   CloudFrame* reconCloud)
 {
   // start of frame
-  _frameCounter++;
+  if (params->gps.biPredictionEnabledFlag)
+    _frameCounter = biPredEncodeParams.currentFrameIndex;
+  else
+    _frameCounter++;
 
   if (_frameCounter == 0) {
     // Angular predictive geometry coding needs to determine spherical
@@ -98,8 +101,9 @@ PCCTMC3Encoder3::compress(
     //  - sequence scaling is replaced by decimation of the input
     //  - any user-specified global scaling is honoured
     _inputDecimationScale = 1.;
-    if (params->gps.predgeom_enabled_flag
-        && params->gps.geom_angular_mode_enabled_flag) {
+    if (
+      params->gps.predgeom_enabled_flag
+      && params->gps.geom_angular_mode_enabled_flag) {
       _inputDecimationScale = params->codedGeomScale;
       params->codedGeomScale /= params->seqGeomScale;
       params->seqGeomScale = 1.;
@@ -196,7 +200,7 @@ PCCTMC3Encoder3::compress(
 
     // Allocate storage for attribute contexts
     _ctxtMemAttrs.resize(params->sps.attributeSets.size());
-    
+
     if (params->gps.globalMotionEnabled) {
       if (params->gps.predgeom_enabled_flag) {
         _refFrameSph.parseMotionParams(motionVectorFileName, 1.0);
@@ -460,12 +464,19 @@ PCCTMC3Encoder3::compress(
     }
     std::cout << "Slice number: " << partitions.slices.size() << std::endl;
   } while (0);
- 
-  if (_frameCounter){
+
+  if (_frameCounter) {
     if (params->gps.predgeom_enabled_flag) {
       _refFrameSph.updateFrame(*_gps);
     } else if (!params->gps.trisoup_enabled_flag) {
       params->interGeom.motionParams.AdvanceFrame();
+    }
+    if (
+      params->gps.biPredictionEnabledFlag
+      && !biPredEncodeParams.codeCurrentFrameAsBFrame) {
+      attrInterPredParams.referencePointCloud =
+        biPredEncodeParams.attrInterPredParams2.referencePointCloud;
+      _refFrame.cloud = biPredEncodeParams.predPointCloud2;
     }
   } else {
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
@@ -499,15 +510,32 @@ PCCTMC3Encoder3::compress(
     _tileId = partition.tileId;
     _sliceOrigin = sliceCloud.computeBoundingBox().min;
 
-    compressPartition(sliceCloud, sliceSrcCloud, sliceCloudPadding, params,
-      callback, reconCloud, &reconCloudAlt);
+    compressPartition(
+      sliceCloud, sliceSrcCloud, sliceCloudPadding, params, callback,
+      reconCloud, &reconCloudAlt);
   }
 
+  const PCCPointSet3 accurrentPointCloud = reconCloud->cloud;
   if (_sps->inter_frame_prediction_enabled_flag) {
-    // buffer the current frame for potential use in prediction
-    _refFrame = *reconCloud;
-    _refFrameAlt = reconCloudAlt;
+    // buffer the current frame for potential use in predictionif (_gps->biPredictionEnabledFlag){
+    if (_gps->biPredictionEnabledFlag) {
+      if (!_gps->predgeom_enabled_flag) {
+        if (!biPredEncodeParams.codeCurrentFrameAsBFrame) {
+          biPredEncodeParams.predPointCloud2 = accurrentPointCloud;
+        } else {
+          _refFrame = *reconCloud;
+          _refFrameAlt = reconCloudAlt;
+        }
+      }
+    } else {
+      _refFrame = *reconCloud;
+      _refFrameAlt = reconCloudAlt;
+    }
   }
+
+  biPredEncodeParams.boundingBoxSize =
+    accurrentPointCloud.computeBoundingBox().max
+    - accurrentPointCloud.computeBoundingBox().min;
 
   // Apply global scaling to reconstructed point cloud
   if (reconCloud)
@@ -515,6 +543,66 @@ PCCTMC3Encoder3::compress(
       reconCloud->cloud, _sps->globalScale, reconCloud->outputFpBits);
 
   return 0;
+}
+
+//----------------------------------------------------------------------------
+
+int
+PCCTMC3Encoder3::compressHGOF(
+  const PCCPointSet3& inputPointCloud,
+  EncoderParams* params,
+  PCCTMC3Encoder3::Callbacks* callback,
+  CloudFrame* reconCloud)
+{
+  auto& gof = hGOFEncodeParams.gof;
+  auto& gofSpherical = hGOFEncodeParams.gof_spherical;
+  auto& refPointCloud1 = attrInterPredParams.referencePointCloud;
+  auto& refPointCloud2 =
+    biPredEncodeParams.attrInterPredParams2.referencePointCloud;
+  auto& predPointCloud1 = _refFrame.cloud;
+  auto& predPointCloud2 = biPredEncodeParams.predPointCloud2;
+  if (!biPredEncodeParams.codeCurrentFrameAsBFrame) {
+    if (gof.size()) {
+      predPointCloud2 = gof[gof.size() - 1];
+      refPointCloud2 = gofSpherical[gof.size() - 1];
+      hGOFEncodeParams.clearGofs();
+    }
+  } else {
+    if (!gof.size()) {
+      hGOFEncodeParams.initializeGof(
+        biPredEncodeParams.refTimesList.size(), predPointCloud1,
+        predPointCloud2, refPointCloud1, refPointCloud2);
+    }
+
+    const auto idx1 = hGOFEncodeParams.currFrameIndexInGOF
+      + biPredEncodeParams.refFrameIndex
+      - biPredEncodeParams.currentFrameIndex;
+    const auto idx2 = hGOFEncodeParams.currFrameIndexInGOF
+      + biPredEncodeParams.refFrameIndex2
+      - biPredEncodeParams.currentFrameIndex;
+    hGOFEncodeParams.updateReferenceFrames(
+      predPointCloud1, predPointCloud2, refPointCloud1, refPointCloud2, idx1,
+      idx2);
+
+    if (!(--(biPredEncodeParams.refTimesList[idx1]))) {
+      gof[idx1].clear();
+      gofSpherical[idx1].clear();
+    }
+
+    if (!(--(biPredEncodeParams.refTimesList[idx2]))) {
+      gof[idx2].clear();
+      gofSpherical[idx2].clear();
+    }
+  }
+
+  int ret = compress(inputPointCloud, params, callback, reconCloud);
+  if (biPredEncodeParams.codeCurrentFrameAsBFrame) {
+    const auto currFrameIdx = hGOFEncodeParams.currFrameIndexInGOF;
+    gof[currFrameIdx] = predPointCloud1;
+    gofSpherical[currFrameIdx] = refPointCloud1;
+  }
+
+  return ret;
 }
 
 //----------------------------------------------------------------------------
@@ -577,6 +665,14 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
 
   // use one bit to indicate frame boundaries
   params->sps.frame_ctr_bits = 1;
+  if (params->gps.biPredictionEnabledFlag) {
+    int bits = 1;
+    int predictionPeriod = params->gps.biPredictionPeriod;
+    while (predictionPeriod >> bits) {
+      bits++;
+    }
+    params->sps.frame_ctr_bits = bits + 1;
+  } 
 
   // number of bits for slice tag (tileid) if tiles partitioning enabled
   // NB: the limit of 64 tiles is arbritrary
@@ -692,7 +788,67 @@ PCCTMC3Encoder3::deriveMotionParams(EncoderParams* params)
   params->interGeom.motion_window_size = std::max(
     2, int(std::round(params->interGeom.motion_window_size * scaleFactor)));
 }
+//---------------------------------------------------------------------------
+// set the bi-prediction params of one frame
+void
+PCCTMC3Encoder3::setBiPredEncodeParams(
+  const bool codeCurrFrameAsBFrame,
+  const int currFrameIndex,
+  const int refFrameIndex,
+  const int refFrameIndex2,
+  const int qpShift)
+{
+  biPredEncodeParams.codeCurrentFrameAsBFrame = codeCurrFrameAsBFrame;
+  biPredEncodeParams.currentFrameIndex = currFrameIndex;
+  biPredEncodeParams.refFrameIndex = refFrameIndex;
+  biPredEncodeParams.refFrameIndex2 = refFrameIndex2;
+  biPredEncodeParams.qpShiftTimes = qpShift;
+}
 
+//---------------------------------------------------------------------------
+// initalization the bi-prediction params of one GOF when the hierarchical GOF structure is applied
+void
+PCCTMC3Encoder3::initBiPredEncodeParamsGOF(const int currPredPeriod)
+{
+  hGOFEncodeParams.clearLists();
+  hGOFEncodeParams.refTimesList.resize(currPredPeriod + 1, 0);
+  hGOFEncodeParams.refTimesList[currPredPeriod]++;
+  hGOFEncodeParams.GenerateList(0, currPredPeriod, 0, 1, 1);
+}
+
+//----------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------
+//Global motion constrain for B-frame structure
+bool
+PCCTMC3Encoder3::biPredictionEligibility(
+  const int curPicIndex, const int prePicIndex, EncoderParams* params)
+{
+  if (params->gps.globalMotionEnabled) {
+    std::vector<std::vector<double>> gm = {
+      {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
+    if (!params->gps.trisoup_enabled_flag)
+      params->interGeom.motionParams.getMotionParamsMultiple(
+        gm, curPicIndex, prePicIndex);
+
+    const auto& bBoxSize = biPredEncodeParams.boundingBoxSize;
+    const double thr1_tan_pre_gof = tan(M_PI * 0.05 / 180);
+    const double thr1_sin_pre_gof = sin(M_PI * 0.05 / 180);
+    const double thr2_pre_gof = 0.001;
+    const double SxPercent = abs(gm[3][0]) / double(bBoxSize[0]);
+    const double SyPercent = abs(gm[3][1]) / double(bBoxSize[1]);
+    const double SzPercent = abs(gm[3][2]) / double(bBoxSize[2]);
+    const double Rx = abs(gm[1][2] / gm[2][2]);
+    const double Ry = abs(gm[0][2]);
+    const double Rz = abs(gm[0][1] / gm[0][0]);
+
+    return SxPercent < thr2_pre_gof && SyPercent < thr2_pre_gof
+      && SzPercent < thr2_pre_gof && Rx < thr1_tan_pre_gof
+      && Ry < thr1_sin_pre_gof && Rz < thr1_tan_pre_gof;
+  } else {
+    return true;
+  }
+}
 //----------------------------------------------------------------------------
 
 void
@@ -849,6 +1005,9 @@ PCCTMC3Encoder3::compressPartition(
     if(_gbh.interPredictionEnabledFlag)
       abh.attr_qp_delta_luma = attr_aps.qpShiftStep;
 
+    if (_gps->biPredictionEnabledFlag)
+      abh.attr_qp_delta_luma *= biPredEncodeParams.qpShiftTimes;
+
     // NB: regionQpOrigin/regionQpSize use the STV axes, not XYZ.
     if (false) {
       abh.qpRegions.emplace_back();
@@ -872,6 +1031,27 @@ PCCTMC3Encoder3::compressPartition(
  
 
     abh.attrInterPredSearchRange = attr_aps.attrInterPredSearchRange;
+    abh.disableAttrInterPredForRefFrame2 = !biPredEncodeParams.movingState2;
+    biPredEncodeParams.attrInterPredParams2.enableAttrInterPred =
+      _gps->biPredictionEnabledFlag && attr_aps.attrInterPredictionEnabled
+      && !abh.disableAttrInterPredForRefFrame2;
+
+    if (_gps->biPredictionEnabledFlag) {
+      //FrameMerge for attribute inter prediction
+      if (
+        biPredEncodeParams.codeCurrentFrameAsBFrame
+        && biPredEncodeParams.attrInterPredParams2.enableAttrInterPred) {
+        if (attrInterPredParams.enableAttrInterPred) {
+          attrInterPredParams.referencePointCloud.append(
+            biPredEncodeParams.attrInterPredParams2.referencePointCloud);
+          //The times of neighbor search process is halfed
+          abh.attrInterPredSearchRange /= 2;
+        } else {
+          attrInterPredParams = biPredEncodeParams.attrInterPredParams2;
+          attrInterPredParams.frameDistance = 1;
+        }
+      }
+    }
 
     attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_type =
       attr_aps.raht_inter_prediction_type;
@@ -904,7 +1084,9 @@ PCCTMC3Encoder3::compressPartition(
         altPositions = _posSph;
         bboxRpl = Box3<int>(altPositions.begin(), altPositions.end());
         minPos = bboxRpl.min;
-        if (attrInterPredParams.enableAttrInterPred) {
+        if (
+          attrInterPredParams.enableAttrInterPred
+          || biPredEncodeParams.attrInterPredParams2.enableAttrInterPred) {
           for (auto i = 0; i < 3; i++)
             minPos[i] = minPos[i] < minPos_ref[i] ? minPos[i] : minPos_ref[i];
           auto minPos_shift = minPos_ref - minPos;
@@ -983,8 +1165,19 @@ PCCTMC3Encoder3::compressPartition(
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
         pointCloud[i] -= _sliceOrigin;    
 
-    if (attr_aps.spherical_coord_flag){
+ bool currFrameNotCodedAsB =
+      (_gps->biPredictionEnabledFlag
+       && !biPredEncodeParams.codeCurrentFrameAsBFrame);
+    auto& refCloud = currFrameNotCodedAsB
+      ? biPredEncodeParams.attrInterPredParams2.referencePointCloud
+      : attrInterPredParams.referencePointCloud;
+    if (attr_aps.spherical_coord_flag) {
+      refCloud = pointCloud;
       pointCloud.swapPoints(altPositions);
+    } else {
+      refCloud = pointCloud;
+      for (int count = 0; count < refCloud.getPointCount(); count++)
+        refCloud[count] += _sliceOrigin;
     }
 
     clock_user.stop();
@@ -1068,6 +1261,10 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
   gbh.gm_trans = 0;
   gbh.gm_thresh = {0, 0};
+  gbh.biPredictionEnabledFlag = biPredEncodeParams.codeCurrentFrameAsBFrame;
+  gbh.gm_matrix2 = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
+  gbh.gm_trans2 = 0;
+  gbh.gm_thresh2 = {0, 0};
   if (gbh.interPredictionEnabledFlag && !_gps->predgeom_enabled_flag) {
     gbh.lpu_type = params->interGeom.lpuType;
     gbh.motion_block_size = params->gbh.motion_block_size;
@@ -1134,8 +1331,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   } else if (!_gps->trisoup_enabled_flag) {
     encodeGeometryOctree(
       params->geom, *_gps, gbh, pointCloud, *_ctxtMemOctreeGeom,
-      arithmeticEncoders, _refFrame, *_sps,
-      params->interGeom);
+      arithmeticEncoders, _refFrame, *_sps, params->interGeom,
+      biPredEncodeParams);
   }
   else
   {
@@ -1160,25 +1357,35 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   attrInterPredParams.frameDistance = 1;
   movingState = false;
+  biPredEncodeParams.movingState2 = false;
 
   if(gbh.interPredictionEnabledFlag){
-    const double scale = 65536.;  
-    const double thr1_pre = 0.1 / attrInterPredParams.frameDistance;
-    const double thr2_pre = params->attrInterPredTranslationThreshold;
+    auto checkMovingState =
+      [&](const VecInt& mat, const pcc::point_t& tran) -> bool {
+      const double scale = 65536.;
+      const double thr1_pre = 0.1 / attrInterPredParams.frameDistance;
+      const double thr2_pre = params->attrInterPredTranslationThreshold;
 
-    const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
-    const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
-    
-    double Rx,Ry,Rz,Sx,Sy,Sz;
+      const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
+      const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
+      const double Rx = std::abs((mat[5] / scale) / (1. + mat[8] / scale));
+      const double Ry = std::abs(mat[2] / scale);
+      const double Rz = std::abs((mat[1] / scale) / (1. + mat[0] / scale));
+      const double Sx = std::abs(tran[0]);
+      const double Sy = std::abs(tran[1]);
+      const double Sz = std::abs(tran[2]);
 
-    Rx = std::abs((gbh.gm_matrix[5] / scale) / (1. + gbh.gm_matrix[8] / scale));
-    Ry = std::abs(gbh.gm_matrix[2] / scale);
-    Rz = std::abs((gbh.gm_matrix[1] / scale) / (1. + gbh.gm_matrix[0] / scale));
-    Sx = std::abs(gbh.gm_trans[0]);
-    Sy = std::abs(gbh.gm_trans[1]);
-    Sz = std::abs(gbh.gm_trans[2]);
+      return (
+        Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre
+        && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
+    };
 
-    movingState =(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
+    movingState = checkMovingState(gbh.gm_matrix, gbh.gm_trans);
+
+    if (gbh.biPredictionEnabledFlag) {
+      biPredEncodeParams.movingState2 =
+        checkMovingState(gbh.gm_matrix2, gbh.gm_trans2);
+    }
   }
 
   // assemble data unit

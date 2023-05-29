@@ -846,14 +846,21 @@ SearchGlobalMotionPerTile(
   double QS,
   GeometryBrickHeader& gbh,
   int th_dist,
-  const bool useCuboidalRegionsInGMEstimation)
+  const bool useCuboidalRegionsInGMEstimation,
+  const bool predDir)
 {
   int maxBB = (1 << gbh.maxRootNodeDimLog2) - 1;
 
-  SearchGlobalMotion(
-    pointCloud, pointPredictor, QS, gbh.motion_block_size[2], th_dist, maxBB,
-    useCuboidalRegionsInGMEstimation, gbh.gm_matrix, gbh.gm_trans,
-    gbh.gm_thresh);
+  if (predDir)
+    SearchGlobalMotion(
+      pointCloud, pointPredictor, QS, gbh.motion_block_size[2], th_dist, maxBB,
+      useCuboidalRegionsInGMEstimation, gbh.gm_matrix2, gbh.gm_trans2,
+      gbh.gm_thresh2);
+  else
+    SearchGlobalMotion(
+      pointCloud, pointPredictor, QS, gbh.motion_block_size[2], th_dist, maxBB,
+      useCuboidalRegionsInGMEstimation, gbh.gm_matrix, gbh.gm_trans,
+      gbh.gm_thresh);
 }
 
 //----------------------------------------------------------------------------
@@ -932,10 +939,15 @@ compensateWithCuboidPartition(
   const GeometryBrickHeader& gbh,
   int motion_window_size,
   const Vec3<int> minimum_position,
-  EntropyEncoder* arithmeticEncoder)
+  EntropyEncoder* arithmeticEncoder,
+  const bool predDir)
 {
-  applyGlobalMotion_with_shift(
-    pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, minimum_position);
+  if (predDir)
+    applyGlobalMotion_with_shift(
+      pointPredictorWorld, gbh.gm_matrix2, gbh.gm_trans2, minimum_position);
+  else
+    applyGlobalMotion_with_shift(
+      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, minimum_position);
 
   std::unique_ptr<int> bufferPoints;
   bufferPoints.reset(new int[3 * 3000 * 10000]);
@@ -958,10 +970,15 @@ decodeCompensateWithCuboidPartition(
   PCCPointSet3& pointPredictorWorld,
   const GeometryBrickHeader& gbh,
   const Vec3<int> minimum_position,
-  EntropyDecoder* arithmeticDecoder)
+  EntropyDecoder* arithmeticDecoder,
+  const bool predDir)
 {
-  applyGlobalMotion_with_shift(
-    pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, minimum_position);
+  if (predDir)
+    applyGlobalMotion_with_shift(
+      pointPredictorWorld, gbh.gm_matrix2, gbh.gm_trans2, minimum_position);
+  else
+    applyGlobalMotion_with_shift(
+      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, minimum_position);
 
   PCCPointSet3 compensatedPointCloud;
 

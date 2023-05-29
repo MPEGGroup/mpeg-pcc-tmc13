@@ -1391,18 +1391,24 @@ compensateGlobalMotion(
   PCCPointSet3& predPointCloud,
   PCCPointSet3& pointPredictorWorld,
   EntropyDecoder* arithmeticDecoder,
-  const Vec3<int> minimum_position)
+  const Vec3<int> minimum_position,
+  bool predDir = 0)
 {
   switch (gbh.lpu_type) {
   case 0:  // object and road classification
-    compensateWithRoadObjClassfication(
-      pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
-      minimum_position);
+    if (predDir)
+      compensateWithRoadObjClassfication(
+        pointPredictorWorld, gbh.gm_matrix2, gbh.gm_trans2, gbh.gm_thresh2,
+        minimum_position);
+    else
+      compensateWithRoadObjClassfication(
+        pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, gbh.gm_thresh,
+        minimum_position);
     break;
   case 1:  // cuboid partition
     decodeCompensateWithCuboidPartition(
       predPointCloud, pointPredictorWorld, gbh, minimum_position,
-      arithmeticDecoder);
+      arithmeticDecoder, predDir);
     break;
   }
 }
@@ -1419,6 +1425,7 @@ decodeGeometryOctree(
   EntropyDecoder& arithmeticDecoder,
   pcc::ringbuf<PCCOctree3Node>* nodesRemaining,
   const CloudFrame* refFrame,
+  PCCPointSet3& predPointCloud2,
   const Vec3<int> minimum_position
 )
 {
@@ -1450,6 +1457,11 @@ decodeGeometryOctree(
   node00.predStart = uint32_t(0);
   node00.predEnd = uint32_t(predPointCloud.getPointCount());
   node00.numSiblingsMispredicted = 0;
+  bool enableBiPred = gbh.biPredictionEnabledFlag;
+  node00.predStart2 = uint32_t(0);
+  node00.predEnd2 =
+    enableBiPred ? uint32_t(predPointCloud2.getPointCount()) : 0;
+  node00.predDir = 0;
   node00.numSiblingsPlus1 = 8;
   node00.siblingOccupancy = 0;
   node00.qp = 0;
@@ -1518,24 +1530,38 @@ decodeGeometryOctree(
   std::unique_ptr<GeometryOctreeDecoder> savedState;
 
   // global motion is here
-  PCCPointSet3 pointPredictorWorld;
-
-  if (isInter) {
-    pointPredictorWorld = predPointCloud;
-
+  auto updatePredictorWorld = [&](
+                                PCCPointSet3& predictorCloud,
+                                PCCPointSet3& cloud, const bool dir,
+                                uint32_t& predEnd) {
+    predictorCloud = cloud;
     if (gps.globalMotionEnabled) {
-      auto minPos = minimum_position;
-      if (gbh.min_zero_origin_flag)
-        minPos = {0, 0, 0};
-
+      const auto minPos = (gbh.min_zero_origin_flag) ? 0 : minimum_position;
       compensateGlobalMotion(
-        gps, gbh, predPointCloud, pointPredictorWorld, &arithmeticDecoder,
-        minPos);
+        gps, gbh, cloud, predictorCloud, &arithmeticDecoder, minPos, dir);
     }
-    node00.predEnd = uint32_t(pointPredictorWorld.getPointCount());
+    predEnd = uint32_t(predictorCloud.getPointCount());
+    for (int i = 0; i < predEnd; i++) {
+      predictorCloud[i] -= gbh.geomBoxOrigin;
+    }
+  };
+  PCCPointSet3 pointPredictorWorld;
+  if (isInter)
+    updatePredictorWorld(
+      pointPredictorWorld, predPointCloud, false, node00.predEnd);
 
-    for (int i = 0; i < pointPredictorWorld.getPointCount(); i++) {
-      pointPredictorWorld[i] -= gbh.geomBoxOrigin;
+  PCCPointSet3 pointPredictorWorld2;
+  if (isInter && enableBiPred) {
+    updatePredictorWorld(
+      pointPredictorWorld2, predPointCloud2, true, node00.predEnd2);
+
+    if (gps.frameMergeEnabledFlag) {
+      pointPredictorWorld.append(pointPredictorWorld2);
+      pointPredictorWorld2.clear();
+      enableBiPred = false;
+
+      node00.predEnd = pointPredictorWorld.getPointCount();
+      node00.predEnd2 = 0;
     }
   }
 
@@ -1565,6 +1591,8 @@ decodeGeometryOctree(
     auto childSizeLog2 = lvlNodeSizeLog2[depth + 1];
     // represents the largest dimension of the current node
     int nodeMaxDimLog2 = nodeSizeLog2.max();
+
+    enableBiPred &= ((1 << nodeSizeLog2[0]) >= 2);
 
     auto pointSortMask = qtBtChildSize(nodeSizeLog2, childSizeLog2);
 
@@ -1628,6 +1656,11 @@ decodeGeometryOctree(
     for (; fifo.begin() != fifoCurrLvlEnd; fifo.pop_front()) {
       PCCOctree3Node& node0 = fifo.front();
 
+      // inter prediction from the first reference frame is enabled
+      bool enabledPred = isInter && (enableBiPred || !node0.predDir);
+      // inter prediction from the second reference frame is enabled
+      bool enabledPred2 = isInter && (enableBiPred || node0.predDir);
+
       // sort the predictor into eight child partitions
       //  - perform an 8-way counting sort of the current node's points
       //  - (later) map to child nodes
@@ -1641,21 +1674,35 @@ decodeGeometryOctree(
 
       // sort and partition the predictor
       std::array<int, 8> predCounts = {};
+      std::array<int, 8> predCounts2 = {};
       if (isInter) {
-        countingSort(
-          PCCPointSet3::iterator(&pointPredictorWorld, node0.predStart),
-          PCCPointSet3::iterator(&pointPredictorWorld, node0.predEnd),
-          predCounts, sortPredicate);
+        if (enabledPred)
+          countingSort(
+            PCCPointSet3::iterator(&pointPredictorWorld, node0.predStart),
+            PCCPointSet3::iterator(&pointPredictorWorld, node0.predEnd),
+            predCounts, sortPredicate);
+        if (enabledPred2)
+          countingSort(
+            PCCPointSet3::iterator(&pointPredictorWorld2, node0.predStart2),
+            PCCPointSet3::iterator(&pointPredictorWorld2, node0.predEnd2),
+            predCounts2, sortPredicate);     
       }
       // generate the bitmap of child occupancy and count
       // the number of occupied children in node0.
-      int predOccupancy = 0;
 
-      for (int i = 0; i < 8; i++) {
-        if (predCounts[i]) {
-          predOccupancy |= 1 << i;
-        }
-      }
+     auto determineOccupancy = [&](std::array<int, 8>& predCnt) -> int {
+        int occ = 0;
+        for (int i = 0; i < 8; i++)
+          if (predCnt[i])
+            occ |= 1 << i;
+        return occ;
+      };
+      const int predOccupancy1 =
+        enabledPred ? determineOccupancy(predCounts) : 0;
+      const int predOccupancy2 =
+        enabledPred2 ? determineOccupancy(predCounts2) : 0;
+
+      int predOccupancy = node0.predDir ? predOccupancy2 : predOccupancy1;
 
       bool occupancyIsPredictable =
         predOccupancy && node0.numSiblingsMispredicted <= 5;
@@ -1878,7 +1925,11 @@ decodeGeometryOctree(
       if (checkPlanarEligibilityBasedOnOctreeDepth)
         numSubnodes += numOccupied;
 
-      int predFailureCount = popcnt(uint8_t(occupancy ^ predOccupancyReal));
+      int predFailureCount =
+        enabledPred ? popcnt(uint8_t(occupancy ^ predOccupancy1)) : 0;
+      int predFailureCount2 =
+        enabledPred2 ? popcnt(uint8_t(occupancy ^ predOccupancy2)) : 0;
+      int predPointsStartIdx2 = node0.predStart2;
       int predPointsStartIdx = node0.predStart;
       // nodeSizeLog2 > 1: for each child:
       //  - determine elegibility for IDCM
@@ -1888,6 +1939,7 @@ decodeGeometryOctree(
         uint32_t mask = 1 << i;
         if (!(occupancy & mask)) {
           predPointsStartIdx += predCounts[i];
+          predPointsStartIdx2 += predCounts2[i];
           // child is empty: skip
           continue;
         }
@@ -1936,10 +1988,27 @@ decodeGeometryOctree(
         child.numSiblingsPlus1 = numOccupied;
         child.siblingOccupancy = occupancy;
         child.laserIndex = node0.laserIndex;
-        child.numSiblingsMispredicted = predFailureCount;
         child.predStart = predPointsStartIdx;
         child.predEnd = predPointsStartIdx + predCounts[i];
         predPointsStartIdx = child.predEnd;
+
+        child.predStart2 = predPointsStartIdx2;
+        predPointsStartIdx2 += predCounts2[i];
+        child.predEnd2 = predPointsStartIdx2;
+        child.predDir = node0.predDir;
+        if (enableBiPred) {
+          if (!predCounts2[i])
+            child.predDir = 0;
+          else if (!predCounts[i])
+            child.predDir = 1;
+          else
+            child.predDir = predFailureCount != predFailureCount2
+              ? (predFailureCount >= predFailureCount2)
+              : node0.predDir;
+        }
+        predFailureCount =
+          node0.predDir ? predFailureCount2 : predFailureCount;
+        child.numSiblingsMispredicted = predFailureCount;
 
         if (isInter && !gps.geom_angular_mode_enabled_flag)
           child.idcmEligible = isDirectModeEligible_Inter(
@@ -2000,12 +2069,13 @@ decodeGeometryOctree(
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
   const CloudFrame* refFrame,
+  PCCPointSet3& predPointCloud2,
   const Vec3<int> minimum_position
 )
 {
   decodeGeometryOctree(
-    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoder, nullptr,
-    refFrame, minimum_position);
+    gps, gbh, 0, pointCloud, ctxtMem, arithmeticDecoder, nullptr, refFrame,
+    predPointCloud2, minimum_position);
 }
 
 //-------------------------------------------------------------------------
@@ -2018,13 +2088,13 @@ decodeGeometryOctreeScalable(
   PCCPointSet3& pointCloud,
   GeometryOctreeContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder,
-  const CloudFrame* refFrame
-)
+  const CloudFrame* refFrame,
+  PCCPointSet3& predPointCloud2)
 {
   pcc::ringbuf<PCCOctree3Node> nodes;
   decodeGeometryOctree(
     gps, gbh, minGeomNodeSizeLog2, pointCloud, ctxtMem, arithmeticDecoder,
-    &nodes, refFrame, { 0, 0, 0 });
+    &nodes, refFrame, predPointCloud2, {0, 0, 0});
 
   if (minGeomNodeSizeLog2 > 0) {
     size_t size =
