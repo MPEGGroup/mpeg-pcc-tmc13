@@ -763,6 +763,26 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.enforceLevelLimits, true,
     "Abort if level limits exceeded")
 
+  ("simpleProfileCompliant",
+    params.encoder.sps.profile.simple_profile_compliant, false,
+    "Indicates compliance to Simple profile")
+    
+  ("predictiveProfileCompliant",
+    params.encoder.sps.profile.predictive_profile_compliant, false,
+    "Indicates compliance to Predictive profile")
+      
+  ("denseProfileCompliant",
+    params.encoder.sps.profile.dense_profile_compliant, false,
+    "Indicates compliance to Dense profile")
+    
+  ("mainProfileCompliant",
+    params.encoder.sps.profile.main_profile_compliant, false,
+    "Indicates compliance to Main profile")
+
+  ("levelIdc",
+    params.encoder.sps.level, 0,
+    "Abort if level limits exceeded")
+
   (po::Section("Geometry"))
 
   ("geomTreeType",
@@ -1641,6 +1661,33 @@ sanitizeEncoderOpts(
     if (std::abs(attr_aps.aps_chroma_qp_offset) > 99 - 4) {
       err.error() << it.first
                   << ".qpChromaOffset must be in the range [-95,95]\n";
+    }
+  }
+
+  if (1) {
+    if (params.encoder.sps.profile.isProfileNotSet()) {
+      if (params.encoder.gps.bitwise_occupancy_coding_flag) {
+        err.warn() << "profile not set. Setting to Main profile.\n";
+        params.encoder.sps.profile.main_profile_compliant = true;
+      } else {
+        err.error() << "profile not set. Unable to set to Main profile"
+                       "as bitwise occupancy coding is off.\n";
+      }
+    }
+
+    if (!params.encoder.sps.profile.profileFlagsCompatible())
+      err.error() << "Profiles flags set are not compatible. Check!\m";
+
+    // todo (ar): Add further checks to ensure that profile flags
+    // are set properly
+
+    if (params.encoder.sps.level == 0) {
+      err.warn() << "Level not set. Setting to default highest level 120.\n";
+      params.encoder.sps.level = 120;
+    }
+
+    if(params.encoder.sps.level != 80 && params.encoder.sps.level != 120) {
+      err.error() << "Incorrect level value set.\n";
     }
   }
 }

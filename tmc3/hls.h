@@ -342,8 +342,35 @@ struct ProfileCompatibility {
   // during development, no profile bits are set
   bool isDraftProfile() const
   {
-    return main_profile_compliant == 0
+    return simple_profile_compliant == 0 && predictive_profile_compliant == 0
+      && dense_profile_compliant == 0 && main_profile_compliant == 0
       && reserved_profile_18bits == 0;
+  }
+
+  // check if profile is not set
+  bool isProfileNotSet() const
+  {
+    return simple_profile_compliant == 0 && predictive_profile_compliant == 0
+      && dense_profile_compliant == 0 && main_profile_compliant == 0;
+  }
+
+  bool profileFlagsCompatible() const
+  {
+    bool checkFlags = true;
+    if (simple_profile_compliant)
+      checkFlags &= !predictive_profile_compliant && !dense_profile_compliant
+        && !main_profile_compliant;
+
+    if (predictive_profile_compliant)
+      checkFlags &= !simple_profile_compliant && !dense_profile_compliant;
+
+    if (dense_profile_compliant)
+      checkFlags &= !simple_profile_compliant && !predictive_profile_compliant;
+
+    if (main_profile_compliant)
+      checkFlags &= !simple_profile_compliant;
+
+    return checkFlags;
   }
 };
 

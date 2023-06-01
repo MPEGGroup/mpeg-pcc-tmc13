@@ -696,7 +696,7 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
   // NB: bitstreams conforming to the first edition must set
   // gps_extension_flag equal to 0.
-  bool gps_extension_flag = sps.profile.isDraftProfile();
+  bool gps_extension_flag = false;
   bs.write(gps_extension_flag);
   if (gps_extension_flag) {
     bs.write(gps.trisoup_enabled_flag);
