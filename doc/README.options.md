@@ -322,6 +322,10 @@ point cloud.
   | 6     | y, x, z      |
   | 7     | x, y, z      |
 
+### `--InterEntropyContinuationEnabled=0|1`
+Propagate context state for P frame from the preceding
+frame.
+
 ### `--disableAttributeCoding=0|1`
 This option instructs the encoder to ignore all options relating to
 attribute coding, as if they had never been configured.
@@ -649,7 +653,7 @@ Step size used to linearly model progression of per-laser azimuthal angles
 during angular predictive geometry coding.
 Requires `angularEnabled=1`.
 
-### `--predGeomAzimuthQuantization=1|0`
+### `--predGeomAzimuthQuantization=0|1`
 Controls the use of radius dependent azimuth quantization in predictive
 geometry coding.
 Requires `angularEnabled=1` and `geomTreeType=1`.
@@ -681,6 +685,23 @@ encoding a sequence.
 
 ### `--interPredictionEnabled=0|1`
 Controls the enabling of inter prediction coding.
+
+### `--biPredictionEnabled=0|1|2`
+Enable bi-directional inter prediciton for octree coding.
+ | Value | Description                              |
+ |:-----:| ---------------------------------------- |
+ | 0     | disable bi-directional inter prediction  |
+ | 1     | enable bi-directional inter prediction   |
+ |       |    using IBBB GOF structure              |
+ | 2     | enable bi-directional inter prediction   |
+ |       |    using hierarchical GOF                |
+
+### `--frameMergeEnabled=0|1`
+Enable frameMerge mode for bi-directional inter prediciton
+
+### `--predictionPeriod=INT-VALUE`
+Maxium distance (in pictures) between I-frame and P-frame when 
+encoding a sequence using bi-direction inter prediction"  
 
 ### `--globalMotionEnabled=0|1`
 Controls the enabling of global motion compensation in inter prediction.
@@ -766,7 +787,10 @@ list for intra prediction in predictive geometry coding. The threshold
 effectively used is predGeomRadiusPredThreshold scaled by 
 positionRadiusInvScaleLog2.
 
-### `--secondaryResidualDisabled=1|0`
+### `--zCompensationEnabled=0|1`
+Enables z compensation when using octree coding.
+
+### `--secondaryResidualDisabled=0|1`
 Controls the disabling of quantized cartesian residual in lossy pred tree geometry coding.
 
 Attribute coding
@@ -1047,7 +1071,7 @@ range is used for the search.
 Specifies the type of inter prediction for RAHT.
 
 ### `--rahtInterPredictionDepthMinus1=INT-VALUE`
-Specifies the max depth to apply the Inter Prediction for RAHT.
+Specifies the max depth to apply the inter prediction for RAHT.
 
 ### `--attrInterPredTranslationThresh=INT-VALUE`
 (Encoder only)
