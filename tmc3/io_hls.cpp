@@ -390,8 +390,11 @@ write(const SequenceParameterSet& sps)
 
   // NB: if taking bits from reserved_profile_compatibility_XXbits, be sure
   // not to change the bitstream position of the other constraint flags.
-  bs.writeUn(1, sps.profile.main_profile_compatibility_flag);
-  bs.writeUn(21, sps.profile.reserved_profile_compatibility_21bits);
+  bs.writeUn(1, sps.profile.simple_profile_compliant);
+  bs.writeUn(1, sps.profile.dense_profile_compliant);
+  bs.writeUn(1, sps.profile.predictive_profile_compliant);
+  bs.writeUn(1, sps.profile.main_profile_compliant);
+  bs.writeUn(18, sps.profile.reserved_profile_18bits);
   bs.writeUn(1, sps.profile.slice_reordering_constraint_flag);
   bs.writeUn(1, sps.profile.unique_point_positions_constraint_flag);
 
@@ -473,8 +476,11 @@ parseSps(const PayloadBuffer& buf)
   assert(buf.type == PayloadType::kSequenceParameterSet);
   auto bs = makeBitReader(buf.begin(), buf.end());
 
-  bs.readUn(1, &sps.profile.main_profile_compatibility_flag);
-  bs.readUn(21, &sps.profile.reserved_profile_compatibility_21bits);
+  bs.readUn(1, &sps.profile.simple_profile_compliant);
+  bs.readUn(1, &sps.profile.dense_profile_compliant);
+  bs.readUn(1, &sps.profile.predictive_profile_compliant);
+  bs.readUn(1, &sps.profile.main_profile_compliant);
+  bs.readUn(18, &sps.profile.reserved_profile_18bits);
   bs.readUn(1, &sps.profile.slice_reordering_constraint_flag);
   bs.readUn(1, &sps.profile.unique_point_positions_constraint_flag);
 

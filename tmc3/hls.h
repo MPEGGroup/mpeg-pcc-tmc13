@@ -318,11 +318,20 @@ struct AttributeParamInventory : public AttributeParamInventoryHdr {
 //============================================================================
 
 struct ProfileCompatibility {
+  // indicates conformance with the "simple" profile
+  bool simple_profile_compliant;
+
+  // indicates conformance with the "dense" profile
+  bool dense_profile_compliant;
+
+  // indicates conformance with the "predictive" profile
+  bool predictive_profile_compliant;
+
   // indicates conformance with the "main" profile
-  bool main_profile_compatibility_flag;
+  bool main_profile_compliant;
 
   // reserved for future use
-  int reserved_profile_compatibility_21bits;
+  int reserved_profile_18bits;
 
   // indicates that the bistream may break if slices are reordered
   bool slice_reordering_constraint_flag;
@@ -333,8 +342,8 @@ struct ProfileCompatibility {
   // during development, no profile bits are set
   bool isDraftProfile() const
   {
-    return main_profile_compatibility_flag == 0
-      && reserved_profile_compatibility_21bits == 0;
+    return main_profile_compliant == 0
+      && reserved_profile_18bits == 0;
   }
 };
 
