@@ -452,12 +452,7 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
   }
 
   // development level / header
-  params->sps.profile.simple_profile_compliant = 0;
-  params->sps.profile.dense_profile_compliant = 0;
-  params->sps.profile.predictive_profile_compliant = 0;
-  params->sps.profile.main_profile_compliant = 0;
   params->sps.profile.reserved_profile_18bits = 0;
-  params->sps.level = 0;
 
   // constraints
   params->sps.profile.unique_point_positions_constraint_flag = false;
