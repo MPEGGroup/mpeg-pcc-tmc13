@@ -413,10 +413,14 @@ PredGeomEncoder::estimateResPhi(
   int absVal = std::abs(resPhi);
   bits += estimate(--absVal > 0, _ctxResPhiGTOne[interCtxIdx][ctxL]);
   int interEGkCtxIdx = interFlag ? (refNodeIdx > 1 ? 2 : 1) : 0;
-  if (absVal)
-    bits += estimateExpGolomb(
-      absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx],
-      _ctxResPhiExpGolombSuf[interEGkCtxIdx]);
+  if (absVal) 
+  {
+    absVal = absVal - 1;
+    bits += std::max(2, (ilog2(uint32_t(absVal + 2)) << 1));
+  }
+  //     bits += estimateExpGolomb(
+  //       absVal - 1, 1, _ctxResPhiExpGolombPre[interEGkCtxIdx],
+  //       _ctxResPhiExpGolombSuf[interEGkCtxIdx]);
 
   bits += estimate(
     resPhi < 0, _ctxResPhiSign[ctxL][interCtxIdx ? 4 : _resPhiOldSign]);
