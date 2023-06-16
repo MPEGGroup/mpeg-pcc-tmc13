@@ -515,7 +515,7 @@ PCCTMC3Encoder3::compress(
       reconCloud, &reconCloudAlt);
   }
 
-  const PCCPointSet3 accurrentPointCloud = reconCloud->cloud;
+  const PCCPointSet3 accurrentPointCloud =(reconCloud) ? reconCloud->cloud : PCCPointSet3{};
   if (_sps->inter_frame_prediction_enabled_flag) {
     // buffer the current frame for potential use in predictionif (_gps->biPredictionEnabledFlag){
     if (_gps->biPredictionEnabledFlag) {
