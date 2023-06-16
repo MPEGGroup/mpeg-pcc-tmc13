@@ -1069,8 +1069,6 @@ uraht_process(
 
   int trainZeros = 0;
   for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
-    std::cout << level << ":" << weightsHf.size() << "," << levelHfPos[level]
-              << "\n";
     int numNodes = weightsHf.size() - levelHfPos[level];
     weightsLf.resize(weightsLf.size() + numNodes);
     attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
@@ -1145,7 +1143,6 @@ uraht_process(
     auto weightsParentIt = weightsParent.begin();
     auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
 
-      std::cout << "iLast = " << weightsLf.size() << "\n";
     for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
       NodeInfoRAHT current;
       if (interPredType0 && (treeDepth < treeDepthLimit)) {
