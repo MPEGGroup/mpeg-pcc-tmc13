@@ -199,7 +199,10 @@ struct GeometryNeighPattern {
   uint8_t adjacencyUnocc;
 
   // occupancy map of {x-1, y-1, z-1} neighbours.
-  uint8_t adjNeighOcc[3];
+  uint8_t adjNeighOcc[7];
+
+  uint32_t neighborOccu;
+  bool neighOccuValid;
 };
 
 
@@ -237,14 +240,16 @@ GeometryNeighPattern makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& currentPosition,
   int codedAxesPrevLvl,
-  const MortonMap3D& occupancyAtlas);
+  const MortonMap3D& occupancyAtlas,
+  const bool& planarEligibleKOctreeDepth);
 
 void prepareGeometryAdvancedNeighPattern(
   OctreeNeighours& octreeNeighours,
   const GeometryNeighPattern& gnp,
   const Vec3<int32_t>& currentPosition,
   int atlasShift,
-  const MortonMap3D& occupancyAtlas);
+  const MortonMap3D& occupancyAtlas,
+  const bool& planarEligibleKOctreeDepth);
 
 void makeGeometryAdvancedNeighPattern0(
   OctreeNeighours& octreeNeighours,

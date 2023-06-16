@@ -76,12 +76,13 @@ public:
   void beginOctreeLevel(const Vec3<int>& planarDepth);
 
   // dynamic OBUF
-  void resetMap() { GeometryOctreeContexts::resetMap(); }
-  void clearMap() { GeometryOctreeContexts::clearMap(); };
+  void resetMap(const bool& enableInter, const bool& enablePlanar) { GeometryOctreeContexts::resetMap(enableInter, enablePlanar); }
+  void clearMap(const bool& enableInter, const bool& enablePlanar) { GeometryOctreeContexts::clearMap(enableInter, enablePlanar); };
 
   void encodePositionLeafNumPoints(int count);
 
   int encodePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     OctreeNodePlanar& planar,
     int plane,
     int dist,
@@ -90,7 +91,10 @@ public:
     int contextAngle,
     bool* twoPlanesIsPlanar,
     bool* multiPlanarEligible,
-    OctreeNodePlanar& planarRef);
+    OctreeNodePlanar& planarRef,
+    const OctreeNodePlanar adjNeighPlanar[7],
+    const bool& neighAvai,
+    const uint32_t& neighOccu);
 
   void derivePlanarPCMContextBuffer(
     OctreeNodePlanar& planar,
@@ -101,6 +105,7 @@ public:
     int zz);
 
   void determinePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     const bool& adjacent_child_contextualization_enabled_flag,
     int planeId,
     OctreeNodePlanar& planar,
@@ -115,9 +120,13 @@ public:
     int contextAngle,
     bool* twoPlanesIsPlanar,
     bool* multiPlanarEligible,
-    OctreeNodePlanar& planarRef);
+    OctreeNodePlanar& planarRef,
+    const OctreeNodePlanar adjNeighPlanar[7],
+    const bool& neighAvai,
+    const uint32_t& neighOccu);
 
   void determinePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     bool adjacent_child_contextualization_enabled_flag,
     int occupancy,
     const bool planarEligible[3],
@@ -143,7 +152,8 @@ public:
     Vec3<int32_t> &pos,
     const int atlasShift,
     int predOcc,
-    bool flagNoSingle);
+    bool flagNoSingle,
+    const bool& planarEligibleKOctreeDepth);
 
   void encodeOccupancyFullNeihbourgs(
     const GeometryNeighPattern& gnp,
@@ -159,7 +169,8 @@ public:
     const int atlasShift,
     bool flagWord4,
     bool adjacent_child_contextualization_enabled_flag,
-    int predOccupancy);
+    int predOccupancy,
+    const bool& planarEligibleKOctreeDepth);
 
   void encodeOrdered2ptPrefix(
     const point_t points[2], Vec3<bool> directIdcm, Vec3<int>& nodeSizeLog2);
@@ -301,6 +312,7 @@ GeometryOctreeEncoder::encodePositionLeafNumPoints(int count)
 
 int
 GeometryOctreeEncoder::encodePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   OctreeNodePlanar& node,
   int plane,
   int dist,
@@ -309,7 +321,10 @@ GeometryOctreeEncoder::encodePlanarMode(
   int contextAngle,
   bool* multiPlanarFlag,
   bool* multiPlanarEligible,
-  OctreeNodePlanar& planarRef
+  OctreeNodePlanar& planarRef,
+  const OctreeNodePlanar adjNeighPlanar[7],
+  const bool& neighAvai,
+  const uint32_t& neighOccu
 )
 {
   const int mask0 = (1 << planeId);
@@ -382,26 +397,95 @@ GeometryOctreeEncoder::encodePlanarMode(
   if (contextAngle == -1) {  // angular mode off
     static const int kAdjPlaneCtx[4] = {0, 1, 2, 0};
     int planePosCtx = kAdjPlaneCtx[adjPlanes];
-    if (plane < 0) {
-      int planePostCtxTmp = planePosCtx;
-      if (isPlanarRef) {
-        planePostCtxTmp += 3 * (planeBitRef + 1);
-      }
-      _arithmeticEncoder->encode(
-        planeBit, _ctxPlanarPlaneLastIndexZ[planePostCtxTmp]);
-
-    } else {
-      int discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
-      int lastIndexPlane2d = plane + (discreteDist << 1);
-      int refPlane = 0;
-      if (isPlanarRef) {
-        refPlane = 1 + planeBitRef;
-      }
-      _arithmeticEncoder->encode(
-        planeBit,
-        _ctxPlanarPlaneLastIndex[refPlane][planeId][planePosCtx]
-                                [lastIndexPlane2d]);
+    int discreteDist = 0;
+    int lastIndexPlane2d = 0;
+    int refPlane = 0;
+    if (isPlanarRef) {
+      refPlane = 1 + planeBitRef;
     }
+    if (planarEligibilityDynamicOBUF) {
+      if (plane < 0) {
+        discreteDist = 1;
+        plane = 0;
+      }
+      else {
+        discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
+      }
+      lastIndexPlane2d = plane + (discreteDist << 1);
+
+      if (neighAvai) {
+        int coPlaneNeighPlaneBits =
+          (!!(adjNeighPlanar[0].planePosBits & mask0) << 2)
+          | (!!(adjNeighPlanar[1].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[2].planePosBits & mask0);
+        int coPlaneNeighPlaneMode =
+          (!!(adjNeighPlanar[0].planarMode & mask0) << 2)
+          | (!!(adjNeighPlanar[1].planarMode & mask0) << 1)
+          | !!(adjNeighPlanar[2].planarMode & mask0);
+        int coPlaneNeighbor =
+          (coPlaneNeighPlaneBits << 3) | coPlaneNeighPlaneMode;  ///<6 bits
+        ///<get the planar information of co-edger neighbors
+        int coEdgeNeighPlaneBits =
+          (!!(adjNeighPlanar[3].planePosBits & mask0) << 2)
+          | (!!(adjNeighPlanar[4].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[5].planePosBits & mask0);
+        int coEdgeNeighPlaneMode =
+          (!!(adjNeighPlanar[3].planarMode & mask0) << 2)
+          | (!!(adjNeighPlanar[4].planarMode & mask0) << 1)
+          | !!(adjNeighPlanar[5].planarMode & mask0);
+        int coEdgeNeighbor =
+          (coEdgeNeighPlaneBits << 3) | coEdgeNeighPlaneMode;  ///<6 bits
+
+        ///< get the planar information of co-vertex neighbor
+        int coVertexNeighbor = (!!(adjNeighPlanar[6].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[6].planarMode & mask0);  ///< 2 bits
+        ///<Dynamic OUBF
+        int ctx1 = (lastIndexPlane2d << 6) | coPlaneNeighbor; ///<2+6=8bits
+        int ctx2 = (planePosCtx << 8) | (coEdgeNeighbor << 2)
+          | coVertexNeighbor;  ///< 2+6+2=10 bits
+
+        auto obufIdx = _MapPlanarPosition[refPlane][planeId].getEvolve(
+          planeBit, ctx2, ctx1, &_planarOBUFleafNumber, _planarBufferOBUFleaves);
+        _arithmeticEncoder->encode(
+          planeBit, obufIdx >> 3, _ctxMapPlanarPosition[planeId][obufIdx],
+          _ctxMapPlanarPosition[planeId].obufSingleBound);
+
+      }
+      else
+      {
+        int ctx1 = 0b1 << 7;
+        ctx1 |= (lastIndexPlane2d << 5) | ((planePosCtx & 3) << 3)
+          | ((neighOccu >> 9) & 7);  ///<1+2+2+3=8bits
+        int ctx2 = 0b1 << 9;
+        ctx2 |= neighOccu & ((1 << 9) - 1);  ///<1+9=10bits
+        auto obufIdx = _MapPlanarPosition[refPlane][planeId].getEvolve(
+          planeBit, ctx2, ctx1, &_planarOBUFleafNumber, _planarBufferOBUFleaves);
+        _arithmeticEncoder->encode(
+          planeBit, obufIdx >> 3, _ctxMapPlanarPosition[planeId][obufIdx],
+          _ctxMapPlanarPosition[planeId].obufSingleBound);
+      }
+    }
+    else {
+      if (plane < 0) {
+        int planePostCtxTmp = planePosCtx;
+        if (isPlanarRef) {
+          planePostCtxTmp += 3 * (planeBitRef + 1);
+        }
+        _arithmeticEncoder->encode(
+          planeBit, _ctxPlanarPlaneLastIndexZ[planePostCtxTmp]);
+
+      }
+      else {
+        discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
+        lastIndexPlane2d = plane + (discreteDist << 1);
+        
+        _arithmeticEncoder->encode(
+          planeBit,
+          _ctxPlanarPlaneLastIndex[refPlane][planeId][planePosCtx]
+          [lastIndexPlane2d]);
+      }
+    }
+    
   } else {  // angular mode on
     int refPlane = isPlanarRef ? (1 + planeBitRef) : 0;
     if (planeId == 2) {  // angular
@@ -469,6 +553,7 @@ GeometryOctreeEncoder::derivePlanarPCMContextBuffer(
 
 void
 GeometryOctreeEncoder::determinePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   const bool& adjacent_child_contextualization_enabled_flag,
   int planeId,
   OctreeNodePlanar& planar,
@@ -483,7 +568,10 @@ GeometryOctreeEncoder::determinePlanarMode(
   int contextAngle,
   bool* multiPlanarFlag,
   bool* multiPlanarEligible,
-  OctreeNodePlanar& planarRef)
+  OctreeNodePlanar& planarRef,
+  const OctreeNodePlanar adjNeighPlanar[7],
+  const bool& neighAvai,
+  const uint32_t& neighOccu)
 {
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
@@ -534,9 +622,10 @@ GeometryOctreeEncoder::determinePlanarMode(
     : (gnp.neighPattern >> kAdjNeighIdxFromPlanePos[planeId][1]) & 1;
 
   int adjPlanes = (highAdjPlaneOccupied << 1) | lowAdjPlaneOccupied;
-  int planeBit = encodePlanarMode(
+  int planeBit = encodePlanarMode(planarEligibilityDynamicOBUF,
     planar, closestPlanarFlag, closestDist, adjPlanes, planeId, contextAngle,
-    multiPlanarFlag, multiPlanarEligible, planarRef);
+    multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar, neighAvai,
+    neighOccu);
 
   bool isPlanar = (planar.planarMode & planeSelector);
 
@@ -559,6 +648,7 @@ GeometryOctreeEncoder::determinePlanarMode(
 
 void
 GeometryOctreeEncoder::determinePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   bool adjacent_child_contextualization_enabled_flag,
   int occupancy,
   const bool planarEligible[3],
@@ -574,6 +664,13 @@ GeometryOctreeEncoder::determinePlanarMode(
   auto& planeBuffer = _planar._planarBuffer;
 
   setPlanesFromOccupancy(occupancy, planar);
+
+  OctreeNodePlanar adjNeighPlanar[7];
+  if (planarEligibilityDynamicOBUF && gnp.neighOccuValid) {
+    for (int idx = 0; idx < 7; ++idx)
+      if (gnp.adjNeighOcc[idx])
+        setPlanesFromOccupancy(gnp.adjNeighOcc[idx], adjNeighPlanar[idx]);
+  }
 
   uint8_t planarEligibleMask = 0;
   planarEligibleMask |= planarEligible[2] << 2;
@@ -658,27 +755,30 @@ GeometryOctreeEncoder::determinePlanarMode(
 
   // planar x
   if (planarEligible[0]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 0, planar,
       planeBuffer.getBuffer(0), yy, zz, xx, posInParent, gnp,
       node.siblingOccupancy, _planar._rate.data(), contextAnglePhiX,
-      multiPlanarFlag, multiPlanarEligible, planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu);
   }
   // planar y
   if (planarEligible[1]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 1, planar,
       planeBuffer.getBuffer(1), xx, zz, yy, posInParent, gnp,
       node.siblingOccupancy, _planar._rate.data(), contextAnglePhiY,
-      multiPlanarFlag, multiPlanarEligible, planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu);
   }
   // planar z
   if (planarEligible[2]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 2, planar,
       planeBuffer.getBuffer(2), xx, yy, zz, posInParent, gnp,
       node.siblingOccupancy, _planar._rate.data(), contextAngle,
-      multiPlanarFlag, multiPlanarEligible, planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu);
   }
 }
 
@@ -722,7 +822,8 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
   Vec3<int32_t> &pos,
   const int atlasShift,
   int predOcc,
-  bool flagNoSingle)
+  bool flagNoSingle,
+  const bool& planarEligibleKOctreeDepth)
 {
   bool sure_planarityX = planarMaskX || !planarPossibleX;
   bool sure_planarityY = planarMaskY || !planarPossibleY;
@@ -746,7 +847,7 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgsNZ(
 
   OctreeNeighours octreeNeighours;
   prepareGeometryAdvancedNeighPattern(
-    octreeNeighours, gnp, pos, atlasShift, occupancyAtlas);
+    octreeNeighours, gnp, pos, atlasShift, occupancyAtlas,planarEligibleKOctreeDepth);
 
   // loop on occupancy bits from occupancy map
   uint32_t partialOccupancy = 0;
@@ -829,7 +930,8 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
   const int atlasShift,
   bool flagWord4,
   bool adjacent_child_contextualization_enabled_flag,
-  int predOcc)
+  int predOcc,
+  const bool& planarEligibleKOctreeDepth)
 {
   // 3 planars => single child and we know its position
   if (planarMaskX && planarMaskY && planarMaskZ)
@@ -871,7 +973,7 @@ GeometryOctreeEncoder::encodeOccupancyFullNeihbourgs(
   encodeOccupancyFullNeihbourgsNZ(
     gnp, occupancy, planarMaskX, planarMaskY, planarMaskZ,
     planarPossibleX, planarPossibleY, planarPossibleZ,
-    occupancyAtlas, pos, atlasShift, predOcc, flagNoSingle);
+    occupancyAtlas, pos, atlasShift, predOcc, flagNoSingle,planarEligibleKOctreeDepth);
 }
 
 //-------------------------------------------------------------------------
@@ -1910,7 +2012,12 @@ encodeGeometryOctree(
   if (gps.octree_point_count_list_present_flag)
     gbh.footer.octree_lvl_num_points_minus1.reserve(maxDepth);
 
-  encoder.resetMap();
+  const bool planarEligibilityDynamicOBUF =
+    gps.geom_planar_mode_enabled_flag
+    && gps.geom_octree_planar_dynamic_obuf_eligibiity_enabled_flag
+    && !gps.geom_angular_mode_enabled_flag;
+
+  encoder.resetMap(isInter, planarEligibilityDynamicOBUF);
 
   bool planarEligibleKOctreeDepth = 0;
   int numPointsCodedByIdcm = 0;
@@ -2054,7 +2161,8 @@ encodeGeometryOctree(
           &occupancyAtlasOrigin);
         gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag,
-          node0.pos, codedAxesPrevLvl, occupancyAtlas);
+          node0.pos, codedAxesPrevLvl, occupancyAtlas,planarEligibilityDynamicOBUF
+          && planarEligibleKOctreeDepth);
       } else {
         gnp.neighPattern =
           neighPatternFromOccupancy(posInParent, node0.siblingOccupancy);
@@ -2239,7 +2347,7 @@ encodeGeometryOctree(
 
         // determine planarity if eligible
         if (planarEligible[0] || planarEligible[1] || planarEligible[2])
-          encoder.determinePlanarMode(
+          encoder.determinePlanarMode(planarEligibilityDynamicOBUF,
             gps.adjacent_child_contextualization_enabled_flag, occupancy,
             planarEligible, posInParent, gnp, node0, planar, contextAngle,
             contextAnglePhiX, contextAnglePhiY, planarRef);
@@ -2303,12 +2411,14 @@ encodeGeometryOctree(
         int planarMask[3] = {0, 0, 0};
         maskPlanar(planar, planarMask, codedAxesCurNode);
         bool flagWord4 = gps.neighbour_avail_boundary_log2_minus1 > 0;
+        
         encoder.encodeOccupancyFullNeihbourgs(
           gnp, occupancy, planarMask[0], planarMask[1],
           planarMask[2], planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4, occupancyAtlas, node0.pos,
           codedAxesPrevLvl, flagWord4,
-          gps.adjacent_child_contextualization_enabled_flag, predOccupancy);
+          gps.adjacent_child_contextualization_enabled_flag, predOccupancy,  planarEligibilityDynamicOBUF
+          && planarEligibleKOctreeDepth);
       }
 
       // update atlas for child neighbours
@@ -2452,7 +2562,7 @@ encodeGeometryOctree(
     }
   }
 
-  encoder.clearMap();
+  encoder.clearMap(isInter, planarEligibilityDynamicOBUF);
 
   // the last element is the number of decoded points
   if (!gbh.footer.octree_lvl_num_points_minus1.empty())

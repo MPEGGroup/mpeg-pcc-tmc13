@@ -64,12 +64,13 @@ public:
   void beginOctreeLevel(const Vec3<int>& planarDepth);
 
   // dynamic OBUF
-  void resetMap() { GeometryOctreeContexts::resetMap(); }
-  void clearMap() { GeometryOctreeContexts::clearMap(); };
+  void resetMap(const bool& enableInter, const bool& enablePlanar) { GeometryOctreeContexts::resetMap(enableInter, enablePlanar); }
+  void clearMap(const bool& enableInter, const bool& enablePlanar) { GeometryOctreeContexts::clearMap(enableInter, enablePlanar); };
 
   int decodePositionLeafNumPoints();
 
   int decodePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     OctreeNodePlanar& planar,
     int planeZ,
     int dist,
@@ -78,7 +79,10 @@ public:
     int contextAngle,
     bool* multiPlanarFlag,
     bool* multiPlanarEligible, 
-    OctreeNodePlanar& planarRef
+    OctreeNodePlanar& planarRef,
+    const OctreeNodePlanar adjNeighPlanar[7],
+    const bool& neighAvai,
+    const uint32_t& neighOccu
 
   );
 
@@ -91,6 +95,7 @@ public:
     int zz);
 
   void determinePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     bool adjacent_child_contextualization_enabled_flag,
     int planeId,
     OctreeNodePlanar& child,
@@ -105,11 +110,15 @@ public:
     int contextAngle,
     bool* multiPlanarFlag,
     bool* multiPlanarEligible,
-    OctreeNodePlanar& planarRef
+    OctreeNodePlanar& planarRef,
+    const OctreeNodePlanar adjNeighPlanar[7],
+    const bool& neighAvai,
+    const uint32_t& neighOccu
 
   );
 
   void determinePlanarMode(
+    bool planarEligibilityDynamicOBUF,
     bool adjacent_child_contextualization_enabled_flag,
     const bool planarEligible[3],
     int posInParent,
@@ -134,7 +143,8 @@ public:
     Vec3<int32_t> &pos,
     const int atlasShift,
     int predOcc,
-    bool flagNoSingle);
+    bool flagNoSingle,
+    const bool& planarEligibleKOctreeDepth);
 
   uint32_t decodeOccupancyFullNeihbourgs(
     const GeometryNeighPattern& gnp,
@@ -149,7 +159,8 @@ public:
     const int atlasShift,
     bool flagWord4,
     bool adjacent_child_contextualization_enabled_flag
-    , int predOcc
+    , int predOcc,
+    const bool& planarEligibleKOctreeDepth
   );
 
   Vec3<int32_t> decodePointPosition(
@@ -289,6 +300,7 @@ GeometryOctreeDecoder::decodePositionLeafNumPoints()
 
 int
 GeometryOctreeDecoder::decodePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   OctreeNodePlanar& planar,
   int planeZ,
   int dist,
@@ -297,7 +309,10 @@ GeometryOctreeDecoder::decodePlanarMode(
   int contextAngle,
   bool* multiPlanarFlag,
   bool* multiPlanarEligible,
-  OctreeNodePlanar& planarRef)
+  OctreeNodePlanar& planarRef,
+  const OctreeNodePlanar adjNeighPlanar[7],
+  const bool& neighAvai,
+  const uint32_t& neighOccu)
 {
   const int mask0 = (1 << planeId);
   const int mask1[3] = {6, 5, 3};
@@ -379,25 +394,85 @@ GeometryOctreeDecoder::decodePlanarMode(
   if (contextAngle == -1) {  // angular mode off
     static const int kAdjPlaneCtx[4] = {0, 1, 2, 0};
     int planePosCtx = kAdjPlaneCtx[adjPlanes];
-    if (planeZ < 0) {
-      int planePostCtxTmp = planePosCtx;
-      if (isPlanarRef) {
-        planePostCtxTmp += 3 * (planeBitRef + 1);
-      }
-      planeBit =
-        _arithmeticDecoder->decode(_ctxPlanarPlaneLastIndexZ[planePostCtxTmp]);
-
-    } else {
-      int discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
-      int lastIndexPlane2d = planeZ + (discreteDist << 1);
-      int refPlane = 0;
-      if (isPlanarRef) {
-        refPlane = 1 + planeBitRef;
-      }
-      planeBit = _arithmeticDecoder->decode(
-        _ctxPlanarPlaneLastIndex[refPlane][planeId][planePosCtx]
-                                [lastIndexPlane2d]);
+    int discreteDist = 0;
+    int lastIndexPlane2d = 0;
+    int refPlane = 0;
+    if (isPlanarRef) {
+      refPlane = 1 + planeBitRef;
     }
+    if (planarEligibilityDynamicOBUF) {
+      if (planeZ < 0) {
+        discreteDist = 1;
+        planeZ = 0;
+      }
+      else {
+        discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
+      }
+      lastIndexPlane2d = planeZ + (discreteDist << 1);
+
+      if (neighAvai) {
+        ///<get the planar information of co-planar neighbors
+        int coPlaneNeighPlaneBits =
+          (!!(adjNeighPlanar[0].planePosBits & mask0) << 2)
+          | (!!(adjNeighPlanar[1].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[2].planePosBits & mask0);
+        int coPlaneNeighPlaneMode =
+          (!!(adjNeighPlanar[0].planarMode & mask0) << 2)
+          | (!!(adjNeighPlanar[1].planarMode & mask0) << 1)
+          | !!(adjNeighPlanar[2].planarMode & mask0);
+        int coPlaneNeighbor =
+          (coPlaneNeighPlaneBits << 3) | coPlaneNeighPlaneMode;  ///<6 bits
+        ///<get the planar information of co-edger neighbors
+        int coEdgesNeighPlaneBits =
+          (!!(adjNeighPlanar[3].planePosBits & mask0) << 2)
+          | (!!(adjNeighPlanar[4].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[5].planePosBits & mask0);
+        int coEdgesNeighPlaneMode =
+          (!!(adjNeighPlanar[3].planarMode & mask0) << 2)
+          | (!!(adjNeighPlanar[4].planarMode & mask0) << 1)
+          | !!(adjNeighPlanar[5].planarMode & mask0);
+        int coEdgeNeighbor =
+          (coEdgesNeighPlaneBits << 3) | coEdgesNeighPlaneMode;  ///<6 bits
+        int coVertexNeighbor = (!!(adjNeighPlanar[6].planePosBits & mask0) << 1)
+          | !!(adjNeighPlanar[6].planarMode & mask0);
+        int ctx1 = (lastIndexPlane2d << 6) | coPlaneNeighbor;  ///<8bits
+        int ctx2 = (planePosCtx << 8) | (coEdgeNeighbor << 2)
+          | coVertexNeighbor;  ///< 10 bits
+       
+        planeBit = _MapPlanarPosition[refPlane][planeId].decodeEvolve(_arithmeticDecoder, _ctxMapPlanarPosition[planeId], ctx2, ctx1, &_planarOBUFleafNumber, _planarBufferOBUFleaves);
+
+      }
+      else {
+        int ctx1 = 0b1 << 7;
+        ctx1 |= (lastIndexPlane2d << 5) | ((planePosCtx & 3) << 3)
+          | ((neighOccu >> 9) & 7);  ///<1+2+2+3=8bits
+        int ctx2 = 0b1 << 9;
+        ctx2 |= neighOccu & ((1 << 9) - 1);  ///<1+9=10bits
+        
+        planeBit = _MapPlanarPosition[refPlane][planeId].decodeEvolve(_arithmeticDecoder, _ctxMapPlanarPosition[planeId], ctx2, ctx1, &_planarOBUFleafNumber, _planarBufferOBUFleaves);
+        
+      }
+    }
+    else {
+      if (planeZ < 0) {
+        int planePostCtxTmp = planePosCtx;
+        if (isPlanarRef) {
+          planePostCtxTmp += 3 * (planeBitRef + 1);
+        }
+        planeBit =
+          _arithmeticDecoder->decode(_ctxPlanarPlaneLastIndexZ[planePostCtxTmp]);
+
+      }
+      else {
+        discreteDist = dist > (8 >> OctreePlanarBuffer::shiftAb);
+        lastIndexPlane2d = planeZ + (discreteDist << 1);
+
+        planeBit = _arithmeticDecoder->decode(
+          _ctxPlanarPlaneLastIndex[refPlane][planeId][planePosCtx]
+          [lastIndexPlane2d]);
+      }
+    }
+    
   } else {  // angular mode on
     int refPlane = isPlanarRef ? (1 + planeBitRef) : 0;
 
@@ -469,6 +544,7 @@ GeometryOctreeDecoder::derivePlanarPCMContextBuffer(
 
 void
 GeometryOctreeDecoder::determinePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   bool adjacent_child_contextualization_enabled_flag,
   int planeId,
   OctreeNodePlanar& planar,
@@ -483,7 +559,10 @@ GeometryOctreeDecoder::determinePlanarMode(
   int contextAngle,
   bool* multiPlanarFlag,
   bool* multiPlanarEligible,
-  OctreeNodePlanar& planarRef)
+  OctreeNodePlanar& planarRef,
+  const OctreeNodePlanar adjNeighPlanar[7],
+  const bool& neighAvai,
+  const uint32_t& neighOccu)
 {
   const int kPlanarChildThreshold = 63;
   const int kAdjNeighIdxFromPlanePos[3][2] = {1, 0, 2, 3, 4, 5};
@@ -535,9 +614,10 @@ GeometryOctreeDecoder::determinePlanarMode(
 
   int adjPlanes = (highAdjPlaneOccupied << 1) | lowAdjPlaneOccupied;
 
-  int planeBit = decodePlanarMode(
+  int planeBit = decodePlanarMode(planarEligibilityDynamicOBUF,
     planar, closestPlanarFlag, closestDist, adjPlanes, planeId, contextAngle,
-    multiPlanarFlag, multiPlanarEligible, planarRef);
+    multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar, neighAvai,
+    neighOccu);
   bool isPlanar = (planar.planarMode & planeSelector);
 
   planarRate[planeId] =
@@ -558,6 +638,7 @@ GeometryOctreeDecoder::determinePlanarMode(
 
 void
 GeometryOctreeDecoder::determinePlanarMode(
+  bool planarEligibilityDynamicOBUF,
   bool adjacent_child_contextualization_enabled_flag,
   const bool planarEligible[3],
   int posInParent,
@@ -575,6 +656,13 @@ GeometryOctreeDecoder::determinePlanarMode(
   int zz = child.pos[2];
 
   auto& planeBuffer = _planar._planarBuffer;
+
+  OctreeNodePlanar adjNeighPlanar[7];
+  if (planarEligibilityDynamicOBUF && gnp.neighOccuValid) {
+    for (int idx = 0; idx < 7; ++idx)
+      if (gnp.adjNeighOcc[idx])
+        setPlanesFromOccupancy(gnp.adjNeighOcc[idx], adjNeighPlanar[idx]);
+  }
 
   uint8_t planarEligibleMask = 0;
   planarEligibleMask |= planarEligible[2] << 2;
@@ -619,29 +707,32 @@ GeometryOctreeDecoder::determinePlanarMode(
 
   // planar x
   if (planarEligible[0]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 0, planar,
       planeBuffer.getBuffer(0), yy, zz, xx, posInParent, gnp,
       child.siblingOccupancy, _planar._rate.data(), contextAnglePhiX,
-      multiPlanarFlag, multiPlanarEligible, planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu);
   }
   // planar y
   if (planarEligible[1]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 1, planar,
       planeBuffer.getBuffer(1), xx, zz, yy, posInParent, gnp,
       child.siblingOccupancy, _planar._rate.data(), contextAnglePhiY,
-      multiPlanarFlag, multiPlanarEligible, planarRef
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu
 
     );
   }
   // planar z
   if (planarEligible[2]) {
-    determinePlanarMode(
+    determinePlanarMode(planarEligibilityDynamicOBUF,
       adjacent_child_contextualization_enabled_flag, 2, planar,
       planeBuffer.getBuffer(2), xx, yy, zz, posInParent, gnp,
       child.siblingOccupancy, _planar._rate.data(), contextAngle,
-      multiPlanarFlag, multiPlanarEligible, planarRef);
+      multiPlanarFlag, multiPlanarEligible, planarRef, adjNeighPlanar,
+      gnp.neighOccuValid, gnp.neighborOccu);
   }
 }
 
@@ -684,7 +775,8 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
   Vec3<int32_t> &pos,
   const int atlasShift,
   int predOcc,
-  bool flagNoSingle)
+  bool flagNoSingle,
+  const bool& planarEligibleKOctreeDepth)
 {
   bool sure_planarityX = planarMaskX || !planarPossibleX;
   bool sure_planarityY = planarMaskY || !planarPossibleY;
@@ -708,7 +800,7 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgsNZ(
 
   OctreeNeighours octreeNeighours;
   prepareGeometryAdvancedNeighPattern(
-    octreeNeighours, gnp, pos, atlasShift, occupancyAtlas);
+    octreeNeighours, gnp, pos, atlasShift, occupancyAtlas, planarEligibleKOctreeDepth);
 
   // loop on occupancy bits from occupancy map
   uint32_t partialOccupancy = 0;
@@ -788,7 +880,8 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
   const int atlasShift,
   bool flagWord4,
   bool adjacent_child_contextualization_enabled_flag,
-  int predOcc)
+  int predOcc,
+  const bool& planarEligibleKOctreeDepth)
 {
   // decode occupancy pattern
   uint32_t occupancy;
@@ -860,7 +953,7 @@ GeometryOctreeDecoder::decodeOccupancyFullNeihbourgs(
   return decodeOccupancyFullNeihbourgsNZ(
     gnp, planarMaskX, planarMaskY, planarMaskZ,
     planarPossibleX, planarPossibleY, planarPossibleZ,
-    occupancyAtlas, pos, atlasShift, predOcc, flagNoSingle);
+    occupancyAtlas, pos, atlasShift, predOcc, flagNoSingle, planarEligibleKOctreeDepth);
 }
 //-------------------------------------------------------------------------
 
@@ -1570,7 +1663,12 @@ decodeGeometryOctree(
   // per coded occupancy.
   int nodesBeforePlanarUpdate = 1;
 
-  decoder.resetMap();
+  const bool planarEligibilityDynamicOBUF =
+    gps.geom_planar_mode_enabled_flag
+    && gps.geom_octree_planar_dynamic_obuf_eligibiity_enabled_flag
+    && !gps.geom_angular_mode_enabled_flag;
+
+  decoder.resetMap(isInter, planarEligibilityDynamicOBUF);
 
   bool planarEligibleKOctreeDepth = 0;
   int numPointsCodedByIdcm = 0;
@@ -1754,7 +1852,7 @@ decodeGeometryOctree(
 
         gnp = makeGeometryNeighPattern(
           gps.adjacent_child_contextualization_enabled_flag,
-          node0.pos, codedAxesPrevLvl, occupancyAtlas);
+          node0.pos, codedAxesPrevLvl, occupancyAtlas, planarEligibilityDynamicOBUF && planarEligibleKOctreeDepth);
 
       } else {
         gnp.neighPattern =
@@ -1842,10 +1940,11 @@ decodeGeometryOctree(
         planar.lastDirIdx =
           planarEligible[2] ? 2 : (planarEligible[1] ? 1 : 0);
 
-        decoder.determinePlanarMode(
-          gps.adjacent_child_contextualization_enabled_flag, planarEligible,
-          posInParent, gnp, node0, planar, contextAngle, contextAnglePhiX,
-          contextAnglePhiY, planarRef);
+        if (planarEligible[0] || planarEligible[1] || planarEligible[2])
+          decoder.determinePlanarMode(planarEligibilityDynamicOBUF,
+            gps.adjacent_child_contextualization_enabled_flag, planarEligible,
+            posInParent, gnp, node0, planar, contextAngle, contextAnglePhiX,
+            contextAnglePhiY, planarRef);
       }
 
       if (node0.idcmEligible) {
@@ -1905,7 +2004,8 @@ decodeGeometryOctree(
           planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4, occupancyAtlas, node0.pos,
           codedAxesPrevLvl, flagWord4,
-          gps.adjacent_child_contextualization_enabled_flag, predOccupancy);
+          gps.adjacent_child_contextualization_enabled_flag, predOccupancy, planarEligibilityDynamicOBUF
+          && planarEligibleKOctreeDepth);
       }
 
       assert(occupancy > 0);
@@ -2037,7 +2137,7 @@ decodeGeometryOctree(
     assert(numNodesNextLvl <= ringBufferSize);
   }
 
-  decoder.clearMap();
+  decoder.clearMap(isInter,planarEligibilityDynamicOBUF);
 
   // save the context state for re-use by a future slice if required
   ctxtMem = decoder.getCtx();

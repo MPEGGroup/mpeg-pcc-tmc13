@@ -795,7 +795,7 @@ findLaser(pcc::point_t point, const int* thetaList, const int numTheta)
 //============================================================================
 
 void
-GeometryOctreeContexts::resetMap()
+GeometryOctreeContexts::resetMap(const bool& enableInter, const bool& enablePlanar)
 {
   for (int i = 0; i < 4; i++) {
     const int n2 = 6;
@@ -822,17 +822,36 @@ GeometryOctreeContexts::resetMap()
     _BufferOBUFleaves,
     CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth),
     0);
+
+  if (enablePlanar) {
+    for (int i = 0; i < (enableInter ? 3 : 1); i++) {
+      _MapPlanarPosition[i][0].reset(10, 8); ///< [refPlane][planId]
+      _MapPlanarPosition[i][1].reset(10, 8);
+      _MapPlanarPosition[i][2].reset(10, 8);
+    }
+    std::fill_n(
+      _planarBufferOBUFleaves,
+      CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth),
+      0);
+    _planarOBUFleafNumber = 0;
+  }
 }
 
 //============================================================================
 
 void
-GeometryOctreeContexts::clearMap()
+GeometryOctreeContexts::clearMap(const bool& enableInter, const bool& enablePlanar)
 {
   for (int j = 0; j < 4; j++)
     for (int i = 0; i < 8; i++) {
       _MapOccupancy[j][i].clear();
       _MapOccupancySparse[j][i].clear();
+    }
+  if (enablePlanar)
+    for (int i = 0; i < (enableInter ? 3 : 1); i++) {
+      _MapPlanarPosition[i][0].clear();
+      _MapPlanarPosition[i][1].clear();
+      _MapPlanarPosition[i][2].clear();
     }
 }
 

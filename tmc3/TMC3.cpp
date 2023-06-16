@@ -903,6 +903,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_octree_depth_planar_eligibiity_enabled_flag, true,
     "Determine the eligibility for planar mode per octree depth")
 
+   ("octreePlanarDynamicOBUFEligibilityEnabled",
+     params.encoder.gps.geom_octree_planar_dynamic_obuf_eligibiity_enabled_flag, true,
+     "Determine the eligibility for planar mode by using the Dynamic OBUF")
+
   ("multiplePlanarEnabled",
     params.encoder.gps.geom_multiple_planar_mode_enable_flag, true,
     "Use multiple planar mode for geometry coding")

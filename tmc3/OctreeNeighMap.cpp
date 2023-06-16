@@ -165,13 +165,16 @@ updatePatternFromNeighOccupancy(
 }
 
 //----------------------------------------------------------------------------
-
+static const int LUTLineardx[9] = { 1, 1,  1,  1, 0,  0,  0, -1, -1 };
+static const int LUTLineardy[9] = { 1, 0,  0, -1, 1,  1,  -1, 1,  0 };
+static const int LUTLineardz[9] = { 0, 1, -1,  0, 1, -1,  1,  0,  1 };
 GeometryNeighPattern
 makeGeometryNeighPattern(
   bool adjacent_child_contextualization_enabled_flag,
   const Vec3<int32_t>& position,
   int codedAxesPrevLvl,
-  const MortonMap3D& occupancyAtlas)
+  const MortonMap3D& occupancyAtlas,
+  const bool& planarEligibleKOctreeDepth)
 {
   const int mask = occupancyAtlas.cubeSize() - 1;
   const int cubeSizeMinusOne = mask;
@@ -209,19 +212,72 @@ makeGeometryNeighPattern(
 
   // NB: the process of updating neighpattern below also derives
   // the occupancy contextualisation bits.
-  GeometryNeighPattern gnp = {neighPattern, 0, 0, 0, {0, 0, 0}};
+  GeometryNeighPattern gnp = { neighPattern, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0}, 0, false };
 
-  if (!gnp.neighPattern || !adjacent_child_contextualization_enabled_flag)
+  if ((!gnp.neighPattern && !planarEligibleKOctreeDepth) || !adjacent_child_contextualization_enabled_flag)
     return gnp;
 
-  if (x > 0 && gnp.neighPattern & 2)
-    gnp.adjNeighOcc[0] = occupancyAtlas.getChildOcc(x - 1, y, z);
+  if (gnp.neighPattern) {
+    if (gnp.neighPattern & 2)
+      gnp.adjNeighOcc[0] = occupancyAtlas.getChildOcc(x - 1, y, z);
 
-  if (y > 0 && gnp.neighPattern & 4)
-    gnp.adjNeighOcc[1] = occupancyAtlas.getChildOcc(x, y - 1, z);
+    if (gnp.neighPattern & 4)
+      gnp.adjNeighOcc[1] = occupancyAtlas.getChildOcc(x, y - 1, z);
 
-  if (z > 0 && gnp.neighPattern & 16)
-    gnp.adjNeighOcc[2] = occupancyAtlas.getChildOcc(x, y, z - 1);
+    if (gnp.neighPattern & 16)
+      gnp.adjNeighOcc[2] = occupancyAtlas.getChildOcc(x, y, z - 1);
+  }
+
+
+  if (planarEligibleKOctreeDepth) {
+    if (
+      x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+      && z < cubeSizeMinusOne) {
+      if (occupancyAtlas.get(x - 1, y - 1, z, sx, sy, sz))
+        gnp.adjNeighOcc[3] = occupancyAtlas.getChildOcc(x - 1, y - 1, z);
+      if (occupancyAtlas.get(x - 1, y, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[4] = occupancyAtlas.getChildOcc(x - 1, y, z - 1);
+      if (occupancyAtlas.get(x, y - 1, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[5] = occupancyAtlas.getChildOcc(x, y - 1, z - 1);
+      if (occupancyAtlas.get(x - 1, y - 1, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[6] = occupancyAtlas.getChildOcc(x - 1, y - 1, z - 1);
+    }
+    else {
+      if (occupancyAtlas.getWithCheck(x - 1, y - 1, z, sx, sy, sz))
+        gnp.adjNeighOcc[3] = occupancyAtlas.getChildOcc(x - 1, y - 1, z);
+      if (occupancyAtlas.getWithCheck(x - 1, y, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[4] = occupancyAtlas.getChildOcc(x - 1, y, z - 1);
+      if (occupancyAtlas.getWithCheck(x, y - 1, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[5] = occupancyAtlas.getChildOcc(x, y - 1, z - 1);
+      if (occupancyAtlas.getWithCheck(x - 1, y - 1, z - 1, sx, sy, sz))
+        gnp.adjNeighOcc[6] = occupancyAtlas.getChildOcc(x - 1, y - 1, z - 1);
+    }
+    bool& neighAvailable = gnp.neighOccuValid;
+    neighAvailable = false;
+    for (int idx = 0; idx < 7 && !neighAvailable; ++idx)
+      neighAvailable |= gnp.adjNeighOcc[idx];
+
+    //< If the advanced neighbor occupancy is not available
+    if (!neighAvailable) {
+      auto& neighOccu = gnp.neighborOccu;
+      neighOccu = (!!(gnp.neighPattern & 1) << 11)
+        | (!!(gnp.neighPattern & 8) << 10) | (!!(gnp.neighPattern & 32) << 9);
+
+
+      if (x > 0 && x < cubeSizeMinusOne && y > 0 && y < cubeSizeMinusOne && z > 0
+        && z < cubeSizeMinusOne)
+        for (int n = 0; n < 9; n++) {
+          neighOccu |= occupancyAtlas.get(
+            x + LUTLineardx[n], y + LUTLineardy[n], z + LUTLineardz[n], sx, sy, sz) << n;
+        }
+
+      else
+        for (int n = 0; n < 9; n++) {
+          neighOccu |= occupancyAtlas.getWithCheck(
+            x + LUTLineardx[n], y + LUTLineardy[n], z + LUTLineardz[n], sx, sy, sz) << n;
+        }
+    }
+  }
 
   return gnp;
 }
@@ -240,7 +296,8 @@ void prepareGeometryAdvancedNeighPattern(
   const GeometryNeighPattern& gnp,
   const Vec3<int32_t>& position,
   int atlasShift,
-  const MortonMap3D& occupancyAtlas)
+  const MortonMap3D& occupancyAtlas,
+  const bool& planarEligibleKOctreeDepth)
 {
   // prepare neighbours
   const int neighPattern = gnp.neighPattern;
@@ -291,17 +348,17 @@ void prepareGeometryAdvancedNeighPattern(
   // ----- neighbours  LB, FB, LF -----
   octreeNeighours.edgeBits = 0;
   if ((neighb20 >> 3) & 1) {
-    int occLB = occupancyAtlas.getChildOcc(x - 1, y, z - 1);
+    int occLB = planarEligibleKOctreeDepth ? gnp.adjNeighOcc[4] : occupancyAtlas.getChildOcc(x - 1, y, z - 1);
     octreeNeighours.edgeBits = ((occLB & 32) >> 5) | ((occLB & 128) >> 6);
   }
 
   if ((neighb20 >> 8) & 1) {
-    int occFB = occupancyAtlas.getChildOcc(x, y - 1, z - 1);
+    int occFB = planarEligibleKOctreeDepth ? gnp.adjNeighOcc[5] : occupancyAtlas.getChildOcc(x, y - 1, z - 1);
     octreeNeighours.edgeBits |= ((occFB & 8) >> 1) | ((occFB & 128) >> 4);
   }
 
   if ((neighb20 >> 1) & 1) {
-    int occLF = occupancyAtlas.getChildOcc(x - 1, y - 1, z);
+    int occLF = planarEligibleKOctreeDepth ? gnp.adjNeighOcc[3] : occupancyAtlas.getChildOcc(x - 1, y - 1, z);
     octreeNeighours.edgeBits |= (occLF & 0b11000000) >> 2;
   }
 

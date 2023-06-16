@@ -815,8 +815,8 @@ public:
   void reset();
 
   // dynamic OBUF
-  void resetMap();
-  void clearMap();
+  void resetMap(const bool& enableInter, const bool& enablePlanar);
+  void clearMap(const bool& enableInter, const bool& enablePlanar);
 
 protected:
   AdaptiveBitModel _ctxSingleChild;
@@ -876,6 +876,11 @@ protected:
 
   uint8_t _BufferOBUFleaves[CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth)];
   int _OBUFleafNumber = 0;
+
+  CtxMapDynamicOBUF _MapPlanarPosition[3][3];
+  CtxModelDynamicOBUF _ctxMapPlanarPosition[3];
+  uint8_t _planarBufferOBUFleaves[CtxMapDynamicOBUF::kLeafBufferSize * (1 << CtxMapDynamicOBUF::kLeafDepth)];
+  int _planarOBUFleafNumber = 0;
 };
 
 //----------------------------------------------------------------------------
