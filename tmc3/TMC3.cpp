@@ -968,6 +968,11 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.trisoup.improvedVertexDetermination, true,
     "Trisoup activate improved determination of vertex position (encoder only)")
 
+  ("nodeUniqueDSE",
+    params.encoder.trisoup.nodeUniqueDSE, true,
+    "Enables to calculate a node unique distanceSearchEncoder\n"
+    "value, based on node characteristics instead of slice characteristics\n")
+
   ("trisoupNonCubicNodeNearOriginSideEnabled",
     params.encoder.gps.non_cubic_node_start_edge, true,
     "Trisoup activate non-cubic-node near the origin side of the slice bounding box")

@@ -590,6 +590,10 @@ tracing.
 Controls the activation of using adaptive halo when usign halo around
 trisoup triangles for ray tracing.
 
+### `--nodeUniqueDSE=0|1`
+Enables to calculate a node unique distanceSearchEncoder value, based
+on node characteristics instead of slice characteristics.
+
 ### `--trisoupFineRayTracingEnabled=0|1`
 Controls the activation of additional ray tracing from non-integer origin.
 

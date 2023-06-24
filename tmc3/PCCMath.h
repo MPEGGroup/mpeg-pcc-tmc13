@@ -92,6 +92,11 @@ public:
     return Vec3<ResultT>(*this) * Vec3<ResultT>(*this);
   }
 
+  T getNorm2() const
+  {
+    return (data[0]*data[0]) + (data[1]*data[1]) + (data[2]*data[2]);
+  }
+
   T getNorm1() const
   {
     return std::abs(data[0]) + std::abs(data[1]) + std::abs(data[2]);
@@ -110,6 +115,15 @@ public:
 
   // The minimum element
   T min() const { return std::min({data[0], data[1], data[2]}); }
+
+  // The middle element
+  T mid() const
+  {
+    T cp[3];
+    for (int i = 0; i < 3; ++i) cp[i] = data[i];
+    std::sort(cp, cp + 3);
+    return cp[1];
+  }
 
   // The maximum element
   T max() const { return std::max({data[0], data[1], data[2]}); }

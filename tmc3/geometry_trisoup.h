@@ -196,7 +196,9 @@ void processTrisoupVertices(
   const std::vector<PCCOctree3Node>& nodesPadded,
   const PCCPointSet3& pointCloudPadding,
   std::vector<int> indices,
-  Box3<int32_t> originalBox );
+  Box3<int32_t> originalBox,
+  float estimatedSampling = 0.f,
+  bool nodeUniqueDSE = false);
 
 
 void determineTrisoupVertices(
@@ -213,7 +215,9 @@ void determineTrisoupVertices(
   const std::vector<PCCOctree3Node>& nodesPadded,
   const PCCPointSet3& pointCloudPadding,
   std::vector<int> indices,
-  Box3<int32_t> originalBox);
+  Box3<int32_t> originalBox,
+  float estimatedSampling,
+  bool nodeUniqueDSE);
 
 void determineTrisoupNeighbours(
   const ringbuf<PCCOctree3Node>& leaves, 

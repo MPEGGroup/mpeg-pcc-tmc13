@@ -131,9 +131,10 @@ encodeGeometryTrisoup(
   // Determine vertices
   std::cout << "Number of points = " << pointCloud.getPointCount() << "\n";
   std::cout << "Number of nodes = " << nodes.size() << "\n";
+  float estimatedSampling = 1;
   int distanceSearchEncoder = 1;
   if (opt.improvedVertexDetermination) {
-    float estimatedSampling = float(nodes.size());
+    estimatedSampling = float(nodes.size());
     estimatedSampling /= pointCloud.getPointCount();
     estimatedSampling = std::sqrt(estimatedSampling);
     estimatedSampling *= blockWidth;
@@ -158,7 +159,8 @@ encodeGeometryTrisoup(
     nodes, segind, vertices, pointCloud,
     gps, gbh,
     blockWidth, bitDropped, eVerts,
-    distanceSearchEncoder, nodesPadded, pointCloudPadding, indices, originalBox);
+    distanceSearchEncoder, nodesPadded, pointCloudPadding, indices,
+    originalBox, estimatedSampling, opt.nodeUniqueDSE);
 
   // Determine neighbours
   std::vector<uint16_t> neighbNodes;
@@ -245,7 +247,83 @@ encodeGeometryTrisoup(
   }
 }
 
-//---------------------------------------------------------------------------
+//----------------------------------------------------------------------------
+
+float
+estimatedSampling1(PCCOctree3Node leaf, Vec3<int32_t> newW)
+{
+  return
+    sqrt(float(newW.max() * newW.mid())) / sqrt(float(leaf.end - leaf.start));
+}
+
+//----------------------------------------------------------------------------
+
+float
+estimatedSampling2(PCCOctree3Node leaf, const PCCPointSet3& pointCloud)
+{
+  Vec3<int> min = pointCloud[leaf.start] - leaf.pos;
+  Vec3<int> max = pointCloud[leaf.start] - leaf.pos;
+  for (int j = leaf.start; j < leaf.end; j++) {
+    Vec3<int> currentVoxel = pointCloud[j] - leaf.pos;
+    min[0] = currentVoxel[0] < min[0] ? currentVoxel[0] : min[0];
+    min[1] = currentVoxel[1] < min[1] ? currentVoxel[1] : min[1];
+    min[2] = currentVoxel[2] < min[2] ? currentVoxel[2] : min[2];
+    max[0] = currentVoxel[0] > max[0] ? currentVoxel[0] : max[0];
+    max[1] = currentVoxel[1] > max[1] ? currentVoxel[1] : max[1];
+    max[2] = currentVoxel[2] > max[2] ? currentVoxel[2] : max[2];
+  }
+  Vec3<int> dim = max - min;
+  return sqrt(float(dim.max() * dim.mid()) / float(leaf.end - leaf.start));
+}
+
+//----------------------------------------------------------------------------
+
+float
+estimatedSampling3(PCCOctree3Node leaf, const PCCPointSet3& pointCloud)
+{
+  std::vector<std::vector<float>> vec_nn(leaf.end - leaf.start);
+  std::vector<int> vec_one(leaf.end - leaf.start, 0);
+  int N = 4;
+  int cnt1 = 0;
+  float es = 0;
+  for (int j = leaf.start; j < leaf.end; j++) {
+    Vec3<int> currentVoxel = pointCloud[j] - leaf.pos;
+    int cnt2 = cnt1 + 1;
+    for (int i = leaf.start + cnt2; i < leaf.end; i++) {
+      float distance = sqrt(
+        float(((currentVoxel - (pointCloud[i] - leaf.pos))).getNorm2()));
+      if (vec_nn[cnt1].size() < N) {
+        vec_nn[cnt1].push_back(distance);
+        std::sort(vec_nn[cnt1].begin(), vec_nn[cnt1].end());
+      } else if (distance < vec_nn[cnt1].back() && vec_one[cnt1] < N) {
+        vec_nn[cnt1][N-1] = distance;
+        std::sort(vec_nn[cnt1].begin(), vec_nn[cnt1].end());
+      }
+      if (vec_nn[cnt2].size() < N) {
+        vec_nn[cnt2].push_back(distance);
+        std::sort(vec_nn[cnt2].begin(), vec_nn[cnt2].end());
+      } else if (distance < vec_nn[cnt2].back() && vec_one[cnt2] < N) {
+        vec_nn[cnt2][N-1] = distance;
+        std::sort(vec_nn[cnt2].begin(), vec_nn[cnt2].end());
+      }
+      if (distance <= 1.0f) {
+        ++ vec_one[cnt1];
+        ++ vec_one[cnt2];
+      }
+      ++ cnt2;
+    }
+    float nn = 0;
+    int n = vec_nn[cnt1].size();
+    for (int k = 0; k < n; k++) {
+      nn += vec_nn[cnt1][k];
+    }
+    es += (nn / float(n));
+    ++ cnt1;
+  }
+  return es / float(leaf.end - leaf.start);
+}
+
+//----------------------------------------------------------------------------
 // Determine where the surface crosses each leaf
 // (i.e., determine the segment indicators and vertices)
 // from the set of leaves and the points in each leaf.
@@ -269,7 +347,9 @@ determineTrisoupVertices(
   const std::vector<PCCOctree3Node>& nodesPadded,
   const PCCPointSet3& pointCloudPadding,
   std::vector<int> indices,
-  Box3<int32_t> originalBox)
+  Box3<int32_t> originalBox,
+  float estimatedSampling,
+  bool nodeUniqueDSE)
 {
   // not use
   std::vector<uint16_t> neighbNodes;
@@ -280,7 +360,7 @@ determineTrisoupVertices(
     gps, gbh, leaves, defaultBlockWidth, bitDropped, false, pointCloud,
     distanceSearchEncoder, neighbNodes, edgePattern, arithmeticDecoder,
     eVerts, segind, vertices, nodesPadded, pointCloudPadding, indices,
-    originalBox);
+    originalBox, estimatedSampling, nodeUniqueDSE);
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +394,9 @@ void processTrisoupVertices(
   const std::vector<PCCOctree3Node>& nodesPadded,
   const PCCPointSet3& pointCloudPadding,
   std::vector<int> indices,
-  Box3<int32_t> originalBox)
+  Box3<int32_t> originalBox,
+  float estimatedSampling,
+  bool nodeUniqueDSE)
 {
   if (isDecoder) {
     decodeTrisoupVerticesSub(
@@ -374,7 +456,35 @@ void processTrisoupVertices(
       const Vec3<int> tmax( newW.x() - tmin - 1,
                             newW.y() - tmin - 1,
                             newW.z() - tmin - 1 );
-      const int tmin2 = distanceSearchEncoder;
+
+      int localDistanceSearchEncoder = -1;
+      if (nodeUniqueDSE) {
+        // Desicion tree
+        float es = estimatedSampling;
+        if(estimatedSampling > 1.0f) {
+          es = estimatedSampling1(leaf, newW);
+          if (abs(estimatedSampling - es) > 0.5f){
+            es = estimatedSampling2(
+              leaf, i < leaves.size() ? pointCloud : pointCloudPadding);
+            if (abs(estimatedSampling - es) > 0.5f){
+              if (leaf.end - leaf.start > 1) {
+                es = estimatedSampling3(
+                  leaf, i < leaves.size() ? pointCloud : pointCloudPadding);
+              } else {es = estimatedSampling;}
+              es = std::min(es, estimatedSampling + 1);
+            }
+          } else {es = estimatedSampling;}
+        } else {es = estimatedSampling;}
+        es = std::min(es, float(blockWidth/4));
+        localDistanceSearchEncoder = (1 << std::max(0, bitDropped - 2)) - 1;
+        localDistanceSearchEncoder += int(std::round(es + 0.1f));
+        localDistanceSearchEncoder =
+          std::max(1, std::min(8, localDistanceSearchEncoder));
+        // End of decision tree
+      }
+
+      const int tmin2 =
+        nodeUniqueDSE ? localDistanceSearchEncoder : distanceSearchEncoder;
       const Vec3<int> tmax2( newW.x() - tmin2 - 1,
                              newW.y() - tmin2 - 1,
                              newW.z() - tmin2 - 1 );
