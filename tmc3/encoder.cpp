@@ -1147,7 +1147,10 @@ PCCTMC3Encoder3::compressPartition(
         pointCloud[i] += _sliceOrigin; 
 
     Box3<int> currentFrameBox = pointCloud.computeBoundingBox();
-    attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
+    
+    if(!_gps->biPredictionEnabledFlag)
+      attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
+    
     int count = 0;
     for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
       point_t p = attrInterPredParams.referencePointCloud[i];

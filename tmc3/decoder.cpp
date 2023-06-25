@@ -197,9 +197,8 @@ void
 PCCTMC3Decoder3::outputGOFCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
 {
   if (!_gbh.biPredictionEnabledFlag) {
-    if (
-      (_outCloud.frameNum == 0)
-      || ((_outCloud.frameNum - biPredDecodeParams.preOutFrameNum) == 1)) {
+    if ((_outCloud.frameNum == 0) || ((_outCloud.frameNum - biPredDecodeParams.preOutFrameNum) == 1)) {
+      compensateZ();
       outputCurrentCloud(callback);
       biPredDecodeParams.preOutFrameNum = _outCloud.frameNum;
     } else {
@@ -209,12 +208,17 @@ PCCTMC3Decoder3::outputGOFCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
   }
 
   if (_gps->biPredictionEnabledFlag == 1) {
+    auto outputOrigin = _outCloud.outputOrigin;
+    auto outputUnitLength = _outCloud.outputUnitLength;
+    compensateZ();
     outputCurrentCloud(callback);
     biPredDecodeParams.preOutFrameNum = _outCloud.frameNum;
     if (_outCloud.frameNum + 1 == biPredDecodeParams.preIPFrame) {
       _accumCloud = biPredDecodeParams.refPointCloud2;
       _outCloud.frameNum = biPredDecodeParams.preIPFrame;
-
+      _outCloud.outputOrigin = outputOrigin;
+      _outCloud.outputUnitLength = outputUnitLength;
+      compensateZ();
       outputCurrentCloud(callback);
       biPredDecodeParams.preOutFrameNum = _outCloud.frameNum;
     }
@@ -225,6 +229,8 @@ PCCTMC3Decoder3::outputGOFCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
     int currFrameNum = _outCloud.frameNum;
 
     const PCCPointSet3 _accumCloudTmp = _accumCloud;
+    auto outputOrigin = _outCloud.outputOrigin;
+    auto outputUnitLength = _outCloud.outputUnitLength;
     while (biPredDecodeParams.frameReadyForOutput(outputFrameIndexInGOF)) {
       _accumCloud =
         (outputFrameNum != currFrameNum
@@ -235,7 +241,9 @@ PCCTMC3Decoder3::outputGOFCurrentCloud(PCCTMC3Decoder3::Callbacks* callback)
         hGOFDecodeParams.clearFrame(outputFrameIndexInGOF);
 
       _outCloud.frameNum = outputFrameNum;
-
+      _outCloud.outputOrigin = outputOrigin;
+      _outCloud.outputUnitLength = outputUnitLength;
+      compensateZ();
       outputCurrentCloud(callback);
       biPredDecodeParams.preOutFrameNum = _outCloud.frameNum;
 
@@ -306,13 +314,13 @@ PCCTMC3Decoder3::decompress(
   }
 
   if (!buf) {
-    compensateZ();
-
     // flush decoder, output pending cloud if any
     if (_gps->biPredictionEnabledFlag)
       outputGOFCurrentCloud(callback);
-    else
+    else{ 
+      compensateZ();
       outputCurrentCloud(callback);
+    }
     return 0;
   }
 
@@ -871,7 +879,8 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   if (_refFrameAlt) {
     Box3<int> currentFrameBox = _currentPointCloud.computeBoundingBox();
-    attrInterPredParams.referencePointCloud = _refFrameAlt->cloud;
+    if (!_gps->biPredictionEnabledFlag)
+      attrInterPredParams.referencePointCloud = _refFrameAlt->cloud;
     int count = 0;
     for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
       point_t p = attrInterPredParams.referencePointCloud[i];
