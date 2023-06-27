@@ -721,6 +721,9 @@ struct GeometryBrickHeader {
   // Indicates if a residual is encoded for centroid vertex of a trisoup node
   bool trisoup_centroid_vertex_residual_flag;
 
+  // Indicates if the trisoup face vertex is enabled or not
+  bool trisoup_face_vertex_flag;
+
   // Indicates if the trisoup halo is enabled or not
   bool trisoup_halo_flag;
 

@@ -1375,6 +1375,9 @@ write(
     bs.writeUn(segmentBits, gbh.num_unique_segments_minus1);
     bs.writeUe(gbh.trisoup_vertex_quantization_bits);
     bs.write(gbh.trisoup_centroid_vertex_residual_flag);
+    if( gbh.trisoup_centroid_vertex_residual_flag ){
+      bs.write(gbh.trisoup_face_vertex_flag);
+    }
     bs.write(gbh.trisoup_halo_flag);
     if (gbh.trisoup_halo_flag)
       bs.write(gbh.trisoup_adaptive_halo_flag);
@@ -1558,6 +1561,9 @@ parseGbh(
     bs.readUn(segmentBits, &gbh.num_unique_segments_minus1);
     bs.readUe(&gbh.trisoup_vertex_quantization_bits);
     bs.read(&gbh.trisoup_centroid_vertex_residual_flag);
+    if( gbh.trisoup_centroid_vertex_residual_flag ){
+      bs.read(&gbh.trisoup_face_vertex_flag);
+    }
     bs.read(&gbh.trisoup_halo_flag);
     gbh.trisoup_adaptive_halo_flag = false;
     if (gbh.trisoup_halo_flag)

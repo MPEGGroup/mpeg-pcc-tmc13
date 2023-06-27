@@ -1331,6 +1331,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
     params->gbh.trisoup_vertex_quantization_bits;
   gbh.trisoup_centroid_vertex_residual_flag =
     params->gbh.trisoup_centroid_vertex_residual_flag;
+  gbh.trisoup_face_vertex_flag = params->gbh.trisoup_face_vertex_flag;
+
   gbh.trisoup_halo_flag =
     params->gbh.trisoup_halo_flag;
   gbh.trisoup_adaptive_halo_flag =

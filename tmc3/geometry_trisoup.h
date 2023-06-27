@@ -44,6 +44,17 @@
 #include "ringbuf.h"
 
 namespace pcc {
+
+//============================================================================
+
+// The number of fractional bits used in trisoup triangle voxelisation
+const int kTrisoupFpBits = 8;
+
+// The value 1 in fixed-point representation
+const int kTrisoupFpOne = 1 << (kTrisoupFpBits);
+const int kTrisoupFpHalf = 1 << (kTrisoupFpBits - 1);
+const int truncateValue = kTrisoupFpHalf;
+
 //============================================================================
 
   struct CentroidDrift {
@@ -83,8 +94,111 @@ namespace pcc {
 
   } ;
 
+//============================================================================
 
- //============================================================================
+  struct TrisoupNodeEdgeVertex {
+    int dominantAxis;
+    // ( x - 0.5 ) << kTrisoupFpBits ( [-0.5, W-0.5] x256 )
+    std::vector<Vertex> vertices;
+  };
+
+
+  struct TrisoupCentroidVertex {
+    bool valid;  // this represents centroid existence
+    Vec3<int32_t> pos;
+    int32_t drift;
+    bool boundaryInside;  // true if pos is inside of node boundary
+  };
+
+
+  struct TrisoupNodeFaceVertex {
+    std::vector<Vertex> vertices;
+    std::vector<int> formerEdgeVertexIdx;
+  };
+
+
+  struct duplicateNodes {
+    Vec3<int32_t> pos;
+    int idx;  // duplicateListIdx = (origIdx<<3)+dupNodeIdx
+    bool operator<( duplicateNodes n ) {
+      return this->pos < n.pos;
+    }
+  };
+
+
+  struct node6nei {
+    Vec3<int32_t> pos;
+    // indices of octree-nodes
+    int idx[7]; // {-z,z,-y,y,-x,x,O}
+
+    node6nei(){ this->clear(); }
+    void clear(void) {
+      pos = {-1,-1,-1};
+      for( int i=0; i<7; i++){
+        idx[i]=-1;
+      }
+    }
+
+    bool operator<( node6nei n ) {
+      return this->idx[6] < n.idx[6];
+    }
+  };
+
+
+  struct TrisoupFace {
+    bool connect;
+
+    TrisoupFace( bool cn ) : connect(cn) {}
+
+    TrisoupFace(){ this->clear(); }
+
+    void clear(void) {
+      connect = false;
+    }
+  };
+
+  struct TrisoupCentroidContext {
+    int lowBound;
+    int highBound;
+    int ctxMinMax;
+    int lowBoundSurface;
+    int highBoundSurface;
+  };
+
+//============================================================================
+
+void processTrisoupVertices(
+  // common input
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const ringbuf<PCCOctree3Node>& leaves,
+  const int defaultBlockWidth,
+  const int bitDropped,
+
+  bool isDecoder,
+
+  // input only encoder
+  const PCCPointSet3& pointCloud,
+  const int distanceSearchEncoder,
+
+  // input only decoder
+  std::vector<uint16_t>& neighbNodes,
+  std::vector<std::array<int, 18>>& edgePattern,
+  pcc::EntropyDecoder& arithmeticDecoder,
+
+  // common output
+  std::vector<TrisoupNodeEdgeVertex>& eVerts,
+
+  // output only encoder
+  std::vector<bool>& segind,
+  std::vector<uint8_t>& vertices,
+
+  const std::vector<PCCOctree3Node>& nodesPadded,
+  const PCCPointSet3& pointCloudPadding,
+  std::vector<int> indices,
+  Box3<int32_t> originalBox );
+
+
 void determineTrisoupVertices(
   const ringbuf<PCCOctree3Node>& leaves,
   std::vector<bool>& segind,
@@ -94,6 +208,7 @@ void determineTrisoupVertices(
   const GeometryBrickHeader& gbh,
   const int defaultBlockWidth,
   const int bitDropped,
+  std::vector<TrisoupNodeEdgeVertex>& eVerts,
   int distanceSearchEncoder,
   const std::vector<PCCOctree3Node>& nodesPadded,
   const PCCPointSet3& pointCloudPadding,
@@ -106,7 +221,101 @@ void determineTrisoupNeighbours(
   std::vector<std::array<int, 18>>& edgePattern,
   const int defaultBlockWidth);
 
-void encodeTrisoupVertices(  
+bool determineNormVandCentroidContexts
+(
+ const Vec3<int32_t>& nodeWidth,
+ const TrisoupNodeEdgeVertex& eVert,
+ const int bitDropped,
+ Vec3<int32_t>& gravityCenter,
+ Vec3<int32_t>& normalV,
+ TrisoupCentroidContext& cctx
+);
+
+void determineTrisoupNodeNeighbours
+(
+  const ringbuf<PCCOctree3Node>& leaves,
+  std::vector<node6nei>& nodes6nei,
+  const int defaultBlockWidth
+  );
+
+void determineTrisoupCentroids
+(
+  PCCPointSet3& pointCloud,
+  const ringbuf<PCCOctree3Node>& leaves,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int defaultBlockWidth,
+  const int bitDropped,
+  const bool isCentroidDriftActivated,
+  const std::vector<TrisoupNodeEdgeVertex> eVerts,
+  std::vector<Vec3<int32_t>>& gravityCenter,
+  std::vector<CentroidDrift>& drifts,
+  std::vector<TrisoupCentroidVertex>& cVerts,
+  std::vector<Vec3<int32_t>>& normVs
+ );
+
+void determineTrisoupFaceVertices
+(
+  PCCPointSet3& pointCloud,
+  const ringbuf<PCCOctree3Node>& leaves,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  const std::vector<node6nei> nodes6nei,
+  int defaultBlockWidth,
+  const int distanceSearchEncoder,
+  const std::vector<TrisoupNodeEdgeVertex> eVerts,
+  const std::vector<Vec3<int32_t>> gravityCenter,
+  const std::vector<TrisoupCentroidVertex> cVerts,
+  std::vector<TrisoupNodeFaceVertex>& fVerts,
+  std::vector<Vec3<int32_t>> normVs,
+  std::vector<TrisoupFace>& limited_faces,
+  std::vector<TrisoupFace>& faces
+  );
+
+void encodeTrisoupFaceList(
+  std::vector<TrisoupFace>& faceList,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  pcc::EntropyEncoder* arithmeticEncoder );
+
+void decodeTrisoupFaceList(
+  const ringbuf<PCCOctree3Node>& leaves,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int defaultBlockWidth,
+  const int distanceSearchEncoder,
+  const std::vector<node6nei> nodes6nei,
+  const std::vector<TrisoupNodeEdgeVertex> eVerts,
+  const std::vector<Vec3<int32_t>> gravityCenter,
+  const std::vector<TrisoupCentroidVertex> cVerts,
+  std::vector<TrisoupNodeFaceVertex>& fVerts,
+  std::vector<Vec3<int32_t>> normVs,
+  std::vector<TrisoupFace>& faces,
+  pcc::EntropyDecoder& arithmeticDecoder );
+
+void decodeTrisoupCentroids(
+  const ringbuf<PCCOctree3Node>& leaves,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  int defaultBlockWidth,
+  const int bitDropped,
+  const std::vector<TrisoupNodeEdgeVertex>& eVerts,
+  std::vector<Vec3<int32_t>>& gravityCenter,
+  std::vector<TrisoupCentroidVertex>& cVerts,
+  std::vector<Vec3<int32_t>>& normVs,
+  pcc::EntropyDecoder* arithmeticDecoder );
+
+bool nodeBoundaryInsideCheck( Vec3<int32_t> bw, Vec3<int32_t> pt );
+
+void findTrisoupFaceVertex
+( const int nodeIdx,
+  const int neiOrderIdx,
+  const node6nei& nodes6nei,
+  const std::vector<TrisoupCentroidVertex>& cVerts,
+  const Vec3<int32_t>& nodew,
+  Vertex *fVert );
+
+void encodeTrisoupVertices(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   std::vector<uint16_t>& neighbNodes,
@@ -116,7 +325,20 @@ void encodeTrisoupVertices(
   GeometryBrickHeader& gbh,
   pcc::EntropyEncoder* arithmeticEncoder);
 
-void decodeTrisoupVertices(  
+void decodeTrisoupVertices(
+  const ringbuf<PCCOctree3Node>& leaves,
+  const int defaultBlockWidth,
+  std::vector<bool>& segind,
+  std::vector<uint8_t>& vertices,
+  std::vector<uint16_t>& neighbNodes,
+  std::vector<std::array<int, 18>>& edgePattern,
+  int bitDropped,
+  const GeometryParameterSet& gps,
+  const GeometryBrickHeader& gbh,
+  std::vector<TrisoupNodeEdgeVertex>& eVerts,
+  pcc::EntropyDecoder& arithmeticDecoder);
+
+void decodeTrisoupVerticesSub(
   std::vector<bool>& segind,
   std::vector<uint8_t>& vertices,
   std::vector<uint16_t>& neighbNodes,
@@ -133,28 +355,49 @@ void encodeTrisoupCentroidResidue(
 
 void decodeTrisoupCommon(
   const ringbuf<PCCOctree3Node>& leaves,
-  const std::vector<bool>& segind,
-  const std::vector<uint8_t>& vertices,
-  std::vector<CentroidDrift>& drifts,
-  PCCPointSet3& pointCloud,
+  const std::vector<node6nei> nodes6nei,
+  const std::vector<TrisoupNodeEdgeVertex>& eVerts,
+  const std::vector<TrisoupCentroidVertex>& cVerts,
+  const std::vector<Vec3<int32_t>>& gravityCenter,
+  std::vector<Vec3<int32_t>> normVs,
+  std::vector<TrisoupFace>& faces,
+  std::vector<TrisoupNodeFaceVertex>& fVerts,
   PCCPointSet3& recPointCloud,
   const GeometryParameterSet& gps,
   const GeometryBrickHeader& gbh,
   int defaultBlockWidth,
-  int poistionClipValue,
+  int positionClipValue,
   uint32_t samplingValue,
   const int bitDropped,
   const bool isCentroidDriftActivated,
-  bool isDecoder,
+  const bool isFaceVertexActivated,
   bool haloFlag,
   bool adaptiveHaloFlag,
-  bool fineRayflag,
-  pcc::EntropyDecoder* arithmeticDecoder);
+  bool fineRayflag );
 
 int findDominantAxis(
   std::vector<Vertex>& leafVertices,
   Vec3<uint32_t> blockWidth,
   Vec3<int32_t> blockCentroid);
+
+int countTrisoupEdgeVerticesOnFace
+( const TrisoupNodeEdgeVertex& eVerts, Vec3<int32_t>& nodeW, int axis );
+
+void determineTrisoupEdgeBoundaryLine
+( int i,
+  const TrisoupNodeEdgeVertex& eVerts,
+  const TrisoupCentroidVertex& cVerts,
+  const Vec3<int32_t>& gravityCenter,
+  Vec3<int32_t>& nodeW, int axis, Vertex& fvert, int *eIdx );
+
+bool determineTrisoupDirectionOfCentroidsAndFvert
+( const TrisoupNodeEdgeVertex& eVerts,
+  const std::vector<TrisoupCentroidVertex>& cVerts,
+  const std::vector<Vec3<int32_t>>& gravityCenter,
+  Vec3<int32_t>& nodew, int i, int nei,
+  const node6nei& nodes6nei, int neiNodeIdx,
+  int w, int e0, int e1, Vertex *fVert );
+
 
 void rayTracingAlongdirection(
   std::vector<Vec3<int32_t>>& refinedVerticesBlock,
@@ -252,6 +495,17 @@ void nonCubicNode
  Vec3<int32_t>* corner
  );
 
+
+template<typename T>
+Vec3<T>
+crossProduct(const Vec3<T> a, const Vec3<T> b)
+{
+  Vec3<T> ret;
+  ret[0] = a[1] * b[2] - a[2] * b[1];
+  ret[1] = a[2] * b[0] - a[0] * b[2];
+  ret[2] = a[0] * b[1] - a[1] * b[0];
+  return ret;
+}
 
 
 //----------------------------------------------------------------------------
