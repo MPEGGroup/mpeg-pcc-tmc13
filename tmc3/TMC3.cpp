@@ -1700,10 +1700,11 @@ sanitizeEncoderOpts(
     params.encoder.interGeom.deriveGMThreshold = true;
   }
 
-  if (params.encoder.gps.interPredictionEnabledFlag) {
+  params.encoder.sps.inter_frame_prediction_enabled_flag
+    = params.encoder.gps.interPredictionEnabledFlag;
+
+  if (params.encoder.gps.interPredictionEnabledFlag)
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
-    params.encoder.sps.inter_frame_prediction_enabled_flag = true;
-  }
 
   if (
     params.encoder.gps.predgeom_enabled_flag
