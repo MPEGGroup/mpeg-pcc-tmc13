@@ -1,0 +1,176 @@
+# Test conditions for N17995 CTC C1 using TMC13 octree
+# octree lossless-geom  --  lossless-attrs raht
+---
+categories:
+  lossless-geom-lossless-attrs:
+    encflags:
+     - mode: 0
+
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     ##
+     # geometry parameters (octree)
+     #  - preserve lossless geometry property
+     - trisoupNodeSizeLog2: 0
+     - mergeDuplicatedPoints: 0
+     - neighbourAvailBoundaryLog2: 8
+     - intra_pred_max_node_size_log2: 6
+     - positionQuantizationScale: 1
+     -
+       - !conditional '${numLasers}'
+       - angularEnabled: 1
+       - numLasers: '${numLasers}'
+       - lasersTheta: '${lasersTheta}'
+       - lasersZ: '${lasersZ}'
+       - lasersNumPhiPerTurn:  '${lasersNumPhiPerTurn}'
+       - planarBufferDisabled: 1
+
+     # idcm intensity depends upon the content type
+     - inferredDirectCodingMode: 1
+     -
+       - !conditional '"${group}" eq "cat3-fused"'
+       - inferredDirectCodingMode: 2
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - inferredDirectCodingMode: 3
+
+     # default qtbt and planar with cat3-frame exception
+     - maxNumQtBtBeforeOt: 4
+     - minQtbtSizeLog2: 0
+     - planarEnabled: 1
+     -
+       - !conditional '"${group}" eq "solid"'
+       - planarEnabled: '${enablePlanar}'
+     -
+       - !conditional '"${group}" eq "dense"'
+       - planarEnabled: '${enablePlanar}'
+     - planarModeIdcmUse: 0
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - partitionMethod: 0
+       - maxNumQtBtBeforeOt: 6
+       - planarModeIdcmUse: 32
+
+     ####
+     # attribute coding (common options -- relies on option ordering)
+     #  - uses raht transform
+     #  - scale 16bit reflectance data to 8bit
+     - convertPlyColourspace: 1
+     - transformType: 0
+     - integerHaar: 1
+     -
+       - !conditional '${numLasers}'
+       - spherical_coord_flag: 1
+
+     ##
+     # attribute coding -- reflectance
+     -
+       - !conditional '${has_refl}'
+       - qp: 4
+       - bitdepth: 8
+       -
+         - !conditional '${reflectance8b16b_scale_factor}'
+         - attrOffset: 0
+         - attrScale: ${reflectance8b16b_scale_factor}
+       - attribute: reflectance
+
+     ##
+     # attribute coding -- colour
+     -
+       - !conditional '${has_colour}'
+       - qp: 4
+       - qpChromaOffset: -1
+       - bitdepth: 8
+       - colourMatrix: 8
+       - attrOffset: 0
+       - attrScale: 1
+       - attribute: color
+
+    decflags:
+     - mode: 1
+     -
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     - convertPlyColourspace: 1
+
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
+     # NB: use hausdorff to better verify lossless coding
+     - hausdorff
+
+    sequences:
+      # cat3
+      citytunnel_q1mm:
+      tollbooth_q1mm:
+      overpass_q1mm:
+      ford_01_q1mm:
+      ford_02_q1mm:
+      ford_03_q1mm:
+      qnxadas-junction-approach:
+      qnxadas-junction-exit:
+      qnxadas-motorway-join:
+      qnxadas-navigating-bends:
+      innovizQC1:
+      innovizQC2:
+      innovizQC3:
+
+      # cat1-solid
+      basketball_player_vox11_00000200:  { enablePlanar: 0 }
+      dancer_vox11_00000001:             { enablePlanar: 0 }
+      facade_00064_vox11:                { enablePlanar: 0 }
+      longdress_vox10_1300:              { enablePlanar: 0 }
+      loot_vox10_1200:                   { enablePlanar: 0 }
+      queen_0200:                        { enablePlanar: 0 }
+      redandblack_vox10_1550:            { enablePlanar: 0 }
+      soldier_vox10_0690:                { enablePlanar: 0 }
+      thaidancer_viewdep_vox12:          { enablePlanar: 0 }
+
+
+      # cat1-dense
+      boxer_viewdep_vox12:               { enablePlanar: 0 }
+      facade_00009_vox12:                { enablePlanar: 1 }
+      facade_00015_vox14:                { enablePlanar: 1 }
+      facade_00064_vox14:                { enablePlanar: 1 }
+      frog_00067_vox12:                  { enablePlanar: 1 }
+      head_00039_vox12:                  { enablePlanar: 0 }
+      house_without_roof_00057_vox12:    { enablePlanar: 1 }
+      landscape_00014_vox14:             { enablePlanar: 0 }
+      longdress_viewdep_vox12:           { enablePlanar: 0 }
+      loot_viewdep_vox12:                { enablePlanar: 0 }
+      redandblack_viewdep_vox12:         { enablePlanar: 0 }
+      soldier_viewdep_vox12:             { enablePlanar: 0 }
+
+      # cat1-sparse
+      arco_valentino_dense_vox12:        { enablePlanar: 1 }
+      egyptian_mask_vox12:               { enablePlanar: 1 }
+      palazzo_carignano_dense_vox14:     { enablePlanar: 1 }
+      shiva_00035_vox12:                 { enablePlanar: 1 }
+      stanford_area_2_vox16:             { enablePlanar: 1 }
+      stanford_area_4_vox16:             { enablePlanar: 1 }
+      staue_klimt_vox12:                 { enablePlanar: 1 }
+      ulb_unicorn_hires_vox15:           { enablePlanar: 1 }
+      ulb_unicorn_vox13:                 { enablePlanar: 1 }
+
+      # cat1-scant
+      arco_valentino_dense_vox20:        { enablePlanar: 1 }
+      egyptian_mask_vox20:               { enablePlanar: 1 }
+      facade_00009_vox20:                { enablePlanar: 1 }
+      facade_00015_vox20:                { enablePlanar: 1 }
+      facade_00064_vox20:                { enablePlanar: 1 }
+      frog_00067_vox20:                  { enablePlanar: 1 }
+      head_00039_vox20:                  { enablePlanar: 1 }
+      house_without_roof_00057_vox20:    { enablePlanar: 1 }
+      landscape_00014_vox20:             { enablePlanar: 1 }
+      palazzo_carignano_dense_vox20:     { enablePlanar: 1 }
+      shiva_00035_vox20:                 { enablePlanar: 1 }
+      stanford_area_2_vox20:             { enablePlanar: 1 }
+      stanford_area_4_vox20:             { enablePlanar: 1 }
+      staue_klimt_vox20:                 { enablePlanar: 1 }
+      ulb_unicorn_hires_vox20:           { enablePlanar: 1 }
+      ulb_unicorn_vox20:                 { enablePlanar: 1 }

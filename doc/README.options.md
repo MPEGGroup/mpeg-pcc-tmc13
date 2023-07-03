@@ -881,6 +881,10 @@ Coding method to use for the current attribute:
   | 2     | Hierarchical neighbourhood prediction as lifting transform |
   | 3     | Uncompressed (PCM)                                         |
 
+### `--integerHaar=0|1`
+Enables interger HAAR transform instead of RAHT.
+`--integerHaar=1` shall be combined with `--qp=4` for lossless transform.
+
 ### `--rahtExtension=0|1`
 Enables RAHT extension tools including buffee precision increase
 and skipping transform domain prediction in one-subnode condition.

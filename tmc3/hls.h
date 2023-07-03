@@ -438,6 +438,7 @@ struct SequenceParameterSet {
 
 struct RahtPredictionParams {
   bool raht_prediction_enabled_flag;
+  bool integer_haar_enable_flag;
   int raht_prediction_threshold0;
   int raht_prediction_threshold1;
   bool raht_subnode_prediction_enabled_flag;

@@ -1,0 +1,156 @@
+# Test conditions for N17995 CTC C1 using TMC13 octree
+# octree lossless-geom  --  lossless-attrs raht
+---
+categories:
+  lossless-geom-lossless-attrs:
+    encflags:
+     - mode: 0
+
+     -
+       - !conditional '${src-unit-metres}'
+       - srcUnit: metre
+       - srcUnitLength: '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     ##
+     # geometry parameters (octree)
+     #  - preserve lossless geometry property
+     - trisoupNodeSizeLog2: 0
+     - mergeDuplicatedPoints: 0
+     - neighbourAvailBoundaryLog2: 8
+     - intra_pred_max_node_size_log2: 6
+     - positionQuantizationScale: 1
+     - randomAccessPeriod: 32
+     - interPredictionEnabled: 1
+     - globalMotionEnabled: 1
+     - motionVectorPath: '${global_motion_file}'
+     -
+       - !conditional '${numLasers}'
+       - angularEnabled: 1
+       - numLasers: '${numLasers}'
+       - lasersTheta: '${lasersTheta}'
+       - lasersZ: '${lasersZ}'
+       - lasersNumPhiPerTurn:  '${lasersNumPhiPerTurn}'
+       - planarBufferDisabled: 1
+
+     # idcm intensity depends upon the content type
+     - inferredDirectCodingMode: 1
+     -
+       - !conditional '"${group}" eq "cat3-fused"'
+       - inferredDirectCodingMode: 2
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - inferredDirectCodingMode: 3
+
+     # default qtbt and planar with cat3-frame exception
+     - maxNumQtBtBeforeOt: 4
+     - minQtbtSizeLog2: 0
+     - planarEnabled: 1
+     -
+       - !conditional '"${group}" eq "solid"'
+       - planarEnabled: '${enablePlanar}'
+     -
+       - !conditional '"${group}" eq "dense"'
+       - planarEnabled: '${enablePlanar}'
+     - planarModeIdcmUse: 0
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - partitionMethod: 0
+       - maxNumQtBtBeforeOt: 6
+       - planarModeIdcmUse: 32
+     -
+       - !conditional '"${lidar-type}" eq "spinning"'
+       # using cuboid LPU with spinning sequences
+       - lpuType: 1
+     - gmThresholdHistScale: '$eval{ ${gm-thresh-hist-scale} || 100 }'
+     - gmThresholdMinZ: '$eval{ ${gm-thresh-min-z} || -4000 }'
+     - gmThresholdMaxZ: '$eval{ ${gm-thresh-max-z} || -500 }'
+     - gmThresholdLeftScale: '$eval{ ${gm-thresh-left-scale} || 1.5 }'
+     - gmThresholdRightScale: '$eval{ ${gm-thresh-right-scale} || 1.5 }'
+
+     ####
+     # attribute coding (common options -- relies on option ordering)
+     #  - uses raht transform
+     #  - scale 16bit reflectance data to 8bit
+     - convertPlyColourspace: 1
+     - transformType: 0
+     - integerHaar: 1
+     -
+       - !conditional '${numLasers}'
+       - spherical_coord_flag: 1
+     -
+       - !conditional '"${group}" eq "cat3-frame"'
+       - rahtInterPredictionDepthMinus1: 5
+
+     ##
+     # attribute coding -- reflectance
+     -
+       - !conditional '${has_refl}'
+       - qp: 4
+       - bitdepth: 8
+       -
+         - !conditional '${reflectance8b16b_scale_factor}'
+         - attrOffset: 0
+         - attrScale: ${reflectance8b16b_scale_factor}
+       - attribute: reflectance
+
+     ##
+     # attribute coding -- colour
+     -
+       - !conditional '${has_colour}'
+       - qp: 4
+       # NB: raht doesn't yet support qpChromaOffset
+       - qpChromaOffset: 0
+       - bitdepth: 8
+       - colourMatrix: 8
+       - attrOffset: 0
+       - attrScale: 1
+       - attribute: color
+     - attrInterPredTranslationThresh: '$eval{ ${translation-thresh} || 1000 }'
+
+    decflags:
+     - mode: 1
+     -
+       - !conditional '${src-unit-metres}'
+       - outputUnitLength: '${src-unit-metres}'
+
+     - convertPlyColourspace: 1
+
+    pcerrorflags:
+     - dropdups: 2
+     - neighborsProc: 1
+     # NB: use hausdorff to better verify lossless coding
+     - hausdorff
+
+    sequences:
+      # cat3
+      ford_01_q1mm:
+      ford_02_q1mm:
+      ford_03_q1mm:
+      qnxadas-junction-approach:
+      qnxadas-junction-exit:
+      qnxadas-motorway-join:
+      qnxadas-navigating-bends:
+      innovizQC1:
+        translation-thresh: 100
+        gm-thresh-hist-scale: 10
+        gm-thresh-min-z: -250
+        gm-thresh-max-z: 250
+        gm-thresh-left-scale: 0.2
+        gm-thresh-right-scale: 0.5
+
+      innovizQC2:
+        translation-thresh: 100
+        gm-thresh-hist-scale: 10
+        gm-thresh-min-z: -250
+        gm-thresh-max-z: 250
+        gm-thresh-left-scale: 0.2
+        gm-thresh-right-scale: 0.5
+
+      innovizQC3:
+        translation-thresh: 100
+        gm-thresh-hist-scale: 10
+        gm-thresh-min-z: -250
+        gm-thresh-max-z: 250
+        gm-thresh-left-scale: 0.2
+        gm-thresh-right-scale: 0.5

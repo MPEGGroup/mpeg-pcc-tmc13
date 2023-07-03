@@ -1272,6 +1272,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "  1: Hierarchical neighbourhood prediction\n"
     "  2: Hierarchical neighbourhood prediction as lifting transform")
 
+  ("integerHaar",
+    params_attr.aps.rahtPredParams.integer_haar_enable_flag, false,
+    "Controls Integer Haar Transform method:\n"
+    " 0: off\n"
+    " 1: Turn on Integer Haar Transform")
+
   ("rahtExtension",
     params_attr.aps.raht_extension, true,
     "Enable extensions of RAHT coding, including buffer precision increase"
@@ -1633,6 +1639,14 @@ sanitizeEncoderOpts(
     attr_aps.init_qp_minus4 -= 4;
     attr_aps.num_pred_nearest_neighbours_minus1--;
     attr_aps.max_neigh_range_minus1--;
+
+    if (attr_aps.rahtPredParams.integer_haar_enable_flag) {
+      if (attr_aps.raht_send_inter_filters) {
+        attr_aps.raht_send_inter_filters = false;
+        err.warn() << "ignoring rahtInterSendFilters: "
+          "not compatible with integerHaar.\n";
+      }
+    }
   }
 
   // Config options are absolute, but signalling is relative

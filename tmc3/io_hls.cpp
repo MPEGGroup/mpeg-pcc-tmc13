@@ -1046,6 +1046,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUe(aps.rahtPredParams.raht_prediction_threshold0);
       bs.writeUe(aps.rahtPredParams.raht_prediction_threshold1);
     }
+    bs.write(aps.rahtPredParams.integer_haar_enable_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRaw)
@@ -1204,6 +1205,7 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.rahtPredParams.raht_prediction_threshold0);
       bs.readUe(&aps.rahtPredParams.raht_prediction_threshold1);
     }
+    bs.read(&aps.rahtPredParams.integer_haar_enable_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRaw)

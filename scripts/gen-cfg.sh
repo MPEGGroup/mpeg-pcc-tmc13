@@ -85,6 +85,7 @@ cfg_octree_predlift=(
 cfg_octree_raht=(
 	octree-raht-ctc-lossless-geom-lossy-attrs.yaml
 	octree-raht-ctc-lossy-geom-lossy-attrs.yaml
+	octree-raht-ctc-lossless-geom-lossless-attrs.yaml
 )
 
 cfg_predgeom_predlift=(
