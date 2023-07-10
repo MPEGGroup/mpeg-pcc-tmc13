@@ -1080,6 +1080,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
         bs.writeUe(aps.raht_inter_prediction_depth_minus1);
         bs.write(aps.raht_send_inter_filters);
         bs.writeUe(aps.raht_inter_skip_layers);
+        bs.write(aps.raht_enable_code_layer);
       } else
         bs.writeUe(aps.attrInterPredSearchRange);       
     }
@@ -1241,6 +1242,7 @@ parseAps(const PayloadBuffer& buf)
         bs.readUe(&aps.raht_inter_prediction_depth_minus1);
         bs.read(&aps.raht_send_inter_filters);
         bs.readUe(&aps.raht_inter_skip_layers);
+        bs.read(&aps.raht_enable_code_layer);
       }
       else
       bs.readUe(&aps.attrInterPredSearchRange);
@@ -1870,7 +1872,14 @@ write(
         }
       }
     }
-    
+    if (
+      aps.raht_enable_code_layer && abh.enableAttrInterPred
+      && aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      int numDepth = abh.raht_attr_layer_code_mode.size();
+      bs.writeUe(numDepth);
+      for (int depth = 0; depth < numDepth; ++depth)
+        bs.write(abh.raht_attr_layer_code_mode[depth]);
+    }
   }
   bs.byteAlign();
 }
@@ -2021,6 +2030,15 @@ parseAbh(
           bs.readSe(&abh.RAHTFilterTaps[i]);
         }
       }
+    }
+    if (
+      aps.raht_enable_code_layer && abh.enableAttrInterPred
+      && aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      int numDepth = 0;
+      bs.readUe(&numDepth);
+      abh.raht_attr_layer_code_mode.resize(numDepth);
+      for (int depth = 0; depth < numDepth; ++depth)
+        bs.read(&abh.raht_attr_layer_code_mode[depth]);
     }
   }
 

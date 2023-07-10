@@ -556,23 +556,28 @@ AttributeDecoder::decodeReflectancesRaht(
 
   std::vector<int> attributes(attribCount * voxelCount);
 
-  if(attrInterPredParams.enableAttrInterPred){
+  if (attrInterPredParams.enableAttrInterPred) {
     const int voxelCount_ref = int(attrInterPredParams.getPointCount());
     attrInterPredParams.paramsForInterRAHT.voxelCount = voxelCount_ref;
     std::vector<MortonCodeWithIndex> packedVoxel_ref(voxelCount_ref);
     for (int n = 0; n < voxelCount_ref; n++) {
-      packedVoxel_ref[n].mortonCode = mortonAddr(attrInterPredParams.referencePointCloud[n]);
+      packedVoxel_ref[n].mortonCode =
+        mortonAddr(attrInterPredParams.referencePointCloud[n]);
       packedVoxel_ref[n].index = n;
     }
 
     sort(packedVoxel_ref.begin(), packedVoxel_ref.end());
 
     attrInterPredParams.paramsForInterRAHT.mortonCode.resize(voxelCount_ref);
-    attrInterPredParams.paramsForInterRAHT.attributes.resize(attribCount * voxelCount_ref);
+    attrInterPredParams.paramsForInterRAHT.attributes.resize(
+      attribCount * voxelCount_ref);
     // Populate input arrays.
     for (int n = 0; n < voxelCount_ref; n++) {
-      attrInterPredParams.paramsForInterRAHT.mortonCode[n] = packedVoxel_ref[n].mortonCode;
-      attrInterPredParams.paramsForInterRAHT.attributes[n] = attrInterPredParams.referencePointCloud.getReflectance(packedVoxel_ref[n].index);
+      attrInterPredParams.paramsForInterRAHT.mortonCode[n] =
+        packedVoxel_ref[n].mortonCode;
+      attrInterPredParams.paramsForInterRAHT.attributes[n] =
+        attrInterPredParams.referencePointCloud.getReflectance(
+          packedVoxel_ref[n].index);
     }
   }
 

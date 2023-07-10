@@ -240,12 +240,14 @@ struct AttributeInterPredParamsForRAHT {
   std::vector<int> coeff_DCs;
   int raht_inter_prediction_depth_minus1 = 0;
   bool raht_inter_prediction_enabled = 0;
+  bool raht_enable_inter_intra_layer_RDO = false;
   bool enableFilterEstimation = false;
   int skipInitLayersForFiltering = 0;
   std::vector<int> FilterTaps = {};
   AttributeInterPredBufRAHT bufForInterRAHT;
   PredBufRAHT* cur;
   PredBufRAHT* ref;
+  std::vector<int> attr_layer_code_mode;
 
   void swapBuffersRef(const int numAttrDimMinus1)
   {
@@ -276,6 +278,7 @@ struct AttributeInterPredParams {
   int frameDistance;
   bool enableAttrInterPred;
   bool attrInterIntraSliceRDO;
+  bool enableSkipCode = true;
   double lambda;
   int rateEstimate;
   double distEstimate;
@@ -291,6 +294,7 @@ struct AttributeInterPredParams {
   {
     return attrInterIntraSliceRDO && enableAttrInterPred;
   }
+  std::vector<int> attr_layer_code_mode;
 };
 
 

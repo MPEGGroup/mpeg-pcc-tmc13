@@ -1130,7 +1130,14 @@ PCCTMC3Encoder3::compressPartition(
       attr_aps.attrInterPredictionEnabled;
     attrInterPredParams.paramsForInterRAHT.enableFilterEstimation = attr_aps.raht_send_inter_filters;
     attrInterPredParams.paramsForInterRAHT.skipInitLayersForFiltering = attr_aps.raht_inter_skip_layers;
-    
+
+    attrInterPredParams.paramsForInterRAHT.raht_enable_inter_intra_layer_RDO =
+      attr_aps.raht_enable_code_layer;
+    attrInterPredParams.attr_layer_code_mode.clear();
+    if (attr_sps.attr_num_dimensions_minus1 == 0 && !_gps->geom_angular_mode_enabled_flag)
+      attrInterPredParams.enableSkipCode = false;
+    else
+      attrInterPredParams.enableSkipCode = true;
 
     attrInterPredParams.attrInterIntraSliceRDO =
       attr_enc.attrInterIntraSliceRDO && attr_aps.attrInterPredictionEnabled;
@@ -1205,38 +1212,34 @@ PCCTMC3Encoder3::compressPartition(
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
         pointCloud[i] += _sliceOrigin; 
 
-    Box3<int> currentFrameBox = pointCloud.computeBoundingBox();
-    
-    if(!_gps->biPredictionEnabledFlag)
-      attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
-    
-    int count = 0;
-    if (attr_aps.attrInterPredictionEnabled)
-      for (int i = 0; i < attrInterPredParams.getPointCount(); i++) {
-        point_t p = attrInterPredParams.referencePointCloud[i];
-        if (currentFrameBox.contains(p)) {
-          attrInterPredParams.referencePointCloud[count] = p;
-          if (attrInterPredParams.referencePointCloud.hasReflectances())
-            attrInterPredParams.referencePointCloud.setReflectance(
-              count, attrInterPredParams.referencePointCloud.getReflectance(i));
-          if (attrInterPredParams.referencePointCloud.hasColors())
-            attrInterPredParams.referencePointCloud.setColor(
-              count, attrInterPredParams.referencePointCloud.getColor(i));
-          count++;
+   if (attr_aps.attrInterPredictionEnabled) {
+      if (attr_aps.attr_encoding != AttributeEncoding::kRAHTransform) {
+        Box3<int> currentFrameBox = pointCloud.computeBoundingBox();
+        attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
+        int count = 0;
+        for (int i = 0; i < attrInterPredParams.getPointCount(); i++) {
+          point_t p = attrInterPredParams.referencePointCloud[i];
+          if (currentFrameBox.contains(p)) {
+            attrInterPredParams.referencePointCloud[count] = p;
+            if (attrInterPredParams.referencePointCloud.hasReflectances())
+              attrInterPredParams.referencePointCloud.setReflectance(
+                count,
+                attrInterPredParams.referencePointCloud.getReflectance(i));
+            if (attrInterPredParams.referencePointCloud.hasColors())
+              attrInterPredParams.referencePointCloud.setColor(
+                count, attrInterPredParams.referencePointCloud.getColor(i));
+            count++;
+          }
         }
+        attrInterPredParams.referencePointCloud.resize(count);
       }
-    attrInterPredParams.referencePointCloud.resize(count);
+    }
 
     auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
     attrEncoder->encode(
       *_sps, attr_sps, attr_aps, abh, ctxtMemAttr, pointCloud, &payload, attrInterPredParams);
 
     reconSliceAltPositions = pointCloud;
-
-    if (!attr_aps.spherical_coord_flag)
-      for (auto i = 0; i < pointCloud.getPointCount(); i++)
-        pointCloud[i] -= _sliceOrigin;
-
     bool currFrameNotCodedAsB =
       (_gps->biPredictionEnabledFlag
         && !biPredEncodeParams.codeCurrentFrameAsBFrame);
@@ -1248,9 +1251,11 @@ PCCTMC3Encoder3::compressPartition(
       pointCloud.swapPoints(altPositions);
     } else {
       refCloud = pointCloud;
-      for (int count = 0; count < refCloud.getPointCount(); count++)
-        refCloud[count] += _sliceOrigin;
     }
+
+    if (!attr_aps.spherical_coord_flag)
+      for (auto i = 0; i < pointCloud.getPointCount(); i++)
+        pointCloud[i] -= _sliceOrigin;
 
     clock_user.stop();
 
@@ -1462,7 +1467,9 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   movingState = false;
   biPredEncodeParams.movingState2 = false;
 
-  if(gbh.interPredictionEnabledFlag){
+  if (gbh.interPredictionEnabledFlag && params->attributeIdxMap.size()
+    && _aps[params->attributeIdxMap.begin()->second]->attr_encoding
+    != AttributeEncoding::kRAHTransform) {
     auto checkMovingState =
       [&](const VecInt& mat, const pcc::point_t& tran) -> bool {
       const double scale = 65536.;
@@ -1479,8 +1486,8 @@ PCCTMC3Encoder3::encodeGeometryBrick(
       const double Sz = std::abs(tran[2]);
 
       return (
-        Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre
-        && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
+        Rx < thr1_tan_pre&& Ry < thr1_sin_pre&& Rz < thr1_tan_pre
+        && Sx < thr2_pre&& Sy < thr2_pre&& Sz < thr2_pre);
     };
 
     movingState = checkMovingState(gbh.gm_matrix, gbh.gm_trans);

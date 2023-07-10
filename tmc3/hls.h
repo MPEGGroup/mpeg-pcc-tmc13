@@ -865,6 +865,7 @@ struct AttributeParameterSet {
   bool attrInterPredictionEnabled;
   int attrInterPredSearchRange;
   int qpShiftStep;
+  bool raht_enable_code_layer;
   int raht_inter_prediction_depth_minus1;
   bool raht_send_inter_filters;
   int raht_inter_skip_layers;
@@ -969,6 +970,8 @@ struct AttributeBrickHeader {
   // Disable the attribute inter prediction for the second reference frame
   bool disableAttrInterPredForRefFrame2;
   std::vector<int> RAHTFilterTaps;
+
+  std::vector<int> raht_attr_layer_code_mode;
 };
 
 //============================================================================

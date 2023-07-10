@@ -50,6 +50,48 @@ namespace pcc {
 
 //============================================================================
 
+void
+PCCRAHTACCoefficientEntropyEstimate::init()
+{
+  for (int k = 0; k < 3; k++)
+    probResGt0[k] = probResGt1[k] = (scaleRes >> 1);
+  sumCostBits = 0.;
+}
+
+//---------------------------------------------------------------------------
+
+void
+PCCRAHTACCoefficientEntropyEstimate::updateCostBits(int32_t value, int k)
+{
+  int log2scaleRes = ilog2(uint32_t(scaleRes));
+  double bits = 0;
+  bits += value ? log2scaleRes - log2(probResGt0[k])
+                : log2scaleRes - log2(scaleRes - probResGt0[k]);  //Gt0
+  int mag = abs(value);
+  if (mag) {
+    bits += mag > 1 ? log2scaleRes - log2(probResGt1[k])
+                    : log2scaleRes - log2(scaleRes - probResGt1[k]);  //Gt1
+    bits += 1;  //sign bit.
+    if (mag > 1)
+      bits += 2.0 * log2(mag - 1.0) + 1.0;  //EG0 approximation.
+  }
+  sumCostBits += bits;
+}
+
+//----------------------------------------------------------------------------
+
+void
+PCCRAHTACCoefficientEntropyEstimate::resStatUpdate(int32_t value, int k)
+{
+  probResGt0[k] += value ? (scaleRes - probResGt0[k]) >> windowLog2
+                         : -((probResGt0[k]) >> windowLog2);
+  if (value)
+    probResGt1[k] += abs(value) > 1 ? (scaleRes - probResGt1[k]) >> windowLog2
+                                    : -((probResGt1[k]) >> windowLog2);
+}
+
+//============================================================================
+
 struct UrahtNode {
   int64_t pos;
   int weight;
@@ -358,7 +400,7 @@ findNeighbours(
 //============================================================================
 // Generate the spatial prediction of a block.
 
-template<bool rahtExtension, typename It>
+template<bool isEncoder, bool rahtExtension, typename It>
 void
 intraDcPred(
   int numAttrs,
@@ -367,10 +409,13 @@ intraDcPred(
   int occupancy,
   It first,
   It firstChild,
+  It intraFirstChild,
   FixedPoint predBuf[][8],
+  FixedPoint intraPredBuf[][8],
   const RahtPredictionParams &rahtPredParams, 
   int64_t& limitLow,
-  int64_t& limitHigh)
+  int64_t& limitHigh,
+  const bool& enableACInterPred)
 {
   static const uint8_t predMasks[19] = {255, 240, 204, 170, 192, 160, 136,
                                         3,   5,   15,  17,  51,  85,  10,
@@ -390,9 +435,12 @@ intraDcPred(
   int weightSum[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
   std::fill_n(&predBuf[0][0], 8 * numAttrs, FixedPoint(0));
+  if (isEncoder && enableACInterPred)
+    std::fill_n(&intraPredBuf[0][0], 8 * numAttrs, FixedPoint(0));
 
   int64_t neighValue[3];
   int64_t childNeighValue[3];
+  int64_t intraChildNeighValue[3];
 
   const auto parentOnlyCheckMaxIdx =
     rahtPredParams.raht_subnode_prediction_enabled_flag ? 7 : 19;
@@ -426,8 +474,11 @@ intraDcPred(
     for (int j = 0; mask; j++, mask >>= 1) {
       if (mask & 1) {
         weightSum[j] += predWeightParent[i];
-        for (int k = 0; k < numAttrs; k++)
+        for (int k = 0; k < numAttrs; k++) {
           predBuf[k][j].val += neighValue[k];
+          if (isEncoder && enableACInterPred)
+            intraPredBuf[k][j].val += neighValue[k];
+        }
       }
     }
   }
@@ -468,10 +519,27 @@ intraDcPred(
 
             for (int k = 0; k < numAttrs; k++)
               predBuf[k][j].val += childNeighValue[k];
+
+            if (isEncoder && enableACInterPred) {
+              auto intraChildNeighValueIt =
+                std::next(intraFirstChild, numAttrs * childNeighIdx[i][j]);
+              for (int k = 0; k < numAttrs; k++)
+                if (rahtExtension)
+                  intraChildNeighValue[k] =
+                    (*intraChildNeighValueIt++) * predWeightChild[i];
+                else
+                  intraChildNeighValue[k] = (*intraChildNeighValueIt++)
+                    * (predWeightChild[i] << pcc::FixedPoint::kFracBits);
+              for (int k = 0; k < numAttrs; k++)
+                intraPredBuf[k][j].val += intraChildNeighValue[k];
+            }
           } else {
             weightSum[j] += predWeightParent[7 + i];
-            for (int k = 0; k < numAttrs; k++)
+            for (int k = 0; k < numAttrs; k++) {
               predBuf[k][j].val += neighValue[k];
+              if (isEncoder && enableACInterPred)
+                intraPredBuf[k][j].val += neighValue[k];
+            }
           }
         }
       }
@@ -483,12 +551,14 @@ intraDcPred(
   for (int i = 0; i < 8; i++, occupancy >>= 1) {
     if (occupancy & 1) {
       div.val = kDivisors[weightSum[i]];
-      for (int k = 0; k < numAttrs; k++)
+      for (int k = 0; k < numAttrs; k++) {
         predBuf[k][i] *= div;
+        if (isEncoder && enableACInterPred)
+          intraPredBuf[k][i] *= div;
+      }
     }
   }
 }
-
 
 //============================================================================
 // Encapsulation of a RAHT transform stage.
@@ -898,10 +968,16 @@ uraht_process(
   bool enableACInterPred = attrInterPredParams.enableAttrInterPred;
   const bool enableDCInterPred = attrInterPredParams.enableAttrInterPred;
   bool enableFilterEstimation = attrInterPredParams.paramsForInterRAHT.enableFilterEstimation;
+  bool enableACRDOInterPred =
+    attrInterPredParams.paramsForInterRAHT.raht_enable_inter_intra_layer_RDO
+    && enableACInterPred;
 
   int refIdx = 0;
   int treeDepth = 0;
-  int treeDepthLimit = attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 + 1;
+  int treeDepthLimit =
+    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1
+    + 1;
+
   std::vector<int64_t> fixedFilterTaps = {128, 128, 128, 127, 125, 121, 115};
   int skipInitLayersForFiltering = attrInterPredParams.paramsForInterRAHT.skipInitLayersForFiltering;
 
@@ -950,7 +1026,6 @@ uraht_process(
   std::vector<int> levelHfPos_ref;
 
   int numDupNodes = numPoints;
-
   for (int level = 0, numNodes = weightsLf.size(); numNodes > 1; level++) {
     levelHfPos.push_back(weightsHf.size());
     if (level == 0) {
@@ -984,13 +1059,17 @@ uraht_process(
   assert(weightsLf[0].weight == numPoints);
 
   // reconstruction buffers
-  std::vector<int64_t> attrRec, attrRecParent;
+  std::vector<int64_t> attrRec, attrRecParent, intraAttrRec;
   attrRec.resize(numPoints * numAttrs);
   attrRecParent.resize(numPoints * numAttrs);
+  if (isEncoder && enableACRDOInterPred)
+    intraAttrRec.resize(numPoints * numAttrs);
 
-  std::vector<int64_t> attrRecUs, attrRecParentUs;
+  std::vector<int64_t> attrRecUs, attrRecParentUs, intraAttrRecUs;
   attrRecUs.resize(numPoints * numAttrs);
   attrRecParentUs.resize(numPoints * numAttrs);
+  if (isEncoder && enableACRDOInterPred)
+    intraAttrRecUs.resize(numPoints * numAttrs);
 
   std::vector<UrahtNode> weightsParent;
   weightsParent.reserve(numPoints);
@@ -1007,18 +1086,26 @@ uraht_process(
   // descend tree
   weightsLf.resize(1);
   attrsLf.resize(numAttrs);
-  
-    weightsLf_ref.resize(1);
-    attrsLf_ref.resize(numAttrs);
+
+  weightsLf_ref.resize(1);
+  attrsLf_ref.resize(numAttrs);
 
   int trainZeros = 0;
   int sumNodes = 0;
+  int intraTrainZeros = 0;
+  PCCRAHTACCoefficientEntropyEstimate intraEstimate;
+  PCCRAHTACCoefficientEntropyEstimate curEstimate;
+  int depth = 0;
+  std::vector<int> intraACCoeffcients;
+  if (isEncoder && enableACRDOInterPred) {
+    intraACCoeffcients.resize(numPoints * numAttrs);
+  }
+  std::vector<NodeInfoRAHT> intraNodes;
   for (int level = levelHfPos.size() - 1, level_ref = levelHfPos_ref.size() - 1, isFirst = 1; level > 0; /*nop*/) {
     int numNodes = weightsHf.size() - levelHfPos[level];
     sumNodes += numNodes;
     weightsLf.resize(weightsLf.size() + numNodes);
     attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
-
     expandLevel(
       level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
 
@@ -1026,35 +1113,38 @@ uraht_process(
     attrsHf.resize(levelHfPos[level] * numAttrs);
 
 
-      if (level_ref <= 0){
-        enableACInterPred = 0;
-      }
+    if (level_ref <= 0) {
+      enableACInterPred = false;
+    }
 
-      if (treeDepth >= treeDepthLimit)
-        enableACInterPred = 0;
+    if (treeDepth >= treeDepthLimit)
+      enableACInterPred = false;
 
-      if (enableACInterPred){      
-        int numNodes_ref = weightsHf_ref.size() - levelHfPos_ref[level_ref];
-        weightsLf_ref.resize(weightsLf_ref.size() + numNodes_ref);
-        attrsLf_ref.resize(attrsLf_ref.size() + numNodes_ref * numAttrs);    
-        expandLevel(level_ref, numNodes_ref, numAttrs, &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref);  
-        weightsHf_ref.resize(levelHfPos_ref[level_ref]);
-        attrsHf_ref.resize(levelHfPos_ref[level_ref] * numAttrs);   
-      }
+    if (enableACInterPred) {
+      int numNodes_ref = weightsHf_ref.size() - levelHfPos_ref[level_ref];
+      weightsLf_ref.resize(weightsLf_ref.size() + numNodes_ref);
+      attrsLf_ref.resize(attrsLf_ref.size() + numNodes_ref * numAttrs);
+      expandLevel(
+        level_ref, numNodes_ref, numAttrs, &weightsLf_ref, &weightsHf_ref,
+        &attrsLf_ref, &attrsHf_ref);
+      weightsHf_ref.resize(levelHfPos_ref[level_ref]);
+      attrsHf_ref.resize(levelHfPos_ref[level_ref] * numAttrs);
+    }
 
+    enableACRDOInterPred =
+      attrInterPredParams.paramsForInterRAHT.raht_enable_inter_intra_layer_RDO
+      && enableACInterPred;
 
-    
     // expansion of level is complete, processing is now on the next level
     level--;
     level_ref--;
+
     // every three levels, perform transform
     if (level % 3)
       continue;
     ///< current level nodes number is equal to previous nodes level
     if (sumNodes == 0)
       continue;
-
-    sumNodes = 0;
 
     // initial scan position of the coefficient buffer
     //  -> first level = all coeffs
@@ -1081,6 +1171,31 @@ uraht_process(
           it++;
         weightsParent[i].lastChild = it;
       }
+    }
+
+    int32_t* intraCoeffBufItK[3] = {
+      intraACCoeffcients.data(),
+      intraACCoeffcients.data() + sumNodes,
+      intraACCoeffcients.data() + sumNodes * 2,
+    };
+    int32_t* intraCoeffBufItBeginK[3] = {
+      intraCoeffBufItK[0],
+      intraCoeffBufItK[1],
+      intraCoeffBufItK[2],
+    };
+
+    int32_t* coeffBufItBeginK[3] = {
+      coeffBufItK[0],
+      coeffBufItK[1],
+      coeffBufItK[2],
+    };
+    bool curLevelEnableACInterPred = false;
+    if (isEncoder)
+      curLevelEnableACInterPred =
+        enablePredictionInLvl && enableACRDOInterPred;
+    else {
+      curLevelEnableACInterPred = enablePredictionInLvl && enableACRDOInterPred
+        && attrInterPredParams.attr_layer_code_mode[depth];
     }
 
     // select quantiser according to transform layer
@@ -1126,15 +1241,13 @@ uraht_process(
       int64_t recResidueFilterTap = divExp2RoundHalfUp(q.scale(attrInterPredParams.paramsForInterRAHT.FilterTaps[idxtoread]), kFixedPointAttributeShift);
       interFilterTap = 128 - recResidueFilterTap;
     }
-    
-
-    // std::cout << "iLast = " << weightsLf.size() << "\n";
     for (int i = 0, j = 0, iLast, jLast, iEnd = weightsLf.size(), jEnd = weightsLf_ref.size(); i < iEnd; i = iLast) {
-      NodeInfoRAHT current;
       // todo(df): hoist and dynamically allocate
       FixedPoint transformBuf[6][8] = {};
       FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
       FixedPoint transformInterPredBuf[3][8] = {};
+      FixedPoint transformIntraBuf[3][8] = {};
+      FixedPoint transformIntraPredBuf[3][8] = {};
       int weights[8 + 8 + 8 + 8] = {};
       Qps nodeQp[8] = {};
       uint8_t occupancy = 0;
@@ -1145,17 +1258,17 @@ uraht_process(
 
       int weights_ref[8 + 8 + 8 + 8] = {};
       bool interNode = false;
- 
-      if (enableACInterPred) {
+      if (curLevelEnableACInterPred
+          || (enableACInterPred && !enablePredictionInLvl)) {
         const auto cur_pos = weightsLf[i].pos >> (level + 3);
         auto ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
         while ((j < weightsLf_ref.size() - 1) && (cur_pos > ref_pos)) {
           j++;
           ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
         }
-        if (cur_pos == ref_pos) {      
+        if (cur_pos == ref_pos) {
           interNode = true;
-        }                
+        }
       }
 
       if (interNode) {
@@ -1224,11 +1337,7 @@ uraht_process(
         if (rahtExtension && nodeCnt == 1) {
           enablePrediction = false;
           parentNeighCount = 19;
-        } else if (interNode){
-          enablePrediction = false;
-          parentNeighCount = 19;
-        }
-         else if (
+        } else if (
           *numGrandParentNeighIt < rahtPredParams.raht_prediction_threshold0) {
           enablePrediction = false;
         } else {
@@ -1245,10 +1354,11 @@ uraht_process(
           } else {
             int64_t limitLow = 0;
             int64_t limitHigh = 0;
-            intraDcPred<rahtExtension>(
+            intraDcPred<isEncoder, rahtExtension>(
               numAttrs, parentNeighIdx, childNeighIdx, occupancy,
-              attrRecParent.begin(), attrRec.begin(), transformPredBuf,
-              rahtPredParams, limitLow, limitHigh);
+              attrRecParent.begin(), attrRec.begin(), intraAttrRec.begin(),
+              transformPredBuf, transformIntraPredBuf, rahtPredParams,
+              limitLow, limitHigh, curLevelEnableACInterPred);
           }
         }
 
@@ -1259,8 +1369,6 @@ uraht_process(
         }
       }
 
-
-
       int parentWeight = 0;
       if (inheritDc) {
         parentWeight = weightsParentIt->weight;
@@ -1268,6 +1376,9 @@ uraht_process(
         numGrandParentNeighIt++;
       }
 
+      bool enableIntraPrediction =
+        curLevelEnableACInterPred && enablePrediction;
+      bool enableInterPrediction = curLevelEnableACInterPred;
 
       // normalise coefficients
       if (interNode){
@@ -1285,7 +1396,8 @@ uraht_process(
             }
           }
         }
-        enablePrediction = false;
+        if (!isEncoder)
+          enablePrediction = false;
       }
 
 
@@ -1307,12 +1419,17 @@ uraht_process(
         }
 
         // Predicted attribute values
+        FixedPoint sqrtWeight;
         if (enablePrediction) {
-          FixedPoint sqrtWeight;
           sqrtWeight.val =
             isqrt(uint64_t(weights[childIdx]) << (2 * FixedPoint::kFracBits));
           for (int k = 0; k < numAttrs; k++) {
             transformPredBuf[k][childIdx] *= sqrtWeight;
+          }
+        }
+        if (isEncoder && enableIntraPrediction) {
+          for (int k = 0; k < numAttrs; k++) {
+            transformIntraPredBuf[k][childIdx] *= sqrtWeight;
           }
         }
       }
@@ -1341,6 +1458,12 @@ uraht_process(
       }
 
 
+      if (isEncoder && enableIntraPrediction)
+        fwdTransformBlock222<RahtKernel>(numAttrs, transformIntraPredBuf, weights);
+
+      if (isEncoder && curLevelEnableACInterPred)
+        std::copy_n(&transformBuf[0][0], 8 * numAttrs, &transformIntraBuf[0][0]);
+
       // per-coefficient operations:
       //  - subtract transform domain prediction (encoder)
       //  - write out/read in quantised coefficients
@@ -1350,22 +1473,34 @@ uraht_process(
         if (inheritDc && !idx)
           return;
 
-
         if (isEncoder && enablePrediction) {
+          // subtract transformed prediction (skipping DC)
           for (int k = 0; k < numAttrs; k++) {
             transformBuf[k][idx] -= transformPredBuf[k][idx];
           }
-        } 
+        }
+
+        if (isEncoder && enableIntraPrediction) {
+          for (int k = 0; k < numAttrs; k++) {
+            transformIntraBuf[k][idx] -= transformIntraPredBuf[k][idx];
+          }
+        }
 
         // decision for RDOQ
         int64_t sumCoeff = 0;
-        const int LUTlog[16] = {0,   256, 406, 512, 594, 662, 719,  768,
+        static const int LUTlog[16] = {0,   256, 406, 512, 594, 662, 719,  768,
                                 812, 850, 886, 918, 947, 975, 1000, 1024};
+        static const int LUTbins[11] = {1, 2, 3, 5, 5, 7, 7, 9, 9, 11, 11};
         bool flagRDOQ = false;
+        int64_t intraSumCoeff = 0;
+        bool intraFlagRDOQ = false;
         if (isEncoder) {
           int64_t Dist2 = 0;
           int Ratecoeff = 0;
           int64_t lambda0;
+
+          int64_t intraDist2 = 0;
+          int intraRatecoeff = 0;
 
           for (int k = 0; k < numAttrs; k++) {
             //auto q = Quantizer(qpLayer[std::min(k, int(quantizers.size()) - 1)] + nodeQp[idx]);
@@ -1380,10 +1515,20 @@ uraht_process(
               std::abs(Qcoeff) < 15 ? LUTlog[std::abs(Qcoeff)] : LUTlog[15];
             if (!k)
               lambda0 = q.scale(1);
+            if (curLevelEnableACInterPred) {
+              auto intraCoeff = transformIntraBuf[k][idx].round();
+              intraDist2 += intraCoeff * intraCoeff;
+              auto intraQcoeff =
+                q.quantize(intraCoeff << kFixedPointAttributeShift);
+              intraSumCoeff += std::abs(intraQcoeff);
+              //Ratecoeff += !!Qcoeff; // sign
+              intraRatecoeff += std::abs(intraQcoeff) < 15
+                ? LUTlog[std::abs(intraQcoeff)]
+                : LUTlog[15];
+            }
           }
-
+          const int64_t lambda = lambda0 * lambda0 * (numAttrs == 1 ? 25 : 35);
           if (sumCoeff < 3) {
-            int LUTbins[11] = {1, 2, 3, 5, 5, 7, 7, 9, 9, 11, 11};
             int Rate = LUTbins[trainZeros > 10 ? 10 : trainZeros];
             if (trainZeros > 10) {
               int temp = trainZeros - 11;
@@ -1401,16 +1546,41 @@ uraht_process(
             //Rate = Rate / std::max(1, trainZeros);
             Rate += (Ratecoeff + 128) >> 8;
 
-            int64_t lambda = lambda0 * lambda0 * (numAttrs == 1 ? 25 : 35);
             flagRDOQ = (Dist2 << 26) < lambda * Rate;
           }
-        }
+          if (curLevelEnableACInterPred && intraSumCoeff < 3) {
+            int intraRate =
+              LUTbins[intraTrainZeros > 10 ? 10 : intraTrainZeros];
+            if (intraTrainZeros > 10) {
+              int temp = intraTrainZeros - 11;
+              // prefix k =2
+              temp += 1;
+              int a = 0;
+              while (temp) {
+                a++;
+                temp >>= 1;
+              }
+              intraRate += 2 * a - 1;
+              // suffix  k=2
+              intraRate += 2;
+            }
+            intraRate += (intraRatecoeff + 128) >> 8;
+            intraFlagRDOQ = (intraDist2 << 26) < lambda * intraRate;
+          }
 
-        // Track RL for RDOQ
-        if (flagRDOQ || sumCoeff == 0)
-          trainZeros++;
-        else
-          trainZeros = 0;
+          // Track RL for RDOQ
+          if (flagRDOQ || sumCoeff == 0)
+            trainZeros++;
+          else
+            trainZeros = 0;
+
+          if (curLevelEnableACInterPred) {
+            if (intraFlagRDOQ || intraSumCoeff == 0)
+              intraTrainZeros++;
+            else
+              intraTrainZeros = 0;
+          }
+        }
 
         // Check if QP offset is to be applied to AC coeffiecients
         Qps coeffQPOffset = (acCoeffQpLayer <= maxAcCoeffQpOffsetLayers && idx)
@@ -1424,22 +1594,39 @@ uraht_process(
         // The RAHT transform
         auto quantizers = qpset.quantizers(qpLayer, nodeQPOffset);
         for (int k = 0; k < numAttrs; k++) {
-          if (flagRDOQ)  // apply RDOQ
-            transformBuf[k][idx].val = 0;
 
           auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
           if (isEncoder) {
+            if (flagRDOQ)  // apply RDOQ
+              transformBuf[k][idx].val = 0;
+
+            if (intraFlagRDOQ)  // apply RDOQ
+              transformIntraBuf[k][idx].val = 0;
             auto coeff = transformBuf[k][idx].round();
             assert(coeff <= INT_MAX && coeff >= INT_MIN);
             coeff = q.quantize(coeff << kFixedPointAttributeShift);
 
             //DC inter prediction at encoder
             auto coeff_tmp = coeff;
+            if (curLevelEnableACInterPred)
+              curEstimate.updateCostBits(coeff, k);
             *coeffBufItK[k]++ = coeff;
             transformPredBuf[k][idx] += divExp2RoundHalfUp(
               q.scale(coeff_tmp), kFixedPointAttributeShift);
+            if (curLevelEnableACInterPred)
+              curEstimate.resStatUpdate(coeff, k);
+            if (curLevelEnableACInterPred) {  //< estimate
+              auto intraCoeff = transformIntraBuf[k][idx].round();
+              assert(intraCoeff <= INT_MAX && intraCoeff >= INT_MIN);
+              intraCoeff = q.quantize(intraCoeff << kFixedPointAttributeShift);
 
+              intraEstimate.updateCostBits(intraCoeff, k);
+              *intraCoeffBufItK[k]++ = intraCoeff;
+              transformIntraPredBuf[k][idx] += divExp2RoundHalfUp(
+                q.scale(intraCoeff), kFixedPointAttributeShift);
+              intraEstimate.resStatUpdate(intraCoeff, k);
+            }
           } else {
             int64_t coeff = *coeffBufItK[k]++;
 
@@ -1448,7 +1635,6 @@ uraht_process(
           }
         }
       });
-
 
       // replace DC coefficient with parent if inheritable
       if (inheritDc) {
@@ -1461,22 +1647,38 @@ uraht_process(
             transformPredBuf[k][0].val = val << (15 - 2);
           else
             transformPredBuf[k][0].val = -((-val) << (15 - 2));
+          if (isEncoder && curLevelEnableACInterPred) {
+            ///< inherit the parent DC coefficients
+            transformIntraPredBuf[k][0].val = transformPredBuf[k][0].val;
+          }
         }
       }
 
       invTransformBlock222<RahtKernel>(numAttrs, transformPredBuf, weights);
+      if (isEncoder && curLevelEnableACInterPred)
+        invTransformBlock222<RahtKernel>(numAttrs, transformIntraPredBuf, weights);
 
       for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
         if (!weights[nodeIdx])
           continue;
 
         for (int k = 0; k < numAttrs; k++)
-          if (rahtExtension)
+          if (rahtExtension) {
             attrRecUs[j * numAttrs + k] = transformPredBuf[k][nodeIdx].val;
+            if (isEncoder && curLevelEnableACInterPred) {
+              intraAttrRecUs[j * numAttrs + k] =
+                transformIntraPredBuf[k][nodeIdx].val;
+            }
+          }
           else {
             FixedPoint temp = transformPredBuf[k][nodeIdx];
             temp.val <<= 2;
             attrRecUs[j * numAttrs + k] = temp.round();
+            if (isEncoder && curLevelEnableACInterPred) {
+              temp = transformIntraPredBuf[k][nodeIdx];
+              temp.val <<= 2;
+              intraAttrRecUs[j * numAttrs + k] = temp.round();
+            }
           }
 
         // scale values for next level
@@ -1488,43 +1690,74 @@ uraht_process(
           for (int k = 0; k < numAttrs; k++) {
             transformPredBuf[k][nodeIdx].val >>= shift;
             transformPredBuf[k][nodeIdx] *= rsqrtWeight;
+            if (isEncoder && curLevelEnableACInterPred) {
+              transformIntraPredBuf[k][nodeIdx].val >>= shift;
+              transformIntraPredBuf[k][nodeIdx] *= rsqrtWeight;
+            }
           }
         }
 
-        for (int k = 0; k < numAttrs; k++)
+        for (int k = 0; k < numAttrs; k++) {
           attrRec[j * numAttrs + k] = rahtExtension
             ? transformPredBuf[k][nodeIdx].val
             : transformPredBuf[k][nodeIdx].round();
+          if (isEncoder && curLevelEnableACInterPred) {
+            intraAttrRec[j * numAttrs + k] = rahtExtension
+              ? transformIntraPredBuf[k][nodeIdx].val
+              : transformIntraPredBuf[k][nodeIdx].round();
+          }
+        }
         j++;
       }
       // increment reference buffer index if inter prediction is enabled
     }
 
+
+    if (isEncoder && curLevelEnableACInterPred) {
+      double curCost = curEstimate.costBits();
+      double intraCost = intraEstimate.costBits();
+      if (intraCost < curCost) {
+        for (int k = 0; k < numAttrs; ++k)
+          std::copy_n(intraCoeffBufItBeginK[k], sumNodes, coeffBufItBeginK[k]);
+        std::swap(intraAttrRec, attrRec);
+        std::swap(intraAttrRecUs, attrRecUs);
+        curEstimate = intraEstimate;
+        attrInterPredParams.attr_layer_code_mode.push_back(
+          0);
+        trainZeros = intraTrainZeros;
+      } else {
+        intraEstimate = curEstimate;
+        attrInterPredParams.attr_layer_code_mode.push_back(1);
+        intraTrainZeros = trainZeros;
+      }
+      curEstimate.resetCostBits();
+      intraEstimate.resetCostBits();
+    }
+    if (enablePredictionInLvl && enableACRDOInterPred)
+      ++depth;
+    sumNodes = 0;
     // preserve current weights/positions for later search
-    weightsParent = weightsLf;    
+    weightsParent = weightsLf;
     // increment tree depth
     treeDepth++;
   }
-
- 
+  // process duplicate points at level 0
   if (numDupNodes) {
-    // process duplicate points at level 0
     std::swap(attrRec, attrRecParent);
     auto attrRecParentIt = attrRecParent.cbegin();
     auto attrsHfIt = attrsHf.cbegin();
 
     for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
       int weight = weightsLf[i].weight;
-      Qps nodeQp = {
-        weightsLf[i].qp[0] >> regionQpShift,
-        weightsLf[i].qp[1] >> regionQpShift };
-
       // unique points have weight = 1
       if (weight == 1) {
         for (int k = 0; k < numAttrs; k++)
           attrRec[out++] = *attrRecParentIt++;
         continue;
       }
+      Qps nodeQp = {
+        weightsLf[i].qp[0] >> regionQpShift,
+        weightsLf[i].qp[1] >> regionQpShift};
 
       // duplicates
       FixedPoint attrSum[3];
@@ -1577,9 +1810,9 @@ uraht_process(
             transformBuf[1] =
               divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
 
-            sumCoeff += std::abs(q.quantize(coeff << kFixedPointAttributeShift));
-          }
-          else {
+            sumCoeff +=
+              std::abs(q.quantize(coeff << kFixedPointAttributeShift));
+          } else {
             int64_t coeff = *coeffBufItK[k]++;
             transformBuf[1] =
               divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
@@ -1597,7 +1830,7 @@ uraht_process(
             rahtExtension ? transformBuf[1].val : transformBuf[1].round();
           if (w == 1)
             attrRec[out + k] =
-            rahtExtension ? transformBuf[0].val : transformBuf[0].round();
+              rahtExtension ? transformBuf[0].val : transformBuf[0].round();
         }
 
         // Track RL for RDOQ
@@ -1607,7 +1840,6 @@ uraht_process(
           else
             trainZeros = 0;
         }
-
       }
 
       attrsHfIt += (weight - 1) * numAttrs;

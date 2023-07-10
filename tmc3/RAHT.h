@@ -68,4 +68,29 @@ void regionAdaptiveHierarchicalInverseTransform(
   const bool removeRoundingOps,
   AttributeInterPredParams& attrInterPredParams);
 
+struct PCCRAHTACCoefficientEntropyEstimate {
+  PCCRAHTACCoefficientEntropyEstimate()
+  { init(); }
+
+  PCCRAHTACCoefficientEntropyEstimate(
+    const PCCRAHTACCoefficientEntropyEstimate &other) = default;
+
+  PCCRAHTACCoefficientEntropyEstimate&
+  operator=(const PCCRAHTACCoefficientEntropyEstimate&) = default;
+
+  void resStatUpdate(int32_t values, int k);
+  void init();
+  void updateCostBits(int32_t values, int k);
+  double costBits() { return sumCostBits; }
+  void resetCostBits() { sumCostBits = 0.; }
+
+private:
+  // Encoder side residual cost calculation
+  static constexpr unsigned scaleRes = 1 << 20;
+  static constexpr unsigned windowLog2 = 6;
+  int probResGt0[3];  //prob of residuals larger than 0: 1 for each component
+  int probResGt1[3];  //prob of residuals larger than 1: 1 for each component
+  double sumCostBits;
+};
+
 } /* namespace pcc */

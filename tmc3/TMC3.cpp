@@ -1450,6 +1450,9 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Search range for nearest neighbour search in inter prediction candidate"
     "-1: Full range")
 
+  ("rahtEnableCodeLayer",
+     params_attr.aps.raht_enable_code_layer, true,
+    "Type of inter prediction for RAHT")
 
   ("attrInterPredTranslationThresh", 
     params.encoder.attrInterPredTranslationThreshold, 1000., 
@@ -1800,12 +1803,18 @@ sanitizeEncoderOpts(
       attrMeta.cicp_matrix_coefficients_idx = ColourMatrix::kUnspecified;
       attr_sps.attr_num_dimensions_minus1 = 0;
       attr_sps.attributeLabel = KnownAttributeLabel::kReflectance;
+      if (attr_aps.raht_enable_code_layer)
+        attr_aps.raht_inter_prediction_depth_minus1 =
+        max(15, attr_aps.raht_inter_prediction_depth_minus1);
     }
 
     if (it.first == "color") {
       attr_sps.attr_num_dimensions_minus1 = 2;
       attr_sps.attributeLabel = KnownAttributeLabel::kColour;
       attrMeta.cicpParametersPresent = true;
+      if (attr_aps.raht_enable_code_layer)
+        attr_aps.raht_inter_prediction_depth_minus1 =
+          max(9, attr_aps.raht_inter_prediction_depth_minus1);
     }
 
     // Assume that YCgCo is actually YCgCoR for now
