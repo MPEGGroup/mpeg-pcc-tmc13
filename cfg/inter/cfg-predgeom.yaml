@@ -40,6 +40,8 @@ categories:
        - positionAzimuthSpeed: '$eval{ (${pos_azimuth_speed}) >> 12 - 12 }'
        - attrSphericalMaxLog2: 17
        - interAzimScaleLog2 : '$eval{ ${inter_azim_scale_log2} - 0 }'
+       - resRContextQphiThresholdPresentFlag: 1
+       - resRContextQphiThreshold: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 0  >> 12 - 12)) }'
 
   # these conditions use the same config as earlier
   lossless-geom-lossy-attrs: *predgeomlossless
@@ -86,7 +88,15 @@ categories:
           r04: '$eval{ ${inter_azim_scale_log2} - 3 }'
           r03: '$eval{ ${inter_azim_scale_log2} - 4 }'
           r02: '$eval{ ${inter_azim_scale_log2} - 5 }'
-          r01: '$eval{ ${inter_azim_scale_log2} - 5 }'
+          r01: '$eval{ ${inter_azim_scale_log2} - 5 }' 
+       - resRContextQphiThresholdPresentFlag: 1
+       - resRContextQphiThreshold:
+          r06: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 0  >> 12 - 12)) }'
+          r05: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 1  >> 12 - 11)) }'
+          r04: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 4  >> 12 - 9)) }'
+          r03: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 8  >> 12 - 8)) }'
+          r02: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 16 >> 12 - 7)) }'
+          r01: '$eval{ int (1600 / ((${pos_azimuth_speed}) + 16 >> 12 - 7)) }'
      - secondaryResidualDisabled: 1
 
 sequences:

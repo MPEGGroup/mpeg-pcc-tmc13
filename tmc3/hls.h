@@ -586,6 +586,11 @@ struct GeometryParameterSet {
   // inverse scale factor for radius coding in predictive geometry coding
   int geom_angular_radius_inv_scale_log2;
 
+  // Qphi threshold used for context of radius resicdual coding in predictive geometry coding
+  int resR_context_qphi_threshold;
+  //Present the qphi threshold used for context of radius resicdual coding
+  bool resR_context_qphi_threshold_present_flag;
+
   // Indicates that the geometry footer contains a count of point
   // in each octree level.
   bool octree_point_count_list_present_flag;

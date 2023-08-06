@@ -671,6 +671,14 @@ Controls the enabling of signalling of planar mode for multiple directions.
 ### `--octreeAngularExtension=0|1`
 Controls the enabling of extending angular mode in octree geometry.
 
+### `resRContextQphiThresholdPresentFlag=0|1`
+Controls the presence of the qphi threshold used for contextualization of 
+radius residual coding in predictive geometry angular coding.
+
+### `resRContextQphiThreshold=INT-VALUE`
+Specifies the Qphi threshold used for contextualization of radius residual 
+coding in predictive geometry angular coding.
+
 ### `--disable_planar_IDCM_angular=0|1`
 Controls the disabling of planar mode for geometry coding of IDCM coded nodes
 when angular coding is enabled.

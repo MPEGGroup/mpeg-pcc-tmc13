@@ -1085,6 +1085,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_radius_inv_scale_log2, 0,
     "Inverse scale factor applied to radius in predictive geometry coding")
 
+  ("resRContextQphiThreshold",
+    params.encoder.gps.resR_context_qphi_threshold, 0,
+    "Qphi threshold used for context of radius resicdual coding in predictive geometry coding")
+
+  ("resRContextQphiThresholdPresentFlag",
+    params.encoder.gps.resR_context_qphi_threshold_present_flag, false,
+    "Present the qphi threshold used for context of radius resicdual coding")
+
   ("disable_planar_IDCM_angluar",
     params.encoder.gps.geom_planar_disabled_idcm_angular_flag, true,
     "Disable planar mode for geometry coding of IDCM coded nodes when angular coding is enabled")

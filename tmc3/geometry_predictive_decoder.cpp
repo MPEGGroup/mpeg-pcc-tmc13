@@ -136,6 +136,7 @@ private:
 
   int _maxPredIdx;
   int _thObj;
+  int _thQphi;
 };
 
 //============================================================================
@@ -163,6 +164,7 @@ PredGeomDecoder::PredGeomDecoder(
   , _minVal(gbh.pgeom_min_radius)
   , _maxPredIdx(gps.predgeom_max_pred_index)
   , _thObj(gps.predgeom_radius_threshold_for_pred_list)
+  , _thQphi(gps.resR_context_qphi_threshold)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -374,7 +376,7 @@ int32_t PredGeomDecoder::decodeResR(const int multiplier, const int predIdx, con
       : (predIdx ? 1 : 0);
   //int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (interFlag ? (abs(multiplier) > 2 ? 2 : 0)
-      : (multiplier ? 2 : 0));
+      : (abs(multiplier) > _thQphi ? 2 : 0));
   //int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   if (!_aed->decode(_ctxResRGTZero[interCtx][ctxLR]))

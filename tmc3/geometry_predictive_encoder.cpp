@@ -206,6 +206,7 @@ private:
   int _maxPredIdx;
   int _maxPredIdxTested;
   int _thObj;
+  int _thQphi;
 };
 
 //============================================================================
@@ -236,6 +237,7 @@ PredGeomEncoder::PredGeomEncoder(
   , _maxPredIdx(gps.predgeom_max_pred_index)
   , _maxPredIdxTested(opt.maxPredIdxTested)
   , _thObj(gps.predgeom_radius_threshold_for_pred_list)
+  , _thQphi(gps.resR_context_qphi_threshold)
 {
   if (gps.geom_scaling_enabled_flag) {
     _sliceQp = gbh.sliceQp(gps);
@@ -248,6 +250,10 @@ PredGeomEncoder::PredGeomEncoder(
     origin = gbh.geomAngularOrigin(gps);
   ;
 
+    if (!gps.resR_context_qphi_threshold_present_flag){
+    _thQphi = 0;
+  }
+  
   _stack.reserve(1024);
 }
 
@@ -308,7 +314,7 @@ PredGeomEncoder::encodeResR(int32_t resR, int multiplier, int predIdx, const boo
     : (predIdx ? 1 : 0);
   //int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (interFlag ? (abs(multiplier) > 2 ? 2 : 0)
-    : (multiplier ? 2 : 0));
+    : (abs(multiplier) > _thQphi ? 2 : 0)); 
   //int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   _aec->encode(resR != 0, _ctxResRGTZero[interCtx][ctxLR]);
@@ -441,7 +447,7 @@ PredGeomEncoder::estimateResR(int32_t resR, int multiplier, int predIdx, const b
       : (predIdx ? 1 : 0);
   //int ctxL = predIdx == 0 /* parent */;
   int ctxLR = ctxL + (interFlag ? (abs(multiplier) > 2 ? 2 : 0)
-    : (multiplier ? 2 : 0));
+    : (abs(multiplier) > _thQphi ? 2 : 0));
   //int ctxLR = ctxL + (multiplier ? 2 : 0);
 
   bits += estimate(resR != 0, _ctxResRGTZero[interCtx][ctxLR]);
