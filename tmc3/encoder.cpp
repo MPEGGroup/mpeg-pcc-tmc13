@@ -228,7 +228,8 @@ PCCTMC3Encoder3::compress(
       }
     }
   }
-  if (params->gps.globalMotionEnabled && params->interGeom.deriveGMThreshold) {
+  if (params->interGeom.deriveGMThreshold && params->gps.geom_angular_mode_enabled_flag) {
+
     const auto pointCount = inputPointCloud.getPointCount();
     const auto bbox = inputPointCloud.computeBoundingBox();
     const int histScale = params->interGeom.gmThresholdHistScale;
@@ -273,11 +274,19 @@ PCCTMC3Encoder3::compress(
       std::max(minZ, top - deltaLeft) * params->codedGeomScale;
     const int rightOffset =
       std::min(maxZ, top + deltaRight) * params->codedGeomScale;
-    if (params->gps.predgeom_enabled_flag)
-      _refFrameSph.updateThresholds(_frameCounter, leftOffset, rightOffset);
-    else if (!params->gps.trisoup_enabled_flag)
-      params->interGeom.motionParams.updateThresholds(
-        _frameCounter, leftOffset, rightOffset);
+
+    if (params->gps.globalMotionEnabled) {
+      if (params->gps.predgeom_enabled_flag)
+        _refFrameSph.updateThresholds(_frameCounter, leftOffset, rightOffset);
+      else if (!params->gps.trisoup_enabled_flag)
+        params->interGeom.motionParams.updateThresholds(
+          _frameCounter, leftOffset, rightOffset);
+    } else {
+      params->predGeom.splitter = rightOffset - bbox.min.z(); 
+      params->predGeom.splitter =
+        int(params->predGeom.splitter * _inputDecimationScale);
+    }
+
   }
 
   // placeholder to "activate" the parameter sets

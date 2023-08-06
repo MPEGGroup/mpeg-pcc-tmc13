@@ -14,6 +14,7 @@ encflags:
  -
    - !conditional '${numLasers}'
    - predGeomAzimuthSortPrecision: 1024
+   - enableGroundPartition: '${enableGroundPartition}'
 
  -
    - !conditional '"${group}" eq "cat3-fused"'
@@ -73,14 +74,14 @@ categories:
      - secondaryResidualDisabled: 1
 
 sequences:
-  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30'}
-  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30'}
-  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30'}
-  qnxadas-junction-approach: { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
-  qnxadas-junction-exit:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
-  qnxadas-motorway-join:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
-  qnxadas-navigating-bends:  { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12'}
-  cognataQC1:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
-  cognataQC2:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
-  cognataQC3:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}
-  cognataQC4:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)'}  
+  ford_01_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', enableGroundPartition: 1}
+  ford_02_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', enableGroundPartition: 1}
+  ford_03_q1mm: { needs_azimuth_presort: 1, pos_azimuth_speed: '(33<<7) - 30', enableGroundPartition: 1}
+  qnxadas-junction-approach: { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', enableGroundPartition: 0}
+  qnxadas-junction-exit:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', enableGroundPartition: 0}
+  qnxadas-motorway-join:     { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', enableGroundPartition: 0}
+  qnxadas-navigating-bends:  { needs_azimuth_presort: 1, pos_azimuth_speed: '(364<<7) + 12', enableGroundPartition: 0}
+  cognataQC1:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)', enableGroundPartition: 0}
+  cognataQC2:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)', enableGroundPartition: 0}
+  cognataQC3:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)', enableGroundPartition: 0}
+  cognataQC4:  { needs_azimuth_presort: 1, pos_azimuth_speed: '9648' , inter_azim_scale_log2: '(6 + 7)', enableGroundPartition: 0}  

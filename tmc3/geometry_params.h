@@ -372,6 +372,11 @@ struct PredGeomEncOpts {
 
   int maxPredIdxTested;
   int radiusThresholdForNewPred;
+
+  // Enable partition for Predgeom
+  bool enablePartition;
+  // height for partition
+  int splitter;
 };
 
 

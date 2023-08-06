@@ -683,6 +683,10 @@ search in predictive geometry coding.
 Specifies the distance (in frames) between random access points when 
 encoding a sequence.
 
+### `--enableGroundPartition=0|1`
+Controls the enabling of ground/objects partitionning for predictive 
+geometry encoder.
+
 ### `--interPredictionEnabled=0|1`
 Controls the enabling of inter prediction coding.
 

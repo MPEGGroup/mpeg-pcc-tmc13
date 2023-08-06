@@ -1098,6 +1098,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     "Distance (in pictures) between random access points when "
     "encoding a sequence")
 
+  ("enableGroundPartition",
+    params.encoder.predGeom.enablePartition, false,
+    "Enable ground and object partition for predictive geometry coding")
+
   ("interPredictionEnabled",
     params.encoder.gps.interPredictionEnabledFlag, false,
     "Enable inter prediciton")
@@ -1690,6 +1694,9 @@ sanitizeEncoderOpts(
     params.encoder.gps.globalMotionEnabled = false;
     params.encoder.gps.geom_inter_idcm_enabled_flag = false;
   }
+
+  if (params.encoder.predGeom.enablePartition)
+    params.encoder.interGeom.deriveGMThreshold = true;
 
   if (params.motionVectorPath.size() == 0) {
     if (params.encoder.gps.predgeom_enabled_flag)

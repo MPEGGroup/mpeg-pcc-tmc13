@@ -100,7 +100,8 @@ public:
     const GNode* nodes,
     int numNodes,
     int* codedOrder,
-    PredGeomPredictor& refFrameSph);
+    PredGeomPredictor& refFrameSph,
+    bool reversed);
 
   int encodeTree(
     Vec3<int32_t>* cloudA,
@@ -1101,10 +1102,13 @@ PredGeomEncoder::encode(
   const GNode* nodes,
   int numNodes,
   int32_t* codedOrder,
-  PredGeomPredictor& refFrameSph)
+  PredGeomPredictor& refFrameSph,
+  bool reversed)
 {
   int32_t processedNodes = 0;
-  for (int32_t rootIdx = 0; rootIdx < numNodes; rootIdx++) {
+  int32_t rootIdx = reversed ? numNodes-1 : 0;   
+  int32_t step = reversed ? -1 : +1;   
+  for (; (rootIdx >= 0 && rootIdx < numNodes) ; rootIdx +=step) {
     // find the root node(s)
     if (nodes[rootIdx].parent >= 0)
       continue;
@@ -1232,7 +1236,10 @@ generateGeomPredictionTreeAngular(
   const Vec3<int32_t> origin,
   const Vec3<int32_t>* begin,
   const Vec3<int32_t>* end,
-  Vec3<int32_t>* beginSph)
+  Vec3<int32_t>* beginSph,
+  bool enablePartition,
+  int32_t splitter,
+  bool& reversed)
 {
   int32_t pointCount = std::distance(begin, end);
   int32_t numLasers = gps.numLasers();
@@ -1241,12 +1248,17 @@ generateGeomPredictionTreeAngular(
   std::vector<GNode> nodes(pointCount);
   std::vector<int32_t> prevNodes(numLasers, -1);
   std::vector<int32_t> firstNodes(numLasers, -1);
+  std::vector<int32_t> prevNodesObj(numLasers, -1);
+  std::vector<int32_t> firstNodesObj(numLasers, -1);
 
+  bool isRoad=false;
   CartesianToSpherical cartToSpherical(gps);
 
   for (int nodeIdx = 0, nodeIdxN; nodeIdx < pointCount; nodeIdx = nodeIdxN) {
-    auto& node = nodes[nodeIdx];
     auto curPoint = begin[nodeIdx];
+    isRoad = enablePartition ? (curPoint[2] > splitter ? false : true) : true;
+
+    auto& node = nodes[nodeIdx];
     node.childrenCount = 0;
 
     // scan for duplicate points
@@ -1268,19 +1280,30 @@ generateGeomPredictionTreeAngular(
     for (int i = nodeIdx + 1; i < nodeIdxN; i++)
       beginSph[i] = sphPos;
 
-    node.parent = prevNodes[thetaIdx];
-    if (node.parent != -1) {
-      auto& pnode = nodes[prevNodes[thetaIdx]];
-      pnode.children[pnode.childrenCount++] = nodeIdx;
-    } else
-      firstNodes[thetaIdx] = nodeIdx;
+    if (isRoad == true) {
+      node.parent = prevNodes[thetaIdx];
+      if (node.parent != -1) {
+        auto& pnode = nodes[prevNodes[thetaIdx]];
+        pnode.children[pnode.childrenCount++] = nodeIdx;
+      } else
+      	firstNodes[thetaIdx] = nodeIdx;
+      prevNodes[thetaIdx] = nodeIdx;
+    } else {
+      node.parent = prevNodesObj[thetaIdx];
+      if (node.parent != -1) {
+        auto& pnode = nodes[prevNodesObj[thetaIdx]];
+        pnode.children[pnode.childrenCount++] = nodeIdx;
+      } else
+        firstNodesObj[thetaIdx] = nodeIdx;
 
-    prevNodes[thetaIdx] = nodeIdx;
+      prevNodesObj[thetaIdx] = nodeIdx;
+    }
   }
 
   int32_t n0 = 0;
   while (firstNodes[n0] == -1)
     ++n0;
+  int32_t roadIdx = firstNodes[n0];
 
   for (int32_t n = n0 + 1, parentIdx = firstNodes[n0]; n < numLasers; ++n) {
     auto nodeIdx = firstNodes[n];
@@ -1294,6 +1317,29 @@ generateGeomPredictionTreeAngular(
     }
     parentIdx = nodeIdx;
   }
+
+  if (enablePartition) {
+    n0 = 0;
+    while (firstNodesObj[n0] == -1)
+      ++n0;
+    int32_t objIdx = firstNodesObj[n0];
+    if (roadIdx > objIdx) reversed =true;
+
+    for (int32_t n = n0 + 1, parentIdx = firstNodesObj[n0]; n < numLasers; ++n) {
+      auto nodeIdx = firstNodesObj[n];
+      if (nodeIdx < 0)
+        continue;
+
+      auto& pnode = nodes[parentIdx];
+      if (pnode.childrenCount < GNode::MaxChildrenCount) {
+        nodes[nodeIdx].parent = parentIdx;
+        pnode.children[pnode.childrenCount++] = nodeIdx;
+      }
+      parentIdx = nodeIdx;
+    }   
+  }
+
+
   return nodes;
 }
 
@@ -1423,6 +1469,8 @@ encodePredictiveGeometry(
 
   // set the minimum value to zero, if encoder don't use this info.
   gbh.pgeom_min_radius = 0;
+  int32_t splitter = opt.splitter;
+  bool reversed = false;
 
   // determine each geometry tree, and encode.  Size of trees is limited
   // by maxPtsPerTree.
@@ -1451,7 +1499,8 @@ encodePredictiveGeometry(
 
     // then build and encode the tree
     auto nodes = gps.geom_angular_mode_enabled_flag
-      ? generateGeomPredictionTreeAngular(gps, origin, begin, end, beginSph)
+      ? generateGeomPredictionTreeAngular(
+          gps, origin, begin, end, beginSph, opt.enablePartition,splitter, reversed)
       : generateGeomPredictionTree(gps, begin, end);
 
     // Determining minimum radius for prediction.
@@ -1471,7 +1520,7 @@ encodePredictiveGeometry(
 
     if (i > 0)
       enc.encodeEndOfTreesFlag(false);
-    enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i, refFrameSph);
+    enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i, refFrameSph, reversed);
 
     // put points in output cloud in decoded order
     for (auto iBegin = i; i < iEnd; i++) {
