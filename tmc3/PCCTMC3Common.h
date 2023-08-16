@@ -1152,9 +1152,9 @@ computeNearestNeighbors(
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
   MortonIndexMap3d& atlas,
+  MortonIndexMap3d& interAtlas,
   bool interRef,
   const std::vector<MortonCodeWithIndex>& packedVoxelRef,
-  const std::vector<uint32_t>& retainedRef,
   int32_t startIndexRef,
   int32_t endIndexRef,
   std::vector<uint32_t>& indexesRef)
@@ -1171,10 +1171,14 @@ computeNearestNeighbors(
   const int32_t shiftBits3 = 3 * shiftBits;
   const int32_t log2CubeSize = atlas.cubeSizeLog2();
   const int32_t atlasBits = 3 * log2CubeSize;
+  const int32_t interLog2CubeSize = interAtlas.cubeSizeLog2();
+  const int32_t interAtlasBits = 3 * interLog2CubeSize;
   // NB: when the atlas boundary is greater than 2^63, all points belong
   //     to a single atlas.  The clipping is necessary to avoid undefined
   //     behaviour of shifts greater than or equal to the word size.
   const int32_t atlasBoundaryBit = std::min(63, shiftBits3 + atlasBits);
+  const int32_t interAtlasBoundaryBit =
+    std::min(63, shiftBits3 + interAtlasBits);
 
   const int32_t retainedSize = retained.size();
   const int32_t indexesSize = endIndex - startIndex;
@@ -1228,6 +1232,8 @@ computeNearestNeighbors(
   atlas.reserve(retainedSize);
   std::vector<int32_t> neighborIndexes;
   neighborIndexes.reserve(64);
+  std::vector<int32_t> neighborInterIndexes;
+  neighborInterIndexes.reserve(64);
 
   BoxHierarchy<bucketSizeLog2, levelCount> hBBoxes;
   hBBoxes.resize(retainedSize);
@@ -1253,7 +1259,6 @@ computeNearestNeighbors(
     hIntraBBoxes.update();
   }
 
-  const int32_t retainedSizeRef = retainedRef.size();
   const int32_t indexesSizeRef = endIndexRef - startIndexRef;
   const auto interSearchRange = abh.attrInterPredSearchRange;
   std::vector<point_t> biasedPosRef;
@@ -1288,6 +1293,11 @@ computeNearestNeighbors(
   int64_t lastMortonCodeShift3 = -1;
   int64_t cubeIndex = 0;
   int32_t distCoefficient = 54;
+
+  int64_t curInterAtlasId = -1;
+  int64_t lastInterMortonCodeShift3 = -1;
+  int64_t cubeInterIndex = 0;
+
   for (int32_t i = startIndex, j = 0; i < endIndex; ++i) {
     int32_t localIndexes[6] = {-1, -1, -1, -1, -1, -1};
     int64_t minDistances[6] = {std::numeric_limits<int64_t>::max(),
@@ -1304,6 +1314,7 @@ computeNearestNeighbors(
     const int64_t mortonCode = pv.mortonCode;
     const int64_t pointAtlasId = mortonCode >> atlasBoundaryBit;
     const int64_t mortonCodeShiftBits3 = mortonCode >> shiftBits3;
+    const int64_t interPointAtlasId = mortonCode >> interAtlasBoundaryBit;
     const int32_t pointIndex = pv.index;
     const auto bpoint = biasedPos[index];
     indexes[i] = pointIndex;
@@ -1582,6 +1593,52 @@ computeNearestNeighbors(
               }
             }
           }
+        }
+      }
+    }
+
+    /// using the atlas to search the inter-prediction
+    if (interRef) {
+      if (curInterAtlasId != interPointAtlasId) {
+        curInterAtlasId = interPointAtlasId;
+        interAtlas.clearUpdates();
+        while (cubeInterIndex < endIndexRef
+          && (packedVoxelRef[indexesRef[cubeInterIndex]].mortonCode
+            >> interAtlasBoundaryBit)
+          == curInterAtlasId) {
+          interAtlas.set(
+            packedVoxelRef[indexesRef[cubeInterIndex]].mortonCode
+            >> shiftBits3,
+            indexesRef[cubeInterIndex]);
+          ++cubeInterIndex;
+        }
+      }
+      if (lastInterMortonCodeShift3 != mortonCodeShiftBits3) {
+        lastInterMortonCodeShift3 = mortonCodeShiftBits3;
+        const auto basePosition = morton3dAdd(mortonCodeShiftBits3, -1ll);
+        neighborInterIndexes.resize(0);
+        for (int32_t n = 0; n < 27; ++n) {
+          const auto neighbMortonCode =
+            morton3dAdd(basePosition, kNeighOffset[n]);
+          if ((neighbMortonCode >> atlasBits) != curInterAtlasId) {
+            continue;
+          }
+          const auto range = interAtlas.get(neighbMortonCode);
+          for (int32_t k = range.start; k < range.end; ++k) {
+            neighborInterIndexes.push_back(k);
+          }
+        }
+      }
+      for (const auto k : neighborInterIndexes) {
+        if (aps.predictionWithDistributionEnabled) {
+          updateNearestNeighByDistanceAndDistribution(
+            bpoint, biasedPosRef[indexesRef[k]], k, index2, localIndexes,
+            minDistances, true, localRef, true);
+        }
+        else {
+          updateNearestNeigh(
+            bpoint, biasedPosRef[indexesRef[k]], k, localIndexes, minDistances,
+            true, localRef, true);
         }
       }
     }
@@ -1887,11 +1944,6 @@ computeNearestNeighbors(
       }
     }
   }
-  if (interRef) {
-    for (auto i = startIndexRef; i < endIndexRef; ++i) {
-      indexesRef[i] = packedVoxelRef[indexesRef[i]].index;
-    }
-  }
 }
 //---------------------------------------------------------------------------
 
@@ -1908,17 +1960,17 @@ computeNearestNeighbors(
   std::vector<PCCPredictor>& predictors,
   std::vector<uint32_t>& pointIndexToPredictorIndex,
   int32_t& predIndex,
-  MortonIndexMap3d& atlas)
+  MortonIndexMap3d& atlas,
+  MortonIndexMap3d& interAtlas)
 {
   std::vector<MortonCodeWithIndex> packedVoxelRef = {};
-  std::vector<uint32_t> retainedRef = {};
   int32_t startIndexRef = 0;
   int32_t endIndexRef = 0;
   std::vector<uint32_t> indexesRef = {};
   computeNearestNeighbors(
     aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex, indexes,
-    predictors, pointIndexToPredictorIndex, predIndex, atlas, false,
-    packedVoxelRef, retainedRef, startIndexRef, endIndexRef, indexesRef);
+    predictors, pointIndexToPredictorIndex, predIndex, atlas, interAtlas, false,
+    packedVoxelRef,  startIndexRef, endIndexRef, indexesRef);
 }
 
 //---------------------------------------------------------------------------
@@ -2290,8 +2342,7 @@ buildPredictorsFast(
   const auto& referencePointCloud = attrInterPredParams.referencePointCloud;
   const int32_t pointCountRef = int32_t(referencePointCloud.getPointCount());
   std::vector<MortonCodeWithIndex> packedVoxelRef = {};
-  std::vector<uint32_t> retainedRef = {}, inputRef = {},
-                        pointIndexToPredictorIndexRef = {};
+  int32_t startIndexRef = 0, endIndexRef = 0;
   if (interRef) {
     assert(referencePointCloud.getPointCount());
     computeMortonCodesUnsorted(
@@ -2306,17 +2357,15 @@ buildPredictorsFast(
         std::sort(packedVoxelRef.begin() + i, packedVoxelRef.begin() + iEnd);
       }
     }
-    pointIndexToPredictorIndexRef.resize(pointCountRef);
-    retainedRef.reserve(pointCountRef);
-    inputRef.resize(pointCountRef);
-    for (uint32_t i = 0; i < pointCountRef; ++i) {
-      inputRef[i] = i;
-    }
+    //retainedRef.reserve(pointCountRef);
+    
     numberOfPointsPerLevelOfDetailRef.resize(0);
     indexesRef.resize(0);
     indexesRef.reserve(pointCountRef);
     numberOfPointsPerLevelOfDetailRef.reserve(21);
     numberOfPointsPerLevelOfDetailRef.push_back(pointCountRef);
+    startIndexRef = 0;
+    endIndexRef = pointCountRef;
   }
 
   bool concatenateLayers = aps.scalable_lifting_enabled_flag;
@@ -2331,12 +2380,17 @@ buildPredictorsFast(
   atlas.resize(log2CubeSize);
   atlas.init();
 
-  int32_t startIndexRef = 0, endIndexRef = 0;
+  const int32_t interLog2CubeSize = 3;
+  MortonIndexMap3d interAtlas;  ///< inter predicton atlas
   if (interRef) {
-    for (const auto indexRef : inputRef)
-      indexesRef.push_back(indexRef);
-    startIndexRef = 0;
-    endIndexRef = indexesRef.size();
+    interAtlas.resize(interLog2CubeSize);
+    interAtlas.init();
+    interAtlas.reserve(pointCountRef);
+  }
+  if (interRef) {
+    indexesRef.resize(pointCountRef);
+    for (uint32_t i = 0; i < pointCountRef; ++i)
+      indexesRef[i] = i;
   }
 
   auto maxNumDetailLevels = aps.maxNumDetailLevels();
@@ -2379,7 +2433,7 @@ buildPredictorsFast(
             computeNearestNeighbors(
               aps, abh, packedVoxel, retained, divided_startIndex,
               divided_endIndex, lod + minGeomNodeSizeLog2, indexes, predictors,
-              pointIndexToPredictorIndex, predIndex, atlas);
+              pointIndexToPredictorIndex, predIndex, atlas,interAtlas);
           }
         }
       }
@@ -2387,9 +2441,9 @@ buildPredictorsFast(
 
     computeNearestNeighbors(
       aps, abh, packedVoxel, retained, startIndex, endIndex, lodIndex, indexes,
-      predictors, pointIndexToPredictorIndex, predIndex, atlas
+      predictors, pointIndexToPredictorIndex, predIndex, atlas, interAtlas
       , interRef,
-      packedVoxelRef, retainedRef, startIndexRef, endIndexRef, indexesRef      
+      packedVoxelRef, startIndexRef, endIndexRef, indexesRef      
       );
 
     if (!retained.empty()) {
@@ -2401,11 +2455,7 @@ buildPredictorsFast(
     std::swap(retained, input);
   }
   std::reverse(indexes.begin(), indexes.end());
-  std::reverse(indexesRef.begin(), indexesRef.end());
   updatePredictors(pointIndexToPredictorIndex, predictors, attrInterPredParams.frameDistance);
-  std::reverse(
-    numberOfPointsPerLevelOfDetailRef.begin(),
-    numberOfPointsPerLevelOfDetailRef.end());
   //updatePredictors(pointIndexToPredictorIndex, predictors);
   std::reverse(
     numberOfPointsPerLevelOfDetail.begin(),

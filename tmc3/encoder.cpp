@@ -1191,7 +1191,7 @@ PCCTMC3Encoder3::compressPartition(
 
     // calculate dist2 for this slice
     abh.attr_dist2_delta = 0;
-    if (attr_aps.aps_slice_dist2_deltas_present_flag) {
+    if (attr_aps.aps_slice_dist2_deltas_present_flag || attrInterPredParams.enableAttrInterPred) {
       // todo(df): this could be set in the sps and refined only if necessary
       auto dist2 =
         estimateDist2(pointCloud, 100, 128, attr_enc.dist2PercentileEstimate);

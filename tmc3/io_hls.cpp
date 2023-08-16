@@ -1133,6 +1133,7 @@ parseAps(const PayloadBuffer& buf)
 
   aps.scalable_lifting_enabled_flag = false;
   aps.aps_slice_dist2_deltas_present_flag = false;
+  aps.dist2 = 0;
   if (aps.lodParametersPresent()) {
     bs.readUe(&aps.num_pred_nearest_neighbours_minus1);
     bs.readUe(&aps.inter_lod_search_range);
@@ -1767,7 +1768,7 @@ write(
   bs.writeUe(abh.attr_sps_attr_idx);
   bs.writeUe(abh.attr_geom_slice_id);
 
-  if (aps.aps_slice_dist2_deltas_present_flag)
+  if (aps.aps_slice_dist2_deltas_present_flag || aps.attrInterPredictionEnabled)
     bs.writeSe(abh.attr_dist2_delta);
 
   assert(abh.attr_sps_attr_idx < sps.attributeSets.size());
@@ -1899,7 +1900,7 @@ parseAbh(
   bs.readUe(&abh.attr_geom_slice_id);
 
   abh.attr_dist2_delta = 0;
-  if (aps.aps_slice_dist2_deltas_present_flag)
+  if (aps.aps_slice_dist2_deltas_present_flag || aps.attrInterPredictionEnabled)
     bs.readSe(&abh.attr_dist2_delta);
 
   assert(abh.attr_sps_attr_idx < sps.attributeSets.size());
