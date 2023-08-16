@@ -49,14 +49,6 @@
 
 namespace pcc {
 
-//============================================================================
-
-enum class DirectMode
-{
-  kUnavailable,
-  kAllPointSame,
-  kTwoPoints
-};
 
 //============================================================================
 
@@ -179,11 +171,13 @@ public:
     const Vec3<int>& nodeSizeLog2AfterPlanar, const Vec3<int32_t>& pos);
 
   void encodePointPositionAngular(
+    const bool& enableIner,
     const OctreeAngPosScaler& quant,
     const OctreeNodePlanar& planar,
     const Vec3<int>& nodeSizeLog2Rem,
     Vec3<int> posXyz,
     const Vec3<int>& pos,
+    const Vec3<int>& predPoint,
     int nodeLaserIdx,
     const Vec3<int>& angularOrigin,
     const int* zLaser,
@@ -214,6 +208,8 @@ public:
   void encodeIsIdcm(DirectMode mode);
 
   void encodeDirectPosition(
+    bool geom_inter_idcm_enabled_flag,
+    const DirectMode& predMode,
     bool geom_unique_points_flag,
     bool joint_2pt_idcm_enabled_flag,
     bool geom_angular_mode_enabled_flag,
@@ -224,6 +220,7 @@ public:
     const PCCOctree3Node& node,
     const OctreeNodePlanar& planar,
     PCCPointSet3& pointCloud,
+    const PCCPointSet3& pointCloudWorld,
     const Vec3<int>& headPos,
     const int* zLaser,
     const int* thetaLaser,
@@ -250,12 +247,16 @@ public:
 
   // last previously coded laser index residual for a given node laser index
   std::vector<int> _prevLaserIndexResidual;
+  std::vector<int> _prevLaserInterIndexResidual;
 
   // azimuthal elementary shifts
   AzimuthalPhiZi _phiZi;
 
   // Octree extensions
   bool _angularExtension;
+
+  ///< IDCM Coding
+  bool _angularDecideIDCMEligible;
 };
 
 //============================================================================
@@ -272,8 +273,10 @@ GeometryOctreeEncoder::GeometryOctreeEncoder(
   , _planar(gps)
   , _phiBuffer(gps.numLasers(), 0x80000000)
   , _prevLaserIndexResidual(gps.numLasers(), 0x00000000)
+  , _prevLaserInterIndexResidual(gps.numLasers(), 0x00000000)
   , _phiZi(gps.numLasers(), gps.angularNumPhiPerTurn)
   , _angularExtension(gps.octree_angular_extension_flag)
+  , _angularDecideIDCMEligible(gps.one_point_alone_laser_beam_flag)
 {
   if (!_useBitwiseOccupancyCoder && !gbh.entropy_continuation_flag) {
     for (int i = 0; i < 10; i++)
@@ -1062,11 +1065,13 @@ GeometryOctreeEncoder::encodePointPosition(
 
 void
 GeometryOctreeEncoder::encodePointPositionAngular(
+  const bool& enableIner,
   const OctreeAngPosScaler& quant,
   const OctreeNodePlanar& planar,
   const Vec3<int>& nodeSizeLog2Rem,
   Vec3<int> posXyz,
   const Vec3<int>& pos,
+  const Vec3<int>& predPoint,
   int nodeLaserIdx,
   const Vec3<int>& angularOrigin,
   const int* zLaser,
@@ -1091,7 +1096,16 @@ GeometryOctreeEncoder::encodePointPositionAngular(
 
   // Laser
   int laserIdx;
-
+  int predLaserIdx = nodeLaserIdx;
+  if (enableIner) {
+    if (_angularExtension)
+      predLaserIdx = findLaserPrecise(
+        quant.scaleEns(predPoint) - angularOrigin, thetaLaser, zLaser,
+        numLasers);
+    else
+      predLaserIdx = findLaser(
+        quant.scaleEns(predPoint) - angularOrigin, thetaLaser, numLasers);
+  }
   if (_angularExtension)
     laserIdx = findLaserPrecise(
       quant.scaleEns(pos) - angularOrigin, thetaLaser, zLaser, numLasers);
@@ -1099,11 +1113,15 @@ GeometryOctreeEncoder::encodePointPositionAngular(
     laserIdx =
       findLaser(quant.scaleEns(pos) - angularOrigin, thetaLaser, numLasers);
 
-  int resLaser = laserIdx - nodeLaserIdx;
-  encodeThetaRes(resLaser, _prevLaserIndexResidual[nodeLaserIdx]);
+  int resLaser = laserIdx - predLaserIdx;
+  encodeThetaRes(resLaser, enableIner ? _prevLaserInterIndexResidual[nodeLaserIdx]
+    : _prevLaserIndexResidual[nodeLaserIdx]);
 
   if (_angularExtension)
-    _prevLaserIndexResidual[nodeLaserIdx] = resLaser;
+    if (enableIner)
+      _prevLaserInterIndexResidual[nodeLaserIdx] = resLaser;
+    else
+      _prevLaserIndexResidual[nodeLaserIdx] = resLaser;
 
   // find predictor
   const int thInterp = 1 << 13;
@@ -1558,6 +1576,8 @@ GeometryOctreeEncoder::encodeIsIdcm(DirectMode mode)
 
 void
 GeometryOctreeEncoder::encodeDirectPosition(
+  bool geom_inter_idcm_enabled_flag,
+  const DirectMode& predMode,
   bool geom_unique_points_flag,
   bool joint_2pt_idcm_enabled_flag,
   bool geom_angular_mode_enabled_flag,
@@ -1568,12 +1588,14 @@ GeometryOctreeEncoder::encodeDirectPosition(
   const PCCOctree3Node& node,
   const OctreeNodePlanar& planar,
   PCCPointSet3& pointCloud,
+  const PCCPointSet3& pointCloudWorld,
   const Vec3<int>& angularOrigin,
   const int* zLaser,
   const int* thetaLaser,
   int numLasers)
 {
   int numPoints = node.end - node.start;
+  int numPredFramePoints = node.predEnd - node.predStart;
 
   switch (mode) {
   case DirectMode::kUnavailable: return;
@@ -1595,6 +1617,9 @@ GeometryOctreeEncoder::encodeDirectPosition(
     // only one actual psoition to code
     numPoints = 1;
   }
+
+  if (predMode == DirectMode::kAllPointSame)
+    numPredFramePoints = 1;
 
   // if the points have been quantised, the following representation is used
   // for point cloud positions:
@@ -1653,6 +1678,12 @@ GeometryOctreeEncoder::encodeDirectPosition(
     encodeOrdered2ptPrefix(points, directIdcm, nodeSizeLog2Rem);
   }
 
+  numPredFramePoints =
+    numPredFramePoints < numPoints ? numPredFramePoints : numPoints;
+  Vec3<int> predPoints[2];
+  for (int i = 0; i < numPredFramePoints; i++)
+    predPoints[i] = pointCloudWorld[node.predStart + i] >> shiftBits;
+
   int laserIdx;
   if (geom_angular_mode_enabled_flag) {
     auto delta = points[0] - (node.pos << effectiveNodeSizeLog2);
@@ -1668,9 +1699,13 @@ GeometryOctreeEncoder::encodeDirectPosition(
 
   // code points after planar
   for (auto idx = 0; idx < numPoints; idx++) {
+    const bool& canInterPred = geom_inter_idcm_enabled_flag
+      && predMode != DirectMode::kUnavailable && numPredFramePoints > 0;
+    int predIdx = numPredFramePoints == 2 ? idx : 0;
+    point_t predPoint = predPoints[predIdx];
     if (geom_angular_mode_enabled_flag)
-      encodePointPositionAngular(
-        quant, planar, nodeSizeLog2Rem, posNodeLidar, points[idx], laserIdx,
+      encodePointPositionAngular(canInterPred,
+        quant, planar, nodeSizeLog2Rem, posNodeLidar, points[idx], predPoint, laserIdx,
         angularOrigin, zLaser, thetaLaser, numLasers);
     else
       encodePointPosition(nodeSizeLog2Rem, points[idx]);
@@ -2258,6 +2293,15 @@ encodeGeometryOctree(
       if (isInter)
         setPlanesFromOccupancy(predOccupancy, planarRef);
 
+      //< update the idcm eligible condition
+      DirectMode predMode = DirectMode::kUnavailable;
+      if (
+        gps.geom_inter_idcm_enabled_flag && !isLeafNode(effectiveNodeSizeLog2))
+        predMode = canInterFrameEncodeDirectPosition(
+          encoder._angularDecideIDCMEligible, gps.geom_unique_points_flag,
+          node0, pointPredictorWorld, nodeSizeLog2, angularOrigin, thetaLaser,
+          numLasers, deltaAngle, encoder._phiZi, posQuantBitMasks);
+
       DirectMode mode = DirectMode::kUnavailable;
       // At the scaling depth, it is possible for a node that has previously
       // been marked as being eligible for idcm to be fully quantised due
@@ -2371,10 +2415,11 @@ encodeGeometryOctree(
         }
 
         encoder.encodeDirectPosition(
+          gps.geom_inter_idcm_enabled_flag, predMode,
           gps.geom_unique_points_flag, gps.joint_2pt_idcm_enabled_flag,
           gps.geom_angular_mode_enabled_flag, mode, posQuantBitMasks, idcmSize,
-          idcmShiftBits, node0, planar, pointCloud, angularOrigin, zLaser,
-          thetaLaser, numLasers);
+          idcmShiftBits, node0, planar, pointCloud, pointPredictorWorld,
+          angularOrigin, zLaser, thetaLaser, numLasers);
 
         // calculating the number of points coded by IDCM for determining
         // eligibility of planar mode
@@ -2389,7 +2434,7 @@ encodeGeometryOctree(
           pointIdxToDmIdx[idx] = nextDmIdx++;
 
         // NB: by definition, this is the only child node present
-        if (gps.inferred_direct_coding_mode <= 1)
+        if (!gps.one_point_alone_laser_beam_flag && gps.inferred_direct_coding_mode <= 1)
           assert(node0.numSiblingsPlus1 == 1);
 
         // This node has no children, ensure that future nodes avoid
@@ -2413,12 +2458,12 @@ encodeGeometryOctree(
         bool flagWord4 = gps.neighbour_avail_boundary_log2_minus1 > 0;
         
         encoder.encodeOccupancyFullNeihbourgs(
-          gnp, occupancy, planarMask[0], planarMask[1],
-          planarMask[2], planar.planarPossible & 1, planar.planarPossible & 2,
+          gnp, occupancy, planarMask[0], planarMask[1], planarMask[2],
+          planar.planarPossible & 1, planar.planarPossible & 2,
           planar.planarPossible & 4, occupancyAtlas, node0.pos,
           codedAxesPrevLvl, flagWord4,
-          gps.adjacent_child_contextualization_enabled_flag, predOccupancy,  planarEligibilityDynamicOBUF
-          && planarEligibleKOctreeDepth);
+          gps.adjacent_child_contextualization_enabled_flag, predOccupancy,
+          planarEligibilityDynamicOBUF && planarEligibleKOctreeDepth);
       }
 
       // update atlas for child neighbours

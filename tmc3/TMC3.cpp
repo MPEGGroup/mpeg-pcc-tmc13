@@ -1026,6 +1026,10 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params.encoder.gps.geom_angular_mode_enabled_flag, false,
     "Controls angular contextualisation of occupancy")
 
+  ("interIDCMPredEnabled",
+    params.encoder.gps.geom_inter_idcm_enabled_flag, true,
+    "Controls the eligible of inter idcm coding")
+
   ("zCompensationEnabled",
     params.encoder.gps.geom_z_compensation_enabled_flag, false,
     "Enables z compensation when using octree")
@@ -1684,6 +1688,7 @@ sanitizeEncoderOpts(
 
   if (!params.encoder.gps.interPredictionEnabledFlag) {
     params.encoder.gps.globalMotionEnabled = false;
+    params.encoder.gps.geom_inter_idcm_enabled_flag = false;
   }
 
   if (params.motionVectorPath.size() == 0) {

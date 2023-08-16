@@ -692,6 +692,9 @@ write(const SequenceParameterSet& sps, const GeometryParameterSet& gps)
 
     if (gps.geom_planar_mode_enabled_flag)
       bs.write(gps.planar_buffer_disabled_flag);
+    bs.write(gps.geom_inter_idcm_enabled_flag);
+    if (gps.geom_inter_idcm_enabled_flag)
+      bs.write(gps.one_point_alone_laser_beam_flag);
   }
 
   bs.write(gps.geom_scaling_enabled_flag);
@@ -810,6 +813,8 @@ parseGps(const PayloadBuffer& buf)
   gps.planar_buffer_disabled_flag = false;
   gps.geom_slice_angular_origin_present_flag = false;
   gps.geom_z_compensation_enabled_flag = false;
+  gps.geom_inter_idcm_enabled_flag = false;
+  gps.one_point_alone_laser_beam_flag = false;
   bs.read(&gps.geom_angular_mode_enabled_flag);
   if (gps.geom_angular_mode_enabled_flag) {
     bs.read(&gps.geom_slice_angular_origin_present_flag);
@@ -869,6 +874,10 @@ parseGps(const PayloadBuffer& buf)
 
     if (gps.geom_planar_mode_enabled_flag)
       bs.read(&gps.planar_buffer_disabled_flag);
+
+    bs.read(&gps.geom_inter_idcm_enabled_flag);
+    if (gps.geom_inter_idcm_enabled_flag)
+      bs.read(&gps.one_point_alone_laser_beam_flag);
   }
 
   gps.geom_base_qp = 0;

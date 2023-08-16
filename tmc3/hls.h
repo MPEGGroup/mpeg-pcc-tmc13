@@ -607,6 +607,12 @@ struct GeometryParameterSet {
   int biPredictionEnabledFlag;
   bool frameMergeEnabledFlag;
   int biPredictionPeriod;
+
+  // indicate whether there is only one point alone one laser beam when idcm angular eligibility is enabled
+  bool one_point_alone_laser_beam_flag;
+  // Enables angular information to control IDCM eligibility
+  bool geom_inter_idcm_enabled_flag;
+
 };
 
 //============================================================================

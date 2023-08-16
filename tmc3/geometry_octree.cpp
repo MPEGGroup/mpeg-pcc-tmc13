@@ -553,6 +553,85 @@ maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes)
   mask[1] = maskPlanarY(planar);
   mask[2] = maskPlanarZ(planar);
 }
+//----------------------------------------------------------------------------
+
+void
+IsThetaPhiEligible(
+  PCCOctree3Node& node,
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& angularOrigin,
+  const int* thetaLaser,
+  const int numLasers,
+  int deltaAngle,
+  const AzimuthalPhiZi& phiZi,
+  Vec3<uint32_t> quantMasks,
+  AngularInformation& angularInf)
+{
+  angularInf.valid = true;
+  Vec3<int> nodePos = node.pos << nodeSizeLog2;
+  Vec3<int> midNode = (1 << nodeSizeLog2) >> 1;
+  Vec3<int> nodeSize = 1 << nodeSizeLog2;
+
+  if (node.qp) {
+    OctreeAngPosScaler quant(node.qp, quantMasks);
+    nodePos = quant.scaleNs(nodePos);
+    midNode = quant.scaleNs(midNode);
+  }
+
+  // eligibility
+  auto nodePosLidar = nodePos - angularOrigin;
+  uint64_t xLidar = std::abs(((nodePosLidar[0] + midNode[0]) << 8) - 128);
+  uint64_t yLidar = std::abs(((nodePosLidar[1] + midNode[1]) << 8) - 128);
+
+  uint64_t rL1 = (xLidar + yLidar) >> 1;
+  uint64_t deltaAngleR = deltaAngle * rL1;
+  if (numLasers > 1 && deltaAngleR <= uint64_t(midNode[2]) << 26)
+    return;
+  angularInf.thetaEligible = true;
+
+  // determine inverse of r  (1/sqrt(r2) = irsqrt(r2))
+  uint64_t r2 = xLidar * xLidar + yLidar * yLidar;
+  angularInf.rInv = irsqrt(r2);
+  // determine non-corrected theta
+  int64_t zLidar = ((nodePosLidar[2] + midNode[2]) << 1) - 1;
+  int64_t theta = zLidar * angularInf.rInv;
+  angularInf.theta32 = theta >= 0 ? theta >> 15 : -((-theta) >> 15);
+
+  // determine laser
+  angularInf.laserIndex = int(node.laserIndex);
+  if (numLasers == 1)
+    angularInf.laserIndex = 0;
+  else if (
+    angularInf.laserIndex == 255
+    || deltaAngleR <= uint64_t(midNode[2]) << 28) {
+    auto end = thetaLaser + numLasers - 1;
+    auto it = std::upper_bound(thetaLaser + 1, end, angularInf.theta32);
+    if (angularInf.theta32 - *std::prev(it) <= *it - angularInf.theta32)
+      --it;
+
+    angularInf.laserIndex = std::distance(thetaLaser, it);
+    node.laserIndex = uint8_t(angularInf.laserIndex);
+  }
+  angularInf.laserIndex = angularInf.laserIndex;
+
+  // -- PHI  --
+  //angles
+  int xMid = nodePosLidar[0] + midNode[0];
+  int yMid = nodePosLidar[1] + midNode[1];
+  angularInf.phiNode = iatan2(yMid, xMid);
+
+  //phi eligibility
+  if (std::abs(xMid) < std::abs(yMid)) {
+    angularInf.phiNode0 = iatan2(yMid, nodePosLidar[0]);
+  } else {
+    angularInf.phiNode0 = iatan2(nodePosLidar[1], xMid);
+  }
+  uint64_t deltaPhi = std::abs(angularInf.phiNode - angularInf.phiNode0) << 1;
+
+  if (deltaPhi > phiZi.delta(angularInf.laserIndex))
+    return;
+  angularInf.phiEligible = true;
+}
 
 //----------------------------------------------------------------------------
 // determine angular context for planar integer implementation.

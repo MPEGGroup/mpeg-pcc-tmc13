@@ -168,6 +168,23 @@ PCCTMC3Encoder3::compress(
     params->gps.gpsAngularOrigin *= _srcToCodingScale;
     params->gps.gpsAngularOrigin -= _originInCodingCoords;
 
+    // Determine point number alone one laser beam
+    params->gps.one_point_alone_laser_beam_flag = false;
+    if (params->gps.geom_angular_mode_enabled_flag&&params->gps.geom_inter_idcm_enabled_flag) {
+      int maxPointsNumPerTurn = 0;
+      for (int i = 0; i < params->gps.angularNumPhiPerTurn.size(); i++) {
+        maxPointsNumPerTurn += params->gps.angularNumPhiPerTurn[i];
+      }
+      if (inputPointCloud.getPointCount() / double(maxPointsNumPerTurn) < 2) {
+        params->gps.one_point_alone_laser_beam_flag = true;
+      }
+      else {
+        params->gps.one_point_alone_laser_beam_flag = false;
+      }
+    }
+    else {
+      params->gps.one_point_alone_laser_beam_flag = false;
+    }
     // determine the scale factors based on a characteristic of the
     // acquisition system
     if (params->gps.geom_angular_mode_enabled_flag) {

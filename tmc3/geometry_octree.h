@@ -51,6 +51,35 @@
 namespace pcc {
 
 //============================================================================
+struct AngularInformation {
+  AngularInformation()
+  {
+    thetaEligible = false;
+    phiEligible = false;
+    valid = false;
+    contextAngle = -1;
+    contextAnglePhiX = -1;
+    contextAnglePhiY = -1;
+  }
+  bool valid;
+  bool thetaEligible;
+  bool phiEligible;
+  int laserIndex;
+  int phiNode;
+  int phiNode0;
+  int theta32;
+  uint64_t rInv;
+  int contextAngle;
+  int contextAnglePhiX;
+  int contextAnglePhiY;
+};
+  enum class DirectMode
+  {
+    kUnavailable,
+    kAllPointSame,
+    kTwoPoints
+  };
+//============================================================================
 
 const int MAX_NUM_DM_LEAF_POINTS = 2;
 
@@ -771,7 +800,6 @@ int maskPlanarY(const OctreeNodePlanar& planar);
 int maskPlanarZ(const OctreeNodePlanar& planar);
 
 void maskPlanar(OctreeNodePlanar& planar, int mask[3], int codedAxes);
-
 int determineContextAngleForPlanar(
   PCCOctree3Node& node,
   const Vec3<int>& nodeSizeLog2,
@@ -921,6 +949,62 @@ void decodeGeometryOctree(
   const Vec3<int> minimum_position
 
 );
-//============================================================================
+//----------------------------------------------------------------------------------
+void IsThetaPhiEligible(
+  PCCOctree3Node& node,
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& angularOrigin,
+  const int* thetaLaser,
+  const int numLasers,
+  int deltaAngle,
+  const AzimuthalPhiZi& phiZi,
+  Vec3<uint32_t> quantMasks,
+  AngularInformation& angularInf);
+//============================================================================================
+inline DirectMode
+canInterFrameEncodeDirectPosition(
+  bool angularDecideIDCMEligible,
+  bool geom_unique_points_flag,
+  PCCOctree3Node& node,
+  const PCCPointSet3& pointCloud,
+  const Vec3<int>& nodeSizeLog2,
+  const Vec3<int>& angularOrigin,
+  const int* thetaLaser,
+  const int numLasers,
+  int deltaAngle,
+  const AzimuthalPhiZi& phiZi,
+  Vec3<uint32_t> posQuantBitMasks)
+{
+  AngularInformation angularInf;
+  if (angularDecideIDCMEligible) {
+    IsThetaPhiEligible(
+      node, nodeSizeLog2, angularOrigin, thetaLaser, numLasers, deltaAngle,
+      phiZi, posQuantBitMasks, angularInf);
+    if (!geom_unique_points_flag)
+      node.idcmEligible = angularInf.thetaEligible || angularInf.phiEligible;
+    else
+      node.idcmEligible = angularInf.thetaEligible && angularInf.phiEligible;
+  }
+
+  int numPoints = node.predEnd - node.predStart;
+  // Check for duplicated points only if there are less than 10.
+  // NB: this limit is rather arbitrary
+  if (numPoints > 10)
+    return DirectMode::kUnavailable;
+
+  bool allPointsAreEqual = numPoints > 1 && !geom_unique_points_flag;
+  for (auto idx = node.predStart + 1; allPointsAreEqual && idx < node.predEnd;
+    idx++)
+    allPointsAreEqual &= pointCloud[node.predStart] == pointCloud[idx];
+
+  if (allPointsAreEqual)
+    return DirectMode::kAllPointSame;
+
+  if (numPoints > MAX_NUM_DM_LEAF_POINTS)
+    return DirectMode::kUnavailable;
+
+  return DirectMode::kTwoPoints;
+}
+
 
 }  // namespace pcc

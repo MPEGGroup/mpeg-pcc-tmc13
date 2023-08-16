@@ -787,6 +787,10 @@ list for intra prediction in predictive geometry coding. The threshold
 effectively used is predGeomRadiusPredThreshold scaled by 
 positionRadiusInvScaleLog2.
 
+### `--interIDCMPredEnabled=0|1`
+Controls the activation of laser index inter-prediction for angular idcm 
+coding.
+
 ### `--zCompensationEnabled=0|1`
 Enables z compensation when using octree coding.
 
