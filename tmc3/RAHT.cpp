@@ -419,7 +419,8 @@ findNeighbours(
   uint8_t occupancy,
   int parentNeighIdx[19],
   int childNeighIdx[12][8],
-  const bool rahtSubnodePredictionEnabled)
+  const bool rahtSubnodePredictionEnabled,
+  const int& raht_prediction_search_range)
 {
   static const uint8_t neighMasks[19] = {255, 240, 204, 170, 192, 160, 136,
                                          3,   5,   15,  17,  51,  85,  10,
@@ -448,8 +449,15 @@ findNeighbours(
     // compute neighbour address to look for
     // the delta between it and the current position is
     int64_t neigh_pos = morton3dAdd(base_pos, neighOffset[i]);
-    int64_t delta = neigh_pos - cur_pos;
 
+    int64_t delta = neigh_pos - cur_pos;
+    ///< in there will limit the prediction nearset neighbors searchRange 
+    if (delta >= 0)
+      delta =
+      delta >= raht_prediction_search_range ? raht_prediction_search_range : delta;
+    else
+      delta =
+      (-delta) >= raht_prediction_search_range ? -raht_prediction_search_range : delta;
     // find neighbour
     auto found = findNeighbour(
       first, last, it, neigh_pos, delta,
@@ -1219,7 +1227,7 @@ uraht_process(
             weightsParent.begin(), weightsParent.end(), weightsParentIt,
             weightsLf.begin(), weightsLf.begin() + i, level + 3, occupancy,
             parentNeighIdx, childNeighIdx,
-            rahtPredParams.raht_subnode_prediction_enabled_flag);
+            rahtPredParams.raht_subnode_prediction_enabled_flag, rahtPredParams.raht_prediction_search_range);
           for (int i = 0; i < 19; i++) {
             parentNeighCount += (parentNeighIdx[i] != -1);
           }

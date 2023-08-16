@@ -905,6 +905,9 @@ Controls the use of transform domain prediction of RAHT coefficients
 from the DC values of sub-nodes of neighbouring parent nodes in the 
 transform tree.
 
+### `rahtPredictionSearchRange=INT-VALUE`
+Controls the search range for neighbours search in RAHT.
+
 ### `--rahtPredictionWeights=INT-VALUE-LIST`
 A list of five weights that are used in the derivation of transform 
 domain prediction of RAHT coefficients when subnode prediction is enabled.

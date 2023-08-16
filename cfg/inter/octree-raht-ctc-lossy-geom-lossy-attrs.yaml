@@ -52,6 +52,7 @@ categories:
      - maxNumQtBtBeforeOt: 4
      - minQtbtSizeLog2: 0
      - planarEnabled: 1
+     - rahtPredictionSearchRange: 50000
      -
        - !conditional '"${group}" eq "solid"'
        - planarEnabled: '${enablePlanar}'
@@ -64,6 +65,7 @@ categories:
        - partitionMethod: 0
        - maxNumQtBtBeforeOt: 6
        - planarModeIdcmUse: 32
+       - rahtPredictionSearchRange: 2500
      -
        - !conditional '"${lidar-type}" eq "spinning"'
        # using cuboid LPU with spinning sequences

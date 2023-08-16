@@ -18,6 +18,7 @@ categories:
      - intra_pred_max_node_size_log2: 6
      - inferredDirectCodingMode: 0
      - planarEnabled: 1
+     - rahtPredictionSearchRange: 50000
      -
        - !conditional '"${group}" eq "solid"'
        - planarEnabled: '${enablePlanar}'

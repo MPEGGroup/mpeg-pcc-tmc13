@@ -441,6 +441,7 @@ struct RahtPredictionParams {
   int raht_prediction_threshold0;
   int raht_prediction_threshold1;
   bool raht_subnode_prediction_enabled_flag;
+  int raht_prediction_search_range;
   std::vector<int> raht_prediction_weights;
 
   std::vector<int> predWeightParent;

@@ -1106,6 +1106,7 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       if (aps.rahtPredParams.raht_subnode_prediction_enabled_flag) 
         for (int i = 0; i < 5; i++) 
           bs.writeUe(aps.rahtPredParams.raht_prediction_weights[i]);
+      bs.writeUe(aps.rahtPredParams.raht_prediction_search_range);
     }
   }
 
@@ -1266,6 +1267,7 @@ parseAps(const PayloadBuffer& buf)
         for (int i = 0; i < 5; i++)
           bs.readUe(&aps.rahtPredParams.raht_prediction_weights[i]);
         aps.rahtPredParams.setPredictionWeights();
+        bs.readUe(&aps.rahtPredParams.raht_prediction_search_range);
       }
     }
   }

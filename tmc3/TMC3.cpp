@@ -1293,6 +1293,12 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.rahtPredParams.raht_subnode_prediction_enabled_flag, true,
     "Controls the use of transform-domain subnode prediction")
 
+
+   ("rahtPredictionSearchRange",
+     params_attr.aps.rahtPredParams.raht_prediction_search_range, -1,
+     "RAHT prediction nearest neighbor search range\n"
+     " -1: Full-range")
+
   ("rahtPredictionWeights",
     params_attr.aps.rahtPredParams.raht_prediction_weights, {9,3,1,5,2},
     "Prediction weights for neighbours")

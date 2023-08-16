@@ -74,12 +74,14 @@ categories:
      #  - scale 16bit reflectance data to 8bit
      - convertPlyColourspace: 1
      - transformType: 0
+     - rahtPredictionSearchRange: 50000
      -
        - !conditional '${numLasers}'
        - spherical_coord_flag: 1
      -
        - !conditional '"${group}" eq "cat3-frame"'
        - rahtInterPredictionDepthMinus1: 7
+       - rahtPredictionSearchRange: 2500
 
      ##
      # attribute coding -- reflectance

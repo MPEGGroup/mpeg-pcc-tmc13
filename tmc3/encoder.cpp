@@ -804,6 +804,9 @@ PCCTMC3Encoder3::fixupParameterSets(EncoderParams* params)
     if (attr_aps.intra_lod_search_range < 0)
       attr_aps.intra_lod_search_range = 1100000;
 
+    if (attr_aps.rahtPredParams.raht_prediction_search_range < 0)
+      attr_aps.rahtPredParams.raht_prediction_search_range = 1100000;
+
     // If all intra prediction layers are skipped, don't signal a search range
     if (
       attr_aps.intra_lod_prediction_skip_layers
@@ -1236,9 +1239,9 @@ PCCTMC3Encoder3::compressPartition(
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
         pointCloud[i] -= _sliceOrigin;    
 
- bool currFrameNotCodedAsB =
+    bool currFrameNotCodedAsB =
       (_gps->biPredictionEnabledFlag
-       && !biPredEncodeParams.codeCurrentFrameAsBFrame);
+        && !biPredEncodeParams.codeCurrentFrameAsBFrame);
     auto& refCloud = currFrameNotCodedAsB
       ? biPredEncodeParams.attrInterPredParams2.referencePointCloud
       : attrInterPredParams.referencePointCloud;
