@@ -669,7 +669,7 @@ interDcPred(
   int numAttrs,
   int occupancy,
   It first_Ref,
-  std::vector<UrahtNode> first_Ref_weight,
+  const std::vector<UrahtNode>& first_Ref_weight,
   FixedPoint interPredBuf[][8],
   int child_index_start,
   int64_t limitLow,
@@ -971,7 +971,6 @@ uraht_process(
   int treeDepthLimit =
     attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1
     + 1;
-
   if (interPredType0 && !enableAttrInterPred)
     attrInterPredParams.paramsForInterRAHT.resizeBuffers(treeDepthLimit);
 
@@ -1019,6 +1018,8 @@ uraht_process(
   std::vector<int> levelHfPos;
   std::vector<int> levelHfPos_ref;
 
+  int numDupNodes = numPoints;
+
   for (int level = 0, numNodes = weightsLf.size(); numNodes > 1; level++) {
     levelHfPos.push_back(weightsHf.size());
     if (interPredType1)
@@ -1027,6 +1028,7 @@ uraht_process(
       // process any duplicate points
       numNodes = reduceUnique(
         numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
+      numDupNodes -= numNodes;
       if (interPredType1 && enableACInterPred) {
         std::vector<UrahtNode> weightsLf_ref_tmp = weightsLf_ref;
         std::vector<int> attrsLf_ref_tmp = attrsLf_ref;
@@ -1076,8 +1078,10 @@ uraht_process(
   }
 
   int trainZeros = 0;
+  int sumNodes = 0;
   for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
     int numNodes = weightsHf.size() - levelHfPos[level];
+    sumNodes += numNodes;
     weightsLf.resize(weightsLf.size() + numNodes);
     attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
     if (interPredType1) {
@@ -1097,12 +1101,18 @@ uraht_process(
       attrsHf_ref.resize(levelHfPos_ref[level] * numAttrs);
     }
 
+    
     // expansion of level is complete, processing is now on the next level
     level--;
 
     // every three levels, perform transform
     if (level % 3)
       continue;
+    ///< current level nodes number is equal to previous nodes level
+    if (sumNodes == 0)
+      continue;
+
+    sumNodes = 0;
 
     // AC inter prediction is only enabled for the first 5 layers
     if (interPredType1 && (level < levelHfPos.size() - treeDepthLimit * 3))
@@ -1263,11 +1273,11 @@ uraht_process(
       }
 
       // judge inter prediction
-      if (interPredType0) {
+      if (interPredType0&& enableAttrInterPred) {
         predictionInter = false;
         auto& curNode =
           attrInterPredParams.paramsForInterRAHT.ref->node[treeDepth];
-        while (enableAttrInterPred && (treeDepth < treeDepthLimit)
+        while ((treeDepth < treeDepthLimit)
                && refIdx < curNode.size()) {
           // If cur & ref position same - enable inter prediction
           // Else if cur position is greater, check the next reference
@@ -1520,7 +1530,7 @@ uraht_process(
 
       // save current coeffs for inter prediction
       if (interPredType0 && (treeDepth < treeDepthLimit)) {
-        attrInterPredParams.paramsForInterRAHT.cur->node[treeDepth].push_back(
+        attrInterPredParams.paramsForInterRAHT.cur->node[treeDepth].emplace_back(
           current);
       }
 
@@ -1591,110 +1601,115 @@ uraht_process(
     }
   }
 
-  // process duplicate points at level 0
-  std::swap(attrRec, attrRecParent);
-  auto attrRecParentIt = attrRecParent.cbegin();
-  auto attrsHfIt = attrsHf.cbegin();
+ 
+  if (numDupNodes) {
+    // process duplicate points at level 0
+    std::swap(attrRec, attrRecParent);
+    auto attrRecParentIt = attrRecParent.cbegin();
+    auto attrsHfIt = attrsHf.cbegin();
 
-  for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
-    int weight = weightsLf[i].weight;
-    Qps nodeQp = {
-      weightsLf[i].qp[0] >> regionQpShift,
-      weightsLf[i].qp[1] >> regionQpShift};
+    for (int i = 0, out = 0, iEnd = weightsLf.size(); i < iEnd; i++) {
+      int weight = weightsLf[i].weight;
+      Qps nodeQp = {
+        weightsLf[i].qp[0] >> regionQpShift,
+        weightsLf[i].qp[1] >> regionQpShift };
 
-    // unique points have weight = 1
-    if (weight == 1) {
-      for (int k = 0; k < numAttrs; k++)
-        attrRec[out++] = *attrRecParentIt++;
-      continue;
-    }
+      // unique points have weight = 1
+      if (weight == 1) {
+        for (int k = 0; k < numAttrs; k++)
+          attrRec[out++] = *attrRecParentIt++;
+        continue;
+      }
 
-    // duplicates
-    FixedPoint attrSum[3];
-    FixedPoint attrRecDc[3];
-    FixedPoint sqrtWeight;
-    sqrtWeight.val = isqrt(uint64_t(weight) << (2 * FixedPoint::kFracBits));
+      // duplicates
+      FixedPoint attrSum[3];
+      FixedPoint attrRecDc[3];
+      FixedPoint sqrtWeight;
+      sqrtWeight.val = isqrt(uint64_t(weight) << (2 * FixedPoint::kFracBits));
 
-    int64_t sumCoeff = 0;
-    for (int k = 0; k < numAttrs; k++) {
-      if (isEncoder)
-        attrSum[k] = attrsLf[i * numAttrs + k];
-      if (rahtExtension)
-        attrRecDc[k].val = *attrRecParentIt++;
-      else
-        attrRecDc[k] = *attrRecParentIt++;
-      attrRecDc[k] *= sqrtWeight;
-    }
-
-    FixedPoint rsqrtWeight;
-    for (int w = weight - 1; w > 0; w--) {
-      RahtKernel kernel(w, 1);
-      int shift = w > 1024 ? ilog2(uint32_t(w - 1)) >> 1 : 0;
-      if (isEncoder)
-        rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
-
-      auto quantizers = qpset.quantizers(qpLayer, nodeQp);
+      int64_t sumCoeff = 0;
       for (int k = 0; k < numAttrs; k++) {
-        auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
+        if (isEncoder)
+          attrSum[k] = attrsLf[i * numAttrs + k];
+        if (rahtExtension)
+          attrRecDc[k].val = *attrRecParentIt++;
+        else
+          attrRecDc[k] = *attrRecParentIt++;
+        attrRecDc[k] *= sqrtWeight;
+      }
 
-        FixedPoint transformBuf[2];
-        if (isEncoder) {
-          // invert the initial reduction (sum)
-          // NB: read from (w-1) since left side came from attrsLf.
-          transformBuf[1] = attrsHfIt[(w - 1) * numAttrs + k];
-          attrSum[k] -= transformBuf[1];
-          transformBuf[0] = attrSum[k];
+      FixedPoint rsqrtWeight;
+      for (int w = weight - 1; w > 0; w--) {
+        RahtKernel kernel(w, 1);
+        int shift = w > 1024 ? ilog2(uint32_t(w - 1)) >> 1 : 0;
+        if (isEncoder)
+          rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
 
-          // NB: weight of transformBuf[1] is by construction 1.
-          transformBuf[0].val >>= shift;
-          transformBuf[0] *= rsqrtWeight;
+        auto quantizers = qpset.quantizers(qpLayer, nodeQp);
+        for (int k = 0; k < numAttrs; k++) {
+          auto& q = quantizers[std::min(k, int(quantizers.size()) - 1)];
 
-          kernel.fwdTransform(
+          FixedPoint transformBuf[2];
+          if (isEncoder) {
+            // invert the initial reduction (sum)
+            // NB: read from (w-1) since left side came from attrsLf.
+            transformBuf[1] = attrsHfIt[(w - 1) * numAttrs + k];
+            attrSum[k] -= transformBuf[1];
+            transformBuf[0] = attrSum[k];
+
+            // NB: weight of transformBuf[1] is by construction 1.
+            transformBuf[0].val >>= shift;
+            transformBuf[0] *= rsqrtWeight;
+
+            kernel.fwdTransform(
+              transformBuf[0], transformBuf[1], &transformBuf[0],
+              &transformBuf[1]);
+
+            auto coeff = transformBuf[1].round();
+            assert(coeff <= INT_MAX && coeff >= INT_MIN);
+            *coeffBufItK[k]++ = coeff =
+              q.quantize(coeff << kFixedPointAttributeShift);
+            transformBuf[1] =
+              divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+
+            sumCoeff += std::abs(q.quantize(coeff << kFixedPointAttributeShift));
+          }
+          else {
+            int64_t coeff = *coeffBufItK[k]++;
+            transformBuf[1] =
+              divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+          }
+
+          // inherit the DC value
+          transformBuf[0] = attrRecDc[k];
+
+          kernel.invTransform(
             transformBuf[0], transformBuf[1], &transformBuf[0],
             &transformBuf[1]);
 
-          auto coeff = transformBuf[1].round();
-          assert(coeff <= INT_MAX && coeff >= INT_MIN);
-          *coeffBufItK[k]++ = coeff =
-            q.quantize(coeff << kFixedPointAttributeShift);
-          transformBuf[1] =
-            divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
-
-          sumCoeff += std::abs(q.quantize(coeff << kFixedPointAttributeShift));
-        } else {
-          int64_t coeff = *coeffBufItK[k]++;
-          transformBuf[1] =
-            divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
+          attrRecDc[k] = transformBuf[0];
+          attrRec[out + w * numAttrs + k] =
+            rahtExtension ? transformBuf[1].val : transformBuf[1].round();
+          if (w == 1)
+            attrRec[out + k] =
+            rahtExtension ? transformBuf[0].val : transformBuf[0].round();
         }
 
-        // inherit the DC value
-        transformBuf[0] = attrRecDc[k];
+        // Track RL for RDOQ
+        if (isEncoder) {
+          if (sumCoeff == 0)
+            trainZeros++;
+          else
+            trainZeros = 0;
+        }
 
-        kernel.invTransform(
-          transformBuf[0], transformBuf[1], &transformBuf[0],
-          &transformBuf[1]);
-
-        attrRecDc[k] = transformBuf[0];
-        attrRec[out + w * numAttrs + k] =
-          rahtExtension ? transformBuf[1].val : transformBuf[1].round();
-        if (w == 1)
-          attrRec[out + k] =
-            rahtExtension ? transformBuf[0].val : transformBuf[0].round();
       }
 
-      // Track RL for RDOQ
-      if (isEncoder) {
-        if (sumCoeff == 0)
-          trainZeros++;
-        else
-          trainZeros = 0;
-      }
-
+      attrsHfIt += (weight - 1) * numAttrs;
+      out += weight * numAttrs;
     }
-
-    attrsHfIt += (weight - 1) * numAttrs;
-    out += weight * numAttrs;
   }
+  
 
   // write-back reconstructed attributes
   assert(attrRec.size() == numAttrs * numPoints);

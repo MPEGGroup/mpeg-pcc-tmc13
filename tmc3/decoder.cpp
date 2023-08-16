@@ -917,26 +917,27 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud[i] += _sliceOrigin;
 
-  if (_refFrameAlt) {
-    Box3<int> currentFrameBox = _currentPointCloud.computeBoundingBox();
-    if (!_gps->biPredictionEnabledFlag)
-      attrInterPredParams.referencePointCloud = _refFrameAlt->cloud;
-    int count = 0;
-    for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
-      point_t p = attrInterPredParams.referencePointCloud[i];
-      if( currentFrameBox.contains(p) ){
-        attrInterPredParams.referencePointCloud[count] = p;
-        if(attrInterPredParams.referencePointCloud.hasReflectances())
-          attrInterPredParams.referencePointCloud.setReflectance(
-            count, attrInterPredParams.referencePointCloud.getReflectance(i));
-        if(attrInterPredParams.referencePointCloud.hasColors())
-          attrInterPredParams.referencePointCloud.setColor(
-            count, attrInterPredParams.referencePointCloud.getColor(i));
-        count++;
+  if (attr_aps.attrInterPredictionEnabled)
+    if (_refFrameAlt) {
+      Box3<int> currentFrameBox = _currentPointCloud.computeBoundingBox();
+      if (!_gps->biPredictionEnabledFlag)
+        attrInterPredParams.referencePointCloud = _refFrameAlt->cloud;
+      int count = 0;
+      for (int i = 0; i < attrInterPredParams.getPointCount(); i++) {
+        point_t p = attrInterPredParams.referencePointCloud[i];
+        if (currentFrameBox.contains(p)) {
+          attrInterPredParams.referencePointCloud[count] = p;
+          if (attrInterPredParams.referencePointCloud.hasReflectances())
+            attrInterPredParams.referencePointCloud.setReflectance(
+              count, attrInterPredParams.referencePointCloud.getReflectance(i));
+          if (attrInterPredParams.referencePointCloud.hasColors())
+            attrInterPredParams.referencePointCloud.setColor(
+              count, attrInterPredParams.referencePointCloud.getColor(i));
+          count++;
+        }
       }
+      attrInterPredParams.referencePointCloud.resize(count);
     }
-    attrInterPredParams.referencePointCloud.resize(count);
-  }
 
   auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
   _attrDecoder->decode(
@@ -951,21 +952,23 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
     for (auto i = 0; i < _currentPointCloud.getPointCount(); i++)
       _currentPointCloud[i] -= _sliceOrigin;
 
-  bool currFrameNotCodedAsB =
-    (_gps->biPredictionEnabledFlag && !_gbh.biPredictionEnabledFlag);
-  auto& refCloud = currFrameNotCodedAsB
-    ? biPredDecodeParams.attrInterPredParams2.referencePointCloud
-    : attrInterPredParams.referencePointCloud;
+  if (_gps->interPredictionEnabledFlag) {
+    bool currFrameNotCodedAsB =
+      (_gps->biPredictionEnabledFlag && !_gbh.biPredictionEnabledFlag);
+    auto& refCloud = currFrameNotCodedAsB
+      ? biPredDecodeParams.attrInterPredParams2.referencePointCloud
+      : attrInterPredParams.referencePointCloud;
 
-  if (attr_aps.spherical_coord_flag) {
-    refCloud = _currentPointCloud;
-    _currentPointCloud.swapPoints(altPositions);
-  } else {
-    refCloud = _currentPointCloud;
-    for (int count = 0; count < refCloud.getPointCount(); count++)
-      refCloud[count] += _sliceOrigin;
+    if (attr_aps.spherical_coord_flag) {
+      refCloud = _currentPointCloud;
+      _currentPointCloud.swapPoints(altPositions);
+    }
+    else {
+      refCloud = _currentPointCloud;
+      for (int count = 0; count < refCloud.getPointCount(); count++)
+        refCloud[count] += _sliceOrigin;
+    }
   }
-
   _accumCloudAltPositions.append(_reconSliceAltPositions);
 
   // Note the current sliceID for loss detection

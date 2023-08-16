@@ -1214,19 +1214,20 @@ PCCTMC3Encoder3::compressPartition(
       attrInterPredParams.referencePointCloud = _refFrameAlt.cloud;
     
     int count = 0;
-    for(int i = 0; i < attrInterPredParams.getPointCount(); i++){
-      point_t p = attrInterPredParams.referencePointCloud[i];
-      if( currentFrameBox.contains(p) ){
-        attrInterPredParams.referencePointCloud[count] = p;
-        if(attrInterPredParams.referencePointCloud.hasReflectances())
-          attrInterPredParams.referencePointCloud.setReflectance(
-            count, attrInterPredParams.referencePointCloud.getReflectance(i));
-        if(attrInterPredParams.referencePointCloud.hasColors())
-          attrInterPredParams.referencePointCloud.setColor(
-            count, attrInterPredParams.referencePointCloud.getColor(i));
-        count++;
+    if (attr_aps.attrInterPredictionEnabled)
+      for (int i = 0; i < attrInterPredParams.getPointCount(); i++) {
+        point_t p = attrInterPredParams.referencePointCloud[i];
+        if (currentFrameBox.contains(p)) {
+          attrInterPredParams.referencePointCloud[count] = p;
+          if (attrInterPredParams.referencePointCloud.hasReflectances())
+            attrInterPredParams.referencePointCloud.setReflectance(
+              count, attrInterPredParams.referencePointCloud.getReflectance(i));
+          if (attrInterPredParams.referencePointCloud.hasColors())
+            attrInterPredParams.referencePointCloud.setColor(
+              count, attrInterPredParams.referencePointCloud.getColor(i));
+          count++;
+        }
       }
-    }
     attrInterPredParams.referencePointCloud.resize(count);
 
     auto& ctxtMemAttr = _ctxtMemAttrs.at(abh.attr_sps_attr_idx);
@@ -1237,7 +1238,7 @@ PCCTMC3Encoder3::compressPartition(
 
     if (!attr_aps.spherical_coord_flag)
       for (auto i = 0; i < pointCloud.getPointCount(); i++)
-        pointCloud[i] -= _sliceOrigin;    
+        pointCloud[i] -= _sliceOrigin;
 
     bool currFrameNotCodedAsB =
       (_gps->biPredictionEnabledFlag
