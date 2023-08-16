@@ -680,6 +680,171 @@ isSibling(int64_t pos0, int64_t pos1, int level)
 }
 
 //============================================================================
+// estimate filter tap by a binary search
+
+int getFilterTap (int64_t autocorr, int64_t crosscorr)
+{
+  //binary search to replace divison. ( returns 128*crosscorr/autocorr)
+  if (crosscorr == 0)
+    return 0;
+  
+  bool isneg = crosscorr < 0;
+  crosscorr = abs(crosscorr);
+  
+  if (crosscorr == autocorr)
+    return (isneg ? -128 : 128);
+  
+  int tapint = 0, tapfrac = 0;
+  
+  //determine integer part by repeated subtraction
+  while (crosscorr >= autocorr) {
+    crosscorr -= autocorr;
+    tapint += 128;
+  }
+  if (crosscorr == 0) {
+    return (isneg ? -tapint : tapint);
+  }
+  
+  int min = 0, max = 128;
+  
+  while (min < (max - 1)) {
+    int mid = (min+max) >> 1;
+    int64_t midval = (mid*autocorr)>>7;
+    if (crosscorr == midval) {
+      tapfrac = mid; 
+      return (isneg ? -(tapint + tapfrac) : (tapint + tapfrac));
+    }
+    else if (crosscorr < midval) {
+      max = mid;
+    }
+    else {
+      min = mid;
+    }
+  }
+  tapfrac = min;
+  return  (isneg ? -(tapint+tapfrac) : (tapint+tapfrac));
+  
+}
+
+int estimate_layer_filter (std::vector<UrahtNode> weightsLf, std::vector<UrahtNode> weightsLf_ref,  std::vector<int> attrsLf,std::vector<int> attrsLf_ref, int level, int level_ref, int numAttrs, bool inheritDc,  bool rahtExtension  ){
+  int64_t autocorr = 0, crosscorr = 0;
+  int layerFilter = 128;
+  for (int i = 0, j = 0, iLast, jLast, iEnd = weightsLf.size(), jEnd = weightsLf_ref.size(); i < iEnd; i = iLast) {
+    FixedPoint transformBuf[6][8] = {};
+    FixedPoint transformInterPredBuf[3][8] = {};
+    int weights[8 + 8 + 8 + 8] = {};
+    Qps nodeQp[8] = {};
+    uint8_t occupancy = 0;
+    int nodeCnt = 0;
+    
+    int weights_ref[8 + 8 + 8 + 8] = {};
+    bool interNode = false;
+    
+    const auto cur_pos = weightsLf[i].pos >> (level + 3);
+    auto ref_pos = j < jEnd-1 ? weightsLf_ref[j].pos >> (level_ref + 3) : 0x7FFFFFFFFFFFFFFFLL;
+    while ((j < jEnd-1) && (cur_pos > ref_pos)) {
+      j++;
+      ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
+    }
+    if (cur_pos == ref_pos) {
+      interNode = true;
+    }
+    
+    if (interNode) {
+      for (jLast = j; jLast < jEnd; jLast++) {
+        int nextNode = jLast > j
+        && !isSibling(weightsLf_ref[jLast].pos, weightsLf_ref[j].pos, level_ref + 3);
+        if (nextNode)
+          break;
+        int nodeIdx = (weightsLf_ref[jLast].pos >> level_ref) & 0x7;
+        weights_ref[nodeIdx] = weightsLf_ref[jLast].weight;
+        for (int k = 0; k < numAttrs; k++)
+          transformInterPredBuf[k][nodeIdx] = attrsLf_ref[jLast * numAttrs + k];
+      }
+    }
+    
+    for (iLast = i; iLast < iEnd; iLast++) {
+      int nextNode = iLast > i
+      && !isSibling(weightsLf[iLast].pos, weightsLf[i].pos, level + 3);
+      if (nextNode)
+        break;
+      
+      int nodeIdx = (weightsLf[iLast].pos >> level) & 0x7;
+      weights[nodeIdx] = weightsLf[iLast].weight;
+      
+      occupancy |= 1 << nodeIdx;
+      
+      if (rahtExtension)
+        nodeCnt++;
+  
+      for (int k = 0; k < numAttrs; k++)
+        transformBuf[k][nodeIdx] = attrsLf[iLast * numAttrs + k];
+    }
+    
+    mkWeightTree(weights);
+    mkWeightTree(weights_ref);
+    
+    if (rahtExtension && nodeCnt == 1) {
+      interNode = false;
+    }
+    
+    if (interNode) {
+      for (int childIdx = 0; childIdx < 8; childIdx++) {
+        if (weights_ref[childIdx] <= 1)
+          continue;
+        if(weights_ref[childIdx]) {
+          FixedPoint rsqrtWeight;
+          uint64_t w = weights_ref[childIdx];
+          int shift = w > 1024 ? ilog2(w - 1) >> 1 : 0;
+          rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
+          for (int k = 0; k < numAttrs; k++) {
+            transformInterPredBuf[k][childIdx].val >>= shift;
+            transformInterPredBuf[k][childIdx] *= rsqrtWeight;
+          }
+        }
+      }
+    }
+    
+    for (int childIdx = 0; childIdx < 8; childIdx++) {
+      if (weights[childIdx] <= 1)
+        continue;
+      
+      // Summed attribute values
+      if (true) {
+        FixedPoint rsqrtWeight;
+        uint64_t w = weights[childIdx];
+        int shift = w > 1024 ? ilog2(w - 1) >> 1 : 0;
+        rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits);
+        for (int k = 0; k < numAttrs; k++) {
+          transformBuf[k][childIdx].val >>= shift;
+          transformBuf[k][childIdx] *= rsqrtWeight;
+        }
+      }
+    }
+    
+    if (interNode) {
+      fwdTransformBlock222<RahtKernel>(numAttrs, transformBuf, weights);
+      fwdTransformBlock222<RahtKernel>(numAttrs, transformInterPredBuf, weights_ref);
+      scanBlock(weights, [&](int idx) {
+        if (inheritDc && !idx)
+          return;
+        
+        int shiftbits = transformBuf[0][idx].kFracBits;
+        int64_t refVal = transformInterPredBuf[0][idx].val;
+        if (refVal) {
+          autocorr += (refVal*refVal) >> shiftbits;
+          crosscorr += (refVal*transformBuf[0][idx].val) >> shiftbits;
+        }
+      });
+    }
+  }
+  if (autocorr) {
+    layerFilter = getFilterTap(autocorr, crosscorr);
+  }
+  return layerFilter;
+}
+
+//============================================================================
 // Core transform process (for encoder/decoder)
 
 template<bool isEncoder, bool rahtExtension>
@@ -732,12 +897,13 @@ uraht_process(
 
   bool enableACInterPred = attrInterPredParams.enableAttrInterPred;
   const bool enableDCInterPred = attrInterPredParams.enableAttrInterPred;
+  bool enableFilterEstimation = attrInterPredParams.paramsForInterRAHT.enableFilterEstimation;
 
   int refIdx = 0;
   int treeDepth = 0;
-  int treeDepthLimit = 
-    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1
-    + 1;
+  int treeDepthLimit = attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 + 1;
+  std::vector<int64_t> fixedFilterTaps = {128, 128, 128, 127, 125, 121, 115};
+  int skipInitLayersForFiltering = attrInterPredParams.paramsForInterRAHT.skipInitLayersForFiltering;
 
   weightsLf.reserve(numPoints);
   attrsLf.reserve(numPoints * numAttrs);
@@ -798,6 +964,7 @@ uraht_process(
         level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
     }
   }
+  
 
   if (enableACInterPred){
     for (int level = 0, numNodes = weightsLf_ref.size(); numNodes > 1; level++) {
@@ -919,6 +1086,12 @@ uraht_process(
     // select quantiser according to transform layer
     qpLayer = std::min(qpLayer + 1, int(qpset.layers.size()) - 1);
     acCoeffQpLayer++;
+    
+    int64_t interFilterTap = 128;
+    if ((!enableFilterEstimation) && (enableACInterPred) && (treeDepth < treeDepthLimit)) {
+      int filtexidx = treeDepth < fixedFilterTaps.size() ? treeDepth : (fixedFilterTaps.size()-1);
+      interFilterTap = fixedFilterTaps[filtexidx];
+    }
 
     // prepare reconstruction buffers
     //  previous reconstruction -> attrRecParent
@@ -929,6 +1102,31 @@ uraht_process(
     auto attrRecParentIt = attrRecParent.cbegin();
     auto weightsParentIt = weightsParent.begin();
     auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
+    
+    bool enableEstimateLayer = enableFilterEstimation && enableACInterPred && (treeDepth<treeDepthLimit) && (treeDepth >= skipInitLayersForFiltering ) ;
+    //begin filter estimation at encoder
+    if (isEncoder && enableEstimateLayer ) {
+      
+      int origFilterTap =  estimate_layer_filter (weightsLf, weightsLf_ref,  attrsLf,attrsLf_ref, level, level_ref, numAttrs, inheritDc,  rahtExtension  );
+      int residueFilterTap = 128 - origFilterTap;
+      auto quantizers = qpset.quantizers(qpLayer, {0,0});
+      auto& q = quantizers[0];
+      int64_t quantizedResFilterTap = q.quantize(residueFilterTap << kFixedPointAttributeShift);
+      int64_t recResidueFilterTap = divExp2RoundHalfUp(q.scale(quantizedResFilterTap), kFixedPointAttributeShift);
+      attrInterPredParams.paramsForInterRAHT.FilterTaps.push_back(quantizedResFilterTap);
+      interFilterTap = 128-recResidueFilterTap;
+    } //end filter estimation
+    
+    //get filter tap at the decoder 
+    bool enabledecoderparsing = !isEncoder && (enableFilterEstimation) && (treeDepth < (attrInterPredParams.paramsForInterRAHT.FilterTaps.size() + skipInitLayersForFiltering))  && (treeDepth >= skipInitLayersForFiltering);
+    if (enabledecoderparsing) {
+      auto quantizers = qpset.quantizers(qpLayer, {0,0});
+      auto& q = quantizers[0];
+      int idxtoread= treeDepth - skipInitLayersForFiltering;
+      int64_t recResidueFilterTap = divExp2RoundHalfUp(q.scale(attrInterPredParams.paramsForInterRAHT.FilterTaps[idxtoread]), kFixedPointAttributeShift);
+      interFilterTap = 128 - recResidueFilterTap;
+    }
+    
 
     // std::cout << "iLast = " << weightsLf.size() << "\n";
     for (int i = 0, j = 0, iLast, jLast, iEnd = weightsLf.size(), jEnd = weightsLf_ref.size(); i < iEnd; i = iLast) {
@@ -948,20 +1146,20 @@ uraht_process(
       int weights_ref[8 + 8 + 8 + 8] = {};
       bool interNode = false;
  
-      if(enableACInterPred){
+      if (enableACInterPred) {
         const auto cur_pos = weightsLf[i].pos >> (level + 3);
         auto ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
-        while((j < weightsLf_ref.size() - 1) && (cur_pos > ref_pos)){
+        while ((j < weightsLf_ref.size() - 1) && (cur_pos > ref_pos)) {
           j++;
           ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
         }
-        if(cur_pos == ref_pos){      
+        if (cur_pos == ref_pos) {      
           interNode = true;
         }                
       }
 
-      if (interNode){
-        for (jLast = j; jLast < jEnd; jLast++){
+      if (interNode) {
+        for (jLast = j; jLast < jEnd; jLast++) {
           int nextNode = jLast > j
             && !isSibling(weightsLf_ref[jLast].pos, weightsLf_ref[j].pos, level_ref + 3);
           if (nextNode)
@@ -1006,7 +1204,6 @@ uraht_process(
           numParentNeigh[j++] = 19;
         }
       }
-
       if (rahtExtension && nodeCnt == 1){
         interNode = false;
       }
@@ -1129,16 +1326,20 @@ uraht_process(
         fwdTransformBlock222<RahtKernel>(numAttrs, transformBuf, weights);
       else if (enablePrediction)
         fwdTransformBlock222<RahtKernel>(numAttrs, transformPredBuf, weights);
-
-      if (interNode){
+      
+      if (interNode) {
         fwdTransformBlock222<RahtKernel>(numAttrs, transformInterPredBuf, weights_ref);
         for (int childIdx = 0; childIdx < 8; childIdx++) {
           for (int k = 0; k < numAttrs; k++){
-            transformPredBuf[k][childIdx].val = transformInterPredBuf[k][childIdx].val;
+            int64_t refVal = transformInterPredBuf[k][childIdx].val;
+            int64_t filteredVal = (treeDepth<skipInitLayersForFiltering) ? refVal : (refVal*interFilterTap)>>7;
+            
+            transformPredBuf[k][childIdx].val = filteredVal;
           }
         }
         enablePrediction = true;
       }
+
 
       // per-coefficient operations:
       //  - subtract transform domain prediction (encoder)
@@ -1235,7 +1436,6 @@ uraht_process(
 
             //DC inter prediction at encoder
             auto coeff_tmp = coeff;
-
             *coeffBufItK[k]++ = coeff;
             transformPredBuf[k][idx] += divExp2RoundHalfUp(
               q.scale(coeff_tmp), kFixedPointAttributeShift);

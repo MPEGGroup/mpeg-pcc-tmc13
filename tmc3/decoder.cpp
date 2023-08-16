@@ -811,6 +811,7 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
   // In order to determinet hat the attribute decoder is reusable, the abh
   // must be inspected.
   int abhSize;
+  abh.RAHTFilterTaps.clear();
   abh = parseAbh(*_sps, attr_aps, buf, &abhSize);
 
   attrInterPredParams.frameDistance = 1;
@@ -844,8 +845,13 @@ PCCTMC3Decoder3::decodeAttributeBrick(const PayloadBuffer& buf)
 
   attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1 =
     attr_aps.raht_inter_prediction_depth_minus1;
-  //attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_enabled =
-  //  attr_aps.attrInterPredictionEnabled;
+  attrInterPredParams.paramsForInterRAHT.enableFilterEstimation = attr_aps.raht_send_inter_filters;
+  attrInterPredParams.paramsForInterRAHT.skipInitLayersForFiltering = attr_aps.raht_inter_skip_layers;
+  attrInterPredParams.paramsForInterRAHT.FilterTaps.clear();
+  if (attr_aps.raht_send_inter_filters && abh.enableAttrInterPred) {
+    attrInterPredParams.paramsForInterRAHT.FilterTaps = abh.RAHTFilterTaps;
+  }
+  
 
 
   pcc::chrono::Stopwatch<pcc::chrono::utime_inc_children_clock> clock_user;

@@ -1468,6 +1468,14 @@ ParseParameters(int argc, char* argv[], Parameters& params)
     params_attr.aps.raht_inter_prediction_depth_minus1, 0,
     "Maximun depth of inter prediction for RAHT")
 
+  ("rahtInterSendFilters",
+    params_attr.aps.raht_send_inter_filters, false,
+    "send inter filters for RAHT")
+
+  ("rahtInterSkipFilteringLayers",
+    params_attr.aps.raht_inter_skip_layers, 3,
+    "skip initial layers for inter filtering in RAHT")
+
   // This section is just dedicated to attribute recolouring (encoder only).
   // parameters are common to all attributes.
   (po::Section("Recolouring"))

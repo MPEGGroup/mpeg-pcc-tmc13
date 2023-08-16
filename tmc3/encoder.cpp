@@ -1128,6 +1128,9 @@ PCCTMC3Encoder3::compressPartition(
       attr_aps.raht_inter_prediction_depth_minus1;
     attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_enabled =
       attr_aps.attrInterPredictionEnabled;
+    attrInterPredParams.paramsForInterRAHT.enableFilterEstimation = attr_aps.raht_send_inter_filters;
+    attrInterPredParams.paramsForInterRAHT.skipInitLayersForFiltering = attr_aps.raht_inter_skip_layers;
+    
 
     attrInterPredParams.attrInterIntraSliceRDO =
       attr_enc.attrInterIntraSliceRDO && attr_aps.attrInterPredictionEnabled;

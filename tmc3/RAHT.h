@@ -54,7 +54,7 @@ void regionAdaptiveHierarchicalTransform(
   const int voxelCount,
   int* coefficients,
   const bool removeRoundingOps,
-  AttributeInterPredParams& attrInterPredParams);
+  AttributeInterPredParams& attrInterPredParam);
 
 void regionAdaptiveHierarchicalInverseTransform(
   const RahtPredictionParams &rahtPredParams,

@@ -540,6 +540,7 @@ AttributeDecoder::decodeReflectancesRaht(
   const int attribCount = 1;
   std::vector<int> coefficients(attribCount * voxelCount);
   std::vector<Qps> pointQpOffsets(voxelCount);
+ 
   int zeroRunRem = 0;
   for (int n = 0; n < voxelCount; ++n) {
     if (--zeroRunRem < 0)
@@ -548,10 +549,10 @@ AttributeDecoder::decodeReflectancesRaht(
     uint32_t value = 0;
     if (!zeroRunRem)
       value = decoder.decode();
-
-    coefficients[n] = value;
-    pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
+      coefficients[n] = value;
+      pointQpOffsets[n] = qpSet.regionQpOffset(pointCloud[packedVoxel[n].index]);
   }
+  
 
   std::vector<int> attributes(attribCount * voxelCount);
 

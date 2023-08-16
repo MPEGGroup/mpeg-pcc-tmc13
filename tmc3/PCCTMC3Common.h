@@ -240,6 +240,9 @@ struct AttributeInterPredParamsForRAHT {
   std::vector<int> coeff_DCs;
   int raht_inter_prediction_depth_minus1 = 0;
   bool raht_inter_prediction_enabled = 0;
+  bool enableFilterEstimation = false;
+  int skipInitLayersForFiltering = 0;
+  std::vector<int> FilterTaps = {};
   AttributeInterPredBufRAHT bufForInterRAHT;
   PredBufRAHT* cur;
   PredBufRAHT* ref;

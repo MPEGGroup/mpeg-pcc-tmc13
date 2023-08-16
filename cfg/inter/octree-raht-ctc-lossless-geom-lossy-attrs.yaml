@@ -94,6 +94,13 @@ categories:
            r04: 34
            r05: 28
            r06: 22
+       - rahtInterSendFilters:
+           r01: 0
+           r02: 0
+           r03: 1
+           r04: 1
+           r05: 1
+           r06: 1
        - bitdepth: 8
        -
          - !conditional '${reflectance8b16b_scale_factor}'

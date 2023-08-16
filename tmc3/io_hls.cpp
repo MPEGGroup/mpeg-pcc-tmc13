@@ -1078,6 +1078,8 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     if (aps.attrInterPredictionEnabled){
       if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
         bs.writeUe(aps.raht_inter_prediction_depth_minus1);
+        bs.write(aps.raht_send_inter_filters);
+        bs.writeUe(aps.raht_inter_skip_layers);
       } else
         bs.writeUe(aps.attrInterPredSearchRange);       
     }
@@ -1224,6 +1226,8 @@ parseAps(const PayloadBuffer& buf)
   aps.attrInterPredictionEnabled = false;
   aps.raht_inter_prediction_depth_minus1 = 0;
   aps.attrInterPredSearchRange = 0;
+  aps.raht_send_inter_filters = false;
+  aps.raht_inter_skip_layers = 0;
   aps.predictionWithDistributionEnabled = false;
   if (aps_extension_flag) {
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
@@ -1235,6 +1239,8 @@ parseAps(const PayloadBuffer& buf)
     if (aps.attrInterPredictionEnabled) {
       if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
         bs.readUe(&aps.raht_inter_prediction_depth_minus1);
+        bs.read(&aps.raht_send_inter_filters);
+        bs.readUe(&aps.raht_inter_skip_layers);
       }
       else
       bs.readUe(&aps.attrInterPredSearchRange);
@@ -1854,6 +1860,17 @@ write(
   if (aps.attrInterPredictionEnabled) {
     bs.write(abh.enableAttrInterPred);
     bs.write(abh.disableAttrInterPredForRefFrame2);
+    if (abh.enableAttrInterPred) {
+      if (aps.raht_send_inter_filters) {
+        int numFilters = abh.RAHTFilterTaps.size();
+        bs.writeUe(numFilters);
+        for (int filteridx = 0; filteridx<numFilters; filteridx++) {
+          int currenttap = abh.RAHTFilterTaps[filteridx];
+          bs.writeSe(currenttap);
+        }
+      }
+    }
+    
   }
   bs.byteAlign();
 }
@@ -1995,6 +2012,16 @@ parseAbh(
   if (aps.attrInterPredictionEnabled) {
     bs.read(&abh.enableAttrInterPred);
     bs.read(&abh.disableAttrInterPredForRefFrame2);
+    if (abh.enableAttrInterPred) {
+      if(aps.raht_send_inter_filters) {
+        int numFilters = 0;
+        bs.readUe(&numFilters);
+        abh.RAHTFilterTaps.resize(numFilters);
+        for (int i = 0; i < numFilters; i++) {
+          bs.readSe(&abh.RAHTFilterTaps[i]);
+        }
+      }
+    }
   }
 
   bs.byteAlign();

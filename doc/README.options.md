@@ -1092,6 +1092,13 @@ Controls the activation of inter frame inter layer prediction for RAHT.
 ### `--rahtInterPredictionDepthMinus1=INT-VALUE`
 Specifies the max depth to apply the inter prediction for RAHT.
 
+### `--rahtInterSendFilters=0|1`
+Controls the enabling of inter-frame filters for RAHT.
+
+### `--rahtInterSkipFilteringLayers=INT-VALUE`
+Specifies the number of initial layers in RAHT to be skipped for inter-frame 
+filtering.
+
 ### `--attrInterPredTranslationThresh=INT-VALUE`
 (Encoder only)
 Specifies the maximum translation threshold used to disable inter 

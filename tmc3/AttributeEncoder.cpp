@@ -615,6 +615,10 @@ AttributeEncoder::encode(
     attrInterPredParams.enableAttrInterPred = false;
   }
 
+  abh.RAHTFilterTaps.clear();
+  for (int filteridx = 0; filteridx < attrInterPredParams.paramsForInterRAHT.FilterTaps.size(); filteridx++) {
+    abh.RAHTFilterTaps.push_back(attrInterPredParams.paramsForInterRAHT.FilterTaps[filteridx]);
+  }
   // write abh
   write(sps, attr_aps, abh, payload);
   _abh = nullptr;
@@ -1213,6 +1217,7 @@ AttributeEncoder::encodeReflectancesTransformRaht(
   std::vector<int> attributes(attribCount * voxelCount);
   std::vector<int> coefficients(attribCount * voxelCount);
   std::vector<Qps> pointQpOffsets(voxelCount);
+  attrInterPredParams.paramsForInterRAHT.FilterTaps.clear();
 
   // Populate input arrays.
   for (int n = 0; n < voxelCount; n++) {
