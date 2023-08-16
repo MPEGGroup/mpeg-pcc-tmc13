@@ -1077,7 +1077,6 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
     bs.write(aps.attrInterPredictionEnabled);
     if (aps.attrInterPredictionEnabled){
       if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-        bs.writeUe(aps.raht_inter_prediction_type);
         bs.writeUe(aps.raht_inter_prediction_depth_minus1);
       } else
         bs.writeUe(aps.attrInterPredSearchRange);       
@@ -1223,7 +1222,6 @@ parseAps(const PayloadBuffer& buf)
   aps.raht_extension = false;
   aps.rahtPredParams.raht_subnode_prediction_enabled_flag = false;
   aps.attrInterPredictionEnabled = false;
-  aps.raht_inter_prediction_type = -1;
   aps.raht_inter_prediction_depth_minus1 = 0;
   aps.attrInterPredSearchRange = 0;
   aps.predictionWithDistributionEnabled = false;
@@ -1236,7 +1234,6 @@ parseAps(const PayloadBuffer& buf)
     bs.read(&aps.attrInterPredictionEnabled);
     if (aps.attrInterPredictionEnabled) {
       if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
-        bs.readUe(&aps.raht_inter_prediction_type);
         bs.readUe(&aps.raht_inter_prediction_depth_minus1);
       }
       else

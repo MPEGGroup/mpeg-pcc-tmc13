@@ -104,114 +104,6 @@ reduceUnique(
 }
 
 //============================================================================
-// remove any non-unique leaves from a level in the uraht tree of the reference
-// frame, make sure the structure of the reference tree is as same as that of 
-// the current tree
-
-
-void
-reduceUnique_ref(
-  int numNodes,
-  int numAttrs,
-  std::vector<UrahtNode>* weightsIn,
-  std::vector<UrahtNode>* weightsIn_ref,
-  std::vector<UrahtNode>* weightsOut_ref,
-  std::vector<int>* attrsIn_ref,
-  std::vector<int>* attrsOut_ref,
-  std::vector<UrahtNode>& weightsIn_ref_real,
-  std::vector<int>& attrsIn_ref_real
-){
-  std::vector<UrahtNode> weightsIn_ref_tmp;
-  weightsIn_ref_tmp.resize(numNodes);
-
-  std::vector<int> attrsIn_ref_tmp;
-  attrsIn_ref_tmp.resize(numNodes * numAttrs);
-
-  std::vector<UrahtNode>* weightsIn_ref_tmp_ = &weightsIn_ref_tmp;
-  std::vector<int>* attrsIn_ref_tmp_ = &attrsIn_ref_tmp;
-
-  auto weightsInWrIt_ref = weightsIn_ref_tmp_->begin();
-  auto attrsInWrIt_ref = attrsIn_ref_tmp_->begin();
-  auto weightsInWrIt = weightsIn->begin();
-
-  auto weightsInWrIt_ref_range = weightsIn_ref->cbegin();
-  auto weightsInWrIt_ref_start = weightsIn_ref->cbegin();
-  auto attrsInWrIt_ref_start = attrsIn_ref->begin();
-  
-  //if the morton distance is too far, points will not be used in inter prediction
-    
-  int max_skip_points = 64;
-
-  while(weightsInWrIt_ref_start!= weightsIn_ref->end() && 
-  weightsInWrIt->pos > weightsInWrIt_ref_start->pos + max_skip_points ){
-    weightsInWrIt_ref_start++;
-    for(int k = 0; k < numAttrs; k++)
-      attrsInWrIt_ref_start++;    
-  }
-
-  for(int i = 0; i < numNodes; i++){
-    auto& node = *weightsInWrIt++;
-    auto& node_next = *weightsInWrIt;
-
-    //for each node, there will be one ref node
-    weightsInWrIt_ref->weight = 0;
-    for(int k = 0; k<numAttrs; k++)
-      *(attrsInWrIt_ref + k) = 0;
-    weightsInWrIt_ref->pos = node.pos;
-    weightsInWrIt_ref->qp = node.qp;
-
-    if ( i == (numNodes - 1)) continue;
-
-    while( weightsInWrIt_ref_start!=weightsIn_ref->end() &&
-      weightsInWrIt_ref_start->pos <= node_next.pos && 
-      ( std::abs(node_next.pos - weightsInWrIt_ref_start->pos) > 
-      std::abs(node.pos - weightsInWrIt_ref_start->pos) )
-    ){
-      weightsInWrIt_ref->weight++;
-      for(int k = 0; k<numAttrs; k++)
-        *(attrsInWrIt_ref + k) += *(attrsInWrIt_ref_start + k);  
-  
-      if(weightsInWrIt_ref->weight > 1){
-        weightsOut_ref->push_back(*weightsInWrIt_ref_start);
-        for(int k = 0; k<numAttrs; k++)
-          attrsOut_ref->push_back(*(attrsInWrIt_ref_start + k));
-      }
-
-      weightsInWrIt_ref_start++;
-      for(int k = 0; k<numAttrs; k++)
-        attrsInWrIt_ref_start++;
-    }
-
-    weightsInWrIt_ref++;
-    for(int k = 0; k<numAttrs; k++)
-      attrsInWrIt_ref++;
-  }
-  
-  for(int i = 0;weightsInWrIt_ref_start != weightsIn_ref->end();){   
-    weightsInWrIt_ref->weight++;
-    for(int k = 0; k < numAttrs; k++)
-      *(attrsInWrIt_ref + k) += *(attrsInWrIt_ref_start + k);
-
-    if(weightsInWrIt_ref->weight > 1){
-      weightsOut_ref->push_back(*weightsInWrIt_ref_start);
-      for(int k = 0; k < numAttrs; k++)
-        attrsOut_ref->push_back(*(attrsInWrIt_ref_start + k));
-    }
-
-    if (weightsInWrIt_ref_start->pos > weightsInWrIt_ref->pos + max_skip_points)
-      break;
-
-    weightsInWrIt_ref_start++;
-    for(int k = 0; k<numAttrs; k++)
-      attrsInWrIt_ref_start++;
-  }
-
-  weightsIn_ref_real = weightsIn_ref_tmp;
-  attrsIn_ref_real = attrsIn_ref_tmp;
-}
-
-
-//============================================================================
 // Split a level of values into sum and difference pairs.
 
 int
@@ -222,12 +114,7 @@ reduceLevel(
   std::vector<UrahtNode>* weightsIn,
   std::vector<UrahtNode>* weightsOut,
   std::vector<int>* attrsIn,
-  std::vector<int>* attrsOut,
-  std::vector<UrahtNode>* weightsIn_ref,
-  std::vector<UrahtNode>* weightsOut_ref,
-  std::vector<int>* attrsIn_ref,
-  std::vector<int>* attrsOut_ref,
-  bool enableInterPrediction
+  std::vector<int>* attrsOut
   )
 {
   // process a single level of the tree
@@ -236,11 +123,6 @@ reduceLevel(
   auto weightsInRdIt = weightsIn->cbegin();
   auto attrsInWrIt = attrsIn->begin();
   auto attrsInRdIt = attrsIn->begin();
-
-  auto weightsInWrIt_ref = weightsIn_ref->begin();
-  auto weightsInRdIt_ref = weightsIn_ref->cbegin();
-  auto attrsInWrIt_ref = attrsIn_ref->begin();
-  auto attrsInRdIt_ref = attrsIn_ref->begin();
 
   for (int i = 0; i < numNodes; i++) {
     auto& node = *weightsInRdIt++;
@@ -262,27 +144,6 @@ reduceLevel(
         attrsOut->push_back(*attrsInRdIt++);
       }
     }
-
-    if(enableInterPrediction){
-      auto& node_ref = *weightsInRdIt_ref++;
-      if(newPair){
-        *weightsInWrIt_ref++ = node_ref;
-        for (int k = 0; k < numAttrs; k++)
-          *attrsInWrIt_ref++ = *attrsInRdIt_ref++;      
-      }
-      else{
-        auto& left_ref = *(weightsInWrIt_ref - 1);
-        left_ref.weight += node_ref.weight;
-        left_ref.qp[0] = (left_ref.qp[0] + node_ref.qp[0]) >> 1;
-        left_ref.qp[1] = (left_ref.qp[1] + node_ref.qp[1]) >> 1;
-        weightsOut_ref->push_back(node_ref); 
-        for (int k = 0; k < numAttrs; k++) {
-          *(attrsInWrIt_ref - numAttrs + k) += *attrsInRdIt_ref;
-          attrsOut_ref->push_back(*attrsInRdIt_ref++);
-        }       
-      }
-    }
-  
   }
 
   // number of nodes in next level
@@ -300,12 +161,7 @@ expandLevel(
   std::vector<UrahtNode>* weightsIn,  // expand by numNodes before expand
   std::vector<UrahtNode>* weightsOut,  // shrink after expand
   std::vector<int>* attrsIn,
-  std::vector<int>* attrsOut,
-  std::vector<UrahtNode>* weightsIn_ref,   
-  std::vector<UrahtNode>* weightsOut_ref,  
-  std::vector<int>* attrsIn_ref,
-  std::vector<int>* attrsOut_ref,
-  bool enableInterPred)
+  std::vector<int>* attrsOut)
 {
   if (numNodes == 0)
     return;
@@ -318,25 +174,12 @@ expandLevel(
   auto attrsInRdIt = std::next(attrsIn->crbegin(), numNodes * numAttrs);
   auto attrsOutRdIt = attrsOut->crbegin();
 
-  auto weightsInWrIt_ref = weightsIn_ref->rbegin();
-  auto weightsInRdIt_ref = std::next(weightsIn_ref->crbegin(), enableInterPred ? numNodes : 0);
-  auto weightsOutRdIt_ref = weightsOut_ref->crbegin();
-  auto attrsInWrIt_ref = attrsIn_ref->rbegin();
-  auto attrsInRdIt_ref = std::next(attrsIn_ref->crbegin(), (enableInterPred ? numNodes : 0) * numAttrs);
-  auto attrsOutRdIt_ref = attrsOut_ref->crbegin();
-
   for (int i = 0; i < numNodes;) {
     bool isPair = (weightsOutRdIt->pos ^ weightsInRdIt->pos) >> level == 0;
     if (!isPair) {
       *weightsInWrIt++ = *weightsInRdIt++;
       for (int k = 0; k < numAttrs; k++)
         *attrsInWrIt++ = *attrsInRdIt++;
-
-      if(enableInterPred){
-        *weightsInWrIt_ref++ = *weightsInRdIt_ref++;
-        for (int k = 0; k < numAttrs; k++)
-          *attrsInWrIt_ref++ = *attrsInRdIt_ref++;       
-      }
       
       continue;
     }
@@ -356,20 +199,6 @@ expandLevel(
     for (int k = 0; k < numAttrs; k++) {
       *attrsInWrIt = *attrsInRdIt++;
       *attrsInWrIt++ -= *curAttrIt++;
-    }
-
-    if(enableInterPred){
-      const auto& nodeDelta_ref = *weightsInWrIt_ref++ = *weightsOutRdIt_ref++;
-      auto curAttrIt_ref = attrsInWrIt_ref;
-      for (int k = 0; k < numAttrs; k++)
-        *attrsInWrIt_ref++ = *attrsOutRdIt_ref++;
-
-      *weightsInWrIt_ref = *weightsInRdIt_ref++;
-      (weightsInWrIt_ref++)->weight -= nodeDelta_ref.weight;
-      for (int k = 0; k < numAttrs; k++) {
-        *attrsInWrIt_ref = *attrsInRdIt_ref++;
-        *attrsInWrIt_ref++ -= *curAttrIt_ref++;
-      }
     }
   }
 }
@@ -660,59 +489,6 @@ intraDcPred(
   }
 }
 
-//============================================================================
-// Generate the spatial inter prediction of a block.
-  
-  template<bool rahtExtension, typename It>
-  void
-interDcPred(
-  int numAttrs,
-  int occupancy,
-  It first_Ref,
-  const std::vector<UrahtNode>& first_Ref_weight,
-  FixedPoint interPredBuf[][8],
-  int child_index_start,
-  int64_t limitLow,
-  int64_t limitHigh)
-{
-  int inter_weightSum[8] = {0, 0, 0, 0, 0, 0, 0, 0};  
-  int64_t inter_neighValue[3]; 
-
-  for (int i = 0; i < 8; i++, occupancy >>= 1) {
-    if (occupancy & 1) {
-      //child_index_end is used to indicate the current child index in the child level nodes list
-
-      int child_index = child_index_start++;
-
-      auto neighValueIt_Ref = std::next(first_Ref, numAttrs * child_index);
-      
-      for (int k = 0; k < numAttrs; k++){
-        inter_neighValue[k] = *neighValueIt_Ref++;
-      }
-
-      if (first_Ref_weight[child_index].weight){
-        for (int k = 0; k < numAttrs; k++){
-          inter_neighValue[k] /= first_Ref_weight[child_index].weight;
-          inter_neighValue[k] ++;          
-        }
-
-        const auto scaledNeighValue = inter_neighValue[0]
-          << (rahtExtension ? pcc::FixedPoint::kFracBits : 0);
-        if(10 * scaledNeighValue > limitLow && 10 * scaledNeighValue < limitHigh){
-          for (int k = 0; k < numAttrs; k++){
-            inter_neighValue[k] *= 1 << pcc::FixedPoint::kFracBits;
-            interPredBuf[k][i].val = inter_neighValue[k];
-          }
-          inter_weightSum[i]++;
-        }
-      }
-      if(!inter_weightSum[i]){
-        for (int k = 0; k < numAttrs; k++)
-          interPredBuf[k][i].val = 0;  
-      }
-    }
-  }
-}
 
 //============================================================================
 // Encapsulation of a RAHT transform stage.
@@ -954,25 +730,14 @@ uraht_process(
   std::vector<UrahtNode> weightsLf_ref, weightsHf_ref;
   std::vector<int> attrsLf_ref, attrsHf_ref;
 
-  const bool interPredType0 =
-    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_type == 0;
-  const bool enableAttrInterPred =
-    interPredType0 && attrInterPredParams.enableAttrInterPred;
-
-  const bool interPredType1 =
-    attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_type == 1;
-  bool enableACInterPred =
-    interPredType1 && attrInterPredParams.enableAttrInterPred;
-  const bool enableDCInterPred =
-    interPredType1 && attrInterPredParams.enableAttrInterPred;
+  bool enableACInterPred = attrInterPredParams.enableAttrInterPred;
+  const bool enableDCInterPred = attrInterPredParams.enableAttrInterPred;
 
   int refIdx = 0;
   int treeDepth = 0;
-  int treeDepthLimit =
+  int treeDepthLimit = 
     attrInterPredParams.paramsForInterRAHT.raht_inter_prediction_depth_minus1
     + 1;
-  if (interPredType0 && !enableAttrInterPred)
-    attrInterPredParams.paramsForInterRAHT.resizeBuffers(treeDepthLimit);
 
   weightsLf.reserve(numPoints);
   attrsLf.reserve(numPoints * numAttrs);
@@ -998,7 +763,7 @@ uraht_process(
   weightsHf.reserve(numPoints);
   attrsHf.reserve(numPoints * numAttrs);
 
-  if (interPredType1 && enableACInterPred) {
+  if (enableACInterPred) {
     weightsLf_ref.reserve(attrInterPredParams.paramsForInterRAHT.voxelCount);
     attrsLf_ref.reserve(attrInterPredParams.paramsForInterRAHT.voxelCount * numAttrs);
 
@@ -1022,27 +787,31 @@ uraht_process(
 
   for (int level = 0, numNodes = weightsLf.size(); numNodes > 1; level++) {
     levelHfPos.push_back(weightsHf.size());
-    if (interPredType1)
-      levelHfPos_ref.push_back(weightsHf_ref.size());
     if (level == 0) {
       // process any duplicate points
       numNodes = reduceUnique(
         numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
       numDupNodes -= numNodes;
-      if (interPredType1 && enableACInterPred) {
-        std::vector<UrahtNode> weightsLf_ref_tmp = weightsLf_ref;
-        std::vector<int> attrsLf_ref_tmp = attrsLf_ref;
-        reduceUnique_ref(
-          numNodes, numAttrs, &weightsLf, &weightsLf_ref_tmp, &weightsHf_ref,
-          &attrsLf_ref_tmp, &attrsHf_ref, weightsLf_ref, attrsLf_ref);
-      }
     } else {
       // normal level reduction
       numNodes = reduceLevel(
-        level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf,
-        &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref,
-        interPredType1 && enableACInterPred);
+        level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
     }
+  }
+
+  if (enableACInterPred){
+    for (int level = 0, numNodes = weightsLf_ref.size(); numNodes > 1; level++) {
+      levelHfPos_ref.push_back(weightsHf_ref.size());
+      if (level == 0) {
+        // process any duplicate points
+        numNodes = reduceUnique(
+          numNodes, numAttrs, &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref);
+      } else {
+        // normal level reduction
+        numNodes = reduceLevel(
+          level, numNodes, numAttrs, &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref);
+      }
+    }    
   }
 
   assert(weightsLf[0].weight == numPoints);
@@ -1072,39 +841,45 @@ uraht_process(
   weightsLf.resize(1);
   attrsLf.resize(numAttrs);
   
-  if (interPredType1) {
     weightsLf_ref.resize(1);
     attrsLf_ref.resize(numAttrs);
-  }
 
   int trainZeros = 0;
   int sumNodes = 0;
-  for (int level = levelHfPos.size() - 1, isFirst = 1; level > 0; /*nop*/) {
+  for (int level = levelHfPos.size() - 1, level_ref = levelHfPos_ref.size() - 1, isFirst = 1; level > 0; /*nop*/) {
     int numNodes = weightsHf.size() - levelHfPos[level];
     sumNodes += numNodes;
     weightsLf.resize(weightsLf.size() + numNodes);
     attrsLf.resize(attrsLf.size() + numNodes * numAttrs);
-    if (interPredType1) {
-      weightsLf_ref.resize(weightsLf_ref.size() + numNodes);
-      attrsLf_ref.resize(attrsLf_ref.size() + numNodes * numAttrs);
-    }
+
     expandLevel(
-      level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf,
-      &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref,
-      interPredType1 && enableACInterPred);
+      level, numNodes, numAttrs, &weightsLf, &weightsHf, &attrsLf, &attrsHf);
 
     weightsHf.resize(levelHfPos[level]);
     attrsHf.resize(levelHfPos[level] * numAttrs);
 
-    if (interPredType1 && enableACInterPred) {
-      weightsHf_ref.resize(levelHfPos_ref[level]);
-      attrsHf_ref.resize(levelHfPos_ref[level] * numAttrs);
-    }
+
+      if (level_ref <= 0){
+        enableACInterPred = 0;
+      }
+
+      if (treeDepth >= treeDepthLimit)
+        enableACInterPred = 0;
+
+      if (enableACInterPred){      
+        int numNodes_ref = weightsHf_ref.size() - levelHfPos_ref[level_ref];
+        weightsLf_ref.resize(weightsLf_ref.size() + numNodes_ref);
+        attrsLf_ref.resize(attrsLf_ref.size() + numNodes_ref * numAttrs);    
+        expandLevel(level_ref, numNodes_ref, numAttrs, &weightsLf_ref, &weightsHf_ref, &attrsLf_ref, &attrsHf_ref);  
+        weightsHf_ref.resize(levelHfPos_ref[level_ref]);
+        attrsHf_ref.resize(levelHfPos_ref[level_ref] * numAttrs);   
+      }
+
 
     
     // expansion of level is complete, processing is now on the next level
     level--;
-
+    level_ref--;
     // every three levels, perform transform
     if (level % 3)
       continue;
@@ -1114,10 +889,6 @@ uraht_process(
 
     sumNodes = 0;
 
-    // AC inter prediction is only enabled for the first 5 layers
-    if (interPredType1 && (level < levelHfPos.size() - treeDepthLimit * 3))
-      enableACInterPred = 0;
-
     // initial scan position of the coefficient buffer
     //  -> first level = all coeffs
     //  -> otherwise = ac coeffs only
@@ -1126,8 +897,6 @@ uraht_process(
       inheritDc && rahtPredParams.raht_prediction_enabled_flag;
     isFirst = 0;
 
-    if (interPredType0 && (treeDepth < treeDepthLimit))
-      attrInterPredParams.paramsForInterRAHT.cur->node[treeDepth].resize(0);
     bool predictionInter = false;
     int64_t position = 0;
 
@@ -1161,15 +930,9 @@ uraht_process(
     auto weightsParentIt = weightsParent.begin();
     auto numGrandParentNeighIt = numGrandParentNeigh.cbegin();
 
-    for (int i = 0, iLast, iEnd = weightsLf.size(); i < iEnd; i = iLast) {
+    // std::cout << "iLast = " << weightsLf.size() << "\n";
+    for (int i = 0, j = 0, iLast, jLast, iEnd = weightsLf.size(), jEnd = weightsLf_ref.size(); i < iEnd; i = iLast) {
       NodeInfoRAHT current;
-      if (interPredType0 && (treeDepth < treeDepthLimit)) {
-        for (int i = 0; i < 8; i++)
-          for (int k = 0; k < numAttrs; k++)
-            current.attr[k][i] = 0;
-        position = weightsLf[i].pos >> (level + 3);
-        current.pos = position;
-      }
       // todo(df): hoist and dynamically allocate
       FixedPoint transformBuf[6][8] = {};
       FixedPoint(*transformPredBuf)[8] = &transformBuf[numAttrs];
@@ -1181,6 +944,35 @@ uraht_process(
       // generate weights, occupancy mask, and fwd transform buffers
       // for all siblings of the current node.
       int nodeCnt = 0;
+
+      int weights_ref[8 + 8 + 8 + 8] = {};
+      bool interNode = false;
+ 
+      if(enableACInterPred){
+        const auto cur_pos = weightsLf[i].pos >> (level + 3);
+        auto ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
+        while((j < weightsLf_ref.size() - 1) && (cur_pos > ref_pos)){
+          j++;
+          ref_pos = weightsLf_ref[j].pos >> (level_ref + 3);
+        }
+        if(cur_pos == ref_pos){      
+          interNode = true;
+        }                
+      }
+
+      if (interNode){
+        for (jLast = j; jLast < jEnd; jLast++){
+          int nextNode = jLast > j
+            && !isSibling(weightsLf_ref[jLast].pos, weightsLf_ref[j].pos, level_ref + 3);
+          if (nextNode)
+            break;
+          int nodeIdx = (weightsLf_ref[jLast].pos >> level_ref) & 0x7;
+          weights_ref[nodeIdx] = weightsLf_ref[jLast].weight;
+          for (int k = 0; k < numAttrs; k++)
+            transformInterPredBuf[k][nodeIdx] = attrsLf_ref[jLast * numAttrs + k];
+        }
+      }
+
       for (iLast = i; iLast < iEnd; iLast++) {
         int nextNode = iLast > i
           && !isSibling(weightsLf[iLast].pos, weightsLf[i].pos, level + 3);
@@ -1205,12 +997,18 @@ uraht_process(
 
       mkWeightTree(weights);
 
+      mkWeightTree(weights_ref);   
+
       if (!inheritDc) {
         for (int j = i, nodeIdx = 0; nodeIdx < 8; nodeIdx++) {
           if (!weights[nodeIdx])
             continue;
           numParentNeigh[j++] = 19;
         }
+      }
+
+      if (rahtExtension && nodeCnt == 1){
+        interNode = false;
       }
 
       // Inter-level prediction:
@@ -1229,7 +1027,11 @@ uraht_process(
         if (rahtExtension && nodeCnt == 1) {
           enablePrediction = false;
           parentNeighCount = 19;
-        } else if (
+        } else if (interNode){
+          enablePrediction = false;
+          parentNeighCount = 19;
+        }
+         else if (
           *numGrandParentNeighIt < rahtPredParams.raht_prediction_threshold0) {
           enablePrediction = false;
         } else {
@@ -1250,11 +1052,6 @@ uraht_process(
               numAttrs, parentNeighIdx, childNeighIdx, occupancy,
               attrRecParent.begin(), attrRec.begin(), transformPredBuf,
               rahtPredParams, limitLow, limitHigh);
-            if (interPredType1 && enableACInterPred) {
-              interDcPred<rahtExtension>(
-                numAttrs, occupancy, attrsLf_ref.begin(), weightsLf_ref,
-                transformInterPredBuf, i, limitLow, limitHigh);
-            }
           }
         }
 
@@ -1265,6 +1062,8 @@ uraht_process(
         }
       }
 
+
+
       int parentWeight = 0;
       if (inheritDc) {
         parentWeight = weightsParentIt->weight;
@@ -1272,28 +1071,29 @@ uraht_process(
         numGrandParentNeighIt++;
       }
 
-      // judge inter prediction
-      if (interPredType0&& enableAttrInterPred) {
-        predictionInter = false;
-        auto& curNode =
-          attrInterPredParams.paramsForInterRAHT.ref->node[treeDepth];
-        while ((treeDepth < treeDepthLimit)
-               && refIdx < curNode.size()) {
-          // If cur & ref position same - enable inter prediction
-          // Else if cur position is greater, check the next reference
-          // Else disable inter prediction
-          if (position == curNode[refIdx].pos) {
-            predictionInter = true;
-            break;
-          } else if (position > curNode[refIdx].pos)
-            refIdx++;
-          else
-            break;
-        }
-      }
 
       // normalise coefficients
+      if (interNode){
+        for (int childIdx = 0; childIdx < 8; childIdx++) {
+          if (weights_ref[childIdx] <= 1)
+            continue;
+          if(weights_ref[childIdx]){
+            FixedPoint rsqrtWeight;
+            uint64_t w = weights_ref[childIdx];
+            int shift = w > 1024 ? ilog2(w - 1) >> 1 : 0;
+            rsqrtWeight.val = irsqrt(w) >> (40 - shift - FixedPoint::kFracBits); 
+            for (int k = 0; k < numAttrs; k++) {
+              transformInterPredBuf[k][childIdx].val >>= shift;
+              transformInterPredBuf[k][childIdx] *= rsqrtWeight;
+            }
+          }
+        }
+        enablePrediction = false;
+      }
+
+
       for (int childIdx = 0; childIdx < 8; childIdx++) {
+
         if (weights[childIdx] <= 1)
           continue;
 
@@ -1315,13 +1115,6 @@ uraht_process(
           sqrtWeight.val =
             isqrt(uint64_t(weights[childIdx]) << (2 * FixedPoint::kFracBits));
           for (int k = 0; k < numAttrs; k++) {
-            // If there is inter prediction value, the inter prediction value is used
-            // to replace the intra prediction value.
-            if (
-              interPredType1 && transformInterPredBuf[k][childIdx].val != 0) {
-              transformPredBuf[k][childIdx].val =
-                transformInterPredBuf[k][childIdx].val;
-            }
             transformPredBuf[k][childIdx] *= sqrtWeight;
           }
         }
@@ -1337,6 +1130,16 @@ uraht_process(
       else if (enablePrediction)
         fwdTransformBlock222<RahtKernel>(numAttrs, transformPredBuf, weights);
 
+      if (interNode){
+        fwdTransformBlock222<RahtKernel>(numAttrs, transformInterPredBuf, weights_ref);
+        for (int childIdx = 0; childIdx < 8; childIdx++) {
+          for (int k = 0; k < numAttrs; k++){
+            transformPredBuf[k][childIdx].val = transformInterPredBuf[k][childIdx].val;
+          }
+        }
+        enablePrediction = true;
+      }
+
       // per-coefficient operations:
       //  - subtract transform domain prediction (encoder)
       //  - write out/read in quantised coefficients
@@ -1346,49 +1149,12 @@ uraht_process(
         if (inheritDc && !idx)
           return;
 
-        if (interPredType0) {
-          // subtract predicted value for inter prediction
-          if (isEncoder && predictionInter) {
-            for (int k = 0; k < numAttrs; k++) {
-              int64_t refVal = attrInterPredParams.paramsForInterRAHT.ref
-                                 ->node[treeDepth][refIdx]
-                                 .attr[k][idx];
-              if (refVal) {
-                if (rahtExtension)
-                  transformBuf[k][idx].val -= refVal;
-                else
-                  transformBuf[k][idx] -= refVal;
-              } else if (enablePrediction) {
-                transformBuf[k][idx] -= transformPredBuf[k][idx];
-              }
-            }
-          } else if (isEncoder && enablePrediction) {
-            for (int k = 0; k < numAttrs; k++) {
-              transformBuf[k][idx] -= transformPredBuf[k][idx];
-            }
-          }
 
-          // reset transformPredBuf if inter prediction is enabled
-          if (predictionInter) {
-            for (int k = 0; k < numAttrs; k++) {
-              int64_t refVal = attrInterPredParams.paramsForInterRAHT.ref
-                                 ->node[treeDepth][refIdx]
-                                 .attr[k][idx];
-              if (refVal) {
-                transformPredBuf[k][idx] = 0;
-              }
-            }
-          }
-        } else if (interPredType1 && isEncoder && enablePrediction && idx) {
-          // subtract transformed prediction (skipping DC)
+        if (isEncoder && enablePrediction) {
           for (int k = 0; k < numAttrs; k++) {
             transformBuf[k][idx] -= transformPredBuf[k][idx];
           }
-        } else if (isEncoder && enablePrediction) {
-          for (int k = 0; k < numAttrs; k++) {
-            transformBuf[k][idx] -= transformPredBuf[k][idx];
-          }
-        }
+        } 
 
         // decision for RDOQ
         int64_t sumCoeff = 0;
@@ -1469,17 +1235,6 @@ uraht_process(
 
             //DC inter prediction at encoder
             auto coeff_tmp = coeff;
-            if (interPredType1 && !idx) {
-              if (
-                attrInterPredParams.paramsForInterRAHT.coeff_DCs.size()
-                != numAttrs)
-                attrInterPredParams.paramsForInterRAHT.coeff_DCs.resize(
-                  numAttrs);
-              if (enableDCInterPred) {
-                coeff -= attrInterPredParams.paramsForInterRAHT.coeff_DCs[k];
-              }
-              attrInterPredParams.paramsForInterRAHT.coeff_DCs[k] = coeff_tmp;
-            }
 
             *coeffBufItK[k]++ = coeff;
             transformPredBuf[k][idx] += divExp2RoundHalfUp(
@@ -1488,51 +1243,12 @@ uraht_process(
           } else {
             int64_t coeff = *coeffBufItK[k]++;
 
-            //DC inter prediction at decoder
-            if (interPredType1 && !idx) {
-              if (
-                attrInterPredParams.paramsForInterRAHT.coeff_DCs.size()
-                != numAttrs)
-                attrInterPredParams.paramsForInterRAHT.coeff_DCs.resize(
-                  numAttrs);
-              if (enableDCInterPred)
-                coeff += attrInterPredParams.paramsForInterRAHT.coeff_DCs[k];
-              attrInterPredParams.paramsForInterRAHT.coeff_DCs[k] = coeff;
-            }
-
             transformPredBuf[k][idx] +=
               divExp2RoundHalfUp(q.scale(coeff), kFixedPointAttributeShift);
           }
         }
-        if (interPredType0) {
-          if (predictionInter) {
-            for (int k = 0; k < numAttrs; k++) {
-              const int64_t refVal =
-                attrInterPredParams.paramsForInterRAHT.ref
-                  ->node[treeDepth][refIdx]
-                  .attr[k][idx];
-              if (refVal)
-                if (rahtExtension)
-                  transformPredBuf[k][idx].val += refVal;
-                else
-                  transformPredBuf[k][idx] += refVal;
-            }
-          }
-
-          if (treeDepth < treeDepthLimit) {
-            for (int k = 0; k < numAttrs; k++)
-              current.attr[k][idx] = rahtExtension
-                ? transformPredBuf[k][idx].val
-                : transformPredBuf[k][idx].round();
-          }
-        }
       });
 
-      // save current coeffs for inter prediction
-      if (interPredType0 && (treeDepth < treeDepthLimit)) {
-        attrInterPredParams.paramsForInterRAHT.cur->node[treeDepth].emplace_back(
-          current);
-      }
 
       // replace DC coefficient with parent if inheritable
       if (inheritDc) {
@@ -1582,23 +1298,12 @@ uraht_process(
         j++;
       }
       // increment reference buffer index if inter prediction is enabled
-      if (
-        interPredType0 && enableAttrInterPred && (treeDepth < treeDepthLimit)
-        && predictionInter)
-        refIdx++;
     }
 
     // preserve current weights/positions for later search
-    weightsParent = weightsLf;
-
-    if (interPredType0) {
-      // reset reference buffer index
-      if (enableAttrInterPred && (treeDepth < treeDepthLimit))
-        refIdx = 0;
-
-      // increment tree depth
-      treeDepth++;
-    }
+    weightsParent = weightsLf;    
+    // increment tree depth
+    treeDepth++;
   }
 
  
