@@ -64,14 +64,15 @@ public:
     int numPoints,
     Vec3<int32_t>* outputPoints,
     std::vector<Vec3<int32_t>>* reconSphPos,
-    PredGeomPredictor& refFrameSph);
+    PredGeomPredictor& refFrameSph,
+    PredGeomPredictor& refFrameSph2);
 
   /**
    * decodes a single predictive geometry tree.
    * @returns the number of points decoded.
    */
   int decodeTree(
-    Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph);
+    Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph, PredGeomPredictor& refFrameSph2);
 
   const PredGeomContexts& getCtx() const { return *this; }
 
@@ -105,6 +106,7 @@ private:
   bool decodeInterFlag(const uint8_t interFlagBuffer
   );
   int decodeRefNodeIdx(const bool globalMotionEnabled);
+  bool decodeRefDirFlag();
   //bool decodeRefNodeFlag();
   int32_t decodeQpOffset();
   bool decodeEndOfTreesFlag();
@@ -320,6 +322,14 @@ PredGeomDecoder::decodeRefNodeIdx(const bool globalMotionEnabled)
 
 //----------------------------------------------------------------------------
 
+bool 
+PredGeomDecoder::decodeRefDirFlag()
+{
+  return _aed->decode(_ctxRefDirFlag) ? true : false;
+}
+
+//----------------------------------------------------------------------------
+
 int32_t
 PredGeomDecoder::decodeQpOffset()
 {
@@ -485,7 +495,7 @@ PredGeomDecoder::decodeResidual(int mode, int multiplier, int rPred, int* azimut
 
 int
 PredGeomDecoder::decodeTree(
-  Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph)
+  Vec3<int32_t>* outA, Vec3<int32_t>* outB, PredGeomPredictor& refFrameSph, PredGeomPredictor& refFrameSph2)
 {
   QuantizerGeom quantizer(_sliceQp);
   int nodesUntilQpOffset = 0;
@@ -501,11 +511,14 @@ PredGeomDecoder::decodeTree(
   std::array<std::array<int, 2>, MaxNPred> preds = {};
   const bool frameMovingState =
     refFrameSph.isInterEnabled() && refFrameSph.getFrameMovingState();
+  const bool frameMovingState2 =
+    refFrameSph2.isInterEnabled() && refFrameSph2.getFrameMovingState();
 
   while (!_stack.empty()) {
     auto parentNodeIdx = _stack.back();
     _stack.pop_back();
     bool isInterEnabled = refFrameSph.isInterEnabled() && prevNodeIdx >= 0;
+    bool isInterEnabled2 = refFrameSph2.isInterEnabled() && prevNodeIdx >= 0;
 
     if (_geom_scaling_enabled_flag && !nodesUntilQpOffset--) {
       int qpOffset = decodeQpOffset() << _geom_qp_multiplier_log2;
@@ -523,11 +536,16 @@ PredGeomDecoder::decodeTree(
       numDuplicatePoints = decodeNumDuplicatePoints();
     int numChildren = decodeNumChildren();
 
-    bool interFlag = false; int refNodeIdx = 0;
+    bool interFlag = false, refDirFlag = false;
+    int refNodeIdx = 0;
+    int numRef = isInterEnabled + isInterEnabled2;
     //bool interFlag = false, refNodeFlag = false;
     if (isInterEnabled)
-      interFlag = decodeInterFlag(interFlagBuffer
-      );
+      interFlag = decodeInterFlag(interFlagBuffer);
+    
+    if (interFlag && (numRef > 1))
+      refDirFlag = decodeRefDirFlag();
+
     if (interFlag)
       refNodeIdx = decodeRefNodeIdx(refFrameSph.getGlobalMotionEnabled());
       //refNodeFlag = decodeRefNodeFlag();
@@ -567,12 +585,14 @@ PredGeomDecoder::decodeTree(
     } else {
       const auto prevPos = outA[prevNodeIdx];
       const auto parentPos = outA[_nodeIdxToParentIdx[curNodeIdx]];
-
+      auto& refFrame = refDirFlag ? refFrameSph2 : refFrameSph;
+      auto& frameMoving = refDirFlag ? frameMovingState2 : frameMovingState;
+      
       const auto interPred =
-        refFrameSph.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
+        refFrame.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
       assert(interPred.first);
       pred = interPred.second;
-      if (refNodeIdx > 1 && frameMovingState) {
+      if (refNodeIdx > 1 && frameMoving) {
         const auto deltaPhi = pred[1] - parentPos[1];
         pred[1] = parentPos[1];
         if (
@@ -677,7 +697,8 @@ int
 PredGeomDecoder::decode(
   int numPoints,
   Vec3<int32_t>* outputPoints,
-  std::vector<Vec3<int32_t>>* reconPosSph, PredGeomPredictor& refFrameSph)
+  std::vector<Vec3<int32_t>>* reconPosSph, PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2)
 {
   if (_azimuth_scaling_enabled_flag && _maxPredIdx > kPTEMaxPredictorIndex)
     std::runtime_error("gps.predgeom_max_pred_index is out of bound");
@@ -697,7 +718,7 @@ PredGeomDecoder::decode(
 
   int32_t pointCount = 0;
   do {
-    auto numSubtreePoints = decodeTree(reconA, outputPoints, refFrameSph);
+    auto numSubtreePoints = decodeTree(reconA, outputPoints, refFrameSph, refFrameSph2);
     outputPoints += numSubtreePoints;
     reconA += numSubtreePoints;
     pointCount += numSubtreePoints;
@@ -717,6 +738,7 @@ decodePredictiveGeometry(
   const GeometryBrickHeader& gbh,
   PCCPointSet3& pointCloud, std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2,
   PredGeomContexts& ctxtMem,
   EntropyDecoder& aed)
 {
@@ -724,9 +746,12 @@ decodePredictiveGeometry(
   refFrameSph.init(
     gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled,
     gps.resamplingEnabled);
+  refFrameSph2.init(
+    gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled,
+    gps.resamplingEnabled);
   dec.decode(
     gbh.footer.geom_num_points_minus1 + 1, &pointCloud[0], reconPosSph,
-    refFrameSph);
+    refFrameSph, refFrameSph2);
   ctxtMem = dec.getCtx();
 }
 

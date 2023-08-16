@@ -121,6 +121,7 @@ void encodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2,
   PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder);
 
@@ -130,6 +131,7 @@ void decodePredictiveGeometry(
   PCCPointSet3& pointCloud,
   std::vector<Vec3<int32_t>>* reconPosSph,
   PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2,
   PredGeomContexts& ctxtMem,
   EntropyDecoder& arithmeticDecoder);
 

@@ -50,12 +50,16 @@ private:
   std::vector<Vec3<int>> transVec;
   std::vector<std::pair<int, int>> threshVec;
   int frameCounter;
+  int refFrameCounter;
   std::vector<bool> perFrameMovingStatus; 
 
 public:
   MotionParameters() : numFrames(0), frameCounter(-1) {}
   bool EndOfFrames() const { return frameCounter >= numFrames; }
   void AdvanceFrame() { frameCounter++; }
+  void setFrameCtr(const int frameCtr) { frameCounter = frameCtr; }
+  void setRefFrameCtr(const int refFrameCtr) { refFrameCounter = refFrameCtr; }
+  int getRefFrameCtr() { return refFrameCounter; }
   int getFrameCtr() { return frameCounter; }
   float quantizeParameter(float x)
   {
@@ -84,13 +88,6 @@ public:
     threshVec.resize(numFrames);
     const int scaleFactor = 65536;
     perFrameMovingStatus.resize(numFrames);
-    const int frameDistance = 1;
-
-    const double scale = 65536.;
-    const double thr1_pre = 0.1 / frameDistance;
-    const double thr2_pre = 250.;
-    const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
-    const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
 
     auto it = out.begin();
     for (auto i = 0; i < numFrames; i++) {
@@ -109,23 +106,30 @@ public:
         std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
       threshVec[i].second =
         std::round((*(it++)) * qs);  // quantizeParameter(*(it++));
-      {
-        const double Rx = std::abs(
-          (motionMatrix[i][5] / scale) / (1. + motionMatrix[i][8] / scale));
-        const double Ry = std::abs(motionMatrix[i][2] / scale);
-        const double Rz = std::abs(
-          (motionMatrix[i][1] / scale) / (1. + motionMatrix[i][0] / scale));
-
-        const double Sx = std::abs(transVec[i][0]);
-        const double Sy = std::abs(transVec[i][1]);
-        const double Sz = std::abs(transVec[i][2]);
-
-        perFrameMovingStatus[i] =
-          !(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre
-           && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);
-      }
+      
+      perFrameMovingStatus[i] = checkMovingStatus(motionMatrix[i], transVec[i]);
     }
   }
+
+  bool checkMovingStatus(std::vector<int> matrix, Vec3<int> vec){
+    const int frameDistance = 1;
+    const double scale = 65536.;
+    const double thr1_pre = 0.1 / frameDistance;
+    const double thr2_pre = 250.;
+    const double thr1_tan_pre = tan(M_PI * thr1_pre / 180);
+    const double thr1_sin_pre = sin(M_PI * thr1_pre / 180);
+    const double Rx = std::abs(
+      (matrix[5] / scale) / (1. + matrix[8] / scale));
+    const double Ry = std::abs(matrix[2] / scale);
+    const double Rz = std::abs(
+      (matrix[1] / scale) / (1. + matrix[0] / scale));
+    const double Sx = std::abs(vec[0]);
+    const double Sy = std::abs(vec[1]);
+    const double Sz = std::abs(vec[2]);
+    return !(Rx < thr1_tan_pre && Ry < thr1_sin_pre && Rz < thr1_tan_pre
+        && Sx < thr2_pre && Sy < thr2_pre && Sz < thr2_pre);    
+  }
+
   void setMotionParams(
     std::pair<int, int> thresh, std::vector<int> matrix, Vec3<int> trans)
   {
@@ -149,6 +153,11 @@ public:
     if (frameCounter + 1 > perFrameMovingStatus.size())
       return;
     perFrameMovingStatus[frameCounter + 1] = movsts;
+  }
+  void updateMovingStatus(const bool status, const int Ctr){
+    if (Ctr >= perFrameMovingStatus.size())
+      return;
+    perFrameMovingStatus[Ctr] = status;
   }
   template<typename T>
   void getMotionParams(
@@ -280,32 +289,36 @@ public:
       std::cout << "Accessing unassigned values\n";
     }
 
-    th = threshVec
-      [(_prePicIndex < threshVec.size()) ? _prePicIndex
-                                         : (threshVec.size() - 1)];
+    if (motionMatrix_double.size()){
+      th = threshVec
+        [(_prePicIndex < threshVec.size()) ? _prePicIndex : (threshVec.size() - 1)];
 
-    VecVecDouble mat_tmp = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
+      VecVecDouble mat_tmp = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 0}};
 
-    if (_prePicIndex < _curPicIndex) {
-      getMotionParamsMultiple(mat_tmp, _curPicIndex, _prePicIndex);
-    } else {
-      getMotionParamsMultiple(mat_tmp, _prePicIndex, _curPicIndex);
-      VecVecDouble mat_tmp2 = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-      ReverseGlobalMotion(mat_tmp, mat_tmp2);
-      mat_tmp = std::move(mat_tmp2);
+      if (_prePicIndex < _curPicIndex) {
+        getMotionParamsMultiple(mat_tmp, _curPicIndex, _prePicIndex);
+      } else {
+        getMotionParamsMultiple(mat_tmp, _prePicIndex, _curPicIndex);
+        VecVecDouble mat_tmp2 = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+        ReverseGlobalMotion(mat_tmp, mat_tmp2);
+        mat_tmp = std::move(mat_tmp2);
+      }
+
+      const float scaleFactor = 65536.;
+
+      mat.resize(9);
+      for (int i = 0; i < 9; i++) {
+        mat[i] = (i / 3 == i % 3)
+          ? (std::round((mat_tmp[i / 3][i % 3] - 1) * scaleFactor) + scaleFactor)
+          : (std::round(mat_tmp[i / 3][i % 3] * scaleFactor));
+      }
+
+      for (int i = 0; i < 3; i++) {
+        tr[i] = mat_tmp[3][i];
+      }      
     }
-
-    const float scaleFactor = 65536.;
-
-    mat.resize(9);
-    for (int i = 0; i < 9; i++) {
-      mat[i] = (i / 3 == i % 3)
-        ? (std::round((mat_tmp[i / 3][i % 3] - 1) * scaleFactor) + scaleFactor)
-        : (std::round(mat_tmp[i / 3][i % 3] * scaleFactor));
-    }
-
-    for (int i = 0; i < 3; i++) {
-      tr[i] = mat_tmp[3][i];
+    else{
+      getMotionParams(th, mat, tr);
     }
   }
 };

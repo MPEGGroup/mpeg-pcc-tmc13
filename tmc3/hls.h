@@ -765,6 +765,7 @@ struct GeometryBrickHeader {
   std::pair<int, int> gm_thresh2;
 
   bool interFrameRefGmcFlag;
+  bool interFrameRefGmcFlag2;
   std::vector<int> motion_block_size;
   int lpu_type;
   bool min_zero_origin_flag;

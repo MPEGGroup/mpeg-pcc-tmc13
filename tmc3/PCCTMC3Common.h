@@ -40,6 +40,7 @@
 #include "PCCPointSet.h"
 #include "constants.h"
 #include "hls.h"
+#include "geometry_predictive.h"
 
 #include "nanoflann.hpp"
 
@@ -325,6 +326,12 @@ struct BiPredictionEncodeParams {
   AttributeInterPredParams attrInterPredParams2;
 
   std::vector<int> refTimesList;
+
+  // Point positions in spherical coordinates of the second reference frame
+  PredGeomPredictor _refFrameSph2;
+
+  // Point positions in spherical coordinates of the second reference slice
+  std::vector<point_t> _refPosSph2;
 };
 
 //---------------------------------------------------------------------------
@@ -341,6 +348,12 @@ struct BiPredictionDecodeParams {
   // The information of Point cloud that acts as the second predictor
   // of the current point cloud's attribute information
   AttributeInterPredParams attrInterPredParams2;
+
+  // Point positions in spherical coordinates of the second reference frame
+  PredGeomPredictor _refFrameSph2;
+
+  // Point positions in spherical coordinates of the second reference slice
+  std::vector<point_t> _refPosSph2;
 
   // The reference time information for current gof
   std::vector<int> refTimesList;
@@ -381,6 +394,7 @@ struct HierarchicalGOFParams {
   // The information used in hierarchical GOF structure
   std::vector<PCCPointSet3> gof;
   std::vector<PCCPointSet3> gof_spherical;
+  std::vector<std::vector<point_t>> gof_posSph;
   std::vector<int> codeOrderList;
   std::vector<int> refFrameList;
   std::vector<int> attrQPShiftList;
@@ -423,7 +437,9 @@ struct HierarchicalGOFParams {
     const PCCPointSet3& cloud1,
     const PCCPointSet3& cloud2,
     const PCCPointSet3& attrCloud1,
-    const PCCPointSet3& attrCloud2)
+    const PCCPointSet3& attrCloud2,
+    const std::vector<point_t>& posSph1,
+    const std::vector<point_t>& posSph2)
   {
     gof.resize(size);
     gof[0] = cloud1;
@@ -432,12 +448,17 @@ struct HierarchicalGOFParams {
     gof_spherical.resize(size);
     gof_spherical[0] = attrCloud1;
     gof_spherical.back() = attrCloud2;
+
+    gof_posSph.resize(size);
+    gof_posSph[0] = posSph1;
+    gof_posSph.back() = posSph2;
   }
 
   void clearGofs()
   {
     gof.clear();
     gof_spherical.clear();
+    gof_posSph.clear();
   }
 
   void updateReferenceFrames(
@@ -445,6 +466,10 @@ struct HierarchicalGOFParams {
     PCCPointSet3& cloud2,
     PCCPointSet3& attrCloud1,
     PCCPointSet3& attrCloud2,
+    std::vector<point_t>& posSph1,
+    std::vector<point_t>& posSph2,
+    PredGeomPredictor& refFrameSph1,
+    PredGeomPredictor& refFrameSph2,
     const int preRefFrame,
     const int backRefFrame)
   {
@@ -452,6 +477,12 @@ struct HierarchicalGOFParams {
     cloud2 = gof[backRefFrame];
     attrCloud1 = gof_spherical[preRefFrame];
     attrCloud1 = gof_spherical[backRefFrame];
+    posSph1 = gof_posSph[preRefFrame];
+    posSph2 = gof_posSph[backRefFrame];
+    refFrameSph1.clearRefFrameCur();
+    refFrameSph1.insert(posSph1);
+    refFrameSph2.clearRefFrameCur();
+    refFrameSph2.insert(posSph2);
   }
 
   void reInitializeLists(const int deltaIPFrame)
@@ -464,16 +495,18 @@ struct HierarchicalGOFParams {
   }
 
   void storeReferenceFrame(
-    const int idx, const PCCPointSet3& cloud, const PCCPointSet3& attrCloud)
+    const int idx, const PCCPointSet3& cloud, const PCCPointSet3& attrCloud, const std::vector<point_t>& posSph)
   {
     gof[idx] = cloud;
     gof_spherical[idx] = attrCloud;
+    gof_posSph[idx] = posSph;
   }
 
   void clearFrame(const int idx)
   {
     gof[idx].clear();
     gof_spherical[idx].clear();
+    gof_posSph[idx].clear();
   }
 };
 

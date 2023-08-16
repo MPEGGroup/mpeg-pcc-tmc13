@@ -1426,6 +1426,7 @@ write(
         }
       }
     if (gbh.biPredictionEnabledFlag) {
+      bs.write(gbh.interFrameRefGmcFlag2);
       for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
           if (i == 3)
@@ -1607,6 +1608,7 @@ parseGbh(
   gbh.gm_thresh2 = {0, 0}; 
   gbh.motion_block_size = {0, 0, 0};
   gbh.interFrameRefGmcFlag = false;
+  gbh.interFrameRefGmcFlag2 = false;
   if (gbh.interPredictionEnabledFlag && gps.globalMotionEnabled) {
     if (gps.predgeom_enabled_flag)
       bs.read(&gbh.interFrameRefGmcFlag);
@@ -1625,6 +1627,7 @@ parseGbh(
       }
     }
     if (gbh.biPredictionEnabledFlag) {
+      bs.read(&gbh.interFrameRefGmcFlag2);
       for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
           bs.readSe(&val);

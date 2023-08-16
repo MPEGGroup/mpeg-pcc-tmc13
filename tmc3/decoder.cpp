@@ -502,6 +502,13 @@ PCCTMC3Decoder3::processHierarchicalGOF()
   auto& refCloud1 = attrInterPredParams.referencePointCloud;
   auto& refCloud2 =
     biPredDecodeParams.attrInterPredParams2.referencePointCloud;
+
+  std::vector<point_t>& refPosSph1 = _refPosSph;
+  std::vector<point_t>& refPosSph2 = biPredDecodeParams._refPosSph2; 
+
+  PredGeomPredictor& refFrameSph1 = _refFrameSph; 
+  PredGeomPredictor& refFrameSph2 = biPredDecodeParams._refFrameSph2;
+
   if (_gbh.biPredictionEnabledFlag) {
     const auto deltaIPFrame =
       biPredDecodeParams.preIPFrame - biPredDecodeParams.prePreIPFrame;
@@ -517,6 +524,7 @@ PCCTMC3Decoder3::processHierarchicalGOF()
     if (hGOFDecodeParams.gof.size()) {
       biPredDecodeParams.refPointCloud2 = hGOFDecodeParams.gof.back();
       refCloud2 = hGOFDecodeParams.gof_spherical.back();
+      refPosSph2 = hGOFDecodeParams.gof_posSph.back();
       hGOFDecodeParams.clearGofs();
     }
   } else {
@@ -524,7 +532,7 @@ PCCTMC3Decoder3::processHierarchicalGOF()
       hGOFDecodeParams.initializeGof(
         biPredDecodeParams.refTimesList.size(),
         _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud,
-        biPredDecodeParams.refPointCloud2, refCloud1, refCloud2);
+        biPredDecodeParams.refPointCloud2, refCloud1, refCloud2, refPosSph1, refPosSph2);
 
       biPredDecodeParams.currFrameInGOF = 0;
     }
@@ -538,8 +546,8 @@ PCCTMC3Decoder3::processHierarchicalGOF()
 
     hGOFDecodeParams.updateReferenceFrames(
       _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud,
-      biPredDecodeParams.refPointCloud2, refCloud1, refCloud2, _preRefFrame,
-      _backRefFrame);
+      biPredDecodeParams.refPointCloud2, refCloud1, refCloud2, refPosSph1, refPosSph2,
+      refFrameSph1, refFrameSph2, _preRefFrame,_backRefFrame);
 
     biPredDecodeParams.decrementRefTimesList(
       _preRefFrame, _backRefFrame, biPredDecodeParams.currFrameIndexInGOF);
@@ -556,7 +564,7 @@ PCCTMC3Decoder3::processHierarchicalGOFPost()
   hGOFDecodeParams.storeReferenceFrame(
     biPredDecodeParams.currFrameIndexInGOF,
     _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud,
-    attrInterPredParams.referencePointCloud);
+    attrInterPredParams.referencePointCloud, _refPosSph);
 }
 //==========================================================================
 // Initialise the point cloud storage and decode a single geometry slice.
@@ -594,6 +602,7 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (_frameCtr == 0) {
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
+    biPredDecodeParams._refFrameSph2.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   } else if (_firstSliceInFrame) {
     if (_gps->biPredictionEnabledFlag) {
       if (_gps->biPredictionEnabledFlag == 2) {
@@ -605,11 +614,33 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
         _refFrameSeq[_sps->sps_seq_parameter_set_id].cloud =
           biPredDecodeParams.refPointCloud2;
       }
-    } else {
+      if (_gps->predgeom_enabled_flag){
+        if (!_gbh.biPredictionEnabledFlag){
+          _refFrameSph.clearRefFrameCur();
+          _refFrameSph.insert(biPredDecodeParams._refPosSph2);
+          _refPosSph = biPredDecodeParams._refPosSph2;
+        }
+        if (_gps->globalMotionEnabled){
+          _refFrameSph.setFrameMovingState(_gbh.interFrameRefGmcFlag);
+          _refFrameSph.setMotionParams(_gbh.gm_thresh, _gbh.gm_matrix, _gbh.gm_trans);
+          _refFrameSph.setRefFrameCtr(_refFrameSph.getFrameCtr() + 1);
+          if (_gbh.biPredictionEnabledFlag){
+            biPredDecodeParams._refFrameSph2.setFrameMovingState(_gbh.interFrameRefGmcFlag2);
+            biPredDecodeParams._refFrameSph2.setMotionParams(_gbh.gm_thresh2, _gbh.gm_matrix2, _gbh.gm_trans2);    
+            biPredDecodeParams._refFrameSph2.setRefFrameCtr(biPredDecodeParams._refFrameSph2.getFrameCtr() + 1);        
+          }
+        }
+        _refFrameSph.updateFrame(*_gps);
+        if(_gbh.biPredictionEnabledFlag){
+          biPredDecodeParams._refFrameSph2.updateFrame(*_gps);
+        }
+      }
+    } 
+    
+    else {
       if (_gps->globalMotionEnabled) {
         _refFrameSph.setFrameMovingState(_gbh.interFrameRefGmcFlag);
-        _refFrameSph.setMotionParams(
-          _gbh.gm_thresh, _gbh.gm_matrix, _gbh.gm_trans);
+        _refFrameSph.setMotionParams(_gbh.gm_thresh, _gbh.gm_matrix, _gbh.gm_trans);
       }
       _refFrameSph.updateFrame(*_gps);
     }
@@ -686,10 +717,13 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
 
   if (_gps->predgeom_enabled_flag) {
     _refFrameSph.setInterEnabled(_gbh.interPredictionEnabledFlag);
-    if (!_gbh.interPredictionEnabledFlag)
-      _refFrameSph.clearRefFrame();    
+    biPredDecodeParams._refFrameSph2.setInterEnabled(_gbh.interPredictionEnabledFlag && _gbh.biPredictionEnabledFlag);
+    if (!_gbh.interPredictionEnabledFlag){
+      _refFrameSph.clearRefFrame();
+      biPredDecodeParams._refFrameSph2.clearRefFrame();
+    }
     decodePredictiveGeometry(
-      *_gps, _gbh, _currentPointCloud, &_posSph, _refFrameSph,
+      *_gps, _gbh, _currentPointCloud, &_posSph, _refFrameSph, biPredDecodeParams._refFrameSph2,
       *_ctxtMemPredGeom, aec);
   } else if (!_gps->trisoup_enabled_flag) {
     if (!_params.minGeomNodeSizeLog2) {
@@ -708,9 +742,15 @@ PCCTMC3Decoder3::decodeGeometryBrick(const PayloadBuffer& buf)
       _refFrame, _sps->seqBoundingBoxOrigin);
   }
 
-  if (_gps->interPredictionEnabledFlag)
-    if (_gps->predgeom_enabled_flag)
-      _refFrameSph.insert(_posSph);
+  bool currFrameNotCodedAsB = (_gps->biPredictionEnabledFlag) && !_gbh.biPredictionEnabledFlag;
+  auto& refFrameSph = currFrameNotCodedAsB ? biPredDecodeParams._refFrameSph2 : _refFrameSph;
+  auto& refPosSph = currFrameNotCodedAsB ? biPredDecodeParams._refPosSph2 : _refPosSph;
+
+  if (_gps->interPredictionEnabledFlag && _gps->predgeom_enabled_flag){
+    refFrameSph.insert(_posSph);
+    refPosSph = _posSph;
+  }
+
 
    biPredDecodeParams.preFrameAsBframe = _gbh.biPredictionEnabledFlag;
 

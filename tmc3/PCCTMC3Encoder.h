@@ -235,6 +235,9 @@ private:
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 
+  // Point positions in spherical coordinates of the current slice
+  std::vector<point_t> _refPosSph;
+
   // Scale factor used to decimate the input point cloud.
   // Decimation is performed as if the input were scaled by
   //   Round(P_src * inputDecimationScale)
@@ -287,6 +290,7 @@ private:
   bool _codeCurrFrameAsInter;
   // Point positions in spherical coordinates of the reference frame
   PredGeomPredictor _refFrameSph;
+  bool previousAsInter;
   std::string motionVectorFileName;
 
   AttributeInterPredParams attrInterPredParams;

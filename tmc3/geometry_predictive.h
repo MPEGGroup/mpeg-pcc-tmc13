@@ -97,7 +97,7 @@ protected:
   AdaptiveBitModel _ctxNumDupPoints;
   AdaptiveBitModel _ctxInterFlag[32];
   AdaptiveBitModel _ctxRefNodeIdx[3];
-  //AdaptiveBitModel _ctxRefNodeFlag;
+  AdaptiveBitModel _ctxRefDirFlag;
 
   AdaptiveBitModel _ctxResidual2GtN[2][3];
   AdaptiveBitModel _ctxSign2[3];
@@ -460,12 +460,37 @@ public:
   {
     motionParams.updateNextMovingStatus(status);
   }
+  void updateCurMovingStatue(const int currPicIdx, const int refPicIdx){
+    std::pair<int, int> currThresh;
+    std::vector<int64_t> currMatrix;
+    Vec3<int> currVector;
+    motionParams.getMotionParamsMultiple2(currThresh, currMatrix, currVector, currPicIdx, refPicIdx);
+    std::vector<int> currMatrix_int;
+    currMatrix_int.resize(9);
+    for(int i = 0; i < 9; i++)
+      currMatrix_int[i] = int(currMatrix[i]);
+    bool status = motionParams.checkMovingStatus(currMatrix_int, currVector);
+    updateMovingStatus( status, currPicIdx - 1 );
+  }
+
+  void updateMovingStatus(const bool status, const int Ctr){
+    motionParams.updateMovingStatus(status, Ctr);
+  }
   void clearRefFrame()
   {
     for (auto& laserPts : refPointVals)
       laserPts.clear();
   }
-  void advanceFrame() { motionParams.AdvanceFrame(); }
+  void clearRefFrameCur()
+  {
+    for (auto& laserPts : refPointValsCur)
+      laserPts.clear();
+  }
+  void advanceFrame() { motionParams.AdvanceFrame();}
+  void setFrameCtr(const int frameCtr) { motionParams.setFrameCtr(frameCtr); }
+  void setRefFrameCtr(const int refFrameCtr) { motionParams.setRefFrameCtr(refFrameCtr); }
+  int getFrameCtr() {return motionParams.getFrameCtr(); }
+
   void parseMotionParams(std::string fileName, double qs)
   {
     motionParams.parseFile(fileName, qs);
@@ -481,7 +506,13 @@ public:
       Vec3<int> currVector;
       for (auto& laserPts : refPointValsGlob)
         laserPts.clear();
-      motionParams.getMotionParams(currThresh, currMatrix, currVector);
+
+      if (!gps.biPredictionEnabledFlag)
+        motionParams.getMotionParams(currThresh, currMatrix, currVector);
+      else{
+        motionParams.getMotionParamsMultiple2(currThresh, currMatrix, currVector, motionParams.getFrameCtr() + 1, motionParams.getRefFrameCtr() + 1);
+      }
+
       for (auto laserId = 0; laserId < numLasers; laserId++) {
         for (auto ptIter : refPointValsCur[laserId]) {
           auto pt = sphericalToCart(ptIter.second);
@@ -501,12 +532,16 @@ public:
           } else
             pt = ptIter.second;
           const auto phiQ = computePhiQuantized(pt[1]);
-          if (!refPointValsGlob[pt[2]].count(phiQ))
+          if (!refPointValsGlob[pt[2]].count(phiQ)){
             refPointValsGlob[pt[2]].insert({phiQ, pt});
-          else if (refPointValsGlob[pt[2]].at(phiQ)[0] > pt[0])
+          }
+          else if (refPointValsGlob[pt[2]].at(phiQ)[0] > pt[0]){
             refPointValsGlob[pt[2]].at(phiQ) = pt;
+          }
+
         }
       }
+
       if (getFrameMovingState()) {
         if (enableResampling) {
           for (auto laserId = 0; laserId < numLasers; laserId++) {
@@ -554,12 +589,15 @@ public:
             }
           }
         }
-      } else
+      } 
+      else
         for (auto laserId = 0; laserId < numLasers; laserId++)
           refPointValsGlob[laserId] = std::move(refPointVals[laserId]);
+
       for (auto laserId = 0; laserId < numLasers; laserId++)
         refPointVals[laserId] = std::move(refPointValsCur[laserId]);
-    } else {
+    } 
+    else {
       for (auto laserId = 0; laserId < numLasers; laserId++)
         refPointVals[laserId] = std::move(refPointValsCur[laserId]);
     }
@@ -568,6 +606,11 @@ public:
   void getMotionParams(std::pair<int, int> &th, std::vector<T> &mat, Vec3<int> &tr) const
   {
     motionParams.getMotionParams(th, mat, tr);
+  }
+  template <typename T>
+  void getMotionParamsMultiple(std::pair<int, int> &th, std::vector<T> &mat, Vec3<int> &tr, const int _curPicIndex, const int _refPicIndex) const
+  {
+    motionParams.getMotionParamsMultiple2(th, mat, tr, _curPicIndex, _refPicIndex);
   }
   void setMotionParams(std::pair<int, int> &th, std::vector<int> &mat, Vec3<int> &tr) 
   {

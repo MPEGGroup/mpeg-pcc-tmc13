@@ -101,6 +101,7 @@ public:
     int numNodes,
     int* codedOrder,
     PredGeomPredictor& refFrameSph,
+    PredGeomPredictor& refFrameSph2,
     bool reversed);
 
   int encodeTree(
@@ -110,7 +111,8 @@ public:
     int numNodes,
     int rootIdx,
     int* codedOrder,
-    PredGeomPredictor& refFrameSph);
+    PredGeomPredictor& refFrameSph,
+    PredGeomPredictor& refFrameSph2);
 
   void encodeNumDuplicatePoints(int numDupPoints);
   void encodeNumChildren(int numChildren);
@@ -137,7 +139,7 @@ public:
   void encodeInterFlag(const bool interFlag, const uint8_t interFlagBuffer
   );
   void encodeRefNodeIdx(int refNodeIdx, bool globalMotionEnabled);
-  //void encodeRefNodeFlag(bool refNodeFlag);
+  void encodeRefDirFlag(bool refDirFlag);
   void encodeQpOffset(int dqp);
   void encodeEndOfTreesFlag(int endFlag);
 
@@ -169,6 +171,8 @@ public:
     bool interEnabledFlag,
     int refNodeIdx,
     bool globalMotionEnabled,
+    int numRef,
+    bool refDirFlag,
     //bool refNodeFlag,
     const uint8_t interFlagBuffer,
     float best_known_bits);
@@ -601,6 +605,14 @@ PredGeomEncoder::encodeInterFlag(bool interFlag, const uint8_t interFlagBuffer)
 //----------------------------------------------------------------------------
 
 void
+PredGeomEncoder::encodeRefDirFlag(bool refDirFlag)
+{
+  _aec->encode(refDirFlag, _ctxRefDirFlag);
+}
+
+//----------------------------------------------------------------------------
+
+void
 PredGeomEncoder::encodeRefNodeIdx(int refNodeIdx, bool globalMotionEnabled)
 {
   if (globalMotionEnabled)
@@ -641,6 +653,8 @@ PredGeomEncoder::estimateBits(
   bool interFlag,
   bool interEnabledFlag,
   int refNodeIdx, bool globalMotionEnabled,
+  int numRef,
+  bool refDirFlag,
   //bool refNodeFlag,
   const uint8_t interFlagBuffer,
   float best_known_bits)
@@ -659,6 +673,8 @@ PredGeomEncoder::estimateBits(
       bits += estimate(iMode & 1, _ctxPredMode[1 + (iMode >> 1)]);
     }
   } else {
+    if (numRef > 1)
+      bits += estimate(refDirFlag, _ctxRefDirFlag);
     if (globalMotionEnabled)
       bits += estimate((refNodeIdx >> 1) & 1, _ctxRefNodeIdx[0]);
     bits += estimate(refNodeIdx & 1, _ctxRefNodeIdx[1 + (refNodeIdx >> 1)]);
@@ -773,7 +789,8 @@ PredGeomEncoder::encodeTree(
   int numNodes,
   int rootIdx,
   int* codedOrder,
-  PredGeomPredictor& refFrameSph)
+  PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2)
 {
   QuantizerGeom quantizer(_sliceQp);
   int nodesUntilQpOffset = 0;
@@ -792,6 +809,9 @@ PredGeomEncoder::encodeTree(
   const bool frameMovingState =
     refFrameSph.isInterEnabled() && refFrameSph.getFrameMovingState();
 
+  const bool frameMovingState2 = 
+    refFrameSph2.isInterEnabled() && refFrameSph2.getFrameMovingState();
+
   while (!_stack.empty()) {
     const auto nodeIdx = _stack.back();
     _stack.pop_back();
@@ -799,7 +819,6 @@ PredGeomEncoder::encodeTree(
 
     const auto& node = nodes[nodeIdx];
     const auto& point = srcPts[nodeIdx];
-
     struct {
       float bits = bits = std::numeric_limits<float>::max();
       GPredicter::Mode mode;
@@ -808,6 +827,7 @@ PredGeomEncoder::encodeTree(
       Vec3<int32_t> prediction;
       int qphi;
       bool interFlag;
+      bool RefDirFlag;
       int refNodeIdx = 0;
       //bool refNodeFlag = false;
       uint8_t interFlagBuffer;
@@ -821,7 +841,8 @@ PredGeomEncoder::encodeTree(
     }
 
     bool isInterEnabled = refFrameSph.isInterEnabled() && (prevNodeIdx >= 0);
-
+    bool isInterEnabled2 = refFrameSph2.isInterEnabled() && (prevNodeIdx >= 0);
+    int numRef = isInterEnabled + isInterEnabled2;
     // mode decision to pick best prediction from available set
     int qphi = 0;
     auto azimuthSpeed = _geomAngularAzimuthSpeed;
@@ -842,9 +863,11 @@ PredGeomEncoder::encodeTree(
 
         if (!_azimuth_scaling_enabled_flag && !predicter.isValid(mode))
           continue;
+
+        bool refDirFlag = 0;
         for (auto interFlag = 0; interFlag
-             < (isInterEnabled ? (refFrameSph.getGlobalMotionEnabled() ? 5 : 3)
-                               : 1);
+             < (numRef * ((refFrameSph.getGlobalMotionEnabled()) ? 4 : 2)
+                               + 1);
              //for (auto interFlag = 0; interFlag < (isInterEnabled ? 3 : 1);
              interFlag++) {
           point_t pred = 0;
@@ -872,12 +895,27 @@ PredGeomEncoder::encodeTree(
             const auto prevPos = srcPts[prevNodeIdx];
             const auto parentPos = srcPts[nodes[nodeIdx].parent];
             refNodeIdx = interFlag - 1;
-            const auto interPred =
+            if(numRef > 1){
+              if(refFrameSph.getGlobalMotionEnabled()){
+                if(refNodeIdx > 3){
+                  refNodeIdx -= 4;
+                  refDirFlag = 1;
+                }
+              } 
+              else{
+                if(refNodeIdx > 1){
+                  refNodeIdx -= 2;
+                  refDirFlag = 1;
+                }
+              } 
+            }
+            const auto interPred = refDirFlag ? refFrameSph2.getInterPred(prevPos[1], prevPos[2], refNodeIdx) :
               refFrameSph.getInterPred(prevPos[1], prevPos[2], refNodeIdx);
+            const bool frameMoving = refDirFlag ? frameMovingState2 : frameMovingState;
 
             if (interPred.first) {
               pred = interPred.second;
-              if (refNodeIdx > 1 && frameMovingState) {
+              if (refNodeIdx > 1 && frameMoving) {
                 const auto deltaPhi = pred[1] - parentPos[1];
                 pred[1] = parentPos[1];
                 if (
@@ -889,7 +927,8 @@ PredGeomEncoder::encodeTree(
                   pred[1] += qphi0 * _geomAngularAzimuthSpeed;
                 }
               }
-            } else
+            } 
+            else
               continue;
           }
           auto residual = point - pred;
@@ -972,6 +1011,8 @@ PredGeomEncoder::encodeTree(
             mode, predIdx, residual, qphi, pred[0], interFlag, isInterEnabled,
             refNodeIdx,
             refFrameSph.getGlobalMotionEnabled(),
+            numRef,
+            refDirFlag,
             //refNodeFlag,
             interFlagBuffer, best.bits);
 
@@ -988,6 +1029,7 @@ PredGeomEncoder::encodeTree(
             best.interFlag = interFlag;
             firstCheck = false;
             best.refNodeIdx = refNodeIdx;
+            best.RefDirFlag = refDirFlag;
             //best.refNodeFlag = refNodeFlag;
           }
         }
@@ -1000,8 +1042,12 @@ PredGeomEncoder::encodeTree(
     encodeNumChildren(node.childrenCount);
     if (isInterEnabled)
       encodeInterFlag(best.interFlag, interFlagBuffer);
-    if (best.interFlag)
-      encodeRefNodeIdx(best.refNodeIdx, refFrameSph.getGlobalMotionEnabled());
+    if (best.interFlag){
+      if (numRef > 1)
+        encodeRefDirFlag(best.RefDirFlag);
+      encodeRefNodeIdx(best.refNodeIdx, refFrameSph.getGlobalMotionEnabled());      
+    }
+
       //encodeRefNodeFlag(best.refNodeFlag);
     else {
       if (_azimuth_scaling_enabled_flag)
@@ -1109,6 +1155,7 @@ PredGeomEncoder::encode(
   int numNodes,
   int32_t* codedOrder,
   PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2, 
   bool reversed)
 {
   int32_t processedNodes = 0;
@@ -1121,7 +1168,7 @@ PredGeomEncoder::encode(
 
     int numSubtreeNodes = encodeTree(
       cloudA, cloudB, nodes, numNodes, rootIdx, codedOrder + processedNodes,
-      refFrameSph);
+      refFrameSph, refFrameSph2);
     processedNodes += numSubtreeNodes;
 
     // NB: this is just in case this call to encode needs to encode an
@@ -1402,6 +1449,7 @@ encodePredictiveGeometry(
   PCCPointSet3& cloud,
   std::vector<point_t>* reconPosSph,
   PredGeomPredictor& refFrameSph,
+  PredGeomPredictor& refFrameSph2,
   PredGeomContexts& ctxtMem,
   EntropyEncoder* arithmeticEncoder)
 {
@@ -1485,6 +1533,9 @@ encodePredictiveGeometry(
   refFrameSph.init(
     gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled,
     gps.resamplingEnabled);
+  refFrameSph2.init(
+    gps.interAzimScaleLog2, gps.numLasers(), gps.globalMotionEnabled,
+    gps.resamplingEnabled);
 
   for (int i = 0; i < numPoints;) {
     int iEnd = std::min(i + maxPtsPerTree, int(numPoints));
@@ -1526,7 +1577,7 @@ encodePredictiveGeometry(
 
     if (i > 0)
       enc.encodeEndOfTreesFlag(false);
-    enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i, refFrameSph, reversed);
+    enc.encode(a, b, nodes.data(), nodes.size(), codedOrder.data() + i, refFrameSph, refFrameSph2, reversed);
 
     // put points in output cloud in decoded order
     for (auto iBegin = i; i < iEnd; i++) {

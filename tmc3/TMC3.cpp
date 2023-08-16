@@ -1727,8 +1727,7 @@ sanitizeEncoderOpts(
     params.encoder.gps.geom_multiple_planar_mode_enable_flag = false;
 
   if (
-    params.encoder.gps.predgeom_enabled_flag
-    || !params.encoder.gps.interPredictionEnabledFlag)
+    !params.encoder.gps.interPredictionEnabledFlag)
     params.encoder.gps.biPredictionEnabledFlag = 0;
 
   if (
@@ -2163,7 +2162,6 @@ SequenceEncoder::compressOneFrame(Stopwatch* clock)
     cout << "Error: can't open input file!" << endl;
     return -1;
   }
-
   // Some evaluations wish to scan the points in azimuth order to simulate
   // real-time acquisition (since the input has lost its original order).
   // NB: because this is trying to emulate the input order, binning is disabled

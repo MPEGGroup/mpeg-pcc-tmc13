@@ -221,6 +221,11 @@ PCCTMC3Encoder3::compress(
     if (params->gps.globalMotionEnabled) {
       if (params->gps.predgeom_enabled_flag) {
         _refFrameSph.parseMotionParams(motionVectorFileName, 1.0);
+        if (params->gps.biPredictionEnabledFlag)
+          biPredEncodeParams._refFrameSph2.parseMotionParams(motionVectorFileName, 1.0);
+        params->interGeom.motionParams.parseFile(
+          motionVectorFileName, params->codedGeomScale);
+        deriveMotionParams(params);
       } else if (!params->gps.trisoup_enabled_flag) {
         params->interGeom.motionParams.parseFile(
           motionVectorFileName, params->codedGeomScale);
@@ -276,8 +281,12 @@ PCCTMC3Encoder3::compress(
       std::min(maxZ, top + deltaRight) * params->codedGeomScale;
 
     if (params->gps.globalMotionEnabled) {
-      if (params->gps.predgeom_enabled_flag)
+      if (params->gps.predgeom_enabled_flag) {
         _refFrameSph.updateThresholds(_frameCounter, leftOffset, rightOffset);
+        if (params->gps.biPredictionEnabledFlag) {
+          biPredEncodeParams._refFrameSph2.updateThresholds(_frameCounter, leftOffset, rightOffset);
+        }
+      }
       else if (!params->gps.trisoup_enabled_flag)
         params->interGeom.motionParams.updateThresholds(
           _frameCounter, leftOffset, rightOffset);
@@ -286,7 +295,6 @@ PCCTMC3Encoder3::compress(
       params->predGeom.splitter =
         int(params->predGeom.splitter * _inputDecimationScale);
     }
-
   }
 
   // placeholder to "activate" the parameter sets
@@ -493,7 +501,27 @@ PCCTMC3Encoder3::compress(
 
   if (_frameCounter) {
     if (params->gps.predgeom_enabled_flag) {
+      if (params->gps.biPredictionEnabledFlag){
+        if (!biPredEncodeParams.codeCurrentFrameAsBFrame){
+          _refFrameSph.clearRefFrameCur();
+          _refFrameSph.insert(biPredEncodeParams._refPosSph2);
+          _refPosSph = biPredEncodeParams._refPosSph2;
+        }
+        _refFrameSph.setFrameCtr(_frameCounter - 2);    
+        _refFrameSph.setRefFrameCtr(biPredEncodeParams.refFrameIndex - 1);
+        if(previousAsInter)
+          _refFrameSph.updateCurMovingStatue(_frameCounter, biPredEncodeParams.refFrameIndex);
+
+        if (biPredEncodeParams.codeCurrentFrameAsBFrame){
+          biPredEncodeParams._refFrameSph2.setFrameCtr(_frameCounter - 2);
+          biPredEncodeParams._refFrameSph2.setRefFrameCtr(biPredEncodeParams.refFrameIndex2 - 1);
+          if(previousAsInter)
+            biPredEncodeParams._refFrameSph2.updateCurMovingStatue(_frameCounter, biPredEncodeParams.refFrameIndex2);
+        } 
+      }
       _refFrameSph.updateFrame(*_gps);
+      if (params->gps.biPredictionEnabledFlag && biPredEncodeParams.codeCurrentFrameAsBFrame)
+        biPredEncodeParams._refFrameSph2.updateFrame(*_gps);
     } else if (!params->gps.trisoup_enabled_flag) {
       params->interGeom.motionParams.AdvanceFrame();
     }
@@ -506,6 +534,7 @@ PCCTMC3Encoder3::compress(
     }
   } else {
     _refFrameSph.setGlobalMotionEnabled(_gps->globalMotionEnabled);
+    biPredEncodeParams._refFrameSph2.setGlobalMotionEnabled(_gps->globalMotionEnabled);
   }
 
   // Encode each partition:
@@ -591,22 +620,28 @@ PCCTMC3Encoder3::compressHGOF(
 {
   auto& gof = hGOFEncodeParams.gof;
   auto& gofSpherical = hGOFEncodeParams.gof_spherical;
+  auto& gofPosSph = hGOFEncodeParams.gof_posSph;
   auto& refPointCloud1 = attrInterPredParams.referencePointCloud;
-  auto& refPointCloud2 =
-    biPredEncodeParams.attrInterPredParams2.referencePointCloud;
+  auto& refPointCloud2 = biPredEncodeParams.attrInterPredParams2.referencePointCloud;
   auto& predPointCloud1 = _refFrame.cloud;
   auto& predPointCloud2 = biPredEncodeParams.predPointCloud2;
+  auto& refPosSph1 = _refPosSph;
+  auto& refPosSph2 = biPredEncodeParams._refPosSph2;
+  auto& refFrameSph1 = _refFrameSph;
+  auto& refFrameSph2 = biPredEncodeParams._refFrameSph2;
+
   if (!biPredEncodeParams.codeCurrentFrameAsBFrame) {
     if (gof.size()) {
       predPointCloud2 = gof[gof.size() - 1];
       refPointCloud2 = gofSpherical[gof.size() - 1];
+      refPosSph2 = gofPosSph[gof.size() - 1];
       hGOFEncodeParams.clearGofs();
     }
   } else {
     if (!gof.size()) {
       hGOFEncodeParams.initializeGof(
         biPredEncodeParams.refTimesList.size(), predPointCloud1,
-        predPointCloud2, refPointCloud1, refPointCloud2);
+        predPointCloud2, refPointCloud1, refPointCloud2, refPosSph1, refPosSph2);
     }
 
     const auto idx1 = hGOFEncodeParams.currFrameIndexInGOF
@@ -616,25 +651,21 @@ PCCTMC3Encoder3::compressHGOF(
       + biPredEncodeParams.refFrameIndex2
       - biPredEncodeParams.currentFrameIndex;
     hGOFEncodeParams.updateReferenceFrames(
-      predPointCloud1, predPointCloud2, refPointCloud1, refPointCloud2, idx1,
-      idx2);
+      predPointCloud1, predPointCloud2, refPointCloud1, refPointCloud2, refPosSph1, refPosSph2,
+      refFrameSph1, refFrameSph2, idx1,idx2);
 
     if (!(--(biPredEncodeParams.refTimesList[idx1]))) {
-      gof[idx1].clear();
-      gofSpherical[idx1].clear();
+      hGOFEncodeParams.clearFrame(idx1);
     }
 
     if (!(--(biPredEncodeParams.refTimesList[idx2]))) {
-      gof[idx2].clear();
-      gofSpherical[idx2].clear();
+      hGOFEncodeParams.clearFrame(idx2);
     }
   }
 
   int ret = compress(inputPointCloud, params, callback, reconCloud);
   if (biPredEncodeParams.codeCurrentFrameAsBFrame) {
-    const auto currFrameIdx = hGOFEncodeParams.currFrameIndexInGOF;
-    gof[currFrameIdx] = predPointCloud1;
-    gofSpherical[currFrameIdx] = refPointCloud1;
+    hGOFEncodeParams.storeReferenceFrame(hGOFEncodeParams.currFrameIndexInGOF, predPointCloud1, refPointCloud1, refPosSph1);
   }
 
   return ret;
@@ -900,7 +931,6 @@ PCCTMC3Encoder3::compressPartition(
   //  - prefilter/quantize geometry (non-normative)
   //  - encode geometry (single slice, id = 0)
   //  - recolour
-
   pointCloud.clear();
   pointCloud = inputPointCloud;
   if (paddingPointCloud.getPointCount() != 0)
@@ -1012,6 +1042,9 @@ PCCTMC3Encoder3::compressPartition(
 
   PCCPointSet3 reconSliceAltPositions;
 
+  bool currFrameNotCodedAsB =
+    (_gps->biPredictionEnabledFlag
+      && !biPredEncodeParams.codeCurrentFrameAsBFrame);
   // for each attribute
   for (const auto& it : params->attributeIdxMap) {
     int attrIdx = it.second;
@@ -1233,10 +1266,22 @@ PCCTMC3Encoder3::compressPartition(
 
     callback->onOutputBuffer(payload);
   }
-
+  auto& refPosSph = currFrameNotCodedAsB
+    ? biPredEncodeParams._refPosSph2
+    : _refPosSph;
+  auto& refFrameSph = currFrameNotCodedAsB
+    ? biPredEncodeParams._refFrameSph2
+    : _refFrameSph;
   if (_gps->interPredictionEnabledFlag) {
     if (_gps->predgeom_enabled_flag){
-      _refFrameSph.insert(_posSph);
+      if (currFrameNotCodedAsB){
+        biPredEncodeParams._refPosSph2 = _posSph;
+        biPredEncodeParams._refFrameSph2.insert(_posSph);
+      }
+      else{
+        _refPosSph = _posSph;
+        _refFrameSph.insert(_posSph);
+      }
     }
   }
 
@@ -1296,6 +1341,7 @@ PCCTMC3Encoder3::encodeGeometryBrick(
   gbh.geom_qp_offset_intvl_log2_delta =
     params->gbh.geom_qp_offset_intvl_log2_delta;
   gbh.interFrameRefGmcFlag = false;
+  gbh.interFrameRefGmcFlag2 = false;
   gbh.gm_matrix = {65536, 0, 0, 0, 65536, 0, 0, 0, 65536};
   gbh.gm_trans = 0;
   gbh.gm_thresh = {0, 0};
@@ -1358,13 +1404,24 @@ PCCTMC3Encoder3::encodeGeometryBrick(
 
   if (_gps->predgeom_enabled_flag) {
     _refFrameSph.setInterEnabled(gbh.interPredictionEnabledFlag);
-    if (!gbh.interPredictionEnabledFlag) {
-      if (_gps->globalMotionEnabled)
+    biPredEncodeParams._refFrameSph2.setInterEnabled(gbh.interPredictionEnabledFlag && gbh.biPredictionEnabledFlag);
+    if (!gbh.interPredictionEnabledFlag) {    
+      if (_gps->globalMotionEnabled){
         _refFrameSph.updateNextMovingStatus(false);
-      _refFrameSph.clearRefFrame();
+      }
+      _refFrameSph.clearRefFrame(); 
+      if (_gps->biPredictionEnabledFlag){
+        if (_gps->globalMotionEnabled)
+          biPredEncodeParams._refFrameSph2.updateNextMovingStatus(false);
+        biPredEncodeParams._refFrameSph2.clearRefFrame();         
+      }
+      previousAsInter = false;
+    }
+    else{
+      previousAsInter = true;
     }
     encodePredictiveGeometry(
-      params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph,
+      params->predGeom, *_gps, gbh, pointCloud, &_posSph, _refFrameSph, biPredEncodeParams._refFrameSph2,
       *_ctxtMemPredGeom, arithmeticEncoders[0].get());
   } else if (!_gps->trisoup_enabled_flag) {
     encodeGeometryOctree(
@@ -1382,15 +1439,22 @@ PCCTMC3Encoder3::encodeGeometryBrick(
       *_ctxtMemOctreeGeom, arithmeticEncoders, _refFrame,
       *_sps, params->interGeom);
   }
-
   // signal the actual number of points coded
   gbh.footer.geom_num_points_minus1 = pointCloud.getPointCount() - 1;
 
-  if (
-    _gps->predgeom_enabled_flag && gbh.interPredictionEnabledFlag
-    && _gps->globalMotionEnabled) {
+  if ( _gps->predgeom_enabled_flag && gbh.interPredictionEnabledFlag && _gps->globalMotionEnabled) {
     gbh.interFrameRefGmcFlag = _refFrameSph.getFrameMovingState();
-    _refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
+    if (gbh.biPredictionEnabledFlag)
+      gbh.interFrameRefGmcFlag2 = biPredEncodeParams._refFrameSph2.getFrameMovingState();
+    if (_gps->biPredictionEnabledFlag){
+      _refFrameSph.getMotionParamsMultiple(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans,
+        biPredEncodeParams.currentFrameIndex, biPredEncodeParams.refFrameIndex);
+      if (gbh.biPredictionEnabledFlag)
+        biPredEncodeParams._refFrameSph2.getMotionParamsMultiple(gbh.gm_thresh2, gbh.gm_matrix2, gbh.gm_trans2,
+        biPredEncodeParams.currentFrameIndex, biPredEncodeParams.refFrameIndex2);
+    }
+    else
+      _refFrameSph.getMotionParams(gbh.gm_thresh, gbh.gm_matrix, gbh.gm_trans);
   }
 
   attrInterPredParams.frameDistance = 1;

@@ -156,6 +156,9 @@ private:
   // Point positions in spherical coordinates of the current slice
   std::vector<point_t> _posSph;
 
+  // Point positions in spherical coordinates of the current slice
+  std::vector<point_t> _refPosSph;
+
   // Received parameter sets, mapping parameter set id -> parameterset
   std::map<int, SequenceParameterSet> _spss;
   std::map<int, GeometryParameterSet> _gpss;
