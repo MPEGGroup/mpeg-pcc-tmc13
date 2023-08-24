@@ -949,7 +949,7 @@ compensateWithCuboidPartition(
     applyGlobalMotion_with_shift(
       pointPredictorWorld, gbh.gm_matrix, gbh.gm_trans, minimum_position);
 
-  std::unique_ptr<int> bufferPoints;
+  std::unique_ptr<int[]> bufferPoints;
   bufferPoints.reset(new int[3 * 3000 * 10000]);
   PCCPointSet3 compensatedPointCloud;
 
