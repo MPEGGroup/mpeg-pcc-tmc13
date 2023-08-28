@@ -997,7 +997,7 @@ uraht_process(
 
     for (int i = 0; i < attrInterPredParams.paramsForInterRAHT.voxelCount; i++) {
       weightsLf_ref.emplace_back(UrahtNode{attrInterPredParams.paramsForInterRAHT.mortonCode[i],
-         1, {pointQpOffsets[i][0] << regionQpShift,  pointQpOffsets[i][1] << regionQpShift}});
+         1, {0, 0}});
       for (int k = 0; k < numAttrs; k++) {
         attrsLf_ref.push_back(attrInterPredParams.paramsForInterRAHT.attributes[i * numAttrs + k]);
       }
