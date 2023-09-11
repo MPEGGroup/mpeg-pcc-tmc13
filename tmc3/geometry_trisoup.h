@@ -73,7 +73,7 @@ const int truncateValue = kTrisoupFpHalf;
     Vec3<int32_t> pos;  // position of vertex
     int32_t theta;      // angle of vertex when projected along dominant axis
     int32_t tiebreaker;  // coordinate of vertex along dominant axis
-    bool operator()(Vertex v1, Vertex v2)
+    bool operator()(const Vertex& v1, const Vertex& v2) const
     {
       if (v1.theta > v2.theta)
         return true;  // sort in decreasing order of theta
@@ -82,12 +82,12 @@ const int truncateValue = kTrisoupFpHalf;
       return false;
     }
 
-    bool operator==(Vertex v1)
+    bool operator==(const Vertex& v1) const
     {
       return this->pos == v1.pos;
     }
 
-    bool operator<(Vertex v1)
+    bool operator<(const Vertex& v1) const
     {
       return this->pos < v1.pos;
     }
@@ -120,7 +120,7 @@ const int truncateValue = kTrisoupFpHalf;
   struct duplicateNodes {
     Vec3<int32_t> pos;
     int idx;  // duplicateListIdx = (origIdx<<3)+dupNodeIdx
-    bool operator<( duplicateNodes n ) {
+    bool operator<( const duplicateNodes& n ) const {
       return this->pos < n.pos;
     }
   };
@@ -139,7 +139,7 @@ const int truncateValue = kTrisoupFpHalf;
       }
     }
 
-    bool operator<( node6nei n ) {
+    bool operator<( const node6nei& n ) const {
       return this->idx[6] < n.idx[6];
     }
   };
