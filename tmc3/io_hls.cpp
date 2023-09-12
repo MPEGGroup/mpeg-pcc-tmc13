@@ -1046,7 +1046,6 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
       bs.writeUe(aps.rahtPredParams.raht_prediction_threshold0);
       bs.writeUe(aps.rahtPredParams.raht_prediction_threshold1);
     }
-    bs.write(aps.rahtPredParams.integer_haar_enable_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRaw)
@@ -1070,6 +1069,9 @@ write(const SequenceParameterSet& sps, const AttributeParameterSet& aps)
   bool aps_extension_flag = sps.profile.isDraftProfile();
   bs.write(aps_extension_flag);
   if (aps_extension_flag) {
+    if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      bs.write(aps.rahtPredParams.integer_haar_enable_flag);
+    }
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
       for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
         bs.writeUe(aps.quant_neigh_weight[i]);
@@ -1205,7 +1207,6 @@ parseAps(const PayloadBuffer& buf)
       bs.readUe(&aps.rahtPredParams.raht_prediction_threshold0);
       bs.readUe(&aps.rahtPredParams.raht_prediction_threshold1);
     }
-    bs.read(&aps.rahtPredParams.integer_haar_enable_flag);
   }
 
   if (aps.attr_encoding == AttributeEncoding::kRaw)
@@ -1233,6 +1234,9 @@ parseAps(const PayloadBuffer& buf)
   aps.raht_inter_skip_layers = 0;
   aps.predictionWithDistributionEnabled = false;
   if (aps_extension_flag) {
+    if (aps.attr_encoding == AttributeEncoding::kRAHTransform) {
+      bs.read(&aps.rahtPredParams.integer_haar_enable_flag);
+    }
     if (aps.attr_encoding == AttributeEncoding::kPredictingTransform) {
       for (int i = 0; i <= aps.num_pred_nearest_neighbours_minus1; i++)
         bs.readUe(&aps.quant_neigh_weight[i]);
