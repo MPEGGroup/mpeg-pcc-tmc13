@@ -482,7 +482,7 @@ struct HierarchicalGOFParams {
     cloud1 = gof[preRefFrame];
     cloud2 = gof[backRefFrame];
     attrCloud1 = gof_spherical[preRefFrame];
-    attrCloud1 = gof_spherical[backRefFrame];
+    attrCloud2 = gof_spherical[backRefFrame];
     posSph1 = gof_posSph[preRefFrame];
     posSph2 = gof_posSph[backRefFrame];
     refFrameSph1.clearRefFrameCur();
