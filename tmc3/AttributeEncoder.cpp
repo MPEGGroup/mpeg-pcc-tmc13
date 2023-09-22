@@ -768,10 +768,16 @@ AttributeEncoder::encodeReflectancesPred(
 
   int quantLayer = 0;
 
-  std::vector<int64_t> quantWeights;
-  computeQuantizationWeights(
-    _lods.predictors, quantWeights, aps.quant_neigh_weight,
-    attrInterPredParams.enableAttrInterPred);
+  std::vector<uint64_t> quantWeights;
+
+  if (!aps.scalable_lifting_enabled_flag) {
+    computeQuantizationWeights(
+      _lods.predictors, quantWeights, aps.quant_neigh_weight,
+      attrInterPredParams.enableAttrInterPred);
+  } else {
+    computeQuantizationWeightsScalable(
+      _lods.predictors, _lods.numPointsInLod, pointCount, 0, quantWeights);
+  }
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -798,7 +804,8 @@ AttributeEncoder::encodeReflectancesPred(
 
     int64_t qStep = quant[0].stepSize();
     int64_t weight =
-      std::min(quantWeights[predictorIndex], qStep) >> kFixedPointWeightShift;
+      std::min(static_cast<int64_t>(quantWeights[predictorIndex]), qStep)
+      >> kFixedPointWeightShift;
     const int64_t delta = quant[0].quantize(
       ((quantAttValue - quantPredAttValue) * weight)
       << kFixedPointAttributeShift);
@@ -1093,9 +1100,16 @@ AttributeEncoder::encodeColorsPred(
   int lod = 0;
   int quantLayer = 0;
 
-  std::vector<int64_t> quantWeights;
-  computeQuantizationWeights(
-    _lods.predictors, quantWeights, aps.quant_neigh_weight);
+  std::vector<uint64_t> quantWeights;
+
+  if (!aps.scalable_lifting_enabled_flag) {
+    computeQuantizationWeights(
+      _lods.predictors, quantWeights, aps.quant_neigh_weight);
+  } else {
+    computeQuantizationWeightsScalable(
+      _lods.predictors, _lods.numPointsInLod, pointCount, 0, quantWeights);
+  }
+
 
   for (size_t predictorIndex = 0; predictorIndex < pointCount;
        ++predictorIndex) {
@@ -1129,7 +1143,8 @@ AttributeEncoder::encodeColorsPred(
       int64_t residual = color[k] - predictedColor[k];
 
       int64_t qStep = q.stepSize();
-      int64_t weight = std::min(quantWeights[predictorIndex], qStep)
+      int64_t weight =
+        std::min(static_cast<int64_t>(quantWeights[predictorIndex]), qStep)
         >> kFixedPointWeightShift;
       int64_t residualQ =
         q.quantize((residual * weight) << kFixedPointAttributeShift);

@@ -895,7 +895,7 @@ computeQuantizationWeightsScalable(
 inline void
 computeQuantizationWeights(
   const std::vector<PCCPredictor>& predictors,
-  std::vector<int64_t>& quantizationWeights,
+  std::vector<uint64_t>& quantizationWeights,
   Vec3<int32_t> neighWeight
   , bool interRef = false
   )
