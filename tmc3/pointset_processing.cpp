@@ -1255,13 +1255,13 @@ orderByLaserAngle(
     auto a = cloud[aIdx] - origin;
     auto b = cloud[bIdx] - origin;
 
-    double rA = hypot(a[0], a[1]);
-    double phiA = cloud.getLaserAngle(aIdx);
-    double tanThetaA = a[2] / rA;
+    float rA = hypot(a[0], a[1]);
+    float phiA = cloud.getLaserAngle(aIdx);
+    float tanThetaA = a[2] / rA;
 
-    double rB = hypot(b[0], b[1]);
-    double phiB = cloud.getLaserAngle(bIdx);
-    double tanThetaB = b[2] / rB;
+    float rB = hypot(b[0], b[1]);
+    float phiB = cloud.getLaserAngle(bIdx);
+    float tanThetaB = b[2] / rB;
 
     // quantise azimith to specified precision
     if (recipBinWidth != 0.) {
