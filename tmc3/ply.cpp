@@ -272,7 +272,7 @@ ply::read(
       attributesInfo.resize(attributeIndex + 1);
       AttributeInfo& attributeInfo = attributesInfo[attributeIndex];
       attributeInfo.name = propertyName;
-      if (propertyType == "float64") {
+      if (propertyType == "float64" || propertyType == "double") {
         attributeInfo.type = ATTRIBUTE_TYPE_FLOAT64;
         attributeInfo.byteCount = 8;
       } else if (propertyType == "float" || propertyType == "float32") {
